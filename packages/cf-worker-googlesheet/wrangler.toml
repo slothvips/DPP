@@ -1,0 +1,14 @@
+name = "dpp-sync-worker"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Secrets will be set via `wrangler secret put`
+# GOOGLE_SERVICE_ACCOUNT = "..."
+# SYNC_ACCESS_TOKEN = "..."
+
+[[kv_namespaces]]
+binding = "SYNC_KV"
+id = "cc525887234547eb8e5fc647d69bdb7e"
+preview_id = "yyyy"
