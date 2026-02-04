@@ -1,0 +1,313 @@
+/*
+ * rrweb-player 主题覆盖样式
+ * 适配深浅色模式，统一图标风格
+ */
+
+/* ============================================================================
+   基础容器
+   ============================================================================ */
+
+.rrweb-player-container .rr-player {
+  background-color: hsl(var(--card)) !important;
+  font-family: inherit !important;
+  border-radius: 0.5rem !important;
+  overflow: hidden !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.rrweb-player-container .rr-player__frame {
+  background-color: #000 !important;
+}
+
+/* ============================================================================
+   控制栏容器
+   ============================================================================ */
+
+.rrweb-player-container .rr-controller {
+  background: hsl(var(--background) / 0.95) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  padding: 12px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  height: auto !important;
+  min-height: 52px !important;
+}
+
+/* ============================================================================
+   时间轴/进度条
+   ============================================================================ */
+
+.rrweb-player-container .rr-timeline {
+  flex: 1 !important;
+  margin: 0 !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
+}
+
+.rrweb-player-container .rr-progress {
+  background-color: hsl(var(--secondary)) !important;
+  height: 4px !important;
+  border-radius: 9999px !important;
+  transition: height 0.15s ease !important;
+  overflow: visible !important;
+}
+
+.rrweb-player-container .rr-timeline:hover .rr-progress {
+  height: 6px !important;
+}
+
+.rrweb-player-container .rr-progress__step {
+  background: hsl(var(--primary)) !important;
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+}
+
+.rrweb-player-container .rr-progress__handler {
+  width: 14px !important;
+  height: 14px !important;
+  background-color: hsl(var(--primary)) !important;
+  border-radius: 50% !important;
+  border: 2px solid hsl(var(--background)) !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) scale(0) !important;
+  transition: transform 0.15s ease !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+  margin-top: 0 !important;
+}
+
+.rrweb-player-container .rr-timeline:hover .rr-progress__handler {
+  transform: translate(-50%, -50%) scale(1) !important;
+}
+
+.rrweb-player-container .rr-timeline__time {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace !important;
+  font-variant-numeric: tabular-nums !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: hsl(var(--muted-foreground)) !important;
+  min-width: 80px !important;
+  text-align: center !important;
+}
+
+/* ============================================================================
+   按钮组
+   ============================================================================ */
+
+.rrweb-player-container .rr-controller__btns {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.rrweb-player-container .rr-controller button {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 6px !important;
+  border: none !important;
+  background: transparent !important;
+  color: hsl(var(--foreground)) !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease !important;
+  padding: 0 !important;
+}
+
+.rrweb-player-container .rr-controller button:hover {
+  background-color: hsl(var(--accent)) !important;
+  color: hsl(var(--accent-foreground)) !important;
+}
+
+.rrweb-player-container .rr-controller button:active {
+  transform: scale(0.95) !important;
+}
+
+.rrweb-player-container .rr-controller button svg {
+  width: 16px !important;
+  height: 16px !important;
+  fill: currentColor !important;
+}
+
+/* 倍速按钮 - 文本样式 */
+.rrweb-player-container .rr-controller__btns > button:nth-child(2) {
+  width: auto !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  background-color: hsl(var(--secondary)) !important;
+  color: hsl(var(--secondary-foreground)) !important;
+}
+
+.rrweb-player-container .rr-controller__btns > button:nth-child(2):hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+/* ============================================================================
+   倍速菜单
+   ============================================================================ */
+
+.rrweb-player-container .rr-speed-menu {
+  background-color: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 8px !important;
+  padding: 4px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  margin-bottom: 8px !important;
+}
+
+.rrweb-player-container .rr-speed-menu li {
+  font-size: 12px !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  color: hsl(var(--popover-foreground)) !important;
+  transition: background-color 0.1s ease !important;
+  cursor: pointer !important;
+}
+
+.rrweb-player-container .rr-speed-menu li:hover {
+  background-color: hsl(var(--accent)) !important;
+}
+
+.rrweb-player-container .rr-speed-menu li.active {
+  color: hsl(var(--primary)) !important;
+  font-weight: 600 !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+}
+
+/* ============================================================================
+   Skip Inactive 开关
+   ============================================================================ */
+
+.rrweb-player-container .rr-controller .switch {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 4px !important;
+  cursor: pointer !important;
+}
+
+.rrweb-player-container .rr-controller .switch span {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: hsl(var(--muted-foreground)) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+}
+
+.rrweb-player-container .rr-controller .switch label {
+  width: 36px !important;
+  height: 20px !important;
+  padding: 2px !important;
+  margin: 0 !important;
+  background-color: hsl(var(--secondary)) !important;
+  border-radius: 9999px !important;
+  position: relative !important;
+  cursor: pointer !important;
+  transition: background-color 0.2s ease !important;
+  border: none !important;
+  box-sizing: border-box !important;
+  display: block !important;
+}
+
+.rrweb-player-container .rr-controller .switch label::before {
+  display: none !important;
+}
+
+.rrweb-player-container .rr-controller .switch input:checked + label {
+  background-color: hsl(var(--primary)) !important;
+}
+
+.rrweb-player-container .rr-controller .switch label::after {
+  content: '' !important;
+  display: block !important;
+  width: 16px !important;
+  height: 16px !important;
+  background-color: #fff !important;
+  border-radius: 50% !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+  transition: transform 0.2s ease !important;
+  transform: translateX(0) !important;
+  position: static !important;
+}
+
+.rrweb-player-container .rr-controller .switch input:checked + label::after {
+  transform: translateX(16px) !important;
+}
+
+/* ============================================================================
+   全屏模式
+   ============================================================================ */
+
+.rrweb-player-container .rr-player:fullscreen,
+.rrweb-player-container .rr-player:-webkit-full-screen {
+  width: 100vw !important;
+  height: 100vh !important;
+  border-radius: 0 !important;
+  background-color: #000 !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-controller,
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-controller {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8)) !important;
+  border-top: none !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-controller button,
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-controller button {
+  color: #fff !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-controller button:hover,
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-controller button:hover {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-timeline__time,
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-timeline__time {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-controller .switch span,
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-controller .switch span {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-progress,
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-progress {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-controller__btns > button:nth-child(2),
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-controller__btns > button:nth-child(2) {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-controller .switch label,
+.rrweb-player-container .rr-player:-webkit-full-screen .rr-controller .switch label {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.rrweb-player-container .rr-player:fullscreen .rr-controller .switch input:checked + label,
+.rrweb-player-container
+  .rr-player:-webkit-full-screen
+  .rr-controller
+  .switch
+  input:checked
+  + label {
+  background-color: hsl(var(--primary)) !important;
+}
