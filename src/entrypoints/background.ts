@@ -4,6 +4,8 @@ import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
 import type { JenkinsMessage, JenkinsResponse } from '@/features/jenkins/messages';
 import { openLink } from '@/features/links/utils';
+import type { RecorderMessage, RecordingSavedMessage } from '@/features/recorder/messages';
+import type { RecordingState } from '@/features/recorder/types';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
 
@@ -15,6 +17,14 @@ async function getJenkinsCredentials() {
   if (!host || !user || !token) throw new Error('Jenkins credentials not configured');
   return { host, user, token };
 }
+
+const recordingStates = new Map<number, RecordingState>();
+const remoteRecordingCache = new Map<
+  string,
+  { events: unknown[]; title: string; timestamp: number }
+>();
+
+const CACHE_EXPIRY_MS = 5 * 60 * 1000;
 
 export default defineBackground(() => {
   logger.info('Background started');
@@ -46,6 +56,40 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (message.type === 'REMOTE_RECORDING_CACHE') {
+      const { cacheId, events, title } = message.payload as {
+        cacheId: string;
+        events: unknown[];
+        title: string;
+      };
+      remoteRecordingCache.set(cacheId, { events, title, timestamp: Date.now() });
+      logger.debug('Cached remote recording:', cacheId, 'events:', events.length);
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.type === 'REMOTE_RECORDING_GET') {
+      const { cacheId } = message.payload as { cacheId: string };
+      const cached = remoteRecordingCache.get(cacheId);
+
+      if (cached && Date.now() - cached.timestamp < CACHE_EXPIRY_MS) {
+        sendResponse({ success: true, events: cached.events, title: cached.title });
+        setTimeout(() => remoteRecordingCache.delete(cacheId), 5000);
+      } else {
+        if (cached) remoteRecordingCache.delete(cacheId);
+        sendResponse({ success: false, error: 'Cache expired or not found' });
+      }
+      return true;
+    }
+
+    if (message.type === 'OPEN_PLAYER_TAB') {
+      const { cacheId } = message.payload as { cacheId: string };
+      const playerUrl = browser.runtime.getURL(`/player.html?cache=${cacheId}`);
+      browser.tabs.create({ url: playerUrl });
+      sendResponse({ success: true });
+      return true;
+    }
+
     if (message.type === 'SAVE_JENKINS_TOKEN') {
       const { token, host, user } = message.payload;
       logger.debug('Received Jenkins token for:', host);
@@ -63,6 +107,94 @@ export default defineBackground(() => {
         }
       })();
 
+      return true;
+    }
+
+    if (message.type.startsWith('RECORDER_')) {
+      const recorderMessage = message as RecorderMessage;
+      (async () => {
+        try {
+          if (recorderMessage.type === 'RECORDER_START') {
+            const { tabId } = recorderMessage;
+            recordingStates.set(tabId, { isRecording: true, startTime: Date.now(), tabId });
+            try {
+              await browser.tabs.sendMessage(tabId, { type: 'RECORDER_INJECT' });
+              sendResponse({ success: true });
+            } catch (e) {
+              logger.warn(`Failed to inject recorder on tab ${tabId}:`, e);
+              recordingStates.delete(tabId);
+              sendResponse({ success: false, error: 'Content script not ready' });
+            }
+          } else if (recorderMessage.type === 'RECORDER_STOP') {
+            const { tabId } = recorderMessage;
+            try {
+              await browser.tabs.sendMessage(tabId, { type: 'RECORDER_STOP_CAPTURE' });
+              sendResponse({ success: true });
+            } catch (e) {
+              logger.warn(`Failed to stop recorder on tab ${tabId}:`, e);
+              recordingStates.delete(tabId);
+              sendResponse({ success: false, error: 'Lost connection to tab' });
+            }
+          } else if (recorderMessage.type === 'RECORDER_GET_STATUS') {
+            const { tabId } = recorderMessage;
+            const state = recordingStates.get(tabId) || { isRecording: false };
+            logger.debug('Recorder status requested:', { tabId, state });
+            sendResponse(state);
+          } else if (recorderMessage.type === 'RECORDER_GET_STATUS_FOR_CONTENT') {
+            const tabId = _sender.tab?.id;
+            if (tabId) {
+              const state = recordingStates.get(tabId) || { isRecording: false };
+              sendResponse(state);
+            } else {
+              sendResponse({ isRecording: false });
+            }
+          } else if (recorderMessage.type === 'RECORDER_GET_ALL_RECORDINGS') {
+            db.recordings
+              .orderBy('createdAt')
+              .reverse()
+              .toArray()
+              .then((recordings) => {
+                sendResponse({ success: true, recordings });
+              })
+              .catch((e) => {
+                sendResponse({ success: false, error: String(e) });
+              });
+          } else if (recorderMessage.type === 'RECORDER_COMPLETE') {
+            const { events, url, favicon, duration } = recorderMessage;
+            const tabId = _sender.tab?.id;
+
+            if (tabId) {
+              recordingStates.delete(tabId);
+
+              const id = crypto.randomUUID();
+              const recording = {
+                id,
+                title: `Recording - ${new Date().toLocaleString()}`,
+                url,
+                favicon,
+                createdAt: Date.now(),
+                duration,
+                eventsCount: events.length,
+                fileSize: JSON.stringify(events).length,
+                events,
+              };
+
+              await db.recordings.add(recording);
+
+              const savedMessage: RecordingSavedMessage = {
+                type: 'RECORDER_SAVED',
+                recordingId: id,
+              };
+              browser.runtime.sendMessage(savedMessage).catch(() => {});
+              sendResponse({ success: true, recordingId: id });
+            } else {
+              sendResponse({ success: false, error: 'No tab ID' });
+            }
+          }
+        } catch (e) {
+          logger.error('Recorder error:', e);
+        }
+      })();
       return true;
     }
 

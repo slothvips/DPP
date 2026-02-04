@@ -7,6 +7,9 @@ export default defineConfig({
   modules: ['@wxt-dev/module-react'],
   vite: () => ({
     plugins: [UnoCSS()],
+    esbuild: {
+      charset: 'ascii',
+    },
   }),
   webExt: {
     disabled: true,

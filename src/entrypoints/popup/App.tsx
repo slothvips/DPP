@@ -8,6 +8,7 @@ import { db } from '@/db';
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
+import { RecordingsView } from '@/features/recorder/components/RecordingsView';
 import { useTheme } from '@/hooks/useTheme';
 
 export function App() {
@@ -35,7 +36,7 @@ export function App() {
   const showSyncButton = !!serverUrl;
   const hasJenkins = !!jenkinsToken;
 
-  const [activeTab, setActiveTab] = useState<'links' | 'jenkins' | 'hotNews'>('links');
+  const [activeTab, setActiveTab] = useState<'links' | 'jenkins' | 'hotNews' | 'recorder'>('links');
 
   useEffect(() => {
     if (hasJenkins) {
@@ -94,6 +95,13 @@ export function App() {
               热点
             </button>
           )}
+          <button
+            type="button"
+            className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveTab('recorder')}
+          >
+            录制
+          </button>
         </div>
 
         {/* Content */}
@@ -101,6 +109,7 @@ export function App() {
           {activeTab === 'links' && featureToggles.links && <LinksView />}
           {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
           {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
+          {activeTab === 'recorder' && <RecordingsView />}
         </main>
       </div>
     </ToastProvider>
