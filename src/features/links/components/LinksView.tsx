@@ -1,7 +1,5 @@
 import {
-  Check,
   Clock,
-  Copy,
   Edit,
   List,
   Pin,
@@ -10,6 +8,7 @@ import {
   Search,
   StickyNote,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { type AnchorHTMLAttributes, type MouseEvent, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -17,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/components/ui/toast';
 import type { LinkItem, TagItem } from '@/db';
+import { ImportLinksDialog } from '@/features/links/components/ImportLinksDialog';
 import { LinkDialog } from '@/features/links/components/LinkDialog';
 import { type LinkWithStats, useLinks } from '@/features/links/hooks/useLinks';
 import { cn } from '@/utils/cn';
@@ -24,16 +24,7 @@ import { cn } from '@/utils/cn';
 type ViewMode = 'recent' | 'all';
 
 function NoteButton({ note }: { note: string }) {
-  const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(note);
-    setCopied(true);
-    toast('备注已复制', 'success');
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -54,15 +45,6 @@ function NoteButton({ note }: { note: string }) {
         <div className="flex flex-col">
           <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b">
             <span className="text-xs font-medium text-muted-foreground">备注</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={handleCopy}
-              title="复制"
-            >
-              {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
-            </Button>
           </div>
           <div className="p-3 text-sm whitespace-pre-wrap break-words max-h-[200px] overflow-y-auto">
             {note}
@@ -115,6 +97,7 @@ export function LinksView() {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<(LinkItem & { tags?: TagItem[] }) | null>(null);
   const { toast } = useToast();
 
@@ -158,21 +141,27 @@ export function LinksView() {
         });
     }
 
-    switch (viewMode) {
-      case 'recent':
-        return result.filter((l) => l.lastUsedAt > 0).sort((a, b) => b.lastUsedAt - a.lastUsedAt);
-      default:
-        return result.sort((a, b) => {
-          const aPinned = !!a.pinnedAt;
-          const bPinned = !!b.pinnedAt;
-          if (aPinned !== bPinned) return aPinned ? -1 : 1;
-          if (a.pinnedAt && b.pinnedAt) {
-            return (b.pinnedAt || 0) - (a.pinnedAt || 0);
-          }
-          if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
-          return a.name.localeCompare(b.name);
+    if (viewMode === 'recent') {
+      return result
+        .filter((link) => link.usageCount > 0) // Filter: only used links
+        .sort((a, b) => {
+          // Sort by lastUsedAt (descending)
+          const timeA = a.lastUsedAt || 0;
+          const timeB = b.lastUsedAt || 0;
+          return timeB - timeA;
         });
     }
+
+    return result.sort((a, b) => {
+      const aPinned = !!a.pinnedAt;
+      const bPinned = !!b.pinnedAt;
+      if (aPinned !== bPinned) return aPinned ? -1 : 1;
+      if (a.pinnedAt && b.pinnedAt) {
+        return (b.pinnedAt || 0) - (a.pinnedAt || 0);
+      }
+      if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
+      return a.name.localeCompare(b.name);
+    });
   }, [links, search, viewMode]);
 
   const handleLinkClick = (id: string) => {
@@ -220,69 +209,80 @@ export function LinksView() {
   };
 
   return (
-    <div className="space-y-4 h-full flex flex-col overflow-hidden">
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索链接..."
-              className="pl-8"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Button onClick={handleAdd} size="icon" className="shrink-0" title="添加链接">
-            <Plus className="h-4 w-4" />
-          </Button>
+    <div className="space-y-4 h-full flex flex-col">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="搜索链接..."
+            className="pl-8"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-
-        {!search && (
-          <div className="flex border-b">
-            <button
-              type="button"
-              className={cn(
-                'flex-1 py-2 text-sm font-medium transition-colors relative',
-                viewMode === 'recent'
-                  ? 'text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-              onClick={() => setViewMode('recent')}
-            >
-              <div className="flex items-center justify-center gap-1">
-                <Clock className="h-4 w-4" />
-                <span>Recent</span>
-              </div>
-              {viewMode === 'recent' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                'flex-1 py-2 text-sm font-medium transition-colors relative',
-                viewMode === 'all' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-              )}
-              onClick={() => setViewMode('all')}
-            >
-              <div className="flex items-center justify-center gap-1">
-                <List className="h-4 w-4" />
-                <span>All</span>
-              </div>
-              {viewMode === 'all' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-              )}
-            </button>
-          </div>
-        )}
+        <Button
+          onClick={() => setIsImportDialogOpen(true)}
+          size="icon"
+          variant="ghost"
+          className="shrink-0"
+          title="AI 智能导入"
+        >
+          <Upload className="h-4 w-4" />
+        </Button>
+        <Button onClick={handleAdd} size="icon" className="shrink-0" title="添加链接">
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
 
-      <div className="grid gap-2 overflow-y-auto pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+      {!search && (
+        <div className="flex border-b">
+          <button
+            type="button"
+            className={cn(
+              'flex-1 py-2 text-sm font-medium transition-colors relative',
+              viewMode === 'recent' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            )}
+            onClick={() => setViewMode('recent')}
+          >
+            <div className="flex items-center justify-center gap-1">
+              <Clock className="h-4 w-4" />
+              <span>Recent</span>
+            </div>
+            {viewMode === 'recent' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            )}
+          </button>
+          <button
+            type="button"
+            className={cn(
+              'flex-1 py-2 text-sm font-medium transition-colors relative',
+              viewMode === 'all' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+            )}
+            onClick={() => setViewMode('all')}
+          >
+            <div className="flex items-center justify-center gap-1">
+              <List className="h-4 w-4" />
+              <span>All</span>
+            </div>
+            {viewMode === 'all' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            )}
+          </button>
+        </div>
+      )}
+
+      <div
+        className={cn(
+          'grid gap-2 overflow-y-auto pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] flex-1 min-h-0',
+          'grid-cols-1 auto-rows-min'
+        )}
+      >
         {filteredAndSortedLinks?.map((link) => (
           <div
             key={link.id}
             className={cn(
-              'flex items-center gap-2 p-3 rounded-lg border transition-colors group relative overflow-hidden',
+              'flex items-center gap-2 rounded-lg border transition-colors group relative overflow-hidden',
+              'p-3 h-auto min-h-[60px]',
               link.pinnedAt ? 'bg-secondary/30 border-primary/20' : 'hover:bg-accent'
             )}
           >
@@ -290,7 +290,7 @@ export function LinksView() {
               href={link.url}
               target="_blank"
               rel="noreferrer"
-              className="flex-1 min-w-0"
+              className={cn('flex-1 min-w-0 block')}
               onSingleClick={() => handleLinkClick(link.id)}
               onAuxClick={(e) => {
                 if (e.button === 1) {
@@ -299,28 +299,47 @@ export function LinksView() {
               }}
             >
               <div className="flex items-center gap-2">
-                <div className="font-medium truncate">{link.name}</div>
-                {link.note && <StickyNote className="h-3 w-3 text-muted-foreground/50 shrink-0" />}
+                <div className="font-medium truncate text-base leading-normal py-0.5">
+                  {link.name}
+                </div>
+                {link.note && (
+                  <StickyNote className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                )}
               </div>
-              <div className="text-xs text-muted-foreground truncate flex items-center gap-2 mt-0.5">
-                <span className="truncate max-w-[200px]">{link.url}</span>
+              <div
+                className={cn(
+                  'text-xs text-muted-foreground truncate flex items-center gap-2 mt-1',
+                  'w-full'
+                )}
+              >
+                <span className="truncate max-w-[400px] opacity-70">{link.url}</span>
                 {link.tags && link.tags.length > 0 && (
-                  <div className="flex gap-1">
-                    <span className="shrink-0 opacity-50">•</span>
-                    {link.tags.map((tag) => (
+                  <div className="flex gap-1.5 overflow-hidden">
+                    <span className="shrink-0 opacity-30">|</span>
+                    {link.tags.slice(0, 3).map((tag) => (
                       <span
                         key={tag.id}
-                        className="bg-muted px-1 rounded text-[10px] text-muted-foreground"
+                        className="bg-muted px-1.5 py-0.5 rounded text-[11px] text-muted-foreground truncate max-w-[100px]"
                       >
                         {tag.name}
                       </span>
                     ))}
+                    {link.tags.length > 3 && (
+                      <span className="text-[10px] opacity-50 flex items-center">
+                        +{link.tags.length - 3}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
             </LinkWithCopy>
 
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-background/80 backdrop-blur-sm p-1 rounded-md shadow-sm border shrink-0">
+            <div
+              className={cn(
+                'opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-background/90 backdrop-blur-sm p-1 rounded-md shadow-sm border shrink-0 z-10',
+                'absolute top-2 right-2'
+              )}
+            >
               {link.note && <NoteButton note={link.note} />}
               <Button
                 variant="ghost"
@@ -364,19 +383,17 @@ export function LinksView() {
               </Button>
             </div>
             {link.pinnedAt && (
-              <div className="absolute top-0 right-0 p-1 opacity-100 group-hover:opacity-0 group-focus-within:opacity-0 transition-opacity pointer-events-none">
-                <Pin className="h-3 w-3 text-primary/50 rotate-45" />
+              <div className="absolute top-0 right-0 p-1 opacity-100 pointer-events-none">
+                <div className="bg-primary/10 p-1 rounded-bl-lg backdrop-blur-[1px]">
+                  <Pin className="h-3 w-3 text-primary/70 rotate-0" />
+                </div>
               </div>
             )}
           </div>
         ))}
         {filteredAndSortedLinks?.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            {search
-              ? 'No matching links found'
-              : viewMode === 'recent'
-                ? 'No recently used links yet'
-                : 'No links found'}
+          <div className="text-center py-8 text-muted-foreground col-span-full">
+            {search ? 'No matching links found' : 'No links found'}
           </div>
         )}
       </div>
@@ -386,6 +403,15 @@ export function LinksView() {
         onClose={() => setIsDialogOpen(false)}
         initialData={editingLink}
         onSave={handleSave}
+      />
+
+      <ImportLinksDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onImportSuccess={() => {
+          setIsImportDialogOpen(false);
+          toast('导入完成，正在同步...', 'success');
+        }}
       />
     </div>
   );

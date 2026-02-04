@@ -584,7 +584,7 @@ function OptionsApp() {
             <h2 className="text-xl font-semibold">数据管理</h2>
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">
-                导出仅包含配置项（如 API Token、同步服务器设置），链接和任务数据请通过远程同步获取。
+                导出仅包含关键配置项，链接和任务数据请通过远程同步获取。
               </p>
               <div className="flex gap-2">
                 <Button onClick={exportData} variant="outline" className="gap-2">

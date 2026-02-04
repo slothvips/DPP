@@ -91,6 +91,52 @@ export function useLinks() {
     return id;
   };
 
+  const bulkAddLinks = async (
+    items: Array<Omit<LinkItem, 'id' | 'updatedAt' | 'category'> & { tags?: string[] }>
+  ) => {
+    const now = Date.now();
+    const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
+
+    await db.transaction('rw', db.links, db.tags, linkTagsTable, async () => {
+      // Pre-fetch all tags to minimize queries if needed, though simpler to just trust IDs are passed or handled
+      // Actually the import dialog will handle tag creation/lookup before calling this if strictly following ID pattern,
+      // OR we can make this smarter.
+      // For simplicity and matching addLink, we assume tags are passed as IDs.
+      // If we want to support creating tags on the fly during bulk import, we'd need more logic.
+      // The current requirement says "convert ... to format system can import", usually implying normalized data.
+      // Let's assume the import logic in the dialog will resolve tag names to IDs or create them.
+      // Wait, the prompt says "convert arbitrary data". The LLM output might just have tag names.
+      // It would be much better if bulkAddLinks handled tag name -> ID resolution automatically.
+
+      // Let's stick to the current pattern: The caller resolves tags.
+      // But wait, `addLink` takes `tags: string[]` which are IDs.
+      // So `bulkAddLinks` should also take IDs.
+      // The ImportDialog will handle the "Tag Name -> Tag ID" logic.
+
+      for (const data of items) {
+        const id = crypto.randomUUID();
+        await db.links.add({
+          id,
+          name: data.name,
+          url: data.url,
+          note: data.note,
+          category: '',
+          updatedAt: now,
+        });
+
+        if (data.tags && data.tags.length > 0) {
+          for (const tagId of data.tags) {
+            await linkTagsTable.add({
+              linkId: id,
+              tagId,
+              updatedAt: now,
+            });
+          }
+        }
+      }
+    });
+  };
+
   const updateLink = async (
     id: string,
     data: Partial<Omit<LinkItem, 'id' | 'updatedAt' | 'category'>> & { tags?: string[] }
@@ -157,6 +203,7 @@ export function useLinks() {
     recordVisit,
     togglePin,
     addLink,
+    bulkAddLinks,
     updateLink,
     deleteLink,
   };

@@ -62,6 +62,9 @@ export class SyncEngine {
   // Split large pushes into smaller chunks to improve reliability on poor networks
   private readonly PUSH_BATCH_SIZE = 50;
 
+  // Max number of consecutive pull batches to prevent infinite loops
+  private readonly MAX_PULL_LOOPS = 100;
+
   constructor(
     db: Dexie,
     tables: string[],
@@ -306,54 +309,78 @@ export class SyncEngine {
       this.setStatus('pulling');
 
       const clientId = await this.ensureClientId();
+      let totalPulled = 0;
+      let loopCount = 0;
+      let hasMore = true;
 
-      const state = (await this.db.table('syncMetadata').get('global')) as SyncMetadata | undefined;
-      const cursor = state?.lastServerCursor;
+      while (hasMore && loopCount < this.MAX_PULL_LOOPS) {
+        loopCount++;
+        const state = (await this.db.table('syncMetadata').get('global')) as
+          | SyncMetadata
+          | undefined;
+        const cursor = state?.lastServerCursor;
 
-      const { ops, nextCursor } = await this.withRetry(
-        () => this.provider.pull(cursor, clientId),
-        'Pull'
-      );
+        const { ops, nextCursor } = await this.withRetry(
+          () => this.provider.pull(cursor, clientId),
+          'Pull'
+        );
 
-      if (ops.length === 0) {
-        this.setStatus('idle');
-        return;
-      }
+        if (ops.length === 0) {
+          hasMore = false;
+          break;
+        }
 
-      const remoteOps = ops.filter((op) => op.clientId !== clientId);
+        const remoteOps = ops.filter((op) => op.clientId !== clientId);
 
-      if (remoteOps.length === 0) {
-        await this.db.table('syncMetadata').put({
-          id: 'global',
-          lastServerCursor: nextCursor,
-          lastSyncTimestamp: Date.now(),
-        });
-        this.setStatus('idle');
-        return;
-      }
+        if (remoteOps.length > 0) {
+          // Set flag to prevent recording operations during remote apply
+          this.isApplyingRemoteOps = true;
+          try {
+            await this.db.transaction(
+              'rw',
+              [...this.tables.map((t) => this.db.table(t)), this.db.table('syncMetadata')],
+              async () => {
+                for (const op of remoteOps) {
+                  await this.applyOperation(op);
+                }
 
-      // Set flag to prevent recording operations during remote apply
-      this.isApplyingRemoteOps = true;
-
-      await this.db.transaction(
-        'rw',
-        [...this.tables.map((t) => this.db.table(t)), this.db.table('syncMetadata')],
-        async () => {
-          for (const op of remoteOps) {
-            await this.applyOperation(op);
+                await this.db.table('syncMetadata').put({
+                  id: 'global',
+                  lastServerCursor: nextCursor,
+                  lastSyncTimestamp: Date.now(),
+                });
+              }
+            );
+          } finally {
+            this.isApplyingRemoteOps = false;
           }
-
+          totalPulled += remoteOps.length;
+        } else {
+          // Even if no ops (e.g. filtered out echoes), update cursor to advance
           await this.db.table('syncMetadata').put({
             id: 'global',
             lastServerCursor: nextCursor,
             lastSyncTimestamp: Date.now(),
           });
         }
-      );
 
-      this._lastSyncTime = Date.now();
-      this.setStatus('idle');
-      this.emit('sync-complete', { type: 'pull', count: remoteOps.length });
+        // Safety check: if cursor didn't move, assume we're done or server is stuck
+        if (nextCursor === cursor) {
+          hasMore = false;
+        }
+      }
+
+      if (loopCount >= this.MAX_PULL_LOOPS) {
+        logger.warn(`[Sync] Pull reached max loops (${this.MAX_PULL_LOOPS}), stopping.`);
+      }
+
+      if (totalPulled > 0 || loopCount > 0) {
+        this._lastSyncTime = Date.now();
+        this.setStatus('idle');
+        this.emit('sync-complete', { type: 'pull', count: totalPulled });
+      } else {
+        this.setStatus('idle');
+      }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       logger.error('[Sync] Pull failed after retries:', errorMsg);

@@ -97,7 +97,7 @@ export function App() {
         </div>
 
         {/* Content */}
-        <main className="flex-1 overflow-hidden p-4">
+        <main className="flex-1 overflow-hidden p-2">
           {activeTab === 'links' && featureToggles.links && <LinksView />}
           {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
           {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
