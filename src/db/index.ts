@@ -16,6 +16,7 @@ import type {
 } from './types';
 
 export * from './types';
+export type { Recording } from '@/features/recorder/types';
 
 export const db = new Dexie('DPPDB') as DPPDatabase;
 
@@ -148,6 +149,10 @@ db.version(13)
       }
     }
   });
+
+db.version(14).stores({
+  recordings: '&id, createdAt, url',
+});
 
 const defaultSyncProvider: SyncProvider = {
   push: async (ops, clientId) => {

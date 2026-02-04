@@ -1,5 +1,6 @@
 import type Dexie from 'dexie';
 import type { EntityTable } from 'dexie';
+import type { Recording } from '@/features/recorder/types';
 import type { SyncMetadata, SyncOperation } from '@/lib/sync/types';
 
 export interface LinkItem {
@@ -105,6 +106,7 @@ export type DPPDatabase = Dexie & {
   jobTags: EntityTable<JobTagItem, never>; // Compound key, not single key access
   myBuilds: EntityTable<MyBuildItem, 'id'>;
   hotNews: EntityTable<HotNewsCache, 'date'>;
+  recordings: EntityTable<Recording, 'id'>;
   operations: EntityTable<SyncOperation, 'id'>;
   syncMetadata: EntityTable<SyncMetadata, 'id'>;
 };
