@@ -132,6 +132,18 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (message.type === 'PREVIEW_OPEN') {
+      browser.tabs.create({ url: browser.runtime.getURL('/preview.html') });
+      sendResponse({ success: true });
+      return true;
+    }
+
+    if (message.type === 'PREVIEW_SIGNAL') {
+      browser.runtime.sendMessage(message).catch(() => {});
+      sendResponse({ success: true });
+      return true;
+    }
+
     if (message.type === 'SAVE_JENKINS_TOKEN') {
       const { token, host, user } = message.payload;
       logger.debug('Received Jenkins token for:', host);

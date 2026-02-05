@@ -53,6 +53,18 @@ export interface RequestStreamMessage {
   type: 'RECORDER_REQUEST_STREAM';
 }
 
+export interface PreviewSignalMessage {
+  type: 'PREVIEW_SIGNAL';
+  payload: {
+    signal: unknown;
+    target: 'offscreen' | 'preview';
+  };
+}
+
+export interface PreviewOpenMessage {
+  type: 'PREVIEW_OPEN';
+}
+
 export type RecorderMessage =
   | StartRecordingMessage
   | StopRecordingMessage
@@ -65,7 +77,9 @@ export type RecorderMessage =
   | RecordingSavedMessage
   | GetAllRecordingsMessage
   | GetRecordingByIdMessage
-  | RequestStreamMessage;
+  | RequestStreamMessage
+  | PreviewSignalMessage
+  | PreviewOpenMessage;
 
 export interface GetAllRecordingsMessage {
   type: 'RECORDER_GET_ALL_RECORDINGS';
