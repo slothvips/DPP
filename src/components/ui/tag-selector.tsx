@@ -80,37 +80,39 @@ export function TagSelector({
         <PopoverContent className="w-64 p-2 z-[100]" align="start">
           <div className="space-y-2">
             <div className="font-medium text-sm">选择标签</div>
-            <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto content-start">
-              {filteredTags.map((tag) => (
-                <div
-                  key={tag.id}
-                  className={`flex items-center justify-between px-2 py-1 rounded text-xs border group/tag transition-colors cursor-default ${
-                    selectedTagIds.has(tag.id)
-                      ? 'bg-info/10 border-info/20 text-info'
-                      : 'bg-background border-border hover:bg-accent hover:text-accent-foreground'
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => onToggleTag(tag.id)}
-                    className="flex-1 text-left outline-none truncate mr-1"
-                    title={tag.name}
+            <div className="max-h-48 overflow-y-auto pr-1">
+              <div className="flex flex-wrap gap-1 content-start">
+                {filteredTags.map((tag) => (
+                  <div
+                    key={tag.id}
+                    className={`flex items-center justify-between px-2 py-1 rounded text-xs border group/tag transition-colors cursor-default ${
+                      selectedTagIds.has(tag.id)
+                        ? 'bg-info/10 border-info/20 text-info'
+                        : 'bg-background border-border hover:bg-accent hover:text-accent-foreground'
+                    }`}
                   >
-                    {tag.name}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDeleteTag(tag.id, tag.name);
-                    }}
-                    className="ml-2 p-0.5 text-muted-foreground hover:text-destructive opacity-0 group-hover/tag:opacity-100 transition-opacity"
-                    title="删除标签"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              ))}
+                    <button
+                      type="button"
+                      onClick={() => onToggleTag(tag.id)}
+                      className="flex-1 text-left outline-none truncate mr-1"
+                      title={tag.name}
+                    >
+                      {tag.name}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteTag(tag.id, tag.name);
+                      }}
+                      className="ml-2 p-0.5 text-muted-foreground hover:text-destructive opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                      title="删除标签"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="flex gap-2 pt-2 border-t">
               <Input
