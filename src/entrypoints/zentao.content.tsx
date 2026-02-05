@@ -293,7 +293,7 @@ function runInMainFrame() {
         try {
           const res = await browser.runtime.sendMessage({ type: 'RECORDER_GET_ALL_RECORDINGS' });
           if (res.success && res.recordings?.length > 0) {
-            showRecordingPicker(doc, res.recordings, input, button, originalText);
+            showRecordingPicker(doc, res.recordings, input, button, originalText, win);
           } else {
             win.alert('暂无录像记录');
             button.innerHTML = originalText;
@@ -497,11 +497,11 @@ function runInMainFrame() {
       title: string;
       createdAt: number;
       duration: number;
-      events: unknown[];
     }>,
     input: HTMLInputElement,
     button: HTMLButtonElement,
-    originalText: string
+    originalText: string,
+    win: Window
   ) {
     const existing = doc.getElementById('dpp-recording-picker');
     if (existing) existing.remove();
@@ -570,23 +570,49 @@ function runInMainFrame() {
       item.appendChild(recTitle);
       item.appendChild(recMeta);
 
-      item.onclick = () => {
-        const safeTitle = rec.title.replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_');
-        const filename = `${safeTitle}.rrweb.json`;
-        const blob = new Blob([JSON.stringify(rec.events)], { type: 'application/json' });
-        const file = new File([blob], filename, { type: 'application/json' });
+      item.onclick = async () => {
+        recTitle.textContent = '⏳ 加载中...';
+        item.style.pointerEvents = 'none';
+        item.style.opacity = '0.6';
 
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        input.files = dt.files;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
+        try {
+          const res = await browser.runtime.sendMessage({
+            type: 'RECORDER_GET_RECORDING_BY_ID',
+            id: rec.id,
+          });
 
-        overlay.remove();
-        button.innerHTML = '✅ 已选择';
-        setTimeout(() => {
-          button.innerHTML = originalText;
-          button.disabled = false;
-        }, 2000);
+          if (!res.success || !res.recording) {
+            win.alert('加载录像失败');
+            recTitle.textContent = rec.title;
+            item.style.pointerEvents = '';
+            item.style.opacity = '';
+            return;
+          }
+
+          const recording = res.recording as { title: string; events: unknown[] };
+          const safeTitle = recording.title.replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_');
+          const filename = `${safeTitle}.rrweb.json`;
+          const blob = new Blob([JSON.stringify(recording.events)], { type: 'application/json' });
+          const file = new File([blob], filename, { type: 'application/json' });
+
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          input.files = dt.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+
+          overlay.remove();
+          button.innerHTML = '✅ 已选择';
+          setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+          }, 2000);
+        } catch (err) {
+          log('Error fetching recording:', err);
+          win.alert('加载录像失败');
+          recTitle.textContent = rec.title;
+          item.style.pointerEvents = '';
+          item.style.opacity = '';
+        }
       };
 
       modal.appendChild(item);

@@ -59,14 +59,38 @@ export type RecorderMessage =
   | RecordingEventMessage
   | RecordingCompleteMessage
   | RecordingSavedMessage
-  | GetAllRecordingsMessage;
+  | GetAllRecordingsMessage
+  | GetRecordingByIdMessage;
 
 export interface GetAllRecordingsMessage {
   type: 'RECORDER_GET_ALL_RECORDINGS';
 }
 
+/** 录像元数据（不含 events，用于列表展示） */
+export interface RecordingMeta {
+  id: string;
+  title: string;
+  url: string;
+  favicon?: string;
+  createdAt: number;
+  duration: number;
+  eventsCount: number;
+  fileSize: number;
+}
+
 export interface GetAllRecordingsResponse {
   success: boolean;
-  recordings?: import('./types').Recording[];
+  recordings?: RecordingMeta[];
+  error?: string;
+}
+
+export interface GetRecordingByIdMessage {
+  type: 'RECORDER_GET_RECORDING_BY_ID';
+  id: string;
+}
+
+export interface GetRecordingByIdResponse {
+  success: boolean;
+  recording?: import('./types').Recording;
   error?: string;
 }

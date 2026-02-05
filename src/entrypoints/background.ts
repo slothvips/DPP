@@ -149,16 +149,24 @@ export default defineBackground(() => {
               sendResponse({ isRecording: false });
             }
           } else if (recorderMessage.type === 'RECORDER_GET_ALL_RECORDINGS') {
-            db.recordings
-              .orderBy('createdAt')
-              .reverse()
-              .toArray()
-              .then((recordings) => {
-                sendResponse({ success: true, recordings });
-              })
-              .catch((e) => {
-                sendResponse({ success: false, error: String(e) });
-              });
+            try {
+              const recordings = await db.recordings.orderBy('createdAt').reverse().toArray();
+              const metas = recordings.map(({ events: _events, ...meta }) => meta);
+              sendResponse({ success: true, recordings: metas });
+            } catch (e) {
+              sendResponse({ success: false, error: String(e) });
+            }
+          } else if (recorderMessage.type === 'RECORDER_GET_RECORDING_BY_ID') {
+            try {
+              const recording = await db.recordings.get(recorderMessage.id);
+              if (recording) {
+                sendResponse({ success: true, recording });
+              } else {
+                sendResponse({ success: false, error: 'Recording not found' });
+              }
+            } catch (e) {
+              sendResponse({ success: false, error: String(e) });
+            }
           } else if (recorderMessage.type === 'RECORDER_COMPLETE') {
             const { events, url, favicon, duration } = recorderMessage;
             const tabId = _sender.tab?.id;
@@ -193,6 +201,7 @@ export default defineBackground(() => {
           }
         } catch (e) {
           logger.error('Recorder error:', e);
+          sendResponse({ success: false, error: String(e) });
         }
       })();
       return true;
