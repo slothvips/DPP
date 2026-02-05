@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronDown, ChevronRight, RefreshCw, User } from 'lucide-react';
+import { ChevronDown, ChevronRight, RefreshCw, User, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,10 @@ export function JenkinsView() {
 
   const myBuilds =
     useLiveQuery(() => db.myBuilds.orderBy('timestamp').reverse().toArray(), [refreshKey]) || [];
+
+  const othersBuilds =
+    useLiveQuery(() => db.othersBuilds.orderBy('timestamp').reverse().toArray(), [refreshKey]) ||
+    [];
 
   const filteredJobs = useMemo(() => {
     if (!jobs || jobs.length === 0) return [];
@@ -226,6 +230,51 @@ export function JenkinsView() {
                     <div className="p-2 text-xs text-muted-foreground">暂无我构建的任务</div>
                   ) : (
                     myBuilds.map((build) => (
+                      <MyBuildRow
+                        key={build.id}
+                        build={build}
+                        onBuild={() => setBuildJob({ url: build.jobUrl, name: build.jobName })}
+                      />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="mb-2">
+              <div
+                className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer select-none group"
+                onClick={() => toggleExpand('__others_builds__')}
+                onKeyDown={(e) => e.key === 'Enter' && toggleExpand('__others_builds__')}
+                role="button"
+                tabIndex={0}
+              >
+                <button
+                  type="button"
+                  className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0"
+                >
+                  {expandedUrls.has('__others_builds__') ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                </button>
+                <div className="shrink-0 text-primary relative">
+                  <Users className="w-4 h-4" />
+                </div>
+                <span className="flex-1 text-sm font-medium">他人的构建</span>
+                <div className="flex items-center gap-2 mr-2">
+                  <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded-full">
+                    {othersBuilds.length}
+                  </span>
+                </div>
+              </div>
+              {expandedUrls.has('__others_builds__') && (
+                <div className="pl-6 space-y-1">
+                  {othersBuilds.length === 0 ? (
+                    <div className="p-2 text-xs text-muted-foreground">暂无他人的构建任务</div>
+                  ) : (
+                    othersBuilds.map((build) => (
                       <MyBuildRow
                         key={build.id}
                         build={build}

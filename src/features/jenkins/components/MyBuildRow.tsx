@@ -30,6 +30,11 @@ export function MyBuildRow({ build, onBuild }: MyBuildRowProps) {
             {build.jobName}
           </a>
           <span className="text-xs text-muted-foreground font-mono">#{build.number}</span>
+          {build.userName && (
+            <span className="text-xs bg-muted px-1 rounded text-muted-foreground">
+              {build.userName}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
