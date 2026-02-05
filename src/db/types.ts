@@ -65,7 +65,8 @@ export type SettingKey =
   | 'feature_hotnews_enabled'
   | 'feature_links_enabled'
   | 'sync_client_id'
-  | 'global_sync_start_time';
+  | 'global_sync_start_time'
+  | 'show_others_builds';
 
 export interface Setting {
   key: SettingKey;
