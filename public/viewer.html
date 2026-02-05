@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>屏幕共享 - 观看</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #09090b;
+        color: #fafafa;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 24px;
+        margin-bottom: 24px;
+      }
+      .card {
+        background: #18181b;
+        border: 1px solid #27272a;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+        color: #a1a1aa;
+      }
+      .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #71717a;
+      }
+      .dot.ready {
+        background: #eab308;
+      }
+      .dot.connected {
+        background: #22c55e;
+      }
+      .dot.waiting {
+        animation: pulse 1.5s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+      label,
+      .label {
+        display: block;
+        font-size: 14px;
+        font-weight: 500;
+        color: #d4d4d8;
+        margin-bottom: 8px;
+      }
+      textarea {
+        width: 100%;
+        height: 120px;
+        resize: none;
+        background: #27272a;
+        border: 1px solid #3f3f46;
+        border-radius: 8px;
+        padding: 12px;
+        font-family: monospace;
+        font-size: 12px;
+        color: #d4d4d8;
+      }
+      textarea::placeholder {
+        color: #52525b;
+      }
+      textarea:focus {
+        outline: none;
+        border-color: #3b82f6;
+      }
+      button {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-top: 8px;
+      }
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+      .btn-primary:disabled {
+        background: #3f3f46;
+        cursor: not-allowed;
+      }
+      .btn-success {
+        background: #22c55e;
+        color: white;
+      }
+      .btn-success:hover {
+        background: #16a34a;
+      }
+      .copy-wrap {
+        position: relative;
+      }
+      .copy-btn {
+        position: absolute;
+        right: 8px;
+        top: 8px;
+        width: auto;
+        padding: 4px 12px;
+        margin: 0;
+      }
+      .error {
+        color: #f87171;
+        font-size: 14px;
+        margin-top: 8px;
+      }
+      .success-card {
+        background: rgba(34, 197, 94, 0.1);
+        border-color: #166534;
+        text-align: center;
+        color: #4ade80;
+      }
+      .video-container {
+        aspect-ratio: 16/9;
+        background: #000;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid #27272a;
+      }
+      video {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .hidden {
+        display: none;
+      }
+      .space-y > * + * {
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>屏幕共享 - 观看</h1>
+
+      <div class="card">
+        <div class="status">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">等待输入邀请码</span>
+        </div>
+      </div>
+
+      <div id="inputSection" class="space-y">
+        <div class="card">
+          <p class="label">步骤 1: 粘贴分享者的邀请码</p>
+          <textarea id="offerInput" placeholder="粘贴邀请码..."></textarea>
+          <button type="button" class="btn-primary" id="processBtn" disabled>生成连接码</button>
+          <p class="error hidden" id="error"></p>
+        </div>
+
+        <div class="card hidden" id="answerSection">
+          <p class="label">步骤 2: 复制连接码发回给分享者</p>
+          <div class="copy-wrap">
+            <textarea id="answerOutput" readonly></textarea>
+            <button type="button" class="btn-success copy-btn" id="copyBtn">复制</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="connectedSection" class="hidden space-y">
+        <div class="card success-card">
+          <p>连接成功！正在接收屏幕画面...</p>
+        </div>
+        <div class="video-container">
+          <video id="video" autoplay playsinline></video>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const offerInput = document.getElementById('offerInput');
+      const processBtn = document.getElementById('processBtn');
+      const answerSection = document.getElementById('answerSection');
+      const answerOutput = document.getElementById('answerOutput');
+      const copyBtn = document.getElementById('copyBtn');
+      const errorEl = document.getElementById('error');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+      const inputSection = document.getElementById('inputSection');
+      const connectedSection = document.getElementById('connectedSection');
+      const video = document.getElementById('video');
+
+      let pc = null;
+      let collectedCandidates = [];
+
+      function decodeSignal(encoded) {
+        const binary = atob(encoded);
+        const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+        const json = new TextDecoder().decode(bytes);
+        return JSON.parse(json);
+      }
+
+      function encodeSignal(payload) {
+        const json = JSON.stringify(payload);
+        const bytes = new TextEncoder().encode(json);
+        return btoa(String.fromCharCode(...bytes));
+      }
+
+      function setStatus(type, text) {
+        statusDot.className = 'dot ' + type;
+        statusText.textContent = text;
+      }
+
+      offerInput.addEventListener('input', () => {
+        processBtn.disabled = !offerInput.value.trim();
+      });
+
+      processBtn.addEventListener('click', async () => {
+        errorEl.classList.add('hidden');
+        try {
+          const decoded = decodeSignal(offerInput.value.trim());
+          setStatus('waiting', '正在建立连接...');
+
+          pc = new RTCPeerConnection({
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+          });
+          collectedCandidates = [];
+
+          pc.ontrack = (event) => {
+            console.log('Track received');
+            video.srcObject = event.streams[0];
+            inputSection.classList.add('hidden');
+            connectedSection.classList.remove('hidden');
+            setStatus('connected', '已连接');
+          };
+
+          pc.onicecandidate = (event) => {
+            if (event.candidate) {
+              collectedCandidates.push(event.candidate.toJSON());
+            } else {
+              const answer = {
+                sdp: pc.localDescription,
+                candidates: collectedCandidates,
+              };
+              answerOutput.value = encodeSignal(answer);
+              answerSection.classList.remove('hidden');
+              setStatus('ready', '等待分享者确认连接');
+            }
+          };
+
+          await pc.setRemoteDescription(new RTCSessionDescription(decoded.sdp));
+
+          for (const candidate of decoded.candidates) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+        } catch (e) {
+          console.error(e);
+          errorEl.textContent = '无效的邀请码: ' + e.message;
+          errorEl.classList.remove('hidden');
+          setStatus('', '邀请码错误');
+        }
+      });
+
+      copyBtn.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(answerOutput.value);
+        copyBtn.textContent = '已复制!';
+        setTimeout(() => {
+          copyBtn.textContent = '复制';
+        }, 2000);
+      });
+    </script>
+  </body>
+</html>
