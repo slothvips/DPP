@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronDown, ChevronRight, ExternalLink, Loader2, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/db';
 import { fetchNews, getAvailableDates } from '@/features/hotNews/api';
@@ -11,10 +11,40 @@ export function HotNewsView() {
   const [date, setDate] = useState(getAvailableDates()[0].value);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('dpp_hotnews_expanded');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
 
   const cachedNews = useLiveQuery(() => db.hotNews.get(date), [date]);
   const news = cachedNews?.data as DailyNews | undefined;
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem('dpp_hotnews_expanded', JSON.stringify([...expandedSections]));
+  }, [expandedSections]);
+
+  useEffect(() => {
+    const savedScroll = localStorage.getItem('dpp_hotnews_scroll');
+    if (savedScroll && scrollContainerRef.current) {
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = Number(savedScroll);
+        }
+      });
+    }
+  }, [date, news, expandedSections]);
+
+  const handleScroll = useCallback(() => {
+    if (scrollContainerRef.current) {
+      localStorage.setItem('dpp_hotnews_scroll', String(scrollContainerRef.current.scrollTop));
+    }
+  }, []);
 
   const loadNews = useCallback(async () => {
     setLoading(true);
@@ -144,7 +174,9 @@ export function HotNewsView() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1">{renderContent()}</div>
+      <div className="flex-1 overflow-y-auto pr-1" ref={scrollContainerRef} onScroll={handleScroll}>
+        {renderContent()}
+      </div>
     </div>
   );
 }
