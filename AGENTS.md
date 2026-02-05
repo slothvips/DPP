@@ -14,12 +14,14 @@ AI agents working on this codebase MUST follow these guidelines strictly.
 | Icons       | Lucide React, Unocss Icons               |
 | State/DB    | Dexie.js (IndexedDB) + dexie-react-hooks |
 | Sync        | Custom SyncEngine + E2E Encryption       |
+| Recording   | rrweb (Session Replay)                   |
 | Pkg Manager | **pnpm** (NEVER use npm/yarn)            |
 
 ## 2. Critical Rules
 
-- **No `any`**: Use `unknown` or specific types. Avoid `any` at all costs.
+- **No `any`**: Use `unknown` or specific types. `eslint` is configured to error on `any`.
 - **No Suppressions**: Do not use `@ts-ignore` or `@ts-expect-error`. Fix the underlying issue.
+- **Unused Vars**: Prefix unused variables with `_` (e.g., `_req`) to satisfy linter.
 - **No Relative Parent Imports**: Always use `@/` alias (e.g., `@/components/...`) instead of `../../`.
 - **Strict Equality**: Always use `===` and `!==`.
 - **Functional Components**: Use `function Name() {}` syntax, not `const Name = () => {}`.
@@ -66,6 +68,7 @@ src/
 │       ├── components/  # Feature-specific UI
 │       ├── hooks/       # Feature-specific hooks (useLinks, etc.)
 │       ├── utils/       # Feature-specific helpers
+│       ├── messages.ts  # Feature-specific messaging/constants
 │       └── types.ts     # Type definitions
 ├── db/                  # Dexie schema (index.ts) + Sync logic
 ├── lib/                 # Core utilities
@@ -137,6 +140,7 @@ if (typeof browser !== 'undefined') {
 - **Sync:** Use `SyncEngine` class for data replication.
 - **Styling:** Use `UnoCSS` utility classes. Use `cva` for component variants.
 - **Logging:** Use `logger.info/warn/error` from `@/utils/logger` instead of `console.log`.
+- **Messaging:** Centralize feature messages/constants in `features/<feature>/messages.ts`.
 
 ## 6. Data & Synchronization
 
