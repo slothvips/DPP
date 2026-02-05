@@ -1,4 +1,4 @@
-import { type MyBuildItem, db } from '@/db';
+import { type MyBuildItem, type OthersBuildItem, db } from '@/db';
 import { logger } from '@/utils/logger';
 import { createJenkinsClient } from './client';
 
@@ -34,6 +34,7 @@ interface JenkinsJobsResponse {
 export async function fetchMyBuilds(baseUrl: string, user: string, token: string): Promise<number> {
   const client = createJenkinsClient({ baseUrl, user, token });
   const allMyBuilds: MyBuildItem[] = [];
+  const allOthersBuilds: OthersBuildItem[] = [];
   const processedUrls = new Set<string>();
   const MAX_DEPTH = 10; // Maximum folder depth to prevent infinite recursion
 
@@ -63,14 +64,20 @@ export async function fetchMyBuilds(baseUrl: string, user: string, token: string
       if (j.builds && j.builds.length > 0) {
         for (const b of j.builds) {
           let isMyBuild = false;
+          let builderName: string | undefined;
 
           if (b.actions) {
             for (const action of b.actions) {
               if (action.causes) {
                 for (const cause of action.causes) {
-                  if (cause.userId === user || cause.userName === user) {
+                  const causeUser = cause.userId || cause.userName;
+                  if (causeUser === user) {
                     isMyBuild = true;
+                    builderName = causeUser;
                     break;
+                  }
+                  if (causeUser && !builderName) {
+                    builderName = causeUser;
                   }
                 }
               }
@@ -78,29 +85,34 @@ export async function fetchMyBuilds(baseUrl: string, user: string, token: string
             }
           }
 
-          if (isMyBuild) {
-            let displayJobName = 'Unknown';
-            if (b.fullDisplayName) {
-              const parts = b.fullDisplayName.split(' #');
-              if (parts.length > 1) {
-                displayJobName = parts.slice(0, -1).join(' #').trim();
-              } else {
-                displayJobName = b.fullDisplayName;
-              }
+          let displayJobName = 'Unknown';
+          if (b.fullDisplayName) {
+            const parts = b.fullDisplayName.split(' #');
+            if (parts.length > 1) {
+              displayJobName = parts.slice(0, -1).join(' #').trim();
             } else {
-              displayJobName = j.name;
+              displayJobName = b.fullDisplayName;
             }
+          } else {
+            displayJobName = j.name;
+          }
 
-            allMyBuilds.push({
-              id: b.url,
-              number: Number.parseInt(b.number || b.id, 10),
-              jobName: displayJobName,
-              jobUrl: j.url,
-              result: b.result || (b.building ? 'Building' : 'Unknown'),
-              timestamp: b.timestamp,
-              duration: b.duration,
-              building: b.building || false,
-            });
+          const buildItem = {
+            id: b.url,
+            number: Number.parseInt(b.number || b.id, 10),
+            jobName: displayJobName,
+            jobUrl: j.url,
+            result: b.result || (b.building ? 'Building' : 'Unknown'),
+            timestamp: b.timestamp,
+            duration: b.duration,
+            building: b.building || false,
+            userName: builderName,
+          };
+
+          if (isMyBuild) {
+            allMyBuilds.push(buildItem);
+          } else if (builderName) {
+            allOthersBuilds.push(buildItem);
           }
         }
       }
@@ -117,13 +129,21 @@ export async function fetchMyBuilds(baseUrl: string, user: string, token: string
 
   await traverse(client.rootUrl);
 
-  const uniqueBuilds = Array.from(new Map(allMyBuilds.map((b) => [b.id, b])).values());
-  uniqueBuilds.sort((a, b) => b.timestamp - a.timestamp);
+  const uniqueMyBuilds = Array.from(new Map(allMyBuilds.map((b) => [b.id, b])).values());
+  uniqueMyBuilds.sort((a, b) => b.timestamp - a.timestamp);
 
-  await db.transaction('rw', db.myBuilds, async () => {
+  const uniqueOthersBuilds = Array.from(new Map(allOthersBuilds.map((b) => [b.id, b])).values());
+  uniqueOthersBuilds.sort((a, b) => b.timestamp - a.timestamp);
+  // Keep only top 50 recent builds for others
+  const recentOthersBuilds = uniqueOthersBuilds.slice(0, 50);
+
+  await db.transaction('rw', db.myBuilds, db.othersBuilds, async () => {
     await db.myBuilds.clear();
-    await db.myBuilds.bulkPut(uniqueBuilds);
+    await db.myBuilds.bulkPut(uniqueMyBuilds);
+
+    await db.othersBuilds.clear();
+    await db.othersBuilds.bulkPut(recentOthersBuilds);
   });
 
-  return uniqueBuilds.length;
+  return uniqueMyBuilds.length;
 }
