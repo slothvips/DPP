@@ -8,7 +8,7 @@ function log(...args: unknown[]) {
 }
 
 export default defineContentScript({
-  matches: ['<all_urls>'],
+  matches: ['*://*/*zentao*'],
   allFrames: true,
   runAt: 'document_idle',
   main() {
