@@ -17,6 +17,37 @@ export function useRecordings() {
     await db.recordings.update(id, { title });
   };
 
+  const importRecording = async (file: File) => {
+    const text = await file.text();
+    const events = JSON.parse(text);
+
+    if (!Array.isArray(events) || events.length === 0) {
+      throw new Error('Invalid recording file: content must be a non-empty array of events');
+    }
+
+    if (typeof events[0].timestamp !== 'number') {
+      throw new Error('Invalid recording format: missing timestamps');
+    }
+
+    const startTime = events[0].timestamp;
+    const endTime = events[events.length - 1].timestamp;
+    const duration = endTime - startTime;
+
+    const recording: Recording = {
+      id: crypto.randomUUID(),
+      title: file.name.replace(/\.rrweb\.json$/i, '').replace(/\.json$/i, ''),
+      url: '',
+      createdAt: Date.now(),
+      duration: duration > 0 ? duration : 0,
+      eventsCount: events.length,
+      fileSize: file.size,
+      events,
+    };
+
+    await db.recordings.add(recording);
+    return recording.id;
+  };
+
   const exportRecording = (recording: Recording) => {
     const safeTitle = recording.title.replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_'); // Allow Chinese characters
     const dateStr = new Date(recording.createdAt).toISOString().replace(/[:.]/g, '-');
@@ -40,5 +71,6 @@ export function useRecordings() {
     clearRecordings,
     updateTitle,
     exportRecording,
+    importRecording,
   };
 }

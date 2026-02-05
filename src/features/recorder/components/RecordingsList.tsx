@@ -10,7 +10,7 @@ interface Props {
 
 export function RecordingsList({ recordings, onDelete, onUpdateTitle, onExport }: Props) {
   if (recordings.length === 0) {
-    return <div className="text-center py-8 text-muted-foreground text-sm">No recordings yet.</div>;
+    return <div className="text-center py-8 text-muted-foreground text-sm">暂无录制记录。</div>;
   }
 
   return (

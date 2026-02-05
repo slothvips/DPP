@@ -1,6 +1,8 @@
 import Peer from 'peerjs';
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { logger } from '@/utils/logger';
 
 type ConnectionStatus = 'waiting' | 'ready' | 'connected' | 'failed';
@@ -60,7 +62,7 @@ function HostView() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 text-white flex flex-col">
+    <div className="min-h-screen bg-background p-6 text-foreground flex flex-col">
       <div className="mx-auto max-w-2xl space-y-6 flex-1 w-full">
         <h1 className="text-2xl font-bold">屏幕共享 - 分享者</h1>
 
@@ -68,37 +70,42 @@ function HostView() {
 
         {status === 'ready' && (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-zinc-300">邀请码 (发送给观看者)</p>
+            <label htmlFor="peer-id-display" className="text-sm font-medium text-muted-foreground">
+              邀请码 (发送给观看者)
+            </label>
             <div className="relative">
-              <div className="h-16 w-full flex items-center rounded-lg border border-zinc-700 bg-zinc-800 p-3 font-mono text-xl text-green-400 select-all">
+              <div
+                id="peer-id-display"
+                className="h-12 w-full flex items-center rounded-md border border-input bg-muted/50 px-3 font-mono text-lg text-green-600 dark:text-green-400 select-all"
+              >
                 {peerId}
               </div>
-              <button
+              <Button
                 type="button"
                 onClick={handleCopyId}
-                className="absolute right-2 top-4 rounded bg-blue-600 px-4 py-2 text-sm hover:bg-blue-700 font-bold"
+                className="absolute right-1 top-1 h-10 px-3"
               >
                 {copied ? '已复制!' : '复制'}
-              </button>
+              </Button>
             </div>
-            <p className="text-xs text-zinc-500 text-center mt-4">
+            <p className="text-xs text-muted-foreground text-center mt-4">
               提示: 观看者输入此号码即可直接连接，无需额外操作。
             </p>
           </div>
         )}
 
         {status === 'connected' && (
-          <div className="rounded-lg border border-green-800 bg-green-900/20 p-8 text-center animate-in fade-in zoom-in duration-300">
-            <h2 className="text-2xl font-bold text-green-400 mb-2">正在共享</h2>
-            <p className="text-zinc-300">观看者已连接，正在传输画面。</p>
+          <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-8 text-center animate-in fade-in zoom-in duration-300">
+            <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-2">正在共享</h2>
+            <p className="text-muted-foreground">观看者已连接，正在传输画面。</p>
           </div>
         )}
       </div>
 
       <div className="mt-8 mx-auto max-w-2xl w-full">
-        <details className="text-zinc-500">
-          <summary className="cursor-pointer hover:text-zinc-300 text-xs mb-2">调试日志</summary>
-          <div className="bg-black/50 p-2 rounded text-[10px] font-mono h-32 overflow-y-auto border border-zinc-800">
+        <details className="text-muted-foreground">
+          <summary className="cursor-pointer hover:text-foreground text-xs mb-2">调试日志</summary>
+          <div className="bg-muted p-2 rounded text-[10px] font-mono h-32 overflow-y-auto border border-border">
             {logs.map((log, i) => (
               <div key={i} className="mb-1">
                 {log}
@@ -208,7 +215,7 @@ function ViewerView() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 text-white">
+    <div className="min-h-screen bg-background p-6 text-foreground">
       <div className="mx-auto max-w-2xl space-y-6">
         <h1 className="text-2xl font-bold">屏幕共享 - 观看者</h1>
 
@@ -217,32 +224,38 @@ function ViewerView() {
         {status !== 'connected' && (
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-zinc-300">输入分享者的邀请码</label>
-              <input
+              <label
+                htmlFor="peer-id-input-viewer"
+                className="text-sm font-medium text-muted-foreground"
+              >
+                输入分享者的邀请码
+              </label>
+              <Input
+                id="peer-id-input-viewer"
                 type="text"
                 value={targetPeerId}
                 onChange={(e) => setTargetPeerId(e.target.value)}
                 placeholder="例如: dpp-uuid-..."
-                className="w-full rounded-lg border border-zinc-700 bg-zinc-800 p-3 font-mono text-lg text-white placeholder:text-zinc-600 focus:border-blue-500 focus:outline-none"
+                className="font-mono text-lg h-12"
               />
             </div>
 
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
 
-            <button
+            <Button
               type="button"
               onClick={handleConnect}
               disabled={!targetPeerId.trim() || status === 'ready'}
-              className="w-full rounded-lg bg-blue-600 py-3 font-bold hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="w-full h-12 text-lg"
             >
               {status === 'ready' ? '正在连接...' : '连接观看'}
-            </button>
+            </Button>
           </div>
         )}
 
         {status === 'connected' && (
           <div className="space-y-4 animate-in fade-in duration-500">
-            <div className="aspect-video overflow-hidden rounded-lg border border-zinc-800 bg-black relative shadow-2xl">
+            <div className="aspect-video overflow-hidden rounded-lg border border-border bg-black relative shadow-2xl">
               <video
                 ref={videoRef}
                 autoPlay
@@ -253,12 +266,13 @@ function ViewerView() {
                 <track kind="captions" />
               </video>
             </div>
-            <button
+            <Button
+              variant="destructive"
               onClick={() => window.location.reload()}
-              className="text-sm text-zinc-500 hover:text-zinc-300 underline"
+              className="w-full shadow-lg hover:bg-destructive/90 transition-all"
             >
               断开连接
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -268,7 +282,7 @@ function ViewerView() {
 
 function StatusCard({ status, statusText }: { status: ConnectionStatus; statusText: string }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+    <div className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center gap-2">
         <span
           className={`h-3 w-3 rounded-full ${
@@ -277,11 +291,11 @@ function StatusCard({ status, statusText }: { status: ConnectionStatus; statusTe
               : status === 'ready'
                 ? 'bg-yellow-500'
                 : status === 'failed'
-                  ? 'bg-red-500'
-                  : 'bg-zinc-500 animate-pulse'
+                  ? 'bg-destructive'
+                  : 'bg-muted-foreground animate-pulse'
           }`}
         />
-        <span className="text-sm text-zinc-400">{statusText}</span>
+        <span className="text-sm text-muted-foreground">{statusText}</span>
       </div>
     </div>
   );

@@ -19,42 +19,47 @@ export function RecorderControl() {
 
   if (!isRecording) {
     return (
-      <div className="flex flex-col gap-2 w-full">
+      <div className="flex flex-col gap-3 w-full">
+        <div className="flex gap-2 w-full">
+          <Button
+            variant="outline"
+            className="flex-1 flex items-center justify-center gap-2"
+            onClick={async () => {
+              try {
+                const response = await browser.runtime.sendMessage({
+                  type: 'RECORDER_REQUEST_STREAM',
+                });
+                if (!response.success) {
+                  toast(response.error || '未知错误', 'error');
+                }
+              } catch (e) {
+                logger.error('Failed to request recording stream:', e);
+                toast('请求屏幕共享失败', 'error');
+              }
+            }}
+          >
+            共享屏幕
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+            onClick={() => {
+              browser.tabs.create({ url: browser.runtime.getURL('/preview.html?mode=viewer') });
+            }}
+          >
+            观看TA
+          </Button>
+        </div>
+
+        <div className="h-px bg-border w-full my-1" />
+
         <Button
           variant="destructive"
           className="w-full flex items-center gap-2"
           onClick={startRecording}
         >
           <div className="w-3 h-3 rounded-full bg-white" />
-          Start Recording
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full flex items-center justify-center gap-2"
-          onClick={async () => {
-            try {
-              const response = await browser.runtime.sendMessage({
-                type: 'RECORDER_REQUEST_STREAM',
-              });
-              if (!response.success) {
-                toast(response.error || 'Unknown error', 'error');
-              }
-            } catch (e) {
-              logger.error('Failed to request recording stream:', e);
-              toast('Failed to request screen sharing', 'error');
-            }
-          }}
-        >
-          开始共享屏幕
-        </Button>
-        <Button
-          variant="secondary"
-          className="w-full flex items-center justify-center gap-2"
-          onClick={() => {
-            browser.tabs.create({ url: browser.runtime.getURL('/preview.html?mode=viewer') });
-          }}
-        >
-          加入观看
+          开始录制
         </Button>
       </div>
     );

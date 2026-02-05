@@ -64,7 +64,7 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
             size="icon"
             className="h-6 w-6"
             onClick={() => setIsEditing(!isEditing)}
-            title="Rename"
+            title="重命名"
           >
             <Edit2 className="w-3 h-3" />
           </Button>
@@ -73,7 +73,7 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
             size="icon"
             className="h-6 w-6 text-destructive hover:text-destructive"
             onClick={() => onDelete(recording.id)}
-            title="Delete"
+            title="删除"
           >
             <Trash2 className="w-3 h-3" />
           </Button>
@@ -98,7 +98,7 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
 
       <div className="flex gap-2 mt-3">
         <Button size="sm" className="flex-1 h-7 text-xs" onClick={handlePlay}>
-          <Play className="w-3 h-3 mr-1" /> Play
+          <Play className="w-3 h-3 mr-1" /> 播放
         </Button>
         <Button
           size="sm"
@@ -106,7 +106,7 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
           className="flex-1 h-7 text-xs"
           onClick={() => onExport(recording)}
         >
-          <Download className="w-3 h-3 mr-1" /> Export
+          <Download className="w-3 h-3 mr-1" /> 导出
         </Button>
       </div>
     </div>

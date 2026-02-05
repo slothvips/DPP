@@ -59,11 +59,14 @@ export default defineContentScript({
           border: 1px solid #e5e7eb;
           font-size: 14px;
           color: #374151;
+          cursor: move;
+          user-select: none;
         }
         .indicator {
           display: flex;
           align-items: center;
           gap: 6px;
+          pointer-events: none;
         }
         .dot {
           width: 8px;
@@ -99,6 +102,56 @@ export default defineContentScript({
 
       const container = document.createElement('div');
       container.className = 'container';
+
+      // Drag functionality
+      let isDragging = false;
+      let currentX = 0;
+      let currentY = 0;
+      let initialX = 0;
+      let initialY = 0;
+      let xOffset = 0;
+      let yOffset = 0;
+
+      container.addEventListener('mousedown', dragStart);
+      document.addEventListener('mousemove', drag);
+      document.addEventListener('mouseup', dragEnd);
+
+      function dragStart(e: MouseEvent) {
+        if ((e.target as HTMLElement).tagName === 'BUTTON') return;
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+        isDragging = true;
+      }
+
+      function drag(e: MouseEvent) {
+        if (isDragging) {
+          e.preventDefault();
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+          xOffset = currentX;
+          yOffset = currentY;
+          setTranslate(currentX, currentY, host);
+        }
+      }
+
+      function setTranslate(xPos: number, yPos: number, el: HTMLElement) {
+        el.style.transform = `translate3d(${xPos}px, ${yPos}px, 0)`;
+      }
+
+      function dragEnd() {
+        initialX = currentX;
+        initialY = currentY;
+        isDragging = false;
+      }
+
+      // Clean up event listeners when removing UI
+      interface DraggableHost extends HTMLElement {
+        _cleanupDrag?: () => void;
+      }
+      (host as DraggableHost)._cleanupDrag = () => {
+        document.removeEventListener('mousemove', drag);
+        document.removeEventListener('mouseup', dragEnd);
+      };
 
       const indicator = document.createElement('div');
       indicator.className = 'indicator';
@@ -139,6 +192,13 @@ export default defineContentScript({
 
     function removeFloatingUI() {
       if (uiContainer) {
+        interface DraggableHost extends HTMLElement {
+          _cleanupDrag?: () => void;
+        }
+        const host = uiContainer as DraggableHost;
+        if (host._cleanupDrag) {
+          host._cleanupDrag();
+        }
         uiContainer.remove();
         uiContainer = null;
       }
