@@ -1,14 +1,16 @@
 import { Clock, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { MyBuildItem } from '@/db';
+import { Tag } from '@/components/ui/tag';
+import type { MyBuildItem, TagItem } from '@/db';
 import { getStatusClassName, getStatusDotColor, translateStatus } from '@/features/jenkins/utils';
 
 interface MyBuildRowProps {
   build: MyBuildItem;
+  tags?: TagItem[];
   onBuild: () => void;
 }
 
-export function MyBuildRow({ build, onBuild }: MyBuildRowProps) {
+export function MyBuildRow({ build, tags, onBuild }: MyBuildRowProps) {
   return (
     <div className="flex items-start gap-2 p-1.5 rounded hover:bg-accent/50 group relative">
       <div className="shrink-0 mt-1">
@@ -30,6 +32,13 @@ export function MyBuildRow({ build, onBuild }: MyBuildRowProps) {
             {build.jobName}
           </a>
           <span className="text-xs text-muted-foreground font-mono">#{build.number}</span>
+          {tags && tags.length > 0 && (
+            <div className="flex items-center gap-1">
+              {tags.map((tag) => (
+                <Tag key={tag.id} name={tag.name} color={tag.color} size="sm" />
+              ))}
+            </div>
+          )}
           {build.userName && (
             <span className="text-xs bg-muted px-1 rounded text-muted-foreground">
               {build.userName}

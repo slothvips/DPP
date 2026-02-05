@@ -65,6 +65,19 @@ export function JenkinsView() {
     return builds.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50); // Limit total display
   }, [myBuilds, othersBuilds, showOthersBuilds]);
 
+  // Create a map of jobUrl to tags for O(1) lookup
+  const jobTagsMap = useMemo(() => {
+    const map = new Map<string, typeof tags>();
+    for (const jt of jobTags) {
+      const tag = tags.find((t) => t.id === jt.tagId);
+      if (tag) {
+        const existing = map.get(jt.jobUrl) || [];
+        map.set(jt.jobUrl, [...existing, tag]);
+      }
+    }
+    return map;
+  }, [jobTags, tags]);
+
   const filteredJobs = useMemo(() => {
     if (!jobs || jobs.length === 0) return [];
     if (!filter) return jobs;
@@ -273,6 +286,7 @@ export function JenkinsView() {
                         key={build.id}
                         build={build}
                         onBuild={() => setBuildJob({ url: build.jobUrl, name: build.jobName })}
+                        tags={jobTagsMap.get(build.jobUrl)}
                       />
                     ))
                   )}
