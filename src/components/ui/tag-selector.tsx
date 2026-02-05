@@ -77,7 +77,7 @@ export function TagSelector({
             <Plus className="w-4 h-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-2" align="start">
+        <PopoverContent className="w-64 p-2 z-[100]" align="start">
           <div className="space-y-2">
             <div className="font-medium text-sm">选择标签</div>
             <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto content-start">
