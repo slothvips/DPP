@@ -49,6 +49,10 @@ export interface RecordingSavedMessage {
   recordingId: string;
 }
 
+export interface RequestStreamMessage {
+  type: 'RECORDER_REQUEST_STREAM';
+}
+
 export type RecorderMessage =
   | StartRecordingMessage
   | StopRecordingMessage
@@ -60,7 +64,8 @@ export type RecorderMessage =
   | RecordingCompleteMessage
   | RecordingSavedMessage
   | GetAllRecordingsMessage
-  | GetRecordingByIdMessage;
+  | GetRecordingByIdMessage
+  | RequestStreamMessage;
 
 export interface GetAllRecordingsMessage {
   type: 'RECORDER_GET_ALL_RECORDINGS';

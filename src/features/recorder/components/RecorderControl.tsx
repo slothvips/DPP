@@ -1,9 +1,12 @@
 import { browser } from 'wxt/browser';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
+import { logger } from '@/utils/logger';
 import { useRecorder } from '../hooks/useRecorder';
 
 export function RecorderControl() {
   const { isRecording, duration, startRecording } = useRecorder();
+  const { toast } = useToast();
 
   const formatDuration = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
@@ -28,19 +31,18 @@ export function RecorderControl() {
         <Button
           variant="outline"
           className="w-full flex items-center justify-center gap-2"
-          onClick={() => {
-            // @ts-expect-error - chrome.desktopCapture is not in standard browser types
-            chrome.desktopCapture.chooseDesktopMedia(
-              ['screen', 'window', 'tab'],
-              (streamId: string) => {
-                if (streamId) {
-                  browser.runtime.sendMessage({
-                    type: 'OFFSCREEN_RECORDING_START_WITH_ID',
-                    streamId,
-                  });
-                }
+          onClick={async () => {
+            try {
+              const response = await browser.runtime.sendMessage({
+                type: 'RECORDER_REQUEST_STREAM',
+              });
+              if (!response.success) {
+                toast(response.error || 'Unknown error', 'error');
               }
-            );
+            } catch (e) {
+              logger.error('Failed to request recording stream:', e);
+              toast('Failed to request screen sharing', 'error');
+            }
           }}
         >
           Screen Share (Offscreen)

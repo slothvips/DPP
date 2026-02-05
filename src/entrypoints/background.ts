@@ -209,6 +209,39 @@ export default defineBackground(() => {
             } catch (e) {
               sendResponse({ success: false, error: String(e) });
             }
+          } else if (recorderMessage.type === 'RECORDER_REQUEST_STREAM') {
+            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
+            const activeTab = tabs[0];
+            if (!activeTab?.id) {
+              sendResponse({ success: false, error: 'No active tab found' });
+              return;
+            }
+
+            // @ts-expect-error - chrome.desktopCapture is not in standard browser types
+            chrome.desktopCapture.chooseDesktopMedia(
+              ['screen', 'window', 'tab'],
+              activeTab,
+              (streamId: string) => {
+                if (streamId) {
+                  (async () => {
+                    try {
+                      await setupOffscreenDocument('offscreen.html');
+                      await browser.runtime.sendMessage({
+                        target: 'offscreen',
+                        type: 'START_RECORDING',
+                        streamId,
+                      });
+                      sendResponse({ success: true });
+                    } catch (e) {
+                      logger.error('Failed to start offscreen recording:', e);
+                      sendResponse({ success: false, error: String(e) });
+                    }
+                  })();
+                } else {
+                  sendResponse({ success: false, error: 'User cancelled selection' });
+                }
+              }
+            );
           } else if (recorderMessage.type === 'RECORDER_COMPLETE') {
             const { events, url, favicon, duration } = recorderMessage;
             const tabId = _sender.tab?.id;
