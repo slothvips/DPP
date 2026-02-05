@@ -212,6 +212,7 @@ export function JenkinsView() {
                 key={job.url}
                 job={job}
                 onBuild={() => setBuildJob({ url: job.url, name: job.name })}
+                availableTags={tags}
               />
             ))}
           </div>
