@@ -36,6 +36,10 @@ export function TagSelector({
     }
   };
 
+  const filteredTags = availableTags.filter((tag) =>
+    tag.name.toLowerCase().includes(newTagName.trim().toLowerCase())
+  );
+
   return (
     <div
       className="flex flex-wrap gap-1 items-center"
@@ -76,8 +80,8 @@ export function TagSelector({
         <PopoverContent className="w-64 p-2" align="start">
           <div className="space-y-2">
             <div className="font-medium text-sm">选择标签</div>
-            <div className="flex flex-wrap gap-1 max-h-40 overflow-y-auto">
-              {availableTags.map((tag) => (
+            <div className="flex flex-wrap gap-1 max-h-60 overflow-y-auto content-start">
+              {filteredTags.map((tag) => (
                 <div
                   key={tag.id}
                   className={`flex items-center justify-between px-2 py-1 rounded text-xs border group/tag transition-colors cursor-default ${
