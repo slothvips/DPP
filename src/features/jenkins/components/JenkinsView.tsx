@@ -1,8 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronDown, ChevronRight, RefreshCw, User, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, History, RefreshCw, User, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { JENKINS } from '@/config/constants';
 import { db } from '@/db';
@@ -28,6 +30,9 @@ export function JenkinsView() {
 
   const settings = useLiveQuery(() => db.settings.toArray()) || [];
 
+  const showOthersBuilds =
+    (settings.find((s) => s.key === 'show_others_builds')?.value as boolean) ?? false;
+
   const { jobs, jobTags, tags } = useLiveQuery(
     async () => {
       const [allJobs, allJobTags, allTags] = await Promise.all([
@@ -51,6 +56,14 @@ export function JenkinsView() {
   const othersBuilds =
     useLiveQuery(() => db.othersBuilds.orderBy('timestamp').reverse().toArray(), [refreshKey]) ||
     [];
+
+  const displayedBuilds = useMemo(() => {
+    let builds = [...myBuilds];
+    if (showOthersBuilds) {
+      builds = [...builds, ...othersBuilds];
+    }
+    return builds.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50); // Limit total display
+  }, [myBuilds, othersBuilds, showOthersBuilds]);
 
   const filteredJobs = useMemo(() => {
     if (!jobs || jobs.length === 0) return [];
@@ -136,6 +149,10 @@ export function JenkinsView() {
     }
   };
 
+  const toggleShowOthers = async (checked: boolean) => {
+    await db.settings.put({ key: 'show_others_builds', value: checked });
+  };
+
   const toggleExpand = (url: string) => {
     const next = new Set(expandedUrls);
     if (next.has(url)) next.delete(url);
@@ -172,6 +189,17 @@ export function JenkinsView() {
         </Button>
       </div>
 
+      <div className="flex items-center gap-2 mb-2">
+        <Checkbox
+          id="show-others"
+          checked={showOthersBuilds}
+          onCheckedChange={(checked) => toggleShowOthers(checked as boolean)}
+        />
+        <Label htmlFor="show-others" className="text-sm text-muted-foreground cursor-pointer">
+          显示他人构建
+        </Label>
+      </div>
+
       <div className="flex-1 overflow-auto border rounded-md">
         {!jobs || jobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -189,11 +217,12 @@ export function JenkinsView() {
           </div>
         ) : (
           <div className="p-2">
+            {/* Build History Section */}
             <div className="mb-2">
               <div
                 className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer select-none group"
-                onClick={() => toggleExpand('__my_builds__')}
-                onKeyDown={(e) => e.key === 'Enter' && toggleExpand('__my_builds__')}
+                onClick={() => toggleExpand('__build_history__')}
+                onKeyDown={(e) => e.key === 'Enter' && toggleExpand('__build_history__')}
                 role="button"
                 tabIndex={0}
               >
@@ -201,16 +230,16 @@ export function JenkinsView() {
                   type="button"
                   className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0"
                 >
-                  {expandedUrls.has('__my_builds__') ? (
+                  {expandedUrls.has('__build_history__') ? (
                     <ChevronDown className="w-4 h-4" />
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
                 </button>
                 <div className="shrink-0 text-primary relative">
-                  <User className="w-4 h-4" />
+                  <History className="w-4 h-4" />
                 </div>
-                <span className="flex-1 text-sm font-medium">我的构建</span>
+                <span className="flex-1 text-sm font-medium">构建历史</span>
                 {myBuildsLoading ? (
                   <span className="text-xs text-muted-foreground mr-2 animate-pulse">
                     刷新中...
@@ -219,62 +248,17 @@ export function JenkinsView() {
                   <div className="flex items-center gap-2 mr-2">
                     {nextRefreshTime && <RefreshCountdown targetTime={nextRefreshTime} />}
                     <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded-full">
-                      {myBuilds.length}
+                      {displayedBuilds.length}
                     </span>
                   </div>
                 )}
               </div>
-              {expandedUrls.has('__my_builds__') && (
+              {expandedUrls.has('__build_history__') && (
                 <div className="pl-6 space-y-1">
-                  {myBuilds.length === 0 ? (
-                    <div className="p-2 text-xs text-muted-foreground">暂无我构建的任务</div>
+                  {displayedBuilds.length === 0 ? (
+                    <div className="p-2 text-xs text-muted-foreground">暂无构建记录</div>
                   ) : (
-                    myBuilds.map((build) => (
-                      <MyBuildRow
-                        key={build.id}
-                        build={build}
-                        onBuild={() => setBuildJob({ url: build.jobUrl, name: build.jobName })}
-                      />
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="mb-2">
-              <div
-                className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer select-none group"
-                onClick={() => toggleExpand('__others_builds__')}
-                onKeyDown={(e) => e.key === 'Enter' && toggleExpand('__others_builds__')}
-                role="button"
-                tabIndex={0}
-              >
-                <button
-                  type="button"
-                  className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0"
-                >
-                  {expandedUrls.has('__others_builds__') ? (
-                    <ChevronDown className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
-                </button>
-                <div className="shrink-0 text-primary relative">
-                  <Users className="w-4 h-4" />
-                </div>
-                <span className="flex-1 text-sm font-medium">他人的构建</span>
-                <div className="flex items-center gap-2 mr-2">
-                  <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded-full">
-                    {othersBuilds.length}
-                  </span>
-                </div>
-              </div>
-              {expandedUrls.has('__others_builds__') && (
-                <div className="pl-6 space-y-1">
-                  {othersBuilds.length === 0 ? (
-                    <div className="p-2 text-xs text-muted-foreground">暂无他人的构建任务</div>
-                  ) : (
-                    othersBuilds.map((build) => (
+                    displayedBuilds.map((build) => (
                       <MyBuildRow
                         key={build.id}
                         build={build}
