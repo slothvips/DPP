@@ -1,3 +1,4 @@
+import { browser } from 'wxt/browser';
 import { Button } from '@/components/ui/button';
 import { useRecorder } from '../hooks/useRecorder';
 
@@ -15,14 +16,23 @@ export function RecorderControl() {
 
   if (!isRecording) {
     return (
-      <Button
-        variant="destructive"
-        className="w-full flex items-center gap-2"
-        onClick={startRecording}
-      >
-        <div className="w-3 h-3 rounded-full bg-white" />
-        Start Recording
-      </Button>
+      <div className="flex flex-col gap-2 w-full">
+        <Button
+          variant="destructive"
+          className="w-full flex items-center gap-2"
+          onClick={startRecording}
+        >
+          <div className="w-3 h-3 rounded-full bg-white" />
+          Start Recording
+        </Button>
+        <Button
+          variant="outline"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={() => browser.runtime.sendMessage({ type: 'OFFSCREEN_RECORDING_START' })}
+        >
+          Screen Share (Offscreen)
+        </Button>
+      </div>
     );
   }
 

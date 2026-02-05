@@ -18,6 +18,30 @@ async function getJenkinsCredentials() {
   return { host, user, token };
 }
 
+async function setupOffscreenDocument(path: string) {
+  // @ts-expect-error - chrome.offscreen might not be in the types yet or browser-polyfill
+  if (typeof chrome !== 'undefined' && chrome.offscreen) {
+    // @ts-expect-error - getContexts is not in standard browser types
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      // @ts-expect-error - WXT PublicPath type mismatch
+      documentUrls: [browser.runtime.getURL(path)],
+    });
+
+    if (existingContexts.length > 0) {
+      return;
+    }
+
+    // @ts-expect-error - offscreen is not in standard browser types
+    await chrome.offscreen.createDocument({
+      // @ts-expect-error - WXT PublicPath type mismatch
+      url: browser.runtime.getURL(path),
+      reasons: ['DISPLAY_MEDIA'],
+      justification: 'Recording screen for user productivity tool',
+    });
+  }
+}
+
 const recordingStates = new Map<number, RecordingState>();
 const remoteRecordingCache = new Map<
   string,
@@ -44,6 +68,20 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === 'OFFSCREEN_RECORDING_START') {
+      (async () => {
+        try {
+          await setupOffscreenDocument('offscreen.html');
+          await browser.runtime.sendMessage({ target: 'offscreen', type: 'START_RECORDING' });
+          sendResponse({ success: true });
+        } catch (e) {
+          logger.error('Failed to start offscreen recording:', e);
+          sendResponse({ success: false, error: String(e) });
+        }
+      })();
+      return true;
+    }
+
     if (message.type === 'GLOBAL_SYNC_START') {
       performGlobalSync()
         .then(() => {
