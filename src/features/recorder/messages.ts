@@ -25,11 +25,6 @@ export interface StopRecorderMessage {
   type: 'RECORDER_STOP_CAPTURE';
 }
 
-export interface RecordingEventMessage {
-  type: 'RECORDER_EVENT';
-  event: unknown;
-}
-
 export interface RecordingCompleteMessage {
   type: 'RECORDER_COMPLETE';
   events: unknown[];
@@ -72,7 +67,6 @@ export type RecorderMessage =
   | GetRecordingStatusForContentMessage
   | InjectRecorderMessage
   | StopRecorderMessage
-  | RecordingEventMessage
   | RecordingCompleteMessage
   | RecordingSavedMessage
   | GetAllRecordingsMessage

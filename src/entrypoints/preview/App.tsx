@@ -1,4 +1,4 @@
-import Peer, { MediaConnection } from 'peerjs';
+import Peer from 'peerjs';
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { logger } from '@/utils/logger';
@@ -119,7 +119,6 @@ function ViewerView() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const peerRef = useRef<Peer | null>(null);
-  const connRef = useRef<MediaConnection | null>(null);
 
   // Initialize PeerJS
   useEffect(() => {
@@ -184,7 +183,6 @@ function ViewerView() {
       const stream = canvas.captureStream(1); // 1 FPS dummy stream
 
       const call = peerRef.current.call(targetPeerId, stream);
-      connRef.current = call;
 
       call.on('stream', (remoteStream) => {
         logger.info('Received remote stream');

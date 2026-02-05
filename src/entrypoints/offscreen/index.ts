@@ -3,7 +3,6 @@ import { browser } from 'wxt/browser';
 import { logger } from '@/utils/logger';
 
 let peer: Peer | null = null;
-let currentStream: MediaStream | null = null;
 
 function broadcastLog(message: string, data?: unknown) {
   const logMsg = data ? `${message} ${JSON.stringify(data)}` : message;
@@ -17,8 +16,6 @@ function broadcastLog(message: string, data?: unknown) {
 }
 
 async function setupPeer(stream: MediaStream) {
-  currentStream = stream;
-
   // Cleanup old peer if exists
   if (peer) {
     peer.destroy();
@@ -87,12 +84,12 @@ browser.runtime.onMessage.addListener((message) => {
   if (message.target === 'offscreen' && message.type === 'START_RECORDING') {
     void (async () => {
       try {
-        broadcastLog('Requesting stream via getDisplayMedia (High Quality)');
+        broadcastLog('Requesting stream via getDisplayMedia (High Quality 4K 120FPS)');
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
             width: { ideal: 3840, max: 3840 },
             height: { ideal: 2160, max: 2160 },
-            frameRate: { ideal: 60, max: 60 },
+            frameRate: { ideal: 120, max: 120 },
             displaySurface: 'monitor', // Prefer monitor sharing for best quality
           },
           audio: {
@@ -102,6 +99,18 @@ browser.runtime.onMessage.addListener((message) => {
             sampleRate: 48000,
           },
         });
+
+        // Debug: Log actual track settings to see if 120FPS was accepted
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+          const settings = videoTrack.getSettings();
+          broadcastLog('ACTUAL Capture Settings:', {
+            width: settings.width,
+            height: settings.height,
+            frameRate: settings.frameRate, // This reveals the truth
+            label: videoTrack.label,
+          });
+        }
 
         broadcastLog('Got stream, initializing PeerJS');
         await browser.runtime.sendMessage({ type: 'PREVIEW_OPEN' });
