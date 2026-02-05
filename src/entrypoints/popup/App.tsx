@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Settings } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { GlobalSyncButton } from '@/components/GlobalSyncButton';
+import { Tips } from '@/components/Tips';
 import { Button } from '@/components/ui/button';
 import { ToastProvider } from '@/components/ui/toast';
 import { db } from '@/db';
@@ -36,17 +37,32 @@ export function App() {
   const showSyncButton = !!serverUrl;
   const hasJenkins = !!jenkinsToken;
 
-  const [activeTab, setActiveTab] = useState<'links' | 'jenkins' | 'hotNews' | 'recorder'>('links');
+  const [activeTab, setActiveTab] = useState<'links' | 'jenkins' | 'hotNews' | 'recorder'>(() => {
+    const saved = localStorage.getItem('dpp_active_tab');
+    if (saved && ['links', 'jenkins', 'hotNews', 'recorder'].includes(saved)) {
+      return saved as 'links' | 'jenkins' | 'hotNews' | 'recorder';
+    }
+    return 'links';
+  });
 
   useEffect(() => {
-    if (hasJenkins) {
-      setActiveTab('jenkins');
-    } else if (featureToggles.links) {
-      setActiveTab('links');
-    } else if (featureToggles.hotNews) {
-      setActiveTab('hotNews');
+    // Only set default if no saved state
+    const saved = localStorage.getItem('dpp_active_tab');
+    if (!saved) {
+      if (hasJenkins) {
+        setActiveTab('jenkins');
+      } else if (featureToggles.links) {
+        setActiveTab('links');
+      } else if (featureToggles.hotNews) {
+        setActiveTab('hotNews');
+      }
     }
   }, [hasJenkins, featureToggles.links, featureToggles.hotNews]);
+
+  const handleTabChange = (tab: 'links' | 'jenkins' | 'hotNews' | 'recorder') => {
+    setActiveTab(tab);
+    localStorage.setItem('dpp_active_tab', tab);
+  };
 
   const openSettings = () => {
     browser.tabs.create({ url: browser.runtime.getURL('/options.html') });
@@ -58,6 +74,7 @@ export function App() {
         {/* Header */}
         <header className="flex items-center justify-between p-4 border-b">
           <h1 className="text-lg font-bold">DPP</h1>
+          <Tips />
           <div className="flex items-center gap-1">
             {showSyncButton && <GlobalSyncButton />}
             <Button variant="ghost" size="icon" onClick={openSettings}>
@@ -72,7 +89,7 @@ export function App() {
             <button
               type="button"
               className={`flex-1 py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => setActiveTab('jenkins')}
+              onClick={() => handleTabChange('jenkins')}
             >
               Jenkins
             </button>
@@ -81,7 +98,7 @@ export function App() {
             <button
               type="button"
               className={`flex-1 py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => setActiveTab('links')}
+              onClick={() => handleTabChange('links')}
             >
               链接
             </button>
@@ -89,7 +106,7 @@ export function App() {
           <button
             type="button"
             className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setActiveTab('recorder')}
+            onClick={() => handleTabChange('recorder')}
           >
             录制
           </button>
@@ -97,7 +114,7 @@ export function App() {
             <button
               type="button"
               className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => setActiveTab('hotNews')}
+              onClick={() => handleTabChange('hotNews')}
             >
               热点
             </button>
