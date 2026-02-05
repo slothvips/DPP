@@ -80,7 +80,7 @@ export function TagSelector({
         <PopoverContent className="w-64 p-2" align="start">
           <div className="space-y-2">
             <div className="font-medium text-sm">选择标签</div>
-            <div className="flex flex-wrap gap-1 max-h-60 overflow-y-auto content-start">
+            <div className="flex flex-wrap gap-1 max-h-48 overflow-y-auto content-start">
               {filteredTags.map((tag) => (
                 <div
                   key={tag.id}
