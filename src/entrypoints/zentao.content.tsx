@@ -8,7 +8,7 @@ function log(...args: unknown[]) {
 }
 
 export default defineContentScript({
-  matches: ['*://*/*zentao*'],
+  matches: ['<all_urls>'],
   allFrames: true,
   runAt: 'document_idle',
   main() {
@@ -83,6 +83,31 @@ function runInIframe() {
         });
 
         label.appendChild(container);
+        createRoot(container).render(<ZentaoUploader targetInput={input} />);
+        injected++;
+      }
+    }
+
+    const actionBoxGroups = document.querySelectorAll<HTMLElement>(
+      '#actionbox .form-group:not([data-dpp-injected]), .action-box .form-group:not([data-dpp-injected])'
+    );
+
+    for (const group of actionBoxGroups) {
+      const input = group.querySelector<HTMLInputElement>('input[type="file"]');
+      if (input && !input.dataset.dppUploaderInjected) {
+        group.setAttribute('data-dpp-injected', 'true');
+        input.dataset.dppUploaderInjected = 'true';
+        log('Strategy 5: action box form group');
+
+        const container = document.createElement('span');
+        container.className = 'dpp-uploader-container';
+        Object.assign(container.style, {
+          display: 'inline-block',
+          verticalAlign: 'middle',
+          marginLeft: '8px',
+        });
+
+        group.appendChild(container);
         createRoot(container).render(<ZentaoUploader targetInput={input} />);
         injected++;
       }
@@ -318,14 +343,22 @@ function runInMainFrame() {
     }
 
     function runInjection() {
-      if (injected) return;
+      const actionBoxGroups = doc.querySelectorAll<HTMLElement>(
+        '#actionbox .form-group:not([data-dpp-injected]), .action-box .form-group:not([data-dpp-injected])'
+      );
+
+      for (const group of actionBoxGroups) {
+        const input = group.querySelector<HTMLInputElement>('input[type="file"]');
+        if (input) {
+          injectButton(group, input);
+        }
+      }
 
       const formGroup = doc.querySelector<HTMLElement>('.form-group[data-name="files"]');
       if (formGroup && !formGroup.dataset.dppInjected) {
         const input = formGroup.querySelector<HTMLInputElement>('input[type="file"]');
         if (input) {
           injectButton(formGroup, input);
-          return;
         }
       }
 
@@ -337,7 +370,6 @@ function runInMainFrame() {
         if (input) {
           const parent = uploader.closest<HTMLElement>('.form-group') || uploader;
           injectButton(parent, input);
-          return;
         }
       }
 
@@ -349,7 +381,6 @@ function runInMainFrame() {
         const parent = input.closest<HTMLElement>('.form-group') || input.parentElement;
         if (parent) {
           injectButton(parent as HTMLElement, input);
-          return;
         }
       }
     }
