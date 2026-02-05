@@ -28,7 +28,20 @@ export function RecorderControl() {
         <Button
           variant="outline"
           className="w-full flex items-center justify-center gap-2"
-          onClick={() => browser.runtime.sendMessage({ type: 'OFFSCREEN_RECORDING_START' })}
+          onClick={() => {
+            // @ts-expect-error - chrome.desktopCapture is not in standard browser types
+            chrome.desktopCapture.chooseDesktopMedia(
+              ['screen', 'window', 'tab'],
+              (streamId: string) => {
+                if (streamId) {
+                  browser.runtime.sendMessage({
+                    type: 'OFFSCREEN_RECORDING_START_WITH_ID',
+                    streamId,
+                  });
+                }
+              }
+            );
+          }}
         >
           Screen Share (Offscreen)
         </Button>

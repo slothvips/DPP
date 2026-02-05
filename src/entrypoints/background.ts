@@ -68,14 +68,18 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message.type === 'OFFSCREEN_RECORDING_START') {
+    if (message.type === 'OFFSCREEN_RECORDING_START_WITH_ID') {
       (async () => {
         try {
           await setupOffscreenDocument('offscreen.html');
-          await browser.runtime.sendMessage({ target: 'offscreen', type: 'START_RECORDING' });
+          await browser.runtime.sendMessage({
+            target: 'offscreen',
+            type: 'START_RECORDING',
+            streamId: message.streamId,
+          });
           sendResponse({ success: true });
         } catch (e) {
-          logger.error('Failed to start offscreen recording:', e);
+          logger.error('Failed to start offscreen recording with ID:', e);
           sendResponse({ success: false, error: String(e) });
         }
       })();
