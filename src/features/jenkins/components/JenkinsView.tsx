@@ -189,17 +189,6 @@ export function JenkinsView() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2 mb-2">
-        <Checkbox
-          id="show-others"
-          checked={showOthersBuilds}
-          onCheckedChange={(checked) => toggleShowOthers(checked as boolean)}
-        />
-        <Label htmlFor="show-others" className="text-sm text-muted-foreground cursor-pointer">
-          显示他人构建
-        </Label>
-      </div>
-
       <div className="flex-1 overflow-auto border rounded-md">
         {!jobs || jobs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -240,7 +229,27 @@ export function JenkinsView() {
                 <div className="shrink-0 text-primary relative">
                   <History className="w-4 h-4" />
                 </div>
-                <span className="flex-1 text-sm font-medium">构建历史</span>
+                <span className="text-sm font-medium">构建历史</span>
+                <div
+                  className="flex items-center gap-1.5 ml-4"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  role="presentation"
+                >
+                  <Checkbox
+                    id="show-others-inline"
+                    checked={showOthersBuilds}
+                    onCheckedChange={(checked) => toggleShowOthers(checked as boolean)}
+                    className="h-3.5 w-3.5"
+                  />
+                  <Label
+                    htmlFor="show-others-inline"
+                    className="text-xs text-muted-foreground cursor-pointer font-normal"
+                  >
+                    显示他人
+                  </Label>
+                </div>
+                <div className="flex-1" />
                 {myBuildsLoading ? (
                   <span className="text-xs text-muted-foreground mr-2 animate-pulse">
                     刷新中...
