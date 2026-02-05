@@ -1,6 +1,6 @@
 import { Play, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { JobItem } from '@/db';
+import type { JobItem, TagItem } from '@/db';
 import { JobTagSelector } from '@/features/jenkins/components/JobTagSelector';
 import {
   getJobColorClass,
@@ -12,9 +12,10 @@ import {
 interface JobRowProps {
   job: JobItem;
   onBuild: () => void;
+  availableTags?: TagItem[];
 }
 
-export function JobRow({ job, onBuild }: JobRowProps) {
+export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
   const jobIsFolder = isFolder(job);
 
   return (
@@ -55,7 +56,7 @@ export function JobRow({ job, onBuild }: JobRowProps) {
           </div>
           <div className="text-xs text-muted-foreground truncate mt-1">{job.url}</div>
           <div className="mt-2">
-            <JobTagSelector jobUrl={job.url} />
+            <JobTagSelector jobUrl={job.url} availableTags={availableTags} />
           </div>
         </div>
       </div>
@@ -64,7 +65,7 @@ export function JobRow({ job, onBuild }: JobRowProps) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-success hover:text-success-foreground hover:bg-success"
+          className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-100 dark:hover:text-green-400 dark:hover:bg-green-500/20"
           title="构建"
           onClick={onBuild}
         >

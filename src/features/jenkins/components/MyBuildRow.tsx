@@ -63,7 +63,7 @@ export function MyBuildRow({ build, tags, onBuild }: MyBuildRowProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity text-success hover:text-success-foreground hover:bg-success"
+        className="h-6 w-6 absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-green-600 hover:bg-green-100 dark:hover:text-green-400 dark:hover:bg-green-500/20"
         onClick={onBuild}
         title="再次构建"
       >

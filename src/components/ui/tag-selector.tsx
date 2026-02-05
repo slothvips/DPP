@@ -1,8 +1,9 @@
-import { Plus, Trash2, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tag } from '@/components/ui/tag';
 import { useToast } from '@/components/ui/toast';
 import type { TagItem } from '@/db/types';
 import { VALIDATION_LIMITS } from '@/utils/validation';
@@ -50,20 +51,7 @@ export function TagSelector({
       {availableTags
         .filter((t) => selectedTagIds.has(t.id))
         .map((tag) => (
-          <span
-            key={tag.id}
-            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-info/10 text-info border border-info/20 max-w-[120px] truncate group/tag relative"
-            title={tag.name}
-          >
-            <span className="truncate">{tag.name}</span>
-            <button
-              type="button"
-              onClick={() => onToggleTag(tag.id)}
-              className="ml-1 shrink-0 text-info hover:text-info-foreground hover:bg-info rounded-full p-0.5 transition-colors"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
+          <Tag key={tag.id} name={tag.name} onRemove={() => onToggleTag(tag.id)} />
         ))}
 
       {/* Add Button & Popover */}

@@ -4,7 +4,7 @@ import React from 'react';
 import { TagSelector } from '@/components/ui/tag-selector';
 import { useToast } from '@/components/ui/toast';
 import { db } from '@/db';
-import type { JobTagItem, LinkTagItem } from '@/db/types';
+import type { JobTagItem, LinkTagItem, TagItem } from '@/db/types';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 
 interface CommonTagSelectorProps {
@@ -12,6 +12,7 @@ interface CommonTagSelectorProps {
   id: string;
   pendingSelectedIds?: Set<string>;
   onPendingToggle?: (tagId: string) => void;
+  availableTags?: TagItem[];
 }
 
 export function CommonTagSelector({
@@ -19,10 +20,15 @@ export function CommonTagSelector({
   id,
   pendingSelectedIds,
   onPendingToggle,
+  availableTags,
 }: CommonTagSelectorProps) {
   const { toast } = useToast();
 
-  const tags = useLiveQuery(() => db.tags.filter((t) => !t.deletedAt).toArray()) || [];
+  const tags =
+    useLiveQuery(
+      () => (availableTags ? availableTags : db.tags.filter((t) => !t.deletedAt).toArray()),
+      [availableTags]
+    ) || [];
 
   const activeEntityTags = useLiveQuery(async () => {
     if (!id) return [];
