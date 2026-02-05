@@ -81,7 +81,10 @@ export interface MyBuildItem {
   timestamp: number;
   duration?: number;
   building: boolean;
+  userName?: string;
 }
+
+export type OthersBuildItem = MyBuildItem;
 
 export interface LinkStatItem {
   id: string; // matches LinkItem.id
@@ -105,6 +108,7 @@ export type DPPDatabase = Dexie & {
   tags: EntityTable<TagItem, 'id'>;
   jobTags: EntityTable<JobTagItem, never>; // Compound key, not single key access
   myBuilds: EntityTable<MyBuildItem, 'id'>;
+  othersBuilds: EntityTable<OthersBuildItem, 'id'>;
   hotNews: EntityTable<HotNewsCache, 'date'>;
   recordings: EntityTable<Recording, 'id'>;
   operations: EntityTable<SyncOperation, 'id'>;

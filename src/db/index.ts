@@ -154,6 +154,10 @@ db.version(14).stores({
   recordings: '&id, createdAt, url',
 });
 
+db.version(15).stores({
+  othersBuilds: 'id, timestamp',
+});
+
 const defaultSyncProvider: SyncProvider = {
   push: async (ops, clientId) => {
     const key = await loadKey();
