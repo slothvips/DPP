@@ -15,7 +15,7 @@ export default defineConfig({
     disabled: true,
   },
   manifest: {
-    permissions: ['storage', 'alarms', 'tabs', 'offscreen'],
+    permissions: ['storage', 'alarms', 'tabs', 'offscreen', 'desktopCapture'],
     host_permissions: ['<all_urls>'],
     name: 'DPP',
     description: 'Team documentation & Jenkins deployment assistant with tech news',
