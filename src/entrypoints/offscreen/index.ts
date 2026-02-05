@@ -84,12 +84,12 @@ browser.runtime.onMessage.addListener((message) => {
   if (message.target === 'offscreen' && message.type === 'START_RECORDING') {
     void (async () => {
       try {
-        broadcastLog('Requesting stream via getDisplayMedia (High Quality 4K 120FPS)');
+        broadcastLog('Requesting stream via getDisplayMedia (High Quality 4K 60FPS)');
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: {
             width: { ideal: 3840, max: 3840 },
             height: { ideal: 2160, max: 2160 },
-            frameRate: { ideal: 120, max: 120 },
+            frameRate: { ideal: 60, max: 60 },
             displaySurface: 'monitor', // Prefer monitor sharing for best quality
           },
           audio: {
@@ -100,7 +100,7 @@ browser.runtime.onMessage.addListener((message) => {
           },
         });
 
-        // Debug: Log actual track settings to see if 120FPS was accepted
+        // Debug: Log actual track settings to see if 60FPS was accepted
         const videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
           const settings = videoTrack.getSettings();
