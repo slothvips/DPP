@@ -45,7 +45,16 @@ export function RecorderControl() {
             }
           }}
         >
-          Screen Share (Offscreen)
+          开始共享屏幕
+        </Button>
+        <Button
+          variant="secondary"
+          className="w-full flex items-center justify-center gap-2"
+          onClick={() => {
+            browser.tabs.create({ url: browser.runtime.getURL('/preview.html?mode=viewer') });
+          }}
+        >
+          加入观看
         </Button>
       </div>
     );

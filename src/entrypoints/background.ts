@@ -42,6 +42,27 @@ async function setupOffscreenDocument(path: string) {
   }
 }
 
+async function sendMessageToOffscreenWithRetry(message: unknown, maxRetries = 10, delay = 1000) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      await browser.runtime.sendMessage(message);
+      return;
+    } catch (e) {
+      const errorMsg = String(e);
+      if (
+        (errorMsg.includes('Could not establish connection') ||
+          errorMsg.includes('Receiving end does not exist')) &&
+        i < maxRetries - 1
+      ) {
+        logger.warn('Offscreen not ready yet, retrying...', { attempt: i + 1, error: errorMsg });
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 const recordingStates = new Map<number, RecordingState>();
 const remoteRecordingCache = new Map<
   string,
@@ -72,7 +93,7 @@ export default defineBackground(() => {
       (async () => {
         try {
           await setupOffscreenDocument('offscreen.html');
-          await browser.runtime.sendMessage({
+          await sendMessageToOffscreenWithRetry({
             target: 'offscreen',
             type: 'START_RECORDING',
             streamId: message.streamId,
@@ -133,6 +154,7 @@ export default defineBackground(() => {
     }
 
     if (message.type === 'PREVIEW_OPEN') {
+      logger.info('Received PREVIEW_OPEN message');
       browser.tabs.create({ url: browser.runtime.getURL('/preview.html') });
       sendResponse({ success: true });
       return true;
@@ -222,38 +244,19 @@ export default defineBackground(() => {
               sendResponse({ success: false, error: String(e) });
             }
           } else if (recorderMessage.type === 'RECORDER_REQUEST_STREAM') {
-            const tabs = await browser.tabs.query({ active: true, currentWindow: true });
-            const activeTab = tabs[0];
-            if (!activeTab?.id) {
-              sendResponse({ success: false, error: 'No active tab found' });
-              return;
-            }
-
-            // @ts-expect-error - chrome.desktopCapture is not in standard browser types
-            chrome.desktopCapture.chooseDesktopMedia(
-              ['screen', 'window', 'tab'],
-              activeTab,
-              (streamId: string) => {
-                if (streamId) {
-                  (async () => {
-                    try {
-                      await setupOffscreenDocument('offscreen.html');
-                      await browser.runtime.sendMessage({
-                        target: 'offscreen',
-                        type: 'START_RECORDING',
-                        streamId,
-                      });
-                      sendResponse({ success: true });
-                    } catch (e) {
-                      logger.error('Failed to start offscreen recording:', e);
-                      sendResponse({ success: false, error: String(e) });
-                    }
-                  })();
-                } else {
-                  sendResponse({ success: false, error: 'User cancelled selection' });
-                }
+            (async () => {
+              try {
+                await setupOffscreenDocument('offscreen.html');
+                await sendMessageToOffscreenWithRetry({
+                  target: 'offscreen',
+                  type: 'START_RECORDING',
+                });
+                sendResponse({ success: true });
+              } catch (e) {
+                logger.error('Failed to start offscreen recording:', e);
+                sendResponse({ success: false, error: String(e) });
               }
-            );
+            })();
           } else if (recorderMessage.type === 'RECORDER_COMPLETE') {
             const { events, url, favicon, duration } = recorderMessage;
             const tabId = _sender.tab?.id;
