@@ -1,3 +1,4 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import {
   Clock,
   Edit,
@@ -15,9 +16,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/components/ui/toast';
-import type { LinkItem, TagItem } from '@/db';
+import { type LinkItem, type TagItem, db } from '@/db';
 import { ImportLinksDialog } from '@/features/links/components/ImportLinksDialog';
 import { LinkDialog } from '@/features/links/components/LinkDialog';
+import { LinkTagSelector } from '@/features/links/components/LinkTagSelector';
 import { type LinkWithStats, useLinks } from '@/features/links/hooks/useLinks';
 import { cn } from '@/utils/cn';
 
@@ -94,6 +96,7 @@ function LinkWithCopy({
 
 export function LinksView() {
   const { links, recordVisit, togglePin, addLink, updateLink, deleteLink } = useLinks();
+  const allTags = useLiveQuery(() => db.tags.filter((t) => !t.deletedAt).toArray()) || [];
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -143,12 +146,18 @@ export function LinksView() {
 
     if (viewMode === 'recent') {
       return result
-        .filter((link) => link.usageCount > 0) // Filter: only used links
+        .filter((link) => link.usageCount > 0)
         .sort((a, b) => {
-          // Sort by lastUsedAt (descending)
           const timeA = a.lastUsedAt || 0;
           const timeB = b.lastUsedAt || 0;
-          return timeB - timeA;
+
+          if (timeA > 0 && timeB > 0) return timeB - timeA;
+
+          if (timeA > 0) return -1;
+          if (timeB > 0) return 1;
+
+          if (b.updatedAt !== a.updatedAt) return b.updatedAt - a.updatedAt;
+          return a.name.localeCompare(b.name);
         });
     }
 
@@ -246,7 +255,7 @@ export function LinksView() {
           >
             <div className="flex items-center justify-center gap-1">
               <Clock className="h-4 w-4" />
-              <span>Recent</span>
+              <span>最近</span>
             </div>
             {viewMode === 'recent' && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
@@ -262,7 +271,7 @@ export function LinksView() {
           >
             <div className="flex items-center justify-center gap-1">
               <List className="h-4 w-4" />
-              <span>All</span>
+              <span>全部</span>
             </div>
             {viewMode === 'all' && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
@@ -281,58 +290,52 @@ export function LinksView() {
           <div
             key={link.id}
             className={cn(
-              'flex items-center gap-2 rounded-lg border transition-colors group relative overflow-hidden',
+              'flex items-start gap-2 rounded-lg border transition-colors group relative overflow-hidden',
               'p-3 h-auto min-h-[60px]',
               link.pinnedAt ? 'bg-secondary/30 border-primary/20' : 'hover:bg-accent'
             )}
           >
-            <LinkWithCopy
-              href={link.url}
-              target="_blank"
-              rel="noreferrer"
-              className={cn('flex-1 min-w-0 block')}
-              onSingleClick={() => handleLinkClick(link.id)}
-              onAuxClick={(e) => {
-                if (e.button === 1) {
-                  handleLinkClick(link.id);
-                }
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <div className="font-medium truncate text-base leading-normal py-0.5">
-                  {link.name}
-                </div>
-                {link.note && (
-                  <StickyNote className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                )}
-              </div>
-              <div
-                className={cn(
-                  'text-xs text-muted-foreground truncate flex items-center gap-2 mt-1',
-                  'w-full'
-                )}
+            <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+              <LinkWithCopy
+                href={link.url}
+                target="_blank"
+                rel="noreferrer"
+                className={cn('block group/link')}
+                onSingleClick={() => handleLinkClick(link.id)}
+                onAuxClick={(e) => {
+                  if (e.button === 1) {
+                    handleLinkClick(link.id);
+                  }
+                }}
               >
-                <span className="truncate max-w-[400px] opacity-70">{link.url}</span>
-                {link.tags && link.tags.length > 0 && (
-                  <div className="flex gap-1.5 overflow-hidden">
-                    <span className="shrink-0 opacity-30">|</span>
-                    {link.tags.slice(0, 3).map((tag) => (
-                      <span
-                        key={tag.id}
-                        className="bg-muted px-1.5 py-0.5 rounded text-[11px] text-muted-foreground truncate max-w-[100px]"
-                      >
-                        {tag.name}
-                      </span>
-                    ))}
-                    {link.tags.length > 3 && (
-                      <span className="text-[10px] opacity-50 flex items-center">
-                        +{link.tags.length - 3}
-                      </span>
-                    )}
+                <div className="flex items-center gap-2">
+                  <div className="font-medium truncate text-base leading-normal py-0.5">
+                    {link.name}
                   </div>
-                )}
+                  {link.note && (
+                    <StickyNote className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                  )}
+                </div>
+                <div
+                  className={cn(
+                    'text-xs text-muted-foreground truncate flex items-center gap-2 mt-0.5',
+                    'w-full'
+                  )}
+                >
+                  <span className="truncate max-w-[400px] opacity-70 group-hover/link:opacity-100 transition-opacity">
+                    {link.url}
+                  </span>
+                </div>
+              </LinkWithCopy>
+
+              <div>
+                <LinkTagSelector
+                  linkId={link.id}
+                  selectedTagIds={new Set(link.tags?.map((t) => t.id))}
+                  availableTags={allTags}
+                />
               </div>
-            </LinkWithCopy>
+            </div>
 
             <div
               className={cn(
@@ -393,7 +396,7 @@ export function LinksView() {
         ))}
         {filteredAndSortedLinks?.length === 0 && (
           <div className="text-center py-8 text-muted-foreground col-span-full">
-            {search ? 'No matching links found' : 'No links found'}
+            {search ? '未找到匹配的链接' : '暂无链接'}
           </div>
         )}
       </div>

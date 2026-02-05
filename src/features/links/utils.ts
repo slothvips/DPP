@@ -2,16 +2,21 @@ import { db } from '@/db';
 import { logger } from '@/utils/logger';
 
 export async function recordLinkVisit(id: string) {
-  await db.transaction('rw', db.linkStats, async () => {
-    const stat = await db.linkStats.get(id);
-    const newStat = {
-      id,
-      usageCount: (stat?.usageCount || 0) + 1,
-      lastUsedAt: Date.now(),
-      pinnedAt: stat?.pinnedAt,
-    };
-    await db.linkStats.put(newStat);
-  });
+  try {
+    await db.transaction('rw', db.linkStats, async () => {
+      const stat = await db.linkStats.get(id);
+      const newStat = {
+        id,
+        usageCount: (stat?.usageCount || 0) + 1,
+        lastUsedAt: Date.now(),
+        pinnedAt: stat?.pinnedAt,
+      };
+      await db.linkStats.put(newStat);
+    });
+    logger.info(`Recorded visit for link ${id}`);
+  } catch (error) {
+    logger.error('Failed to record link visit:', error);
+  }
 }
 
 export async function openLink(url: string) {
