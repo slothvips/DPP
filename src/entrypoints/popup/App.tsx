@@ -86,6 +86,13 @@ export function App() {
               链接
             </button>
           )}
+          <button
+            type="button"
+            className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+            onClick={() => setActiveTab('recorder')}
+          >
+            录制
+          </button>
           {featureToggles.hotNews && (
             <button
               type="button"
@@ -95,21 +102,14 @@ export function App() {
               热点
             </button>
           )}
-          <button
-            type="button"
-            className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => setActiveTab('recorder')}
-          >
-            录制
-          </button>
         </div>
 
         {/* Content */}
         <main className="flex-1 overflow-hidden p-2">
           {activeTab === 'links' && featureToggles.links && <LinksView />}
           {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
-          {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
           {activeTab === 'recorder' && <RecordingsView />}
+          {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
         </main>
       </div>
     </ToastProvider>
