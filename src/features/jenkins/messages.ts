@@ -18,6 +18,7 @@ export interface TriggerBuildMessage extends JenkinsMessageBase {
   payload: {
     jobUrl: string;
     parameters?: Record<string, string | boolean | number>;
+    envId?: string;
   };
 }
 
@@ -25,6 +26,7 @@ export interface GetJobDetailsMessage extends JenkinsMessageBase {
   type: 'JENKINS_GET_JOB_DETAILS';
   payload: {
     jobUrl: string;
+    envId?: string;
   };
 }
 
