@@ -369,17 +369,23 @@ export default defineBackground(() => {
     if (!text) return;
 
     try {
-      // Fetch all links with their tags
-      const [allLinks, allLinkTags, allTags] = await Promise.all([
+      // Fetch all links with their tags, jobs, and settings
+      const [allLinks, allLinkTags, allTags, allJobs, settings] = await Promise.all([
         db.links.filter((l) => !l.deletedAt).toArray(),
         db.linkTags.filter((lt) => !lt.deletedAt).toArray(),
         db.tags.filter((t) => !t.deletedAt).toArray(),
+        db.jobs.toArray(),
+        db.settings.toArray(),
       ]);
 
       // Build tags map
       const tagsMap = new Map(allTags.map((t) => [t.id, t]));
 
-      // Build link -> tags mapping
+      const environments =
+        (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) ||
+        [];
+      const envMap = new Map(environments.map((e) => [e.id, e.name]));
+
       const linkTagsMap = new Map<string, { id: string; name: string }[]>();
       for (const lt of allLinkTags) {
         const tag = tagsMap.get(lt.tagId);
@@ -390,7 +396,6 @@ export default defineBackground(() => {
         }
       }
 
-      // Split search text into multiple keywords (支持多关键词搜索)
       const keywords = text
         .toLowerCase()
         .split(' ')
@@ -398,15 +403,24 @@ export default defineBackground(() => {
 
       if (keywords.length === 0) return;
 
-      const matches = allLinks.filter((link) => {
-        const name = link.name.toLowerCase();
-        const url = link.url.toLowerCase();
+      const matchedLinks = allLinks.filter((link) => {
+        const name = (link.name || '').toLowerCase();
+        const url = (link.url || '').toLowerCase();
         const tags = linkTagsMap.get(link.id) || [];
         const tagNames = tags.map((t) => t.name.toLowerCase());
 
-        // All keywords must match (AND logic) - search in name, url, and tags
         return keywords.every(
           (kw) => name.includes(kw) || url.includes(kw) || tagNames.some((tag) => tag.includes(kw))
+        );
+      });
+
+      const matchedJobs = allJobs.filter((job) => {
+        const name = (job.name || '').toLowerCase();
+        const url = (job.url || '').toLowerCase();
+        const envName = (job.env ? envMap.get(job.env) : '')?.toLowerCase() || '';
+
+        return keywords.every(
+          (kw) => name.includes(kw) || url.includes(kw) || envName.includes(kw)
         );
       });
 
@@ -428,10 +442,21 @@ export default defineBackground(() => {
           }
         });
 
-      const suggestions = matches.map((link) => ({
+      const linkSuggestions = matchedLinks.map((link) => ({
         content: link.url,
-        description: `${escapeXml(link.name)} - <url>${escapeXml(link.url)}</url>`,
+        description: `${escapeXml(link.name || '')} - <url>${escapeXml(link.url || '')}</url>`,
       }));
+
+      const jobSuggestions = matchedJobs.map((job) => {
+        const envName = job.env ? envMap.get(job.env) : undefined;
+        const prefix = envName ? `[${envName}] ` : '[Job] ';
+        return {
+          content: job.url,
+          description: `${escapeXml(prefix + (job.name || ''))} - <url>${escapeXml(job.url || '')}</url>`,
+        };
+      });
+
+      const suggestions = [...linkSuggestions, ...jobSuggestions];
 
       if (suggestions.length === 0) {
         suggestions.push({
