@@ -165,10 +165,41 @@ function OptionsApp() {
         await db.transaction('rw', ['settings'], async () => {
           await db.settings.clear();
           if (importObj.data.settings?.length) {
-            const safeSettings = importObj.data.settings.filter(
+            let settings = importObj.data.settings.filter(
               (s: { key: string }) => !EXCLUDED_SETTINGS.includes(s.key)
             );
-            await db.settings.bulkAdd(safeSettings);
+
+            const hasEnvironments = settings.some(
+              (s: { key: string }) => s.key === 'jenkins_environments'
+            );
+            const host = settings.find((s: { key: string }) => s.key === 'jenkins_host');
+            const user = settings.find((s: { key: string }) => s.key === 'jenkins_user');
+            const token = settings.find((s: { key: string }) => s.key === 'jenkins_token');
+
+            if (!hasEnvironments && (host || user || token)) {
+              const defaultEnv = {
+                id: crypto.randomUUID(), // Use UUID for new environment
+                name: 'Default',
+                host: (host?.value as string) || '',
+                user: (user?.value as string) || '',
+                token: (token?.value as string) || '',
+                order: 0,
+              };
+              settings.push({ key: 'jenkins_environments', value: [defaultEnv] });
+
+              if (!settings.some((s: { key: string }) => s.key === 'jenkins_current_env')) {
+                settings.push({ key: 'jenkins_current_env', value: defaultEnv.id });
+              }
+
+              logger.info('Migrated legacy Jenkins settings during import');
+            }
+
+            settings = settings.filter(
+              (s: { key: string }) =>
+                !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(s.key)
+            );
+
+            await db.settings.bulkAdd(settings);
           }
         });
 

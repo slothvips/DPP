@@ -128,12 +128,9 @@ export function JenkinsView() {
     return buildJobTree(jobs);
   }, [jobs, filter]);
 
-  const jenkinsHost =
-    currentEnv?.host || (settings.find((s) => s.key === 'jenkins_host')?.value as string);
-  const jenkinsUser =
-    currentEnv?.user || (settings.find((s) => s.key === 'jenkins_user')?.value as string);
-  const jenkinsToken =
-    currentEnv?.token || (settings.find((s) => s.key === 'jenkins_token')?.value as string);
+  const jenkinsHost = currentEnv?.host;
+  const jenkinsUser = currentEnv?.user;
+  const jenkinsToken = currentEnv?.token;
 
   useEffect(() => {
     if (!jenkinsHost || !jenkinsUser || !jenkinsToken) return;
@@ -238,12 +235,6 @@ export function JenkinsView() {
                   ))}
               </SelectContent>
             </Select>
-          )}
-          {environments.length === 0 && jenkinsHost && (
-            <div className="text-xs text-muted-foreground flex items-center gap-1 px-2">
-              <Layers className="w-3.5 h-3.5" />
-              <span>Default</span>
-            </div>
           )}
 
           <Input

@@ -187,6 +187,15 @@ db.version(16)
     await tx.table('othersBuilds').toCollection().modify({ env: 'default' });
   });
 
+db.version(17).upgrade(async (tx) => {
+  // Remove legacy Jenkins settings that have been migrated to jenkins_environments
+  await tx
+    .table('settings')
+    .where('key')
+    .anyOf(['jenkins_host', 'jenkins_user', 'jenkins_token'])
+    .delete();
+});
+
 const defaultSyncProvider: SyncProvider = {
   push: async (ops, clientId) => {
     const key = await loadKey();

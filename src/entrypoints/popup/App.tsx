@@ -6,6 +6,7 @@ import { Tips } from '@/components/Tips';
 import { Button } from '@/components/ui/button';
 import { ToastProvider } from '@/components/ui/toast';
 import { db } from '@/db';
+import type { JenkinsEnvironment } from '@/db';
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
@@ -15,9 +16,9 @@ import { useTheme } from '@/hooks/useTheme';
 export function App() {
   useTheme();
 
-  const jenkinsToken = useLiveQuery(async () => {
-    const setting = await db.settings.get('jenkins_token');
-    return setting?.value as string | undefined;
+  const jenkinsEnvironments = useLiveQuery(async () => {
+    const setting = await db.settings.get('jenkins_environments');
+    return setting?.value as JenkinsEnvironment[] | undefined;
   });
 
   const featureToggles = useLiveQuery(async () => {
@@ -35,7 +36,7 @@ export function App() {
   });
 
   const showSyncButton = !!serverUrl;
-  const hasJenkins = !!jenkinsToken;
+  const hasJenkins = (jenkinsEnvironments?.length ?? 0) > 0;
 
   const [activeTab, setActiveTab] = useState<'links' | 'jenkins' | 'hotNews' | 'recorder'>(() => {
     const saved = localStorage.getItem('dpp_active_tab');
