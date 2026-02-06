@@ -22,18 +22,19 @@ export const JenkinsService = {
 
   async triggerBuild(
     jobUrl: string,
-    parameters?: Record<string, string | boolean | number>
+    parameters?: Record<string, string | boolean | number>,
+    envId?: string
   ): Promise<boolean> {
     return send<boolean>({
       type: 'JENKINS_TRIGGER_BUILD',
-      payload: { jobUrl, parameters },
+      payload: { jobUrl, parameters, envId },
     });
   },
 
-  async getJobDetails(jobUrl: string): Promise<unknown> {
+  async getJobDetails(jobUrl: string, envId?: string): Promise<unknown> {
     return send<unknown>({
       type: 'JENKINS_GET_JOB_DETAILS',
-      payload: { jobUrl },
+      payload: { jobUrl, envId },
     });
   },
 };

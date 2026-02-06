@@ -9,11 +9,19 @@ import type { RecordingState } from '@/features/recorder/types';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
 
-async function getJenkinsCredentials() {
+async function getJenkinsCredentials(targetEnvId?: string) {
   const settings = await db.settings.toArray();
   const currentEnvId = settings.find((s) => s.key === 'jenkins_current_env')?.value as string;
   const environments =
     (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+
+  if (targetEnvId) {
+    const env = environments.find((e) => e.id === targetEnvId);
+    if (!env) {
+      throw new Error(`Jenkins environment not found: ${targetEnvId}`);
+    }
+    return { host: env.host, user: env.user, token: env.token, envId: env.id };
+  }
 
   if (currentEnvId && environments.length > 0) {
     const env = environments.find((e) => e.id === currentEnvId);
@@ -315,7 +323,8 @@ export default defineBackground(() => {
       const jenkinsMessage = message as JenkinsMessage;
       (async () => {
         try {
-          const { host, user, token, envId } = await getJenkinsCredentials();
+          const targetEnvId = (jenkinsMessage.payload as { envId?: string } | undefined)?.envId;
+          const { host, user, token, envId } = await getJenkinsCredentials(targetEnvId);
           let data: unknown;
 
           switch (jenkinsMessage.type) {
