@@ -253,7 +253,7 @@ export function JenkinsView() {
 
           <Button onClick={handleSync} disabled={loading} size="sm" className="h-8 text-xs gap-1.5">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? '同步中' : '同步'}
+            {loading ? '采集中' : '采集'}
           </Button>
         </div>
       </div>
