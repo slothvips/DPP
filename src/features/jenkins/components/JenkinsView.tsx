@@ -215,54 +215,47 @@ export function JenkinsView() {
   }
 
   return (
-    <div className="flex flex-col h-full gap-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            {environments.length > 0 && (
-              <Select value={currentEnvId} onValueChange={handleEnvChange}>
-                <SelectTrigger className="w-full max-w-[200px] h-8 text-xs">
-                  <div className="flex items-center gap-2 truncate">
-                    <Layers className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                    <SelectValue placeholder="选择环境" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  {environments
-                    .sort((a, b) => a.order - b.order)
-                    .map((env) => (
-                      <SelectItem key={env.id} value={env.id} className="text-xs">
-                        {env.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            )}
-            {environments.length === 0 && jenkinsHost && (
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5" />
-                <span>Default</span>
-              </div>
-            )}
-          </div>
+    <div className="flex flex-col h-full space-y-4">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          {environments.length > 0 && (
+            <Select value={currentEnvId} onValueChange={handleEnvChange}>
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                  <SelectValue placeholder="选择环境" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {environments
+                  .sort((a, b) => a.order - b.order)
+                  .map((env) => (
+                    <SelectItem key={env.id} value={env.id} className="text-xs">
+                      {env.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          )}
+          {environments.length === 0 && jenkinsHost && (
+            <div className="text-xs text-muted-foreground flex items-center gap-1 px-2">
+              <Layers className="w-3.5 h-3.5" />
+              <span>Default</span>
+            </div>
+          )}
 
-          <Button
-            onClick={handleSync}
-            disabled={loading}
-            size="sm"
-            className="h-8 text-xs gap-1.5 shrink-0"
-          >
+          <Input
+            placeholder="搜索 Job..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="h-8 flex-1"
+          />
+
+          <Button onClick={handleSync} disabled={loading} size="sm" className="h-8 text-xs gap-1.5">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             {loading ? '同步中' : '同步'}
           </Button>
         </div>
-
-        <Input
-          placeholder="搜索 Job..."
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="h-9 w-full"
-        />
       </div>
 
       <div className="flex-1 overflow-auto border rounded-md">
