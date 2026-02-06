@@ -29,7 +29,9 @@ export function JenkinsView() {
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
   const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
-  const [buildJob, setBuildJob] = useState<{ url: string; name: string } | null>(null);
+  const [buildJob, setBuildJob] = useState<{ url: string; name: string; envId?: string } | null>(
+    null
+  );
 
   const [myBuildsLoading, setMyBuildsLoading] = useState(false);
   const [nextRefreshTime, setNextRefreshTime] = useState<number | null>(null);
@@ -269,7 +271,7 @@ export function JenkinsView() {
               <JobRow
                 key={job.url}
                 job={job}
-                onBuild={() => setBuildJob({ url: job.url, name: job.name })}
+                onBuild={() => setBuildJob({ url: job.url, name: job.name, envId: job.env })}
                 availableTags={tags}
               />
             ))}
@@ -336,7 +338,9 @@ export function JenkinsView() {
                       <MyBuildRow
                         key={build.id}
                         build={build}
-                        onBuild={() => setBuildJob({ url: build.jobUrl, name: build.jobName })}
+                        onBuild={() =>
+                          setBuildJob({ url: build.jobUrl, name: build.jobName, envId: build.env })
+                        }
                         tags={jobTagsMap.get(build.jobUrl)}
                       />
                     ))
@@ -351,7 +355,7 @@ export function JenkinsView() {
                 node={node}
                 expandedUrls={expandedUrls}
                 onToggle={toggleExpand}
-                onBuild={(job) => setBuildJob({ url: job.url, name: job.name })}
+                onBuild={(job) => setBuildJob({ url: job.url, name: job.name, envId: job.env })}
               />
             ))}
           </div>
@@ -363,6 +367,7 @@ export function JenkinsView() {
           isOpen={!!buildJob}
           jobUrl={buildJob.url}
           jobName={buildJob.name}
+          envId={buildJob.envId}
           onClose={() => setBuildJob(null)}
         />
       )}

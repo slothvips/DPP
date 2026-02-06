@@ -28,11 +28,12 @@ import { VALIDATION_LIMITS } from '@/utils/validation';
 interface Props {
   jobUrl: string;
   jobName: string;
+  envId?: string;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function BuildDialog({ jobUrl, jobName, isOpen, onClose }: Props) {
+export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
@@ -42,7 +43,7 @@ export function BuildDialog({ jobUrl, jobName, isOpen, onClose }: Props) {
   useEffect(() => {
     const loadParams = async () => {
       try {
-        const details = (await JenkinsService.getJobDetails(jobUrl)) as {
+        const details = (await JenkinsService.getJobDetails(jobUrl, envId)) as {
           property?: { _class: string; parameterDefinitions?: BuildParameter[] }[];
           actions?: { _class: string; parameterDefinitions?: BuildParameter[] }[];
         };
@@ -86,12 +87,12 @@ export function BuildDialog({ jobUrl, jobName, isOpen, onClose }: Props) {
       setFormValues({});
       loadParams();
     }
-  }, [isOpen, jobUrl]);
+  }, [isOpen, jobUrl, envId]);
 
   const handleBuild = async () => {
     setBuilding(true);
     try {
-      const success = await JenkinsService.triggerBuild(jobUrl, formValues);
+      const success = await JenkinsService.triggerBuild(jobUrl, formValues, envId);
       if (success) {
         toast('构建已触发！', 'success');
         onClose();
