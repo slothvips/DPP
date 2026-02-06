@@ -47,7 +47,7 @@ async function runHeadlessAuth() {
       window.close();
     }, 1500);
   } catch (err) {
-    logger.error('DPP Auth Failed:', err);
+    logger.debug('DPP Auth Failed:', err);
     showNotification(`❌ 错误: ${err instanceof Error ? err.message : String(err)}`, true);
   }
 }
@@ -125,7 +125,7 @@ async function getCrumb(): Promise<{ header: string; value: string } | null> {
       return { header: data.crumbRequestField || '', value: data.crumb || '' };
     }
   } catch (e) {
-    logger.warn('Failed to fetch crumb via API', e);
+    logger.debug('Failed to fetch crumb via API', e);
   }
 
   return null;
@@ -174,7 +174,7 @@ function injectSaveButton(target: HTMLElement, token: string) {
       btn.innerText = '✅ 已保存！';
       btn.style.background = '#16a34a';
     } catch (err) {
-      logger.error(err);
+      logger.debug(err);
       btn.innerText = '❌ 错误';
     }
   };

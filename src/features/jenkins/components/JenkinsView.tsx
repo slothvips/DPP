@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronDown, ChevronRight, History, RefreshCw, User, Users } from 'lucide-react';
+import { ChevronDown, ChevronRight, History, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -50,17 +50,20 @@ export function JenkinsView() {
     { jobs: [], jobTags: [], tags: [] }
   );
 
-  const myBuilds =
-    useLiveQuery(() => db.myBuilds.orderBy('timestamp').reverse().toArray(), [refreshKey]) || [];
+  const myBuilds = useLiveQuery(
+    () => db.myBuilds.orderBy('timestamp').reverse().toArray(),
+    [refreshKey]
+  );
 
-  const othersBuilds =
-    useLiveQuery(() => db.othersBuilds.orderBy('timestamp').reverse().toArray(), [refreshKey]) ||
-    [];
+  const othersBuilds = useLiveQuery(
+    () => db.othersBuilds.orderBy('timestamp').reverse().toArray(),
+    [refreshKey]
+  );
 
   const displayedBuilds = useMemo(() => {
-    let builds = [...myBuilds];
+    let builds = [...(myBuilds || [])];
     if (showOthersBuilds) {
-      builds = [...builds, ...othersBuilds];
+      builds = [...builds, ...(othersBuilds || [])];
     }
     return builds.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50); // Limit total display
   }, [myBuilds, othersBuilds, showOthersBuilds]);
@@ -222,23 +225,18 @@ export function JenkinsView() {
           <div className="p-2">
             {/* Build History Section */}
             <div className="mb-2">
-              <div
-                className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer select-none group"
+              <button
+                type="button"
+                className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer select-none group w-full text-left bg-transparent border-0"
                 onClick={() => toggleExpand('__build_history__')}
-                onKeyDown={(e) => e.key === 'Enter' && toggleExpand('__build_history__')}
-                role="button"
-                tabIndex={0}
               >
-                <button
-                  type="button"
-                  className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0"
-                >
+                <span className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0 flex items-center justify-center">
                   {expandedUrls.has('__build_history__') ? (
                     <ChevronDown className="w-4 h-4" />
                   ) : (
                     <ChevronRight className="w-4 h-4" />
                   )}
-                </button>
+                </span>
                 <div className="shrink-0 text-primary relative">
                   <History className="w-4 h-4" />
                 </div>
@@ -275,7 +273,7 @@ export function JenkinsView() {
                     </span>
                   </div>
                 )}
-              </div>
+              </button>
               {expandedUrls.has('__build_history__') && (
                 <div className="pl-6 space-y-1">
                   {displayedBuilds.length === 0 ? (

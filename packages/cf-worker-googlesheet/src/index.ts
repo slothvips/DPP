@@ -43,12 +43,7 @@ app.post('/api/sync/push', async (c) => {
 
     const newCursor = await client.appendRows(opsWithServerTimestamp);
 
-    // const lastCursorStr = await c.env.SYNC_KV.get('last_cursor');
-    // const currentKV = Number.parseInt(lastCursorStr || '0', 10) || 0;
-
-    // if (newCursor > currentKV) {
     await c.env.SYNC_KV.put('last_cursor', newCursor.toString());
-    // }
 
     return c.json({ success: true, cursor: newCursor });
   } catch (e) {
@@ -64,17 +59,10 @@ app.get('/api/sync/pull', async (c) => {
     const limitStr = c.req.query('limit');
     const limit = limitStr ? Number.parseInt(limitStr, 10) : 100;
 
-    // const lastCursorStr = await c.env.SYNC_KV.get('last_cursor');
-    // const lastCursor = Number.parseInt(lastCursorStr || '0', 10) || 0;
-
     const auth = getAuthToken(c.env);
     const client = new SheetsClient(c.env.GOOGLE_SPREADSHEET_ID, auth);
 
     const { ops, nextCursor } = await client.readRows(cursor - 1, limit);
-
-    // if (nextCursor > lastCursor) {
-    // await c.env.SYNC_KV.put('last_cursor', nextCursor.toString());
-    // }
 
     return c.json({ ops, cursor: nextCursor });
   } catch (e) {

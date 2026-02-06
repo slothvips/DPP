@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/db';
 import { useTheme } from '@/hooks/useTheme';
+import { unpack } from '@rrweb/packer';
 import './rrweb-player-theme.css';
 
 interface RRWebEvent {
@@ -64,6 +65,29 @@ export function PlayerApp() {
 
         if (events.length === 0) {
           throw new Error('录制内容为空 (0 个事件)');
+        }
+
+        // Handle unpacking if events are compressed
+        // Check first event to see if it needs unpacking
+        const firstEvent = events[0] as unknown;
+        const looksLikePacked =
+          events.length > 0 &&
+          typeof firstEvent !== 'string' &&
+          !('type' in (firstEvent as object));
+
+        if (looksLikePacked) {
+          try {
+            events = events.map((e) => unpack(e as unknown as string)) as unknown as RRWebEvent[];
+          } catch (e) {
+            console.warn('Failed to unpack events, assuming raw:', e);
+          }
+        } else {
+          events = events.map((e) => {
+            if (Array.isArray(e)) {
+              return unpack(e as unknown as string);
+            }
+            return e;
+          }) as unknown as RRWebEvent[];
         }
 
         if (containerRef.current) {

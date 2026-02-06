@@ -78,11 +78,10 @@ export function ZentaoUploader({ targetInput }: { targetInput: HTMLInputElement 
         setRecordings(res.recordings || []);
         setShowModal(true);
       } else {
-        console.error('Failed to load recordings:', res.error);
         alert('无法加载录像列表');
       }
-    } catch (e) {
-      console.error('Error loading recordings:', e);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
     }
@@ -112,8 +111,7 @@ export function ZentaoUploader({ targetInput }: { targetInput: HTMLInputElement 
       targetInput.dispatchEvent(new Event('change', { bubbles: true }));
 
       setShowModal(false);
-    } catch (e) {
-      console.error('Error fetching recording:', e);
+    } catch {
       alert('加载录像失败');
     } finally {
       setLoadingId(null);

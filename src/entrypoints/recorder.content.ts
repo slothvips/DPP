@@ -1,5 +1,6 @@
 import { record } from 'rrweb';
 import { logger } from '@/utils/logger';
+import { pack } from '@rrweb/packer';
 import type { eventWithTime } from '@rrweb/types';
 
 export default defineContentScript({
@@ -214,11 +215,12 @@ export default defineContentScript({
       if (!isResume) {
         startTime = Date.now();
       }
-      logger.info('Starting rrweb recording');
+      logger.debug('Starting rrweb recording');
 
       createFloatingUI();
 
       stopFn = record({
+        packFn: pack,
         emit(event) {
           events.push(event);
         },
@@ -237,7 +239,7 @@ export default defineContentScript({
         stopFn = null;
         removeFloatingUI();
         const duration = Date.now() - startTime;
-        logger.info('Stopped rrweb recording', { duration, events: events.length });
+        logger.debug('Stopped rrweb recording', { duration, events: events.length });
 
         const faviconEl = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
         const favicon = faviconEl?.href;

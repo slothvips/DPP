@@ -1,7 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import { ZentaoUploader } from '@/features/recorder/components/ZentaoUploader';
 
-const DEBUG = true;
+const DEBUG = false;
 
 function log(...args: unknown[]) {
   if (DEBUG) console.log('[DPP Zentao]', ...args);
@@ -269,8 +269,6 @@ function runInMainFrame() {
   }
 
   function injectIntoDocument(doc: Document, win: Window) {
-    let injected = false;
-
     function injectButton(formGroup: HTMLElement, input: HTMLInputElement) {
       if (formGroup.dataset.dppInjected) return;
       formGroup.dataset.dppInjected = 'true';
@@ -338,8 +336,6 @@ function runInMainFrame() {
       } else {
         formGroup.appendChild(button);
       }
-
-      injected = true;
     }
 
     function runInjection() {

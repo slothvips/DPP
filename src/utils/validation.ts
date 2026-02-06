@@ -50,11 +50,3 @@ export function validateLength(
 
   return { valid: true };
 }
-
-/**
- * 截断字符串到指定长度
- */
-export function truncate(value: string, maxLength: number): string {
-  if (!value) return value;
-  return value.length > maxLength ? value.substring(0, maxLength) : value;
-}
