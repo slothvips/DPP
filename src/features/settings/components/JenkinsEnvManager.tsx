@@ -41,6 +41,12 @@ export function JenkinsEnvManager() {
       const newEnvs = environments?.filter((e) => e.id !== id) || [];
       await db.settings.put({ key: 'jenkins_environments', value: newEnvs });
 
+      await Promise.all([
+        db.jobs.where('env').equals(id).delete(),
+        db.myBuilds.where('env').equals(id).delete(),
+        db.othersBuilds.where('env').equals(id).delete(),
+      ]);
+
       // If we deleted the current env, switch to another one or clear it
       if (currentEnvId === id) {
         const nextEnv = newEnvs[0];
