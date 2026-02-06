@@ -364,7 +364,7 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
               id="name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="例如：生产环境、测试环境..."
+              placeholder="取个名儿区分一下配置信息~"
             />
           </div>
 
