@@ -30,17 +30,17 @@ export function getStatusClassName(status?: string): string {
   if (!status) return 'text-muted-foreground border-transparent';
   switch (status) {
     case 'SUCCESS':
-      return 'text-success border-success/20 bg-success/10';
+      return 'text-success bg-success/20 border-success/30';
     case 'FAILURE':
-      return 'text-destructive border-destructive/20 bg-destructive/10';
+      return 'text-destructive bg-destructive/20 border-destructive/30';
     case 'ABORTED':
-      return 'text-muted-foreground border-border bg-muted/50';
+      return 'text-muted-foreground bg-muted border-border';
     case 'UNSTABLE':
-      return 'text-warning border-warning/20 bg-warning/10';
+      return 'text-warning bg-warning/20 border-warning/30';
     case 'Building':
-      return 'text-info border-info/20 bg-info/10 animate-pulse';
+      return 'text-info bg-info/20 border-info/30 animate-pulse';
     default:
-      return 'text-muted-foreground border-border';
+      return 'text-muted-foreground bg-muted/50 border-border';
   }
 }
 
