@@ -158,6 +158,35 @@ db.version(15).stores({
   othersBuilds: 'id, timestamp',
 });
 
+db.version(16)
+  .stores({
+    jobs: 'url, name, env',
+    myBuilds: 'id, timestamp, env',
+    othersBuilds: 'id, timestamp, env',
+  })
+  .upgrade(async (tx) => {
+    const host = await tx.table('settings').get('jenkins_host');
+    const user = await tx.table('settings').get('jenkins_user');
+    const token = await tx.table('settings').get('jenkins_token');
+
+    if (host || user || token) {
+      const defaultEnv = {
+        id: 'default',
+        name: 'Default',
+        host: (host?.value as string) || '',
+        user: (user?.value as string) || '',
+        token: (token?.value as string) || '',
+        order: 0,
+      };
+      await tx.table('settings').add({ key: 'jenkins_environments', value: [defaultEnv] });
+      await tx.table('settings').add({ key: 'jenkins_current_env', value: 'default' });
+    }
+
+    await tx.table('jobs').toCollection().modify({ env: 'default' });
+    await tx.table('myBuilds').toCollection().modify({ env: 'default' });
+    await tx.table('othersBuilds').toCollection().modify({ env: 'default' });
+  });
+
 const defaultSyncProvider: SyncProvider = {
   push: async (ops, clientId) => {
     const key = await loadKey();

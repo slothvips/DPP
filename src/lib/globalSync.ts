@@ -1,4 +1,4 @@
-import { db } from '@/db';
+import { type JenkinsEnvironment, db } from '@/db';
 import { fetchTodayNews } from '@/features/hotNews/api';
 import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
@@ -32,15 +32,30 @@ export async function performGlobalSync() {
 
     // Sync Jenkins
     const settings = await db.settings.toArray();
-    const jenkinsHost = settings.find((s) => s.key === 'jenkins_host')?.value as string;
-    const jenkinsUser = settings.find((s) => s.key === 'jenkins_user')?.value as string;
-    const jenkinsToken = settings.find((s) => s.key === 'jenkins_token')?.value as string;
+    const currentEnvId = settings.find((s) => s.key === 'jenkins_current_env')?.value as string;
+    const environments =
+      (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+
+    let jenkinsHost = settings.find((s) => s.key === 'jenkins_host')?.value as string;
+    let jenkinsUser = settings.find((s) => s.key === 'jenkins_user')?.value as string;
+    let jenkinsToken = settings.find((s) => s.key === 'jenkins_token')?.value as string;
+    let envId = 'default';
+
+    if (currentEnvId && environments.length > 0) {
+      const env = environments.find((e) => e.id === currentEnvId);
+      if (env) {
+        jenkinsHost = env.host;
+        jenkinsUser = env.user;
+        jenkinsToken = env.token;
+        envId = env.id;
+      }
+    }
 
     if (jenkinsHost && jenkinsUser && jenkinsToken) {
       try {
         await Promise.all([
-          fetchAllJobs(jenkinsHost, jenkinsUser, jenkinsToken),
-          fetchMyBuilds(jenkinsHost, jenkinsUser, jenkinsToken),
+          fetchAllJobs(jenkinsHost, jenkinsUser, jenkinsToken, envId),
+          fetchMyBuilds(jenkinsHost, jenkinsUser, jenkinsToken, envId),
         ]);
         results.push({ module: 'jenkins', success: true });
         logger.info('[GlobalSync] Jenkins sync completed');

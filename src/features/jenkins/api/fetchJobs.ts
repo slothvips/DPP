@@ -25,7 +25,12 @@ interface JenkinsJobsResponse {
   }>;
 }
 
-export async function fetchAllJobs(baseUrl: string, user: string, token: string): Promise<number> {
+export async function fetchAllJobs(
+  baseUrl: string,
+  user: string,
+  token: string,
+  envId: string
+): Promise<number> {
   const client = createJenkinsClient({ baseUrl, user, token });
   const jobs: JobItem[] = [];
   const MAX_DEPTH = 10; // Maximum folder depth to prevent infinite recursion
@@ -84,6 +89,7 @@ export async function fetchAllJobs(baseUrl: string, user: string, token: string)
         lastBuildUrl: j.lastBuild?.url,
         lastBuildTime: j.lastBuild?.timestamp,
         lastBuildUser: buildUser,
+        env: envId,
       });
 
       if (client.isFolder(j._class)) {

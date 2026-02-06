@@ -32,6 +32,16 @@ export interface JobItem {
   lastBuildUser?: string;
   token?: string;
   params?: Record<string, string>;
+  env?: string;
+}
+
+export interface JenkinsEnvironment {
+  id: string; // UUID or unique slug
+  name: string; // e.g., "Dev", "UAT", "Production"
+  host: string;
+  user: string;
+  token: string;
+  order: number;
 }
 
 export interface TagItem {
@@ -59,6 +69,8 @@ export type SettingKey =
   | 'jenkins_host'
   | 'jenkins_user'
   | 'jenkins_token'
+  | 'jenkins_environments'
+  | 'jenkins_current_env'
   | 'custom_server_url'
   | 'sync_access_token'
   | 'sync_encryption_key'
@@ -83,6 +95,7 @@ export interface MyBuildItem {
   duration?: number;
   building: boolean;
   userName?: string;
+  env?: string;
 }
 
 export type OthersBuildItem = MyBuildItem;

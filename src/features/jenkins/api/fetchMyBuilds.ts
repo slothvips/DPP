@@ -31,7 +31,12 @@ interface JenkinsJobsResponse {
   jobs?: JenkinsJobApiItem[];
 }
 
-export async function fetchMyBuilds(baseUrl: string, user: string, token: string): Promise<number> {
+export async function fetchMyBuilds(
+  baseUrl: string,
+  user: string,
+  token: string,
+  envId: string
+): Promise<number> {
   const client = createJenkinsClient({ baseUrl, user, token });
   const allMyBuilds: MyBuildItem[] = [];
   const allOthersBuilds: OthersBuildItem[] = [];
@@ -107,6 +112,7 @@ export async function fetchMyBuilds(baseUrl: string, user: string, token: string
             duration: b.duration,
             building: b.building || false,
             userName: builderName,
+            env: envId,
           };
 
           if (isMyBuild) {
@@ -138,10 +144,10 @@ export async function fetchMyBuilds(baseUrl: string, user: string, token: string
   const recentOthersBuilds = uniqueOthersBuilds.slice(0, 50);
 
   await db.transaction('rw', db.myBuilds, db.othersBuilds, async () => {
-    await db.myBuilds.clear();
+    await db.myBuilds.where('env').equals(envId).delete();
     await db.myBuilds.bulkPut(uniqueMyBuilds);
 
-    await db.othersBuilds.clear();
+    await db.othersBuilds.where('env').equals(envId).delete();
     await db.othersBuilds.bulkPut(recentOthersBuilds);
   });
 

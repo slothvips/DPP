@@ -1,4 +1,4 @@
-import { db } from '@/db';
+import { type JenkinsEnvironment, db } from '@/db';
 import { getJobDetails, triggerBuild } from '@/features/jenkins/api/build';
 import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
@@ -11,11 +11,25 @@ import { logger } from '@/utils/logger';
 
 async function getJenkinsCredentials() {
   const settings = await db.settings.toArray();
+  const currentEnvId = settings.find((s) => s.key === 'jenkins_current_env')?.value as string;
+  const environments =
+    (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+
+  if (currentEnvId && environments.length > 0) {
+    const env = environments.find((e) => e.id === currentEnvId);
+    if (env) {
+      return { host: env.host, user: env.user, token: env.token, envId: env.id };
+    }
+  }
+
+  // Fallback to legacy settings
   const host = settings.find((s) => s.key === 'jenkins_host')?.value as string;
   const user = settings.find((s) => s.key === 'jenkins_user')?.value as string;
   const token = settings.find((s) => s.key === 'jenkins_token')?.value as string;
+
   if (!host || !user || !token) throw new Error('Jenkins credentials not configured');
-  return { host, user, token };
+
+  return { host, user, token, envId: 'default' };
 }
 
 async function setupOffscreenDocument(path: string) {
@@ -301,15 +315,15 @@ export default defineBackground(() => {
       const jenkinsMessage = message as JenkinsMessage;
       (async () => {
         try {
-          const { host, user, token } = await getJenkinsCredentials();
+          const { host, user, token, envId } = await getJenkinsCredentials();
           let data: unknown;
 
           switch (jenkinsMessage.type) {
             case 'JENKINS_FETCH_JOBS':
-              data = await fetchAllJobs(host, user, token);
+              data = await fetchAllJobs(host, user, token, envId);
               break;
             case 'JENKINS_FETCH_MY_BUILDS':
-              data = await fetchMyBuilds(host, user, token);
+              data = await fetchMyBuilds(host, user, token, envId);
               break;
             case 'JENKINS_TRIGGER_BUILD': {
               const { jobUrl, parameters } = jenkinsMessage.payload;

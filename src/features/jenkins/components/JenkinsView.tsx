@@ -1,13 +1,20 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronDown, ChevronRight, History, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, History, Layers, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import { JENKINS } from '@/config/constants';
-import { db } from '@/db';
+import { type JenkinsEnvironment, db } from '@/db';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { JobRow } from '@/features/jenkins/components/JobRow';
 import { JobTreeNode } from '@/features/jenkins/components/JobTreeNode';
@@ -30,13 +37,21 @@ export function JenkinsView() {
 
   const settings = useLiveQuery(() => db.settings.toArray()) || [];
 
+  const environments =
+    (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+  const currentEnvId = settings.find((s) => s.key === 'jenkins_current_env')?.value as string;
+
+  const currentEnv = environments.find((e) => e.id === currentEnvId);
+
   const showOthersBuilds =
     (settings.find((s) => s.key === 'show_others_builds')?.value as boolean) ?? false;
 
   const { jobs, jobTags, tags } = useLiveQuery(
     async () => {
+      if (!currentEnvId) return { jobs: [], jobTags: [], tags: [] };
+
       const [allJobs, allJobTags, allTags] = await Promise.all([
-        db.jobs.toArray(),
+        db.jobs.where('env').equals(currentEnvId).toArray(),
         db.jobTags.filter((jt) => !jt.deletedAt).toArray(),
         db.tags.filter((t) => !t.deletedAt).toArray(),
       ]);
@@ -46,19 +61,19 @@ export function JenkinsView() {
         tags: allTags,
       };
     },
-    [refreshKey],
+    [refreshKey, currentEnvId],
     { jobs: [], jobTags: [], tags: [] }
   );
 
-  const myBuilds = useLiveQuery(
-    () => db.myBuilds.orderBy('timestamp').reverse().toArray(),
-    [refreshKey]
-  );
+  const myBuilds = useLiveQuery(async () => {
+    if (!currentEnvId) return [];
+    return db.myBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp');
+  }, [refreshKey, currentEnvId]);
 
-  const othersBuilds = useLiveQuery(
-    () => db.othersBuilds.orderBy('timestamp').reverse().toArray(),
-    [refreshKey]
-  );
+  const othersBuilds = useLiveQuery(async () => {
+    if (!currentEnvId) return [];
+    return db.othersBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp');
+  }, [refreshKey, currentEnvId]);
 
   const displayedBuilds = useMemo(() => {
     let builds = [...(myBuilds || [])];
@@ -111,9 +126,12 @@ export function JenkinsView() {
     return buildJobTree(jobs);
   }, [jobs, filter]);
 
-  const jenkinsHost = settings.find((s) => s.key === 'jenkins_host')?.value as string;
-  const jenkinsUser = settings.find((s) => s.key === 'jenkins_user')?.value as string;
-  const jenkinsToken = settings.find((s) => s.key === 'jenkins_token')?.value as string;
+  const jenkinsHost =
+    currentEnv?.host || (settings.find((s) => s.key === 'jenkins_host')?.value as string);
+  const jenkinsUser =
+    currentEnv?.user || (settings.find((s) => s.key === 'jenkins_user')?.value as string);
+  const jenkinsToken =
+    currentEnv?.token || (settings.find((s) => s.key === 'jenkins_token')?.value as string);
 
   useEffect(() => {
     if (!jenkinsHost || !jenkinsUser || !jenkinsToken) return;
@@ -165,6 +183,12 @@ export function JenkinsView() {
     }
   };
 
+  const handleEnvChange = async (envId: string) => {
+    await db.settings.put({ key: 'jenkins_current_env', value: envId });
+    setRefreshKey((prev) => prev + 1);
+    toast('已切换环境', 'success');
+  };
+
   const toggleShowOthers = async (checked: boolean) => {
     await db.settings.put({ key: 'show_others_builds', value: checked });
   };
@@ -176,7 +200,7 @@ export function JenkinsView() {
     setExpandedUrls(next);
   };
 
-  if (!jenkinsToken) {
+  if (!jenkinsToken && environments.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 space-y-4">
         <p className="text-muted-foreground">请先在设置页配置 Jenkins</p>
@@ -192,17 +216,48 @@ export function JenkinsView() {
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 flex-1">
+            {environments.length > 0 && (
+              <Select value={currentEnvId} onValueChange={handleEnvChange}>
+                <SelectTrigger className="w-[180px] h-8 text-xs">
+                  <div className="flex items-center gap-2">
+                    <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                    <SelectValue placeholder="选择环境" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {environments
+                    .sort((a, b) => a.order - b.order)
+                    .map((env) => (
+                      <SelectItem key={env.id} value={env.id} className="text-xs">
+                        {env.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            )}
+            {environments.length === 0 && jenkinsHost && (
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5" />
+                <span>Default</span>
+              </div>
+            )}
+          </div>
+
+          <Button onClick={handleSync} disabled={loading} size="sm" className="h-8 text-xs gap-1.5">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? '同步中' : '同步'}
+          </Button>
+        </div>
+
         <Input
           placeholder="搜索 Job..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="flex-1"
+          className="h-9"
         />
-        <Button onClick={handleSync} disabled={loading} className="gap-2">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? '采集中...' : '采集'}
-        </Button>
       </div>
 
       <div className="flex-1 overflow-auto border rounded-md">
