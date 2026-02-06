@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { AlertCircle, Check, Loader2, Pencil, Plus, Trash2, Wand2 } from 'lucide-react';
+import { AlertCircle, Check, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
