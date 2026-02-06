@@ -215,15 +215,15 @@ export function JenkinsView() {
   }
 
   return (
-    <div className="flex flex-col h-full space-y-4">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 flex-1">
+    <div className="flex flex-col h-full gap-4">
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
             {environments.length > 0 && (
               <Select value={currentEnvId} onValueChange={handleEnvChange}>
-                <SelectTrigger className="w-[180px] h-8 text-xs">
-                  <div className="flex items-center gap-2">
-                    <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                <SelectTrigger className="w-full max-w-[200px] h-8 text-xs">
+                  <div className="flex items-center gap-2 truncate">
+                    <Layers className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                     <SelectValue placeholder="选择环境" />
                   </div>
                 </SelectTrigger>
@@ -246,7 +246,12 @@ export function JenkinsView() {
             )}
           </div>
 
-          <Button onClick={handleSync} disabled={loading} size="sm" className="h-8 text-xs gap-1.5">
+          <Button
+            onClick={handleSync}
+            disabled={loading}
+            size="sm"
+            className="h-8 text-xs gap-1.5 shrink-0"
+          >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             {loading ? '同步中' : '同步'}
           </Button>
@@ -256,7 +261,7 @@ export function JenkinsView() {
           placeholder="搜索 Job..."
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="h-9"
+          className="h-9 w-full"
         />
       </div>
 
