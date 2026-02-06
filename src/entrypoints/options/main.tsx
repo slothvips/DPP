@@ -226,16 +226,6 @@ function OptionsApp() {
             <div className="space-y-3">
               <div className="flex items-center space-x-3">
                 <Checkbox
-                  id="feature-links"
-                  checked={featureToggles.links}
-                  onCheckedChange={(checked) => toggleFeature('links', !!checked)}
-                />
-                <Label htmlFor="feature-links" className="text-sm font-medium cursor-pointer">
-                  链接
-                </Label>
-              </div>
-              <div className="flex items-center space-x-3">
-                <Checkbox
                   id="feature-hotnews"
                   checked={featureToggles.hotNews}
                   onCheckedChange={(checked) => toggleFeature('hotNews', !!checked)}

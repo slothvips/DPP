@@ -231,12 +231,12 @@ export function LinksView() {
         </div>
         <Button
           onClick={() => setIsImportDialogOpen(true)}
-          size="icon"
           variant="ghost"
-          className="shrink-0"
-          title="AI 智能导入"
+          className="shrink-0 gap-1"
+          title="导入链接"
         >
           <Upload className="h-4 w-4" />
+          导入
         </Button>
         <Button onClick={handleAdd} size="icon" className="shrink-0" title="添加链接">
           <Plus className="h-4 w-4" />
