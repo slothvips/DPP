@@ -35,7 +35,7 @@ export function JenkinsEnvManager() {
   });
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this environment?')) return;
+    if (!confirm('确定要删除此环境吗？')) return;
 
     try {
       const newEnvs = environments?.filter((e) => e.id !== id) || [];
@@ -56,10 +56,10 @@ export function JenkinsEnvManager() {
         });
       }
 
-      toast('Environment deleted', 'success');
+      toast('环境已删除', 'success');
     } catch (e) {
       logger.error(e);
-      toast('Failed to delete environment', 'error');
+      toast('删除环境失败', 'error');
     }
   };
 
@@ -76,28 +76,28 @@ export function JenkinsEnvManager() {
   const handleSetCurrent = async (id: string) => {
     try {
       await db.settings.put({ key: 'jenkins_current_env', value: id });
-      toast('Active environment switched', 'success');
+      toast('已切换当前环境', 'success');
     } catch (e) {
       logger.error(e);
-      toast('Failed to switch environment', 'error');
+      toast('切换环境失败', 'error');
     }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-medium">Environments</h3>
+        <h3 className="text-lg font-medium">环境列表</h3>
         <Button size="sm" onClick={handleAdd} className="gap-2">
-          <Plus className="w-4 h-4" /> Add New
+          <Plus className="w-4 h-4" /> 新增环境
         </Button>
       </div>
 
       <div className="grid gap-4">
         {environments?.length === 0 && (
           <div className="text-center py-8 text-muted-foreground border border-dashed rounded-lg">
-            No Jenkins environments configured.
+            暂无 Jenkins 环境配置。
             <br />
-            Add one to get started.
+            请添加一个环境以开始使用。
           </div>
         )}
 
@@ -116,29 +116,30 @@ export function JenkinsEnvManager() {
                 <span className="font-semibold">{env.name}</span>
                 {currentEnvId === env.id && (
                   <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
-                    <Check className="w-3 h-3" /> Active
+                    <Check className="w-3 h-3" /> 当前使用
                   </span>
                 )}
               </div>
               <div className="text-sm text-muted-foreground flex items-center gap-2">
                 <span className="truncate max-w-[200px]">{env.host}</span>
                 <span>•</span>
-                <span>{env.user || 'Anonymous'}</span>
+                <span>{env.user || '匿名用户'}</span>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               {currentEnvId !== env.id && (
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
+                  className="border-primary/30 text-primary hover:bg-primary/5 hover:text-primary hover:border-primary/60"
                   onClick={() => handleSetCurrent(env.id)}
-                  title="Set as active"
+                  title="设为当前"
                 >
-                  Set Active
+                  设为当前
                 </Button>
               )}
-              <Button variant="ghost" size="icon" onClick={() => handleEdit(env)} title="Edit">
+              <Button variant="ghost" size="icon" onClick={() => handleEdit(env)} title="编辑">
                 <Pencil className="w-4 h-4" />
               </Button>
               <Button
@@ -146,7 +147,7 @@ export function JenkinsEnvManager() {
                 size="icon"
                 className="text-destructive hover:text-destructive"
                 onClick={() => handleDelete(env.id)}
-                title="Delete"
+                title="删除"
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
@@ -193,14 +194,14 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
   }, [open, initialData]);
 
   const validate = () => {
-    if (!formData.name?.trim()) return 'Name is required';
-    if (!formData.host?.trim()) return 'Host URL is required';
+    if (!formData.name?.trim()) return '名称不能为空';
+    if (!formData.host?.trim()) return '服务器地址不能为空';
 
     // Check name uniqueness (exclude current item if editing)
     const isNameDuplicate = existingEnvs.some(
       (e) => e.name === formData.name && e.id !== initialData?.id
     );
-    if (isNameDuplicate) return 'Environment name must be unique';
+    if (isNameDuplicate) return '环境名称必须唯一';
 
     const hostValidation = validateLength(
       formData.host,
@@ -244,18 +245,18 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
         await db.settings.put({ key: 'jenkins_current_env', value: newEnv.id });
       }
 
-      toast(initialData ? 'Environment updated' : 'Environment added', 'success');
+      toast(initialData ? '环境已更新' : '环境已添加', 'success');
       onOpenChange(false);
     } catch (e) {
       logger.error(e);
-      toast('Failed to save environment', 'error');
+      toast('保存环境失败', 'error');
     }
   };
 
   const runAutoDetect = async () => {
     let url = formData.host;
     if (!url) {
-      toast('Please enter a Host URL first', 'error');
+      toast('请先输入服务器地址', 'error');
       return;
     }
 
@@ -271,19 +272,19 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
       const userRes = await http(`${url}/me/api/json?tree=id`, { timeout: 15000 });
 
       if (userRes.status === 403 || userRes.status === 401) {
-        if (confirm('Authentication required. Open Jenkins login page?')) {
+        if (confirm('需要认证。是否打开 Jenkins 登录页面？')) {
           window.open(url, '_blank');
         }
         return;
       }
 
-      if (!userRes.ok) throw new Error(`Connection failed (${userRes.status})`);
+      if (!userRes.ok) throw new Error(`连接失败 (${userRes.status})`);
 
       const userData = (await userRes.json()) as { id?: string };
       const userId = userData.id;
 
       if (userId === 'anonymous') {
-        if (confirm('You are logged in as "anonymous". Open Jenkins login page?')) {
+        if (confirm('当前为“匿名”登录。是否打开 Jenkins 登录页面？')) {
           window.open(`${url}/login`, '_blank');
         }
         return;
@@ -321,11 +322,11 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
         timeout: 15000,
       });
 
-      if (!genRes.ok) throw new Error(`Token generation failed: ${genRes.status}`);
+      if (!genRes.ok) throw new Error(`令牌生成失败: ${genRes.status}`);
 
       const genData = await genRes.json();
       if (genData.status !== 'ok' || !genData.data?.tokenValue) {
-        throw new Error('Invalid response from Jenkins');
+        throw new Error('Jenkins 响应无效');
       }
 
       const token = genData.data.tokenValue;
@@ -339,10 +340,10 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
         name: prev.name || (userId ? `${userId} @ ${new URL(url).hostname}` : 'New Env'),
       }));
 
-      toast(`Connected as ${userId}. Token generated.`, 'success');
+      toast(`已连接为 ${userId}. 令牌已生成。`, 'success');
     } catch (e) {
       logger.error(e);
-      toast(`Auto-detect failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      toast(`自动检测失败: ${e instanceof Error ? e.message : String(e)}`, 'error');
     } finally {
       setIsDetecting(false);
     }
@@ -352,49 +353,49 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>{initialData ? 'Edit Environment' : 'Add Environment'}</DialogTitle>
-          <DialogDescription>Configure your Jenkins server connection details.</DialogDescription>
+          <DialogTitle>{initialData ? '编辑环境' : '添加环境'}</DialogTitle>
+          <DialogDescription>配置您的 Jenkins 服务器连接信息。</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Name</Label>
+            <Label htmlFor="name">名称</Label>
             <Input
               id="name"
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="e.g., Production, Dev, Legacy..."
+              placeholder="例如：生产环境、测试环境..."
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="host">Server URL</Label>
-            <div className="flex gap-2">
-              <Input
-                id="host"
-                value={formData.host}
-                onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-                placeholder="http://jenkins.example.com"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={runAutoDetect}
-                disabled={isDetecting}
-                title="Auto Detect from Browser Session"
-              >
-                {isDetecting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Wand2 className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
+            <Label htmlFor="host">服务器地址</Label>
+            <Input
+              id="host"
+              value={formData.host}
+              onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+              placeholder="http://jenkins.example.com"
+            />
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={runAutoDetect}
+              disabled={isDetecting}
+            >
+              {isDetecting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  检测中...
+                </>
+              ) : (
+                '自动填充凭证(需已登录 web jenkins)'
+              )}
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="user">User ID</Label>
+              <Label htmlFor="user">用户 ID</Label>
               <Input
                 id="user"
                 value={formData.user}
@@ -403,7 +404,7 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="token">API Token</Label>
+              <Label htmlFor="token">API 令牌</Label>
               <Input
                 id="token"
                 type="password"
@@ -416,18 +417,15 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
 
           <div className="bg-muted/50 p-3 rounded-md flex items-start gap-2 text-xs text-muted-foreground">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            <p>
-              Use the wand button to auto-detect settings if you are already logged into Jenkins in
-              another tab.
-            </p>
+            <p>如果您已在其他标签页登录 Jenkins，可以使用自动填充功能快速配置。</p>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            取消
           </Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={handleSave}>保存</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

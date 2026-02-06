@@ -260,7 +260,7 @@ function OptionsApp() {
 
           {/* Jenkins Section */}
           <section className="space-y-4 border p-4 rounded-lg">
-            <h2 className="text-xl font-semibold flex items-center gap-2">Jenkins Environments</h2>
+            <h2 className="text-xl font-semibold flex items-center gap-2">Jenkins 环境管理</h2>
             <JenkinsEnvManager />
           </section>
 
