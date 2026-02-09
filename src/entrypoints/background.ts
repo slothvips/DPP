@@ -403,13 +403,7 @@ export default defineBackground(() => {
     return false;
   });
 
-  browser.omnibox.setDefaultSuggestion({
-    description: '搜索 DPP 链接: <match>%s</match>',
-  });
-
-  browser.omnibox.onInputChanged.addListener(async (text, suggest) => {
-    if (!text) return;
-
+  const searchOmnibox = async (text: string) => {
     try {
       // Fetch all links with their tags, jobs, and settings
       const [allLinks, allLinkTags, allJobTags, allTags, allJobs, settings] = await Promise.all([
@@ -454,7 +448,7 @@ export default defineBackground(() => {
         .toLowerCase()
         .split(' ')
         .filter((k) => k.trim().length > 0);
-      if (terms.length === 0) return;
+      if (terms.length === 0) return [];
 
       // Separate tag filters (starting with #) from general keywords
       const tagFilters = terms
@@ -549,23 +543,45 @@ export default defineBackground(() => {
         };
       });
 
-      const suggestions = [...linkSuggestions, ...jobSuggestions];
-
-      if (suggestions.length === 0) {
-        suggestions.push({
-          content: 'https://github.com',
-          description: 'No matches found - <url>https://github.com</url>',
-        });
-      }
-
-      suggest(suggestions);
+      return [...linkSuggestions, ...jobSuggestions];
     } catch (e) {
       logger.error('Omnibox search error:', e);
-      suggest([{ content: 'error', description: `Error: ${String(e)}` }]);
+      return [];
+    }
+  };
+
+  browser.omnibox.onInputChanged.addListener(async (text, suggest) => {
+    if (!text) return;
+
+    const suggestions = await searchOmnibox(text);
+
+    if (suggestions.length > 0) {
+      // Set the first suggestion as the default one to avoid duplication
+      const first = suggestions[0];
+      browser.omnibox.setDefaultSuggestion({
+        description: first.description,
+      });
+      // Show the rest in the dropdown
+      suggest(suggestions.slice(1));
+    } else {
+      browser.omnibox.setDefaultSuggestion({
+        description: '没有找到匹配项',
+      });
+      suggest([]);
     }
   });
 
-  browser.omnibox.onInputEntered.addListener(async (url) => {
+  browser.omnibox.onInputEntered.addListener(async (text) => {
+    let url = text;
+
+    // If the input is not a URL, try to find a match
+    if (!text.startsWith('http://') && !text.startsWith('https://')) {
+      const suggestions = await searchOmnibox(text);
+      if (suggestions.length > 0) {
+        url = suggestions[0].content;
+      }
+    }
+
     // Check if the URL corresponds to a known Job
     try {
       const job = await db.jobs.get(url);
