@@ -331,6 +331,10 @@ db.version(19).stores({
 // Lazy-load syncEngine to avoid initializing in Service Worker (no localStorage)
 let _syncEngine: SyncEngine | null = null;
 
+db.version(20).stores({
+  deferred_ops: '++id, table, timestamp',
+});
+
 export async function getSyncEngine(): Promise<SyncEngine | null> {
   if (!_syncEngine) {
     _syncEngine = new SyncEngine(

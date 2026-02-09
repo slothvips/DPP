@@ -172,6 +172,11 @@ export class SyncEngine {
   }
 
   public register() {
+    // Trigger deferred operations processing on startup
+    this.processDeferredOperations().catch((e) => {
+      logger.error('[Sync] Failed to process deferred operations on startup:', e);
+    });
+
     for (const tableName of this.tables) {
       const table = this.db.table(tableName);
 
@@ -394,7 +399,18 @@ export class SyncEngine {
 
   private async applyOperation(op: SyncOperation) {
     if (!this.tables.includes(op.table)) {
-      logger.warn(`[Sync] Skipping operation for unknown or unsynced table: ${op.table}`, op);
+      // Defer operation for unknown table to support future schema updates
+      try {
+        await this.db.table('deferred_ops').add({
+          table: op.table,
+          op,
+          timestamp: op.timestamp,
+          receivedAt: Date.now(),
+        });
+        logger.info(`[Sync] Deferred operation for unknown table: ${op.table}`);
+      } catch (e) {
+        logger.error(`[Sync] Failed to defer operation for ${op.table}:`, e);
+      }
       return;
     }
 
@@ -520,5 +536,70 @@ export class SyncEngine {
     }
 
     return { push: pushCount, pull: pullCount };
+  }
+
+  /**
+   * Process any deferred operations for tables that are now supported
+   * This handles the case where data was received before the schema was updated
+   */
+  public async processDeferredOperations() {
+    try {
+      // Get all table names that have deferred operations
+      const deferredTables = await this.db.table('deferred_ops').orderBy('table').uniqueKeys();
+
+      // Filter for tables that are now known/supported
+      const tablesToProcess = deferredTables.filter((tableName) =>
+        this.tables.includes(tableName as string)
+      );
+
+      if (tablesToProcess.length === 0) return;
+
+      logger.info(
+        `[Sync] Processing deferred operations for new tables: ${tablesToProcess.join(', ')}`
+      );
+
+      for (const tableName of tablesToProcess) {
+        // Process each table in its own transaction to prevent one bad table from blocking others
+        // and to avoid massive transactions that could lock the DB
+        try {
+          await this.db.transaction(
+            'rw',
+            [this.db.table('deferred_ops'), this.db.table(tableName as string)],
+            async () => {
+              // Get ops sorted by timestamp to ensure correct replay order
+              const entries = await this.db
+                .table('deferred_ops')
+                .where('table')
+                .equals(tableName)
+                .sortBy('timestamp');
+
+              for (const entry of entries) {
+                try {
+                  // Apply the original operation
+                  await this.applyOperation(entry.op);
+                } catch (opError) {
+                  // Poison pill protection: if a specific operation fails, log it and continue.
+                  // This ensures that one bad record doesn't block the entire queue forever.
+                  logger.error(
+                    `[Sync] Failed to apply deferred op for ${tableName} (id: ${entry.op.id}), skipping:`,
+                    opError
+                  );
+                }
+              }
+
+              // Clean up processed operations for this table
+              // We delete them even if some failed individually (poison pills),
+              // because we don't want to retry them forever on every startup.
+              await this.db.table('deferred_ops').where('table').equals(tableName).delete();
+            }
+          );
+          logger.info(`[Sync] Successfully processed deferred operations for ${tableName}`);
+        } catch (tableError) {
+          logger.error(`[Sync] Failed to process deferred table ${tableName}:`, tableError);
+        }
+      }
+    } catch (e) {
+      logger.error('[Sync] Failed to process deferred operations:', e);
+    }
   }
 }

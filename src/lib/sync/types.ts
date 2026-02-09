@@ -32,3 +32,11 @@ export interface SyncProvider {
   ): Promise<{ ops: SyncOperation[]; nextCursor: string | number }>;
   getPendingCount?(cursor?: string | number, clientId?: string): Promise<number>;
 }
+
+export interface DeferredOperation {
+  id?: number; // Auto-incremented
+  table: string;
+  op: SyncOperation;
+  timestamp: number;
+  receivedAt: number;
+}
