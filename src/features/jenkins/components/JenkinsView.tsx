@@ -133,6 +133,34 @@ export function JenkinsView() {
   const jenkinsToken = currentEnv?.token;
 
   useEffect(() => {
+    const checkDeepLink = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const buildJobUrl = params.get('buildJobUrl');
+      const targetEnvId = params.get('envId');
+
+      if (targetEnvId && targetEnvId !== currentEnvId) {
+        await db.settings.put({ key: 'jenkins_current_env', value: targetEnvId });
+        // toast('已自动切换到目标环境', 'success'); // Silent switch for better UX
+      }
+
+      if (buildJobUrl) {
+        const job = await db.jobs.get(buildJobUrl);
+        if (job) {
+          setBuildJob({ url: job.url, name: job.name, envId: job.env });
+          // Optional: Clear params so it doesn't reopen on refresh
+          const newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('buildJobUrl');
+          newUrl.searchParams.delete('envId');
+          newUrl.searchParams.delete('tab');
+          window.history.replaceState({}, '', newUrl.toString());
+        }
+      }
+    };
+    checkDeepLink();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!jenkinsHost || !jenkinsUser || !jenkinsToken) return;
 
     let mounted = true;

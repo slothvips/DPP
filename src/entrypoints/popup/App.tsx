@@ -38,7 +38,16 @@ export function App() {
   const showSyncButton = !!serverUrl;
   const hasJenkins = (jenkinsEnvironments?.length ?? 0) > 0;
 
+  const params = new URLSearchParams(window.location.search);
+  const isMinimalMode = !!params.get('buildJobUrl');
+
   const [activeTab, setActiveTab] = useState<'links' | 'jenkins' | 'hotNews' | 'recorder'>(() => {
+    // Check URL params first for deep linking
+    const tabParam = params.get('tab');
+    if (tabParam && ['links', 'jenkins', 'hotNews', 'recorder'].includes(tabParam)) {
+      return tabParam as 'links' | 'jenkins' | 'hotNews' | 'recorder';
+    }
+
     const saved = localStorage.getItem('dpp_active_tab');
     if (saved && ['links', 'jenkins', 'hotNews', 'recorder'].includes(saved)) {
       return saved as 'links' | 'jenkins' | 'hotNews' | 'recorder';
@@ -73,54 +82,58 @@ export function App() {
     <ToastProvider>
       <div className="flex flex-col h-full bg-background text-foreground">
         {/* Header */}
-        <header className="flex items-center justify-between p-4 border-b">
-          <h1 className="text-lg font-bold">DPP</h1>
-          <Tips />
-          <div className="flex items-center gap-1">
-            {showSyncButton && <GlobalSyncButton />}
-            <Button variant="ghost" size="icon" onClick={openSettings}>
-              <Settings className="w-4 h-4" />
-            </Button>
-          </div>
-        </header>
+        {!isMinimalMode && (
+          <header className="flex items-center justify-between p-4 border-b">
+            <h1 className="text-lg font-bold">DPP</h1>
+            <Tips />
+            <div className="flex items-center gap-1">
+              {showSyncButton && <GlobalSyncButton />}
+              <Button variant="ghost" size="icon" onClick={openSettings}>
+                <Settings className="w-4 h-4" />
+              </Button>
+            </div>
+          </header>
+        )}
 
         {/* Tabs */}
-        <div className="flex border-b">
-          {hasJenkins && (
+        {!isMinimalMode && (
+          <div className="flex border-b">
+            {hasJenkins && (
+              <button
+                type="button"
+                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('jenkins')}
+              >
+                Jenkins
+              </button>
+            )}
+            {featureToggles.links && (
+              <button
+                type="button"
+                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('links')}
+              >
+                链接
+              </button>
+            )}
             <button
               type="button"
-              className={`flex-1 py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => handleTabChange('jenkins')}
+              className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => handleTabChange('recorder')}
             >
-              Jenkins
+              录制
             </button>
-          )}
-          {featureToggles.links && (
-            <button
-              type="button"
-              className={`flex-1 py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => handleTabChange('links')}
-            >
-              链接
-            </button>
-          )}
-          <button
-            type="button"
-            className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-            onClick={() => handleTabChange('recorder')}
-          >
-            录制
-          </button>
-          {featureToggles.hotNews && (
-            <button
-              type="button"
-              className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => handleTabChange('hotNews')}
-            >
-              热点
-            </button>
-          )}
-        </div>
+            {featureToggles.hotNews && (
+              <button
+                type="button"
+                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('hotNews')}
+              >
+                热点
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 overflow-hidden p-2">

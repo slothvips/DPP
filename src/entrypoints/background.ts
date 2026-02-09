@@ -370,9 +370,10 @@ export default defineBackground(() => {
 
     try {
       // Fetch all links with their tags, jobs, and settings
-      const [allLinks, allLinkTags, allTags, allJobs, settings] = await Promise.all([
+      const [allLinks, allLinkTags, allJobTags, allTags, allJobs, settings] = await Promise.all([
         db.links.filter((l) => !l.deletedAt).toArray(),
         db.linkTags.filter((lt) => !lt.deletedAt).toArray(),
+        db.jobTags.toArray(),
         db.tags.filter((t) => !t.deletedAt).toArray(),
         db.jobs.toArray(),
         db.settings.toArray(),
@@ -396,12 +397,29 @@ export default defineBackground(() => {
         }
       }
 
-      const keywords = text
+      const jobTagsMap = new Map<string, { id: string; name: string }[]>();
+      for (const jt of allJobTags) {
+        // @ts-expect-error - jobTags might have deletedAt check if strictly typed but for now we trust the array
+        if (jt.deletedAt) continue;
+        const tag = tagsMap.get(jt.tagId);
+        if (tag) {
+          const current = jobTagsMap.get(jt.jobUrl) || [];
+          current.push({ id: tag.id, name: tag.name });
+          jobTagsMap.set(jt.jobUrl, current);
+        }
+      }
+
+      const terms = text
         .toLowerCase()
         .split(' ')
         .filter((k) => k.trim().length > 0);
+      if (terms.length === 0) return;
 
-      if (keywords.length === 0) return;
+      // Separate tag filters (starting with #) from general keywords
+      const tagFilters = terms
+        .filter((t) => t.startsWith('#') && t.length > 1)
+        .map((t) => t.slice(1));
+      const keywords = terms.filter((t) => !t.startsWith('#'));
 
       const matchedLinks = allLinks.filter((link) => {
         const name = (link.name || '').toLowerCase();
@@ -409,6 +427,13 @@ export default defineBackground(() => {
         const tags = linkTagsMap.get(link.id) || [];
         const tagNames = tags.map((t) => t.name.toLowerCase());
 
+        // 1. Must match all tag filters
+        const matchesTags = tagFilters.every((filter) =>
+          tagNames.some((tagName) => tagName.includes(filter))
+        );
+        if (!matchesTags) return false;
+
+        // 2. Must match all general keywords (in name, url, or tags)
         return keywords.every(
           (kw) => name.includes(kw) || url.includes(kw) || tagNames.some((tag) => tag.includes(kw))
         );
@@ -418,9 +443,22 @@ export default defineBackground(() => {
         const name = (job.name || '').toLowerCase();
         const url = (job.url || '').toLowerCase();
         const envName = (job.env ? envMap.get(job.env) : '')?.toLowerCase() || '';
+        const tags = jobTagsMap.get(job.url) || [];
+        const tagNames = tags.map((t) => t.name.toLowerCase());
 
+        // 1. Must match all tag filters
+        const matchesTags = tagFilters.every((filter) =>
+          tagNames.some((tagName) => tagName.includes(filter))
+        );
+        if (!matchesTags) return false;
+
+        // 2. Must match all general keywords
         return keywords.every(
-          (kw) => name.includes(kw) || url.includes(kw) || envName.includes(kw)
+          (kw) =>
+            name.includes(kw) ||
+            url.includes(kw) ||
+            envName.includes(kw) ||
+            tagNames.some((tag) => tag.includes(kw))
         );
       });
 
@@ -442,17 +480,31 @@ export default defineBackground(() => {
           }
         });
 
-      const linkSuggestions = matchedLinks.map((link) => ({
-        content: link.url,
-        description: `${escapeXml(link.name || '')} - <url>${escapeXml(link.url || '')}</url>`,
-      }));
+      const linkSuggestions = matchedLinks.map((link) => {
+        const title = escapeXml(link.name || '无标题');
+        const url = escapeXml(link.url || '');
+        const tags = linkTagsMap.get(link.id) || [];
+        const tagsStr =
+          tags.length > 0 ? ` <dim>#${tags.map((t) => escapeXml(t.name)).join(' #')}</dim>` : '';
+
+        return {
+          content: link.url,
+          description: `<dim>[链接]</dim> ${title} <dim>- ${url}</dim>${tagsStr}`,
+        };
+      });
 
       const jobSuggestions = matchedJobs.map((job) => {
         const envName = job.env ? envMap.get(job.env) : undefined;
-        const prefix = envName ? `[${envName}] ` : '[Job] ';
+        const title = escapeXml(job.name || '无名称');
+        const url = escapeXml(job.url || '');
+        const envStr = envName ? ` <dim>@${escapeXml(envName)}</dim>` : '';
+        const tags = jobTagsMap.get(job.url) || [];
+        const tagsStr =
+          tags.length > 0 ? ` <dim>#${tags.map((t) => escapeXml(t.name)).join(' #')}</dim>` : '';
+
         return {
           content: job.url,
-          description: `${escapeXml(prefix + (job.name || ''))} - <url>${escapeXml(job.url || '')}</url>`,
+          description: `<dim>[构建]</dim> ${title} <dim>- ${url}</dim>${envStr}${tagsStr}`,
         };
       });
 
@@ -472,7 +524,29 @@ export default defineBackground(() => {
     }
   });
 
-  browser.omnibox.onInputEntered.addListener((url) => {
+  browser.omnibox.onInputEntered.addListener(async (url) => {
+    // Check if the URL corresponds to a known Job
+    try {
+      const job = await db.jobs.get(url);
+      if (job) {
+        // It's a job, open the extension popup page with parameters to trigger build
+        const popupUrl = browser.runtime.getURL(
+          `/popup.html?tab=jenkins&buildJobUrl=${encodeURIComponent(job.url)}&envId=${job.env || ''}`
+        );
+
+        // Open as a small popup window instead of a full tab
+        browser.windows.create({
+          url: popupUrl,
+          type: 'popup',
+          width: 800,
+          height: 600,
+        });
+        return;
+      }
+    } catch (e) {
+      logger.error('Error checking job for omnibox navigation:', e);
+    }
+
     if (url.startsWith('http://') || url.startsWith('https://')) {
       openLink(url);
     }
