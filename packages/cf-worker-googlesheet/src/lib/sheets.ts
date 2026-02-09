@@ -93,9 +93,33 @@ export class SheetsClient {
   ): Promise<{ ops: SyncOperation[]; nextCursor: number }> {
     return await this.withRetry(async () => {
       const sheet = await this.getOrCreateSheet();
-      const rows = await sheet.getRows({ offset, limit });
+
+      // Check if we are trying to read beyond the sheet bounds
+      // sheet.rowCount includes headers. We assume 1 header row.
+      const headerRowCount = 1;
+      const startRowIndex = headerRowCount + offset;
+
+      if (startRowIndex >= sheet.rowCount) {
+        return { ops: [], nextCursor: offset + 1 };
+      }
+
+      // Adjust limit to prevent "exceeds grid limits" error
+      const availableRows = sheet.rowCount - startRowIndex;
+      const safeLimit = Math.min(limit, availableRows);
+
+      let rows;
+      try {
+        rows = await sheet.getRows({ offset, limit: safeLimit });
+      } catch (e) {
+        const error = e as Error;
+        if (error.message.includes('exceeds grid limits')) {
+          return { ops: [], nextCursor: offset + 1 };
+        }
+        throw error;
+      }
+
       if (!rows || rows.length === 0) {
-        return { ops: [], nextCursor: offset };
+        return { ops: [], nextCursor: offset + 1 };
       }
 
       const ops = (rows as gsheet.GoogleSpreadsheetRow[])
