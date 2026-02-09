@@ -94,7 +94,7 @@ export function BlackboardItemView({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Only save on Meta+Enter, allow regular Enter for new lines
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.currentTarget.blur(); // Trigger blur to save
