@@ -23,7 +23,7 @@ interface LinkDialogProps {
   onClose: () => void;
   initialData: (LinkItem & { tags?: TagItem[] }) | null;
   onSave: (
-    data: Omit<LinkItem, 'id' | 'updatedAt' | 'category'> & { tags?: string[] }
+    data: Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
   ) => Promise<void>;
 }
 

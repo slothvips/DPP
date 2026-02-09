@@ -10,6 +10,7 @@ export interface LinkItem {
   url: string;
   note?: string;
   updatedAt: number;
+  createdAt: number;
   deletedAt?: number;
 }
 

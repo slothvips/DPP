@@ -1,20 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import {
-  Clock,
-  Edit,
-  List,
-  Pin,
-  PinOff,
-  Plus,
-  Search,
-  StickyNote,
-  Trash2,
-  Upload,
-} from 'lucide-react';
+import { Edit, Eye, Pin, PinOff, Plus, Search, StickyNote, Trash2, Upload } from 'lucide-react';
 import { type AnchorHTMLAttributes, type MouseEvent, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import { type LinkItem, type TagItem, db } from '@/db';
 import { ImportLinksDialog } from '@/features/links/components/ImportLinksDialog';
@@ -23,7 +19,7 @@ import { LinkTagSelector } from '@/features/links/components/LinkTagSelector';
 import { type LinkWithStats, useLinks } from '@/features/links/hooks/useLinks';
 import { cn } from '@/utils/cn';
 
-type ViewMode = 'recent' | 'all';
+type SortOption = 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt';
 
 function NoteButton({ note }: { note: string }) {
   const [open, setOpen] = useState(false);
@@ -64,7 +60,7 @@ function LinkWithCopy({
   target,
   onSingleClick,
   ...props
-}: AnchorHTMLAttributes<HTMLAnchorElement> & { onSingleClick?: () => void }) {
+}: AnchorHTMLAttributes<HTMLAnchorElement> & { onSingleClick?: () => void | Promise<void> }) {
   const { toast } = useToast();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -79,9 +75,9 @@ function LinkWithCopy({
         () => toast('复制失败', 'error')
       );
     } else {
-      timerRef.current = setTimeout(() => {
+      timerRef.current = setTimeout(async () => {
         timerRef.current = null;
-        if (onSingleClick) onSingleClick();
+        if (onSingleClick) await onSingleClick();
         if (href) window.open(href, target || '_self');
       }, 250);
     }
@@ -98,7 +94,7 @@ export function LinksView() {
   const { links, recordVisit, togglePin, addLink, updateLink, deleteLink } = useLinks();
   const allTags = useLiveQuery(() => db.tags.filter((t) => !t.deletedAt).toArray()) || [];
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('createdAt');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<(LinkItem & { tags?: TagItem[] }) | null>(null);
@@ -107,7 +103,7 @@ export function LinksView() {
   const filteredAndSortedLinks = useMemo(() => {
     if (!links) return [];
 
-    const result = [...links];
+    let result = [...links];
 
     if (search) {
       // Split search text into multiple keywords (支持多关键词搜索)
@@ -116,13 +112,8 @@ export function LinksView() {
         .split(' ')
         .filter((k) => k.trim().length > 0);
 
-      if (keywords.length === 0) {
-        // If no valid keywords, skip filtering
-        return result;
-      }
-
-      return result
-        .filter((l) => {
+      if (keywords.length > 0) {
+        result = result.filter((l) => {
           const name = l.name.toLowerCase();
           const url = l.url.toLowerCase();
           const tagNames = l.tags?.map((t) => t.name.toLowerCase()) || [];
@@ -132,33 +123,8 @@ export function LinksView() {
             (kw) =>
               name.includes(kw) || url.includes(kw) || tagNames.some((tag) => tag.includes(kw))
           );
-        })
-        .sort((a, b) => {
-          const aPinned = !!a.pinnedAt;
-          const bPinned = !!b.pinnedAt;
-          if (aPinned !== bPinned) return aPinned ? -1 : 1;
-          if (a.pinnedAt && b.pinnedAt) {
-            return (b.pinnedAt || 0) - (a.pinnedAt || 0);
-          }
-          return b.usageCount - a.usageCount;
         });
-    }
-
-    if (viewMode === 'recent') {
-      return result
-        .filter((link) => link.usageCount > 0)
-        .sort((a, b) => {
-          const timeA = a.lastUsedAt || 0;
-          const timeB = b.lastUsedAt || 0;
-
-          if (timeA > 0 && timeB > 0) return timeB - timeA;
-
-          if (timeA > 0) return -1;
-          if (timeB > 0) return 1;
-
-          if (b.updatedAt !== a.updatedAt) return b.updatedAt - a.updatedAt;
-          return a.name.localeCompare(b.name);
-        });
+      }
     }
 
     return result.sort((a, b) => {
@@ -168,15 +134,41 @@ export function LinksView() {
       if (a.pinnedAt && b.pinnedAt) {
         return (b.pinnedAt || 0) - (a.pinnedAt || 0);
       }
-      if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
+
+      switch (sortBy) {
+        case 'usageCount':
+          if (b.usageCount !== a.usageCount) return b.usageCount - a.usageCount;
+          break;
+        case 'lastUsedAt': {
+          const la = a.lastUsedAt || 0;
+          const lb = b.lastUsedAt || 0;
+          if (lb !== la) return lb - la;
+          break;
+        }
+        case 'updatedAt':
+          if (b.updatedAt !== a.updatedAt) return b.updatedAt - a.updatedAt;
+          break;
+        case 'createdAt': {
+          const ca = a.createdAt || a.updatedAt || 0;
+          const cb = b.createdAt || b.updatedAt || 0;
+          if (cb !== ca) return cb - ca;
+          break;
+        }
+        default:
+          break;
+      }
+
       return a.name.localeCompare(b.name);
     });
-  }, [links, search, viewMode]);
+  }, [links, search, sortBy]);
 
-  const handleLinkClick = (id: string) => {
-    recordVisit(id).catch(() => {
-      // Visit recording failure is non-critical - link still opens
-    });
+  const handleLinkClick = async (id: string) => {
+    try {
+      await recordVisit(id);
+    } catch (e) {
+      console.error('Failed to record visit:', e);
+      toast('记录访问失败', 'error');
+    }
   };
 
   const handleAdd = () => {
@@ -201,7 +193,7 @@ export function LinksView() {
   };
 
   const handleSave = async (
-    data: Omit<LinkItem, 'id' | 'updatedAt' | 'category'> & { tags?: string[] }
+    data: Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
   ) => {
     try {
       if (editingLink) {
@@ -221,64 +213,47 @@ export function LinksView() {
     <div className="space-y-4 h-full flex flex-col">
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="搜索链接..."
-            className="pl-8"
+            className="pl-8 h-8"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+          <SelectTrigger className="w-[140px] shrink-0 h-8 text-xs">
+            <SelectValue placeholder="排序方式" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="createdAt" className="text-xs">
+              按添加时间
+            </SelectItem>
+            <SelectItem value="updatedAt" className="text-xs">
+              按更新时间
+            </SelectItem>
+            <SelectItem value="usageCount" className="text-xs">
+              按使用次数
+            </SelectItem>
+            <SelectItem value="lastUsedAt" className="text-xs">
+              按上次使用
+            </SelectItem>
+          </SelectContent>
+        </Select>
         <Button
           onClick={() => setIsImportDialogOpen(true)}
           variant="ghost"
-          className="shrink-0 gap-1"
+          size="sm"
+          className="shrink-0 gap-1.5 h-8 text-xs"
           title="导入链接"
         >
-          <Upload className="h-4 w-4" />
+          <Upload className="h-3.5 w-3.5" />
           导入
         </Button>
-        <Button onClick={handleAdd} size="icon" className="shrink-0" title="添加链接">
+        <Button onClick={handleAdd} size="sm" className="shrink-0 h-8 w-8 p-0" title="添加链接">
           <Plus className="h-4 w-4" />
         </Button>
       </div>
-
-      {!search && (
-        <div className="flex border-b">
-          <button
-            type="button"
-            className={cn(
-              'flex-1 py-2 text-sm font-medium transition-colors relative',
-              viewMode === 'recent' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-            )}
-            onClick={() => setViewMode('recent')}
-          >
-            <div className="flex items-center justify-center gap-1">
-              <Clock className="h-4 w-4" />
-              <span>最近</span>
-            </div>
-            {viewMode === 'recent' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
-          </button>
-          <button
-            type="button"
-            className={cn(
-              'flex-1 py-2 text-sm font-medium transition-colors relative',
-              viewMode === 'all' ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-            )}
-            onClick={() => setViewMode('all')}
-          >
-            <div className="flex items-center justify-center gap-1">
-              <List className="h-4 w-4" />
-              <span>全部</span>
-            </div>
-            {viewMode === 'all' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
-            )}
-          </button>
-        </div>
-      )}
 
       <div
         className={cn(
@@ -314,6 +289,15 @@ export function LinksView() {
                   </div>
                   {link.note && (
                     <StickyNote className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                  )}
+                  {link.usageCount >= 0 && (
+                    <div
+                      className="flex items-center gap-0.5 text-xs text-muted-foreground/50 bg-muted/30 px-1 rounded"
+                      title={`使用次数: ${link.usageCount}`}
+                    >
+                      <Eye className="h-3 w-3" />
+                      <span>{link.usageCount}</span>
+                    </div>
                   )}
                 </div>
                 <div

@@ -60,7 +60,7 @@ export function useLinks() {
   };
 
   const addLink = async (
-    data: Omit<LinkItem, 'id' | 'updatedAt' | 'category'> & { tags?: string[] }
+    data: Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
   ) => {
     const id = crypto.randomUUID();
     const now = Date.now();
@@ -75,6 +75,7 @@ export function useLinks() {
         note: data.note,
         category: '',
         updatedAt: now,
+        createdAt: now,
       });
 
       if (data.tags && data.tags.length > 0) {
@@ -92,7 +93,9 @@ export function useLinks() {
   };
 
   const bulkAddLinks = async (
-    items: Array<Omit<LinkItem, 'id' | 'updatedAt' | 'category'> & { tags?: string[] }>
+    items: Array<
+      Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
+    >
   ) => {
     const now = Date.now();
     const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
@@ -122,6 +125,7 @@ export function useLinks() {
           note: data.note,
           category: '',
           updatedAt: now,
+          createdAt: now,
         });
 
         if (data.tags && data.tags.length > 0) {
@@ -139,7 +143,9 @@ export function useLinks() {
 
   const updateLink = async (
     id: string,
-    data: Partial<Omit<LinkItem, 'id' | 'updatedAt' | 'category'>> & { tags?: string[] }
+    data: Partial<Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'>> & {
+      tags?: string[];
+    }
   ) => {
     const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
 

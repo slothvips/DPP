@@ -196,6 +196,17 @@ db.version(17).upgrade(async (tx) => {
     .delete();
 });
 
+db.version(18).upgrade(async (tx) => {
+  await tx
+    .table('links')
+    .toCollection()
+    .modify((link) => {
+      if (!link.createdAt) {
+        link.createdAt = link.updatedAt || Date.now();
+      }
+    });
+});
+
 const defaultSyncProvider: SyncProvider = {
   push: async (ops, clientId) => {
     const key = await loadKey();
