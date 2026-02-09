@@ -36,6 +36,7 @@ export function JenkinsView() {
   const [myBuildsLoading, setMyBuildsLoading] = useState(false);
   const [nextRefreshTime, setNextRefreshTime] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [shouldCloseOnSuccess, setShouldCloseOnSuccess] = useState(false);
 
   const settings = useLiveQuery(() => db.settings.toArray()) || [];
 
@@ -147,6 +148,7 @@ export function JenkinsView() {
         const job = await db.jobs.get(buildJobUrl);
         if (job) {
           setBuildJob({ url: job.url, name: job.name, envId: job.env });
+          setShouldCloseOnSuccess(true);
           // Optional: Clear params so it doesn't reopen on refresh
           const newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('buildJobUrl');
@@ -388,6 +390,14 @@ export function JenkinsView() {
           jobName={buildJob.name}
           envId={buildJob.envId}
           onClose={() => setBuildJob(null)}
+          onBuildSuccess={() => {
+            if (shouldCloseOnSuccess) {
+              toast('构建已触发，窗口即将关闭...', 'success');
+              setTimeout(() => {
+                window.close();
+              }, 2000);
+            }
+          }}
         />
       )}
     </div>

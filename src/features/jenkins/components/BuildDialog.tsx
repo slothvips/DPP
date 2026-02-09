@@ -31,9 +31,10 @@ interface Props {
   envId?: string;
   isOpen: boolean;
   onClose: () => void;
+  onBuildSuccess?: () => void;
 }
 
-export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose }: Props) {
+export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSuccess }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
@@ -96,6 +97,7 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose }: Props) 
       if (success) {
         toast('构建已触发！', 'success');
         onClose();
+        onBuildSuccess?.();
       } else {
         toast('触发构建失败，请检查网络或权限', 'error');
       }
