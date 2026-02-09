@@ -25,7 +25,7 @@ interface ImportLinksDialogProps {
 const AI_PROMPT = `Please convert the provided data into a valid JSON array.
 Each item in the array must be an object with the following fields:
 - "name" (string, required): The title or name of the link.
-- "url" (string, required): The valid URL.
+- "url" (string, required): The valid, direct HTTP/HTTPS URL. IMPORTANT: If the source contains markdown links like "[title](url)", extract ONLY the "url" part.
 - "tags" (array of strings, optional): List of tag names (e.g., ["Dev", "Docs"]).
 - "note" (string, optional): Any description, credentials, or extra info.
 
