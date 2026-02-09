@@ -290,7 +290,7 @@ export function LinksView() {
                   {link.note && (
                     <StickyNote className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
                   )}
-                  {link.usageCount >= 0 && (
+                  {import.meta.env.DEV && link.usageCount >= 0 && (
                     <div
                       className="flex items-center gap-0.5 text-xs text-muted-foreground/50 bg-muted/30 px-1 rounded"
                       title={`使用次数: ${link.usageCount}`}

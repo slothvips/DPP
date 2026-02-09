@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronDown, ChevronRight, History, Layers, RefreshCw } from 'lucide-react';
+import { ChevronDown, ChevronRight, History, Layers, RefreshCw, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -159,8 +159,7 @@ export function JenkinsView() {
       }
     };
     checkDeepLink();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentEnvId]);
 
   useEffect(() => {
     if (!jenkinsHost || !jenkinsUser || !jenkinsToken) return;
@@ -267,12 +266,15 @@ export function JenkinsView() {
             </Select>
           )}
 
-          <Input
-            placeholder="搜索 Job..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="h-8 flex-1"
-          />
+          <div className="relative flex-1">
+            <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索 Job..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="h-8 pl-8"
+            />
+          </div>
 
           <Button onClick={handleSync} disabled={loading} size="sm" className="h-8 text-xs gap-1.5">
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />

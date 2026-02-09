@@ -399,7 +399,6 @@ export default defineBackground(() => {
 
       const jobTagsMap = new Map<string, { id: string; name: string }[]>();
       for (const jt of allJobTags) {
-        // @ts-expect-error - jobTags might have deletedAt check if strictly typed but for now we trust the array
         if (jt.deletedAt) continue;
         const tag = tagsMap.get(jt.tagId);
         if (tag) {
