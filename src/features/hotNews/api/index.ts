@@ -13,16 +13,13 @@ import { http } from '@/lib/http';
 function getBejingDate(offsetDays = 0): string {
   const now = new Date();
 
-  // Get local timezone offset in milliseconds
-  const localOffset = now.getTimezoneOffset() * 60 * 1000;
-
   // Beijing timezone is UTC+8
   const bjOffset = 8 * 60 * 60 * 1000;
 
   // Calculate Beijing time from UTC
-  const bjTime = new Date(
-    now.getTime() + localOffset + bjOffset - offsetDays * 24 * 60 * 60 * 1000
-  );
+  // We only need to add the Beijing offset to the UTC timestamp
+  // Using getUTC* methods on the result will give us Beijing date components
+  const bjTime = new Date(now.getTime() + bjOffset - offsetDays * 24 * 60 * 60 * 1000);
 
   // Format as YYYY-MM-DD
   const year = bjTime.getUTCFullYear();

@@ -91,13 +91,13 @@ export function useGlobalSync(): GlobalSyncState {
     if (isSyncing) return;
 
     try {
-      await syncEngine.push();
+      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PUSH' });
     } catch (e) {
       logger.error('[useGlobalSync] Push failed:', e);
     }
 
     try {
-      await syncEngine.pull();
+      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PULL' });
     } catch (e) {
       logger.error('[useGlobalSync] Pull failed:', e);
     }
@@ -108,7 +108,7 @@ export function useGlobalSync(): GlobalSyncState {
 
   const push = useCallback(async () => {
     try {
-      await syncEngine.push();
+      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PUSH' });
       await refreshCounts();
     } catch (e) {
       logger.error('[useGlobalSync] Push failed:', e);
@@ -117,7 +117,7 @@ export function useGlobalSync(): GlobalSyncState {
 
   const pull = useCallback(async () => {
     try {
-      await syncEngine.pull();
+      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PULL' });
       await refreshCounts();
     } catch (e) {
       logger.error('[useGlobalSync] Pull failed:', e);

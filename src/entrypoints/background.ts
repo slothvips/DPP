@@ -1,4 +1,4 @@
-import { type JenkinsEnvironment, db } from '@/db';
+import { type JenkinsEnvironment, db, syncEngine } from '@/db';
 import { getJobDetails, triggerBuild } from '@/features/jenkins/api/build';
 import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
@@ -138,6 +138,48 @@ export default defineBackground(() => {
           logger.error('Global sync failed:', err);
           sendResponse({ success: false, error: err instanceof Error ? err.message : String(err) });
         });
+      return true;
+    }
+
+    if (message.type === 'GLOBAL_SYNC_PUSH') {
+      (async () => {
+        try {
+          await db.settings.put({ key: 'global_sync_status', value: 'syncing' });
+          await syncEngine.push();
+          // Only reset to idle if we are managing the full sync lifecycle here.
+          // But since these are called sequentially, it's safer to reset here to avoid stuck 'syncing' state if the chain breaks.
+          await db.settings.put({ key: 'global_sync_status', value: 'idle' });
+          sendResponse({ success: true });
+        } catch (err) {
+          logger.error('Global sync push failed:', err);
+          await db.settings.put({ key: 'global_sync_status', value: 'error' });
+          await db.settings.put({
+            key: 'global_sync_error',
+            value: err instanceof Error ? err.message : String(err),
+          });
+          sendResponse({ success: false, error: String(err) });
+        }
+      })();
+      return true;
+    }
+
+    if (message.type === 'GLOBAL_SYNC_PULL') {
+      (async () => {
+        try {
+          await db.settings.put({ key: 'global_sync_status', value: 'syncing' });
+          await syncEngine.pull();
+          await db.settings.put({ key: 'global_sync_status', value: 'idle' });
+          sendResponse({ success: true });
+        } catch (err) {
+          logger.error('Global sync pull failed:', err);
+          await db.settings.put({ key: 'global_sync_status', value: 'error' });
+          await db.settings.put({
+            key: 'global_sync_error',
+            value: err instanceof Error ? err.message : String(err),
+          });
+          sendResponse({ success: false, error: String(err) });
+        }
+      })();
       return true;
     }
 

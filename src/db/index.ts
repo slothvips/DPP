@@ -324,12 +324,20 @@ const defaultSyncProvider: SyncProvider = {
   },
 };
 
+db.version(19).stores({
+  blackboard: 'id, createdAt, pinned',
+});
+
 // Lazy-load syncEngine to avoid initializing in Service Worker (no localStorage)
 let _syncEngine: SyncEngine | null = null;
 
 export async function getSyncEngine(): Promise<SyncEngine | null> {
   if (!_syncEngine) {
-    _syncEngine = new SyncEngine(db, ['tags', 'jobTags', 'links', 'linkTags'], defaultSyncProvider);
+    _syncEngine = new SyncEngine(
+      db,
+      ['tags', 'jobTags', 'links', 'linkTags', 'blackboard'],
+      defaultSyncProvider
+    );
     _syncEngine.register();
   }
   return _syncEngine;

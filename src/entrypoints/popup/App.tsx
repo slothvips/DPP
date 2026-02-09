@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ToastProvider } from '@/components/ui/toast';
 import { db } from '@/db';
 import type { JenkinsEnvironment } from '@/db';
+import { BlackboardView } from '@/features/blackboard/components/BlackboardView';
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
@@ -41,35 +42,31 @@ export function App() {
   const params = new URLSearchParams(window.location.search);
   const isMinimalMode = !!params.get('buildJobUrl');
 
-  const [activeTab, setActiveTab] = useState<'links' | 'jenkins' | 'hotNews' | 'recorder'>(() => {
+  const [activeTab, setActiveTab] = useState<
+    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard'
+  >(() => {
     // Check URL params first for deep linking
     const tabParam = params.get('tab');
-    if (tabParam && ['links', 'jenkins', 'hotNews', 'recorder'].includes(tabParam)) {
-      return tabParam as 'links' | 'jenkins' | 'hotNews' | 'recorder';
+    if (tabParam && ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard'].includes(tabParam)) {
+      return tabParam as 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard';
     }
 
     const saved = localStorage.getItem('dpp_active_tab');
-    if (saved && ['links', 'jenkins', 'hotNews', 'recorder'].includes(saved)) {
-      return saved as 'links' | 'jenkins' | 'hotNews' | 'recorder';
+    if (saved && ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard'].includes(saved)) {
+      return saved as 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard';
     }
-    return 'links';
+    return 'blackboard';
   });
 
   useEffect(() => {
     // Only set default if no saved state
     const saved = localStorage.getItem('dpp_active_tab');
     if (!saved) {
-      if (hasJenkins) {
-        setActiveTab('jenkins');
-      } else if (featureToggles.links) {
-        setActiveTab('links');
-      } else if (featureToggles.hotNews) {
-        setActiveTab('hotNews');
-      }
+      setActiveTab('blackboard');
     }
-  }, [hasJenkins, featureToggles.links, featureToggles.hotNews]);
+  }, []);
 
-  const handleTabChange = (tab: 'links' | 'jenkins' | 'hotNews' | 'recorder') => {
+  const handleTabChange = (tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard') => {
     setActiveTab(tab);
     localStorage.setItem('dpp_active_tab', tab);
   };
@@ -98,6 +95,13 @@ export function App() {
         {/* Tabs */}
         {!isMinimalMode && (
           <div className="flex border-b">
+            <button
+              type="button"
+              className={`flex-1 py-2 text-sm font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+              onClick={() => handleTabChange('blackboard')}
+            >
+              黑板
+            </button>
             {hasJenkins && (
               <button
                 type="button"
@@ -140,6 +144,7 @@ export function App() {
           {activeTab === 'links' && featureToggles.links && <LinksView />}
           {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
           {activeTab === 'recorder' && <RecordingsView />}
+          {activeTab === 'blackboard' && <BlackboardView />}
           {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
         </main>
       </div>
