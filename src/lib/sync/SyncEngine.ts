@@ -185,13 +185,13 @@ export class SyncEngine {
         const objWithTimestamp = { ...obj, updatedAt: now };
         // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
         this.onsuccess = function (resultKey: unknown) {
-          setTimeout(() => {
+          queueMicrotask(() => {
             let payload = objWithTimestamp;
             if (_primKey === undefined && resultKey !== undefined) {
               payload = { ...objWithTimestamp, id: resultKey };
             }
             self.recordOperation(tableName, 'create', resultKey, payload);
-          }, 0);
+          });
         };
       });
 
@@ -200,9 +200,9 @@ export class SyncEngine {
         if (transaction?.source === 'sync') return;
         const now = Date.now();
         const newObj = { ...obj, ...modifications, updatedAt: now };
-        setTimeout(() => {
+        queueMicrotask(() => {
           this.recordOperation(tableName, 'update', primKey, newObj);
-        }, 0);
+        });
       });
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
@@ -211,11 +211,11 @@ export class SyncEngine {
         if (transaction?.source === 'sync') return;
         const now = Date.now();
 
-        setTimeout(async () => {
+        queueMicrotask(async () => {
           const updated = { ...obj, deletedAt: now, updatedAt: now };
           await table.put(updated);
           self.recordOperation(tableName, 'delete', primKey, updated);
-        }, 0);
+        });
 
         return false;
       });
@@ -245,6 +245,11 @@ export class SyncEngine {
   /**
    * Push local operations to the server
    * Uses unified syncLock to prevent concurrent sync operations
+   *
+   * Intelligently updates syncMetadata cursor based on push result:
+   * - If serverCursor === currentCursor + batchSize: Safe to update (optimization)
+   * - If serverCursor > currentCursor + batchSize: Remote changes exist, skip update
+   * - If serverCursor < currentCursor + batchSize: Anomaly, skip update (logged as debug)
    */
   public async push() {
     // Check if any sync operation is in progress
@@ -280,6 +285,41 @@ export class SyncEngine {
 
         const updates = batch.map((op) => ({ ...op, synced: 1 }));
         await this.db.table('operations').bulkPut(updates);
+
+        // Intelligent cursor update with safety checks
+        if (result?.cursor !== undefined && result.cursor !== null) {
+          await this.db.transaction('rw', this.db.table('syncMetadata'), async () => {
+            const currentMeta = await this.db.table('syncMetadata').get('global');
+            const currentCursor = Number(currentMeta?.lastServerCursor || 0);
+            const serverReturnedCursor = Number(result.cursor);
+            const expectedCursor = currentCursor + batch.length;
+
+            if (serverReturnedCursor === expectedCursor) {
+              // Safe optimization: Server state matches exactly (current state + my ops)
+              // This prevents re-pulling our own just-pushed changes
+              await this.db.table('syncMetadata').put({
+                id: 'global',
+                lastServerCursor: serverReturnedCursor,
+                lastSyncTimestamp: Date.now(),
+              });
+              logger.debug(
+                `[Sync] Push optimization: Updated cursor ${currentCursor} → ${serverReturnedCursor}`
+              );
+            } else if (serverReturnedCursor > expectedCursor) {
+              // Gap detected: Remote changes exist (from other clients)
+              // Do NOT update cursor; rely on subsequent pull to fetch intervening changes
+              logger.debug(
+                `[Sync] Push optimization skipped: remote gap detected (server=${serverReturnedCursor} > expected=${expectedCursor}). Will pull to catch up.`
+              );
+            } else {
+              // serverReturnedCursor < expectedCursor: Anomaly (server behind?)
+              // Log for debugging but don't update; let pull catch up
+              logger.debug(
+                `[Sync] Push anomaly: server cursor behind expected (server=${serverReturnedCursor} < expected=${expectedCursor}, current=${currentCursor}). Skipping cursor update.`
+              );
+            }
+          });
+        }
       }
 
       this._lastSyncTime = Date.now();
