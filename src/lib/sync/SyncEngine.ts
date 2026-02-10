@@ -17,7 +17,7 @@ export interface SyncEngineOptions {
   baseRetryDelay?: number;
 }
 
-type SyncEventType = 'status-change' | 'sync-error' | 'sync-complete';
+type SyncEventType = 'status-change' | 'sync-error' | 'sync-complete' | 'pull-progress';
 type SyncEventCallback = (data: unknown) => void;
 
 function generateUUID(): string {
@@ -430,6 +430,7 @@ export class SyncEngine {
             }
           );
           totalPulled += validOps.length;
+          this.emit('pull-progress', { pulled: validOps.length });
         } else {
           // Even if no ops (e.g. filtered out echoes), update cursor to advance
           await this.db.table('syncMetadata').put({

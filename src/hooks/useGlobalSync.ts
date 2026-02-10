@@ -76,6 +76,19 @@ export function useGlobalSync(): GlobalSyncState {
   }, [localPushCount]);
 
   useEffect(() => {
+    // Listen for real-time progress updates during pull
+    const handleProgress = (data: unknown) => {
+      const payload = data as { pulled: number };
+      if (typeof payload.pulled === 'number') {
+        setPendingCounts((prev) => ({
+          ...prev,
+          pull: Math.max(0, prev.pull - payload.pulled),
+        }));
+      }
+    };
+
+    syncEngine.on('pull-progress', handleProgress);
+
     refreshCounts();
     const interval = setInterval(refreshCounts, 30000);
     return () => clearInterval(interval);

@@ -45,7 +45,7 @@ export function GlobalSyncButton() {
         title={`推送 ${pendingCounts.push} 个本地更改`}
         className="h-8 px-2 gap-1"
       >
-        <ArrowUp className={cn('w-4 h-4', isPushing && 'animate-pulse')} />
+        <ArrowUp className={cn('w-4 h-4', (isPushing || isSyncing) && 'animate-pulse')} />
         <span className="text-xs tabular-nums">{pendingCounts.push}</span>
       </Button>
 
@@ -57,7 +57,7 @@ export function GlobalSyncButton() {
         title={`拉取 ${pendingCounts.pull} 个远程更改`}
         className="h-8 px-2 gap-1"
       >
-        <ArrowDown className={cn('w-4 h-4', isPulling && 'animate-pulse')} />
+        <ArrowDown className={cn('w-4 h-4', (isPulling || isSyncing) && 'animate-pulse')} />
         <span className="text-xs tabular-nums">{pendingCounts.pull}</span>
       </Button>
     </div>
