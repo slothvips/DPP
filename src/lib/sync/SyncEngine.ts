@@ -518,31 +518,38 @@ export class SyncEngine {
         await table.put(payload);
       } catch (err) {
         if (err instanceof Error && err.name === 'ConstraintError') {
-          for (const index of table.schema.indexes) {
-            if (!index.unique) continue;
-            const indexKeyPath = index.keyPath;
-            if (!indexKeyPath || typeof indexKeyPath !== 'string') continue;
-            const value = payload[indexKeyPath];
-            if (value === undefined) continue;
+          // Wrap conflict resolution in a transaction to prevent data loss
+          // if the process is interrupted between delete and put
+          await this.db.transaction('rw', table, async (tx) => {
+            // @ts-expect-error - Mark transaction as from sync to avoid echo loops
+            tx.source = 'sync';
 
-            const conflict = await table
-              .where(indexKeyPath)
-              .equals(value as IndexableType)
-              .first();
-            if (!conflict) continue;
+            for (const index of table.schema.indexes) {
+              if (!index.unique) continue;
+              const indexKeyPath = index.keyPath;
+              if (!indexKeyPath || typeof indexKeyPath !== 'string') continue;
+              const value = payload[indexKeyPath];
+              if (value === undefined) continue;
 
-            const pkPath = table.schema.primKey.keyPath;
-            if (typeof pkPath === 'string') {
-              const conflictKey = (conflict as Record<string, unknown>)[pkPath];
-              if (conflictKey !== op.key && conflictKey !== undefined) {
-                logger.info(
-                  `[Sync] Deleting conflicting record in ${op.table} (${indexKeyPath}=${value})`
-                );
-                await table.delete(conflictKey as IndexableType);
+              const conflict = await table
+                .where(indexKeyPath)
+                .equals(value as IndexableType)
+                .first();
+              if (!conflict) continue;
+
+              const pkPath = table.schema.primKey.keyPath;
+              if (typeof pkPath === 'string') {
+                const conflictKey = (conflict as Record<string, unknown>)[pkPath];
+                if (conflictKey !== op.key && conflictKey !== undefined) {
+                  logger.info(
+                    `[Sync] Deleting conflicting record in ${op.table} (${indexKeyPath}=${value})`
+                  );
+                  await table.delete(conflictKey as IndexableType);
+                }
               }
             }
-          }
-          await table.put(payload);
+            await table.put(payload);
+          });
         } else {
           throw err;
         }
