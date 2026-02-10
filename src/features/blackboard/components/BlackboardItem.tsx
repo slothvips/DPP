@@ -135,7 +135,7 @@ export function BlackboardItemView({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder="写点什么..."
-            className="w-full bg-transparent border-none outline-none ring-0 shadow-none focus:ring-0 focus:outline-none focus:border-none resize-none p-0 text-base text-slate-800 dark:text-slate-900 placeholder:text-slate-400 placeholder:italic overflow-hidden"
+            className="w-full bg-transparent border-none outline-none ring-0 shadow-none focus:ring-0 focus:outline-none focus:border-none resize-none p-0 text-base text-slate-800 placeholder:text-slate-400 placeholder:italic overflow-hidden"
             style={{
               ...commonStyle,
               minHeight: minEditHeight,
@@ -158,7 +158,7 @@ export function BlackboardItemView({
                 setIsEditing(true);
               }
             }}
-            className={`markdown-preview w-full h-full min-h-[140px] text-base text-slate-800 dark:text-slate-900 ${!readOnly ? 'cursor-text' : 'cursor-default'}`}
+            className={`markdown-preview w-full h-full min-h-[140px] text-base text-slate-800 ${!readOnly ? 'cursor-text' : 'cursor-default'}`}
             style={commonStyle}
           >
             {content ? (
