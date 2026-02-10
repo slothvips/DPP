@@ -20,6 +20,24 @@ export type { Recording } from '@/features/recorder/types';
 
 export const db = new Dexie('DPPDB') as DPPDatabase;
 
+// Monkey patch transaction to automatically include 'operations' table in write transactions
+// This ensures atomicity for sync logging without modifying every call site
+const originalTransaction = db.transaction.bind(db);
+// @ts-expect-error - Monkey patching internal method with compatible signature
+db.transaction = (mode: string, tables: string | string[], ...args: unknown[]) => {
+  if (mode === 'rw' || mode === 'readwrite') {
+    const tableList = Array.isArray(tables) ? tables : [tables];
+    // Only add if not already present and not internal Dexie tables
+    if (!tableList.includes('operations')) {
+      const newTables = [...tableList, 'operations'];
+      // @ts-expect-error - Dynamic arguments for transaction are difficult to type strictly
+      return originalTransaction(mode, newTables, ...args);
+    }
+  }
+  // @ts-expect-error - Dynamic arguments for transaction are difficult to type strictly
+  return originalTransaction(mode, tables, ...args);
+};
+
 db.version(1).stores({
   links: 'id, category, name',
   jobs: 'url, name',

@@ -227,10 +227,13 @@ export class SyncEngine {
             });
           return;
         }
+
+        logger.warn(
+          `[Sync] CRITICAL: Transaction for ${table} does not include 'operations' table! Atomicity lost.`
+        );
       }
 
-      // If not in transaction or table not included, execute immediately in a new transaction.
-      // Dexie.ignoreTransaction allows starting a new transaction even if one is active but incompatible.
+      // Fallback (should rarely be reached if monkey patch works)
       Dexie.ignoreTransaction(() => {
         this.db
           .table('operations')
