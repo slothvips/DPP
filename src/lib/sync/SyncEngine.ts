@@ -1,5 +1,7 @@
 import Dexie from 'dexie';
 import type { IndexableType } from 'dexie';
+import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
+import { decryptOperation } from '@/lib/sync/crypto-helpers';
 import { logger } from '@/utils/logger';
 import type {
   OperationType,
@@ -17,8 +19,6 @@ export interface SyncEngineOptions {
 
 type SyncEventType = 'status-change' | 'sync-error' | 'sync-complete';
 type SyncEventCallback = (data: unknown) => void;
-
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -351,6 +351,18 @@ export class SyncEngine {
       this.setStatus('pulling');
 
       const clientId = await this.ensureClientId();
+      let keyCache: { key: CryptoKey; keyHash: string } | null = null;
+
+      const ensureKey = async () => {
+        if (keyCache) return keyCache;
+        const key = await loadKey();
+        if (!key) {
+          throw new Error('[Sync] Encryption key not found. Cannot decrypt pulled operations.');
+        }
+        keyCache = { key, keyHash: await getKeyHash(key) };
+        return keyCache;
+      };
+
       let totalPulled = 0;
       let loopCount = 0;
       let hasMore = true;
@@ -375,6 +387,30 @@ export class SyncEngine {
         const remoteOps = ops.filter((op) => op.clientId !== clientId);
 
         if (remoteOps.length > 0) {
+          const { key, keyHash: currentKeyHash } = await ensureKey();
+
+          const decryptedOps = await Promise.all(
+            remoteOps.map(async (op) => {
+              if (op.keyHash && op.keyHash !== currentKeyHash) {
+                logger.debug(
+                  `[Sync] Skipping op ${op.id} due to keyHash mismatch (expected ${currentKeyHash}, got ${op.keyHash})`
+                );
+                return null;
+              }
+
+              // If no keyHash (legacy data), try to decrypt anyway (might fail)
+              try {
+                return await decryptOperation(op, key);
+              } catch (e) {
+                logger.warn(`[Sync] Failed to decrypt op ${op.id}, skipping:`, e);
+                return null;
+              }
+            })
+          );
+
+          // Filter out nulls
+          const validOps = decryptedOps.filter((op): op is SyncOperation => op !== null);
+
           await this.db.transaction(
             'rw',
             [...this.tables.map((t) => this.db.table(t)), this.db.table('syncMetadata')],
@@ -382,7 +418,7 @@ export class SyncEngine {
               // @ts-expect-error - Tag transaction to prevent echoing these ops
               tx.source = 'sync';
 
-              for (const op of remoteOps) {
+              for (const op of validOps) {
                 await this.applyOperation(op);
               }
 
@@ -393,7 +429,7 @@ export class SyncEngine {
               });
             }
           );
-          totalPulled += remoteOps.length;
+          totalPulled += validOps.length;
         } else {
           // Even if no ops (e.g. filtered out echoes), update cursor to advance
           await this.db.table('syncMetadata').put({
@@ -526,24 +562,12 @@ export class SyncEngine {
       const r = record as Record<string, unknown>;
       if (typeof r.serverTimestamp === 'number') return r.serverTimestamp;
       if (typeof r.updatedAt === 'number') return r.updatedAt;
-      if (typeof r.updated_at === 'number') return r.updated_at;
-      if (typeof r.timestamp === 'number') return r.timestamp;
     }
     return null;
   }
 
   public destroy() {
     this.eventListeners.clear();
-  }
-
-  public async cleanupOldOperations(olderThanMs: number = SEVEN_DAYS_MS) {
-    const cutoff = Date.now() - olderThanMs;
-    await this.db
-      .table('operations')
-      .where('synced')
-      .equals(1)
-      .and((op) => op.timestamp < cutoff)
-      .delete();
   }
 
   public async getPendingCounts(): Promise<SyncPendingCounts> {

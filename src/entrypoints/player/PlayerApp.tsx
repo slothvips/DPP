@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/db';
 import { useTheme } from '@/hooks/useTheme';
+import { logger } from '@/utils/logger';
 import { unpack } from '@rrweb/packer';
 import './rrweb-player-theme.css';
 
@@ -79,7 +80,7 @@ export function PlayerApp() {
           try {
             events = events.map((e) => unpack(e as unknown as string)) as unknown as RRWebEvent[];
           } catch (e) {
-            console.warn('Failed to unpack events, assuming raw:', e);
+            logger.warn('Failed to unpack events, assuming raw:', e);
           }
         } else {
           events = events.map((e) => {

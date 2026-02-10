@@ -1,6 +1,3 @@
-import { createRoot } from 'react-dom/client';
-import { ZentaoUploader } from '@/features/recorder/components/ZentaoUploader';
-
 const DEBUG = false;
 
 function log(...args: unknown[]) {

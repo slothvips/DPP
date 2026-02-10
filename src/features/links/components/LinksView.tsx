@@ -18,6 +18,7 @@ import { LinkDialog } from '@/features/links/components/LinkDialog';
 import { LinkTagSelector } from '@/features/links/components/LinkTagSelector';
 import { type LinkWithStats, useLinks } from '@/features/links/hooks/useLinks';
 import { cn } from '@/utils/cn';
+import { logger } from '@/utils/logger';
 
 type SortOption = 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt';
 
@@ -166,7 +167,7 @@ export function LinksView() {
     try {
       await recordVisit(id);
     } catch (e) {
-      console.error('Failed to record visit:', e);
+      logger.error('Failed to record visit:', e);
       toast('记录访问失败', 'error');
     }
   };

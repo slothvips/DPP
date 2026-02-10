@@ -163,12 +163,13 @@ export function SyncKeyManager({
       const engine = await getSyncEngine();
       if (engine) {
         await engine.resetAndRegenerateOperations();
+        await engine.push();
       }
 
       await checkKey();
       setIsChangeDialogOpen(false);
       setNewKeyInput('');
-      toast('密钥已更换，正在重新加密同步数据...', 'success');
+      toast('密钥已更换，数据已重新加密。正在同步到服务器...', 'success');
 
       if (onKeyChange) {
         onKeyChange(newKeyInput.trim());

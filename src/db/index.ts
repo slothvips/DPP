@@ -2,7 +2,7 @@ import Dexie from 'dexie';
 import { loadKey } from '@/lib/crypto/encryption';
 import { http, httpPost } from '@/lib/http';
 import { SyncEngine } from '@/lib/sync/SyncEngine';
-import { decryptOperation, encryptOperation } from '@/lib/sync/crypto-helpers';
+import { encryptOperation } from '@/lib/sync/crypto-helpers';
 import type { SyncOperation, SyncPendingCounts, SyncProvider } from '@/lib/sync/types';
 import type {
   DPPDatabase,
@@ -266,14 +266,7 @@ const defaultSyncProvider: SyncProvider = {
     const data = (await res.json()) as { ops: SyncOperation[]; cursor: number };
     const ops = data.ops;
 
-    const key = await loadKey();
-    if (!key) {
-      throw new Error('同步失败：未配置安全密钥。请在设置中生成或导入密钥以启用端到端加密同步。');
-    }
-
-    const decryptedOps = await Promise.all(ops.map((op) => decryptOperation(op, key)));
-
-    return { ops: decryptedOps, nextCursor: data.cursor };
+    return { ops, nextCursor: data.cursor };
   },
   getPendingCount: async (cursor, clientId) => {
     const setting = await db.settings.get('custom_server_url');
@@ -364,16 +357,4 @@ export const syncEngine = {
   },
 };
 
-export type {
-  LinkItem,
-  LinkItem as Link,
-  JobItem,
-  JobItem as Job,
-  TagItem,
-  TagItem as Tag,
-  JobTagItem,
-  JobTagItem as JobTag,
-  MyBuildItem,
-  MyBuildItem as MyBuild,
-  HotNewsCache,
-};
+export type { LinkItem, JobItem, TagItem, JobTagItem, MyBuildItem, HotNewsCache };

@@ -9,10 +9,20 @@ export interface SyncOperation {
   payload: unknown;
   timestamp: number;
   serverTimestamp?: number;
+  keyHash?: string;
 }
 
 const SHEET_TITLE = 'Operations';
-const HEADERS = ['id', 'table', 'type', 'key', 'payload', 'timestamp', 'serverTimestamp'];
+const HEADERS = [
+  'id',
+  'table',
+  'type',
+  'key',
+  'payload',
+  'timestamp',
+  'serverTimestamp',
+  'keyHash',
+];
 
 export class SheetsClient {
   private doc: gsheet.GoogleSpreadsheet;
@@ -62,9 +72,28 @@ export class SheetsClient {
       let sheet = this.doc.sheetsByTitle[SHEET_TITLE];
       if (!sheet) {
         sheet = await this.doc.addSheet({ title: SHEET_TITLE, headerValues: HEADERS });
+      } else {
+        // Sheet exists, verify and initialize header row if needed
+        await this.ensureHeaderRow(sheet);
       }
       return sheet;
     });
+  }
+
+  private async ensureHeaderRow(sheet: gsheet.GoogleSpreadsheetWorksheet): Promise<void> {
+    // Reload sheet info to get current row count and header info
+    await sheet.loadHeaderRow();
+
+    // Check if header row is missing or empty by comparing header values
+    const currentHeaders = sheet.headerValues || [];
+    const headersMatch =
+      currentHeaders.length === HEADERS.length &&
+      HEADERS.every((header, index) => currentHeaders[index] === header);
+
+    if (!headersMatch) {
+      // Header row is missing or incorrect, set it
+      await sheet.setHeaderRow(HEADERS);
+    }
   }
 
   async appendRows(rows: SyncOperation[]): Promise<number> {
@@ -74,6 +103,7 @@ export class SheetsClient {
         ...op,
         payload: typeof op.payload === 'object' ? JSON.stringify(op.payload) : op.payload,
       }));
+
       const addedRows = await sheet.addRows(
         rawRows as unknown as Array<Record<string, string | number | boolean>>
       );
@@ -107,7 +137,7 @@ export class SheetsClient {
       const availableRows = sheet.rowCount - startRowIndex;
       const safeLimit = Math.min(limit, availableRows);
 
-      let rows;
+      let rows: gsheet.GoogleSpreadsheetRow[] | undefined;
       try {
         rows = await sheet.getRows({ offset, limit: safeLimit });
       } catch (e) {
@@ -123,7 +153,7 @@ export class SheetsClient {
       }
 
       const ops = (rows as gsheet.GoogleSpreadsheetRow[])
-        .filter((row) => !!row)
+        .filter((row) => !!row && typeof row?.get === 'function')
         .map((row) => {
           const payloadStr = (row.get('payload') as string) || '';
           let payload: unknown;
@@ -140,6 +170,7 @@ export class SheetsClient {
             payload,
             timestamp: Number(row.get('timestamp') || 0),
             serverTimestamp: Number(row.get('serverTimestamp') || 0) || undefined,
+            keyHash: (row.get('keyHash') as string | undefined) || undefined,
           };
         });
 

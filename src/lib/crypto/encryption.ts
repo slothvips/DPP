@@ -136,6 +136,17 @@ export async function verifyKey(base64Key: string): Promise<boolean> {
   }
 }
 
+/**
+ * Compute a short hash (first 8 bytes of SHA-256) of the key for identification.
+ * This helps distinguish data encrypted with different keys during rotation.
+ */
+export async function getKeyHash(key: CryptoKey): Promise<string> {
+  const raw = await crypto.subtle.exportKey('raw', key);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', raw);
+  const hashArray = Array.from(new Uint8Array(hashBuffer)).slice(0, 8);
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // --- Helpers ---
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {

@@ -11,6 +11,7 @@ export interface SyncOperation {
   timestamp: number; // 客户端时间戳（用于本地排序）
   serverTimestamp?: number; // 服务端时间戳（用于冲突解决）
   synced: number;
+  keyHash?: string; // SHA-256 hash of the key used for encryption (first 8 bytes hex)
 }
 
 export interface SyncMetadata {
@@ -31,12 +32,4 @@ export interface SyncProvider {
     clientId?: string
   ): Promise<{ ops: SyncOperation[]; nextCursor: string | number }>;
   getPendingCount?(cursor?: string | number, clientId?: string): Promise<number>;
-}
-
-export interface DeferredOperation {
-  id?: number; // Auto-incremented
-  table: string;
-  op: SyncOperation;
-  timestamp: number;
-  receivedAt: number;
 }

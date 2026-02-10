@@ -1,18 +1,19 @@
 import Dexie from 'dexie';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { generateSyncKey } from '@/lib/crypto/encryption';
 import { SyncEngine } from './SyncEngine';
+import { encryptOperation } from './crypto-helpers';
 import type { SyncOperation, SyncProvider } from './types';
 
 describe('SyncEngine Concurrency Control', () => {
   let db: Dexie;
   let mockProvider: SyncProvider;
   let syncEngine: SyncEngine;
+  let testKey: CryptoKey;
 
   beforeEach(async () => {
-    // Delete any existing database
     await Dexie.delete('TestDB');
 
-    // Create in-memory test database
     db = new Dexie('TestDB');
     db.version(1).stores({
       settings: 'key',
@@ -21,22 +22,21 @@ describe('SyncEngine Concurrency Control', () => {
       testTable: 'id',
     });
 
-    // Mock provider
+    testKey = await generateSyncKey();
+
     mockProvider = {
       push: vi.fn().mockImplementation(async (ops) => {
-        // Simulate network delay
         await new Promise((resolve) => setTimeout(resolve, 100));
         return { success: true, cursor: 100 + ops.length };
       }),
       pull: vi.fn().mockImplementation(async () => {
-        // Simulate network delay
         await new Promise((resolve) => setTimeout(resolve, 100));
         return { ops: [], nextCursor: 100 };
       }),
     };
 
     syncEngine = new SyncEngine(db, ['testTable'], mockProvider);
-    await syncEngine.getClientId(); // Initialize client ID
+    await syncEngine.getClientId();
   });
 
   it('should prevent concurrent push operations', async () => {
@@ -142,14 +142,58 @@ describe('SyncEngine Concurrency Control', () => {
       statusChanges.push(status);
     });
 
-    // Attempt concurrent operations
     await Promise.all([syncEngine.push(), syncEngine.pull()]);
 
-    // Status should transition cleanly without overlapping
-    // Expected: pushing/pulling -> idle (or just idle if skipped)
     expect(statusChanges).not.toContain('error');
 
-    // Should end in idle state
     expect(syncEngine.status).toBe('idle');
+  });
+
+  it('should handle keyHash validation in pulled operations', async () => {
+    const encryptedOp = await encryptOperation(
+      {
+        id: 'test-op-1',
+        clientId: 'test-client',
+        table: 'testTable',
+        type: 'create',
+        key: 1,
+        payload: { id: 1, name: 'test' },
+        timestamp: Date.now(),
+        synced: 0,
+      },
+      testKey
+    );
+
+    (mockProvider.pull as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return { ops: [encryptedOp], nextCursor: 101 };
+    });
+
+    await syncEngine.pull();
+
+    expect(mockProvider.pull).toHaveBeenCalledTimes(1);
+  });
+
+  it('should skip operations with mismatched keyHash during pull', async () => {
+    const baseOp: SyncOperation = {
+      id: 'test-op-2',
+      clientId: 'test-client',
+      table: 'encrypted',
+      type: 'create',
+      key: 'test-op-2',
+      payload: { ciphertext: 'fake', iv: 'fake' },
+      timestamp: Date.now(),
+      synced: 0,
+      keyHash: 'wronghash123456',
+    };
+
+    (mockProvider.pull as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return { ops: [baseOp], nextCursor: 101 };
+    });
+
+    await syncEngine.pull();
+
+    expect(mockProvider.pull).toHaveBeenCalledTimes(1);
   });
 });

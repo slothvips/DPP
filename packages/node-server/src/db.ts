@@ -13,6 +13,7 @@ db.exec(`
     table_name TEXT NOT NULL,
     type TEXT NOT NULL,
     key TEXT,
+    key_hash TEXT,
     payload TEXT,
     timestamp INTEGER NOT NULL,
     server_timestamp INTEGER DEFAULT (cast(strftime('%s','now') as int) * 1000 + cast(strftime('%f','now') * 1000 as int) % 1000),
@@ -29,6 +30,7 @@ export const OperationSchema = z.object({
   table: z.string(),
   type: z.enum(['create', 'update', 'delete']),
   key: z.unknown(),
+  keyHash: z.string().optional(),
   payload: z.unknown().optional(),
   timestamp: z.number(),
   synced: z.number().optional(),
@@ -43,6 +45,7 @@ interface DbRow {
   table_name: string;
   type: 'create' | 'update' | 'delete';
   key: string;
+  key_hash: string | null;
   payload: string | null;
   timestamp: number;
   server_timestamp: number;
@@ -51,8 +54,8 @@ interface DbRow {
 export const dbOps = {
   push: (ops: SyncOperation[], clientId?: string) => {
     const insert = db.prepare(`
-      INSERT OR IGNORE INTO operations (client_op_id, client_id, table_name, type, key, payload, timestamp)
-      VALUES (@id, @clientId, @table, @type, @key, @payload, @timestamp)
+      INSERT OR IGNORE INTO operations (client_op_id, client_id, table_name, type, key, key_hash, payload, timestamp)
+      VALUES (@id, @clientId, @table, @type, @key, @keyHash, @payload, @timestamp)
     `);
 
     const insertMany = db.transaction((operations: SyncOperation[]) => {
@@ -63,6 +66,7 @@ export const dbOps = {
           table: op.table,
           type: op.type,
           key: JSON.stringify(op.key),
+          keyHash: op.keyHash || null,
           payload: op.payload ? JSON.stringify(op.payload) : null,
           timestamp: op.timestamp,
         });
@@ -77,20 +81,20 @@ export const dbOps = {
 
     if (excludeClientId) {
       const stmt = db.prepare(`
-        SELECT * FROM operations
-        WHERE server_seq > ?
-          AND (client_id IS NULL OR client_id != ?)
-        ORDER BY server_seq ASC
-        LIMIT ?
-      `);
+         SELECT * FROM operations
+         WHERE server_seq > ?
+           AND (client_id IS NULL OR client_id != ?)
+         ORDER BY server_seq ASC
+         LIMIT ?
+       `);
       rows = stmt.all([cursor, excludeClientId, limit]) as DbRow[];
     } else {
       const stmt = db.prepare(`
-        SELECT * FROM operations
-        WHERE server_seq > ?
-        ORDER BY server_seq ASC
-        LIMIT ?
-      `);
+         SELECT * FROM operations
+         WHERE server_seq > ?
+         ORDER BY server_seq ASC
+         LIMIT ?
+       `);
       rows = stmt.all([cursor, limit]) as DbRow[];
     }
 
@@ -101,6 +105,7 @@ export const dbOps = {
       table: row.table_name,
       type: row.type,
       key: JSON.parse(row.key),
+      keyHash: row.key_hash || undefined,
       payload: row.payload ? JSON.parse(row.payload) : undefined,
       timestamp: row.timestamp,
       serverTimestamp: row.server_timestamp,

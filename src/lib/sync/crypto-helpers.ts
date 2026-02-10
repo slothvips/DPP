@@ -1,4 +1,4 @@
-import { type EncryptedData, decryptData, encryptData } from '@/lib/crypto/encryption';
+import { type EncryptedData, decryptData, encryptData, getKeyHash } from '@/lib/crypto/encryption';
 import { logger } from '@/utils/logger';
 import type { SyncOperation } from './types';
 
@@ -10,6 +10,7 @@ export async function encryptOperation(op: SyncOperation, key: CryptoKey): Promi
     payload: op.payload,
   };
   const encrypted = await encryptData(sensitivePayload, key);
+  const keyHash = await getKeyHash(key);
 
   return {
     ...op,
@@ -17,6 +18,7 @@ export async function encryptOperation(op: SyncOperation, key: CryptoKey): Promi
     type: 'create', // Store as 'create' on server to append to log
     key: op.id, // Use op ID as key for the blob
     payload: encrypted,
+    keyHash,
   };
 }
 
