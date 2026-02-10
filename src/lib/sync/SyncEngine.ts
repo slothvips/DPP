@@ -42,7 +42,8 @@ export class SyncEngine {
    */
   private syncLock = false;
 
-  private clientId: string | null = null;
+  private _cachedClientId: string | null = null;
+  private _clientIdPromise: Promise<string> | null = null;
 
   private maxRetries: number;
   private baseRetryDelay: number;
@@ -70,6 +71,11 @@ export class SyncEngine {
     this.provider = provider;
     this.maxRetries = options.maxRetries ?? 5;
     this.baseRetryDelay = options.baseRetryDelay ?? 1000;
+
+    // Start loading client ID immediately
+    this.ensureClientId().catch((err) => {
+      logger.error('[Sync] Failed to initialize client ID:', err);
+    });
   }
 
   get status(): SyncStatus {
@@ -88,21 +94,38 @@ export class SyncEngine {
     return await this.ensureClientId();
   }
 
-  private async ensureClientId(): Promise<string> {
-    if (this.clientId) {
-      return this.clientId;
+  private ensureClientId(): Promise<string> {
+    if (this._cachedClientId) {
+      return Promise.resolve(this._cachedClientId);
     }
 
-    const setting = await this.db.table('settings').get('sync_client_id');
-    if (setting?.value) {
-      this.clientId = setting.value as string;
-      return this.clientId;
+    if (this._clientIdPromise) {
+      return this._clientIdPromise;
     }
 
-    const newClientId = generateUUID();
-    await this.db.table('settings').put({ key: 'sync_client_id', value: newClientId });
-    this.clientId = newClientId;
-    return this.clientId;
+    this._clientIdPromise = (async () => {
+      try {
+        let clientId: string | undefined;
+
+        // Try to get from settings
+        const setting = await this.db.table('settings').get('sync_client_id');
+        if (setting?.value) {
+          clientId = setting.value as string;
+        } else {
+          // Generate new if not exists
+          clientId = generateUUID();
+          await this.db.table('settings').put({ key: 'sync_client_id', value: clientId });
+        }
+
+        this._cachedClientId = clientId;
+        return clientId;
+      } catch (e) {
+        this._clientIdPromise = null; // Reset promise on failure to retry later
+        throw e;
+      }
+    })();
+
+    return this._clientIdPromise;
   }
 
   public on(event: SyncEventType, callback: SyncEventCallback): () => void {
@@ -165,6 +188,62 @@ export class SyncEngine {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  private safeRecordOperation(table: string, type: OperationType, key: unknown, payload: unknown) {
+    if (!this._cachedClientId) {
+      this.ensureClientId()
+        .then(() => {
+          this.safeRecordOperation(table, type, key, payload);
+        })
+        .catch((e) => {
+          logger.error('[Sync] Failed to record operation (ID load failed):', e);
+        });
+      return;
+    }
+
+    const op: SyncOperation = {
+      id: generateUUID(),
+      clientId: this._cachedClientId,
+      table,
+      type,
+      key,
+      payload,
+      timestamp: Date.now(),
+      synced: 0,
+    };
+
+    try {
+      if (Dexie.currentTransaction) {
+        // Dexie v3 exposes 'tables' on the transaction object
+        const tx = Dexie.currentTransaction as unknown as { tables: Record<string, unknown> };
+        const hasOperationsTable =
+          Object.prototype.hasOwnProperty.call(tx.tables, 'operations') || tx.tables.operations;
+
+        if (hasOperationsTable) {
+          this.db
+            .table('operations')
+            .add(op)
+            .catch((e) => {
+              logger.error(`[Sync] Failed to record operation in transaction for ${table}:`, e);
+            });
+          return;
+        }
+      }
+
+      // If not in transaction or table not included, execute immediately in a new transaction.
+      // Dexie.ignoreTransaction allows starting a new transaction even if one is active but incompatible.
+      Dexie.ignoreTransaction(() => {
+        this.db
+          .table('operations')
+          .add(op)
+          .catch((e) => {
+            logger.error(`[Sync] Failed to record operation (separate tx) for ${table}:`, e);
+          });
+      });
+    } catch (e) {
+      logger.error(`[Sync] Error triggering record operation for ${table}:`, e);
+    }
+  }
+
   public register() {
     // Trigger deferred operations processing on startup
     this.processDeferredOperations().catch((e) => {
@@ -183,15 +262,14 @@ export class SyncEngine {
         if (transaction?.source === 'sync') return;
         const now = Date.now();
         const objWithTimestamp = { ...obj, updatedAt: now };
+
         // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
         this.onsuccess = function (resultKey: unknown) {
-          setTimeout(() => {
-            let payload = objWithTimestamp;
-            if (_primKey === undefined && resultKey !== undefined) {
-              payload = { ...objWithTimestamp, id: resultKey };
-            }
-            self.recordOperation(tableName, 'create', resultKey, payload);
-          }, 0);
+          let payload = objWithTimestamp;
+          if (_primKey === undefined && resultKey !== undefined) {
+            payload = { ...objWithTimestamp, id: resultKey };
+          }
+          self.safeRecordOperation(tableName, 'create', resultKey, payload);
         };
       });
 
@@ -200,9 +278,9 @@ export class SyncEngine {
         if (transaction?.source === 'sync') return;
         const now = Date.now();
         const newObj = { ...obj, ...modifications, updatedAt: now };
-        setTimeout(() => {
-          this.recordOperation(tableName, 'update', primKey, newObj);
-        }, 0);
+
+        // Hook called before update. We optimistically record.
+        self.safeRecordOperation(tableName, 'update', primKey, newObj);
       });
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
@@ -211,11 +289,14 @@ export class SyncEngine {
         if (transaction?.source === 'sync') return;
         const now = Date.now();
 
-        setTimeout(async () => {
-          const updated = { ...obj, deletedAt: now, updatedAt: now };
-          await table.put(updated);
-          self.recordOperation(tableName, 'delete', primKey, updated);
-        }, 0);
+        const updated = { ...obj, deletedAt: now, updatedAt: now };
+
+        // Perform Soft Delete update within the current transaction
+        table.put(updated).catch((e) => {
+          logger.error(`[Sync] Soft delete update failed for ${tableName}:`, e);
+        });
+
+        self.safeRecordOperation(tableName, 'delete', primKey, updated);
 
         return false;
       });
@@ -223,23 +304,8 @@ export class SyncEngine {
   }
 
   public async recordOperation(table: string, type: OperationType, key: unknown, payload: unknown) {
-    const clientId = await this.ensureClientId();
-    const op: SyncOperation = {
-      id: generateUUID(),
-      clientId,
-      table,
-      type,
-      key,
-      payload,
-      timestamp: Date.now(),
-      synced: 0,
-    };
-
-    try {
-      await this.db.table('operations').add(op);
-    } catch (e) {
-      logger.error(`[Sync] Failed to record operation for ${table}:`, e);
-    }
+    // Kept for backward compatibility or direct usage, but delegates to safeRecordOperation
+    this.safeRecordOperation(table, type, key, payload);
   }
 
   /**
