@@ -335,7 +335,7 @@ export const syncEngine = {
     (await getSyncEngine())?.destroy();
   },
   async on(
-    event: 'status-change' | 'sync-error' | 'sync-complete' | 'pull-progress',
+    event: 'status-change' | 'sync-error' | 'sync-complete',
     callback: (data: unknown) => void
   ) {
     return (await getSyncEngine())?.on(event, callback);
