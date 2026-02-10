@@ -5,29 +5,22 @@ import { serve } from '@hono/node-server';
 import { OperationSchema, dbOps } from './db.js';
 
 const app = new Hono();
-
 app.use('/*', cors());
-
 app.use('*', async (c, next) => {
   console.log(`\n[${new Date().toISOString()}] ${c.req.method} ${c.req.url}`);
-
   const token = c.req.header('X-Access-Token');
   const expectedToken = process.env.SYNC_ACCESS_TOKEN;
-
   if (expectedToken && token !== expectedToken) {
     console.log('Unauthorized access attempt');
     return c.json({ error: 'Unauthorized' }, 401);
   }
-
   if (!expectedToken) {
     console.warn('WARNING: SYNC_ACCESS_TOKEN not set. Auth disabled.');
   }
-
   const query = c.req.query();
   if (Object.keys(query).length > 0) {
     console.log('Query:', JSON.stringify(query, null, 2));
   }
-
   if (['POST', 'PUT', 'PATCH'].includes(c.req.method)) {
     try {
       const body = await c.req.raw.clone().json();
@@ -36,9 +29,7 @@ app.use('*', async (c, next) => {
       // Body is not JSON or empty, skip logging
     }
   }
-
   await next();
-
   try {
     const resClone = c.res.clone();
     const text = await resClone.text();
@@ -52,60 +43,45 @@ app.use('*', async (c, next) => {
     console.log('Error logging response:', e);
   }
 });
-
 app.get('/', (c) => {
   return c.text('DPP Sync Server Running');
 });
-
 // 健康检查接口
 app.get('/health', (c) => {
   return c.json({ status: 'ok' });
 });
-
 const PushSchema = z.object({
   ops: z.array(OperationSchema),
 });
-
 app.post('/api/sync/push', async (c) => {
   try {
     const body = await c.req.json();
     const { ops } = PushSchema.parse(body);
-
     const newCursor = dbOps.push(ops);
-
     return c.json({ success: true, cursor: newCursor });
   } catch (e) {
     console.error(e);
     return c.json({ success: false, error: 'Invalid request' }, 400);
   }
 });
-
 app.get('/api/sync/pull', (c) => {
   const cursor = Number(c.req.query('cursor')) || 0;
   const limitStr = c.req.query('limit');
   const limit = limitStr ? Number.parseInt(limitStr, 10) : 1000;
-
   const ops = dbOps.pull(cursor, limit);
-
   const nextCursor = ops.length > 0 ? ops[ops.length - 1].server_seq : cursor;
-
   return c.json({
     ops: ops.map(({ server_seq: _seq, ...op }) => op),
     cursor: nextCursor,
   });
 });
-
 app.get('/api/sync/pending', (c) => {
   const cursor = Number(c.req.query('cursor')) || 0;
-
   const count = dbOps.countPending(cursor);
-
   return c.json({ count });
 });
-
 const port = 8889;
 console.log(`Server is running on port ${port}`);
-
 serve({
   fetch: app.fetch,
   port,

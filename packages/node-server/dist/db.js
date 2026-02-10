@@ -2,9 +2,7 @@ import Database from 'better-sqlite3';
 import { z } from 'zod';
 
 const db = new Database('sync.db');
-
 db.pragma('journal_mode = WAL');
-
 db.exec(`
   CREATE TABLE IF NOT EXISTS operations (
     server_seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +20,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_ops_seq ON operations(server_seq);
   CREATE INDEX IF NOT EXISTS idx_ops_client ON operations(client_id);
 `);
-
 export const OperationSchema = z.object({
   id: z.string(),
   table: z.string(),
@@ -32,30 +29,14 @@ export const OperationSchema = z.object({
   timestamp: z.number(),
   synced: z.number().optional(),
 });
-
-export type SyncOperation = z.infer<typeof OperationSchema>;
-
-interface DbRow {
-  server_seq: number;
-  client_op_id: string;
-  table_name: string;
-  type: 'create' | 'update' | 'delete';
-  key: string;
-  payload: string | null;
-  timestamp: number;
-  server_timestamp: number;
-}
-
 export const dbOps = {
-  push: (ops: SyncOperation[]): number => {
+  push: (ops) => {
     const insert = db.prepare(`
       INSERT OR IGNORE INTO operations (client_op_id, table_name, type, key, payload, timestamp)
       VALUES (@id, @table, @type, @key, @payload, @timestamp)
     `);
-
-    let lastInsertRowId: number | bigint = 0;
-
-    const insertMany = db.transaction((operations: SyncOperation[]) => {
+    let lastInsertRowId = 0;
+    const insertMany = db.transaction((operations) => {
       for (const op of operations) {
         const info = insert.run({
           id: op.id,
@@ -70,27 +51,22 @@ export const dbOps = {
         }
       }
     });
-
     insertMany(ops);
-
     if (lastInsertRowId === 0) {
       const stmt = db.prepare('SELECT MAX(server_seq) as maxSeq FROM operations');
-      const row = stmt.get() as { maxSeq: number };
+      const row = stmt.get();
       return row.maxSeq || 0;
     }
-
     return Number(lastInsertRowId);
   },
-
-  pull: (cursor: number, limit = 1000) => {
+  pull: (cursor, limit = 1000) => {
     const stmt = db.prepare(`
       SELECT * FROM operations
       WHERE server_seq > ?
       ORDER BY server_seq ASC
       LIMIT ?
     `);
-    const rows = stmt.all([cursor, limit]) as DbRow[];
-
+    const rows = stmt.all([cursor, limit]);
     return rows.map((row) => ({
       server_seq: row.server_seq,
       id: row.client_op_id,
@@ -103,13 +79,12 @@ export const dbOps = {
       synced: 1,
     }));
   },
-
-  countPending: (cursor: number): number => {
+  countPending: (cursor) => {
     const stmt = db.prepare(`
       SELECT COUNT(*) as count FROM operations
       WHERE server_seq > ?
     `);
-    const result = stmt.get([cursor]) as { count: number };
+    const result = stmt.get([cursor]);
     return result.count;
   },
 };

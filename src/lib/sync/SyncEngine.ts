@@ -186,16 +186,56 @@ export class SyncEngine {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  private safeRecordOperation(table: string, type: OperationType, key: unknown, payload: unknown) {
-    if (!this._cachedClientId) {
-      this.ensureClientId()
-        .then(() => {
-          this.safeRecordOperation(table, type, key, payload);
-        })
-        .catch((e) => {
-          logger.error('[Sync] Failed to record operation (ID load failed):', e);
+  private async updateCursorAtomically(
+    newCursor: string | number,
+    maxAllowedIncrement?: number
+  ): Promise<void> {
+    await this.db.transaction('rw', this.db.table('syncMetadata'), async () => {
+      const currentMeta = await this.db.table('syncMetadata').get('global');
+      const currentCursor = currentMeta?.lastServerCursor || 0;
+      const numNewCursor = Number(newCursor);
+      const numCurrentCursor = Number(currentCursor);
+
+      // Safe cursor update: if maxAllowedIncrement is provided, check that newCursor
+      // doesn't jump more than expected. This prevents data loss from cursor skips.
+      if (maxAllowedIncrement !== undefined) {
+        const expectedMaxCursor = numCurrentCursor + maxAllowedIncrement;
+        if (numNewCursor > expectedMaxCursor) {
+          logger.warn(
+            `[Sync] Detected unsafe cursor jump: ${numCurrentCursor} + ${maxAllowedIncrement} = ${expectedMaxCursor}, ` +
+              `but server returned ${numNewCursor}. Skipping update to force re-pull of missing data.`
+          );
+          return;
+        }
+      }
+
+      if (numNewCursor > numCurrentCursor) {
+        await this.db.table('syncMetadata').put({
+          id: 'global',
+          lastServerCursor: numNewCursor,
+          lastSyncTimestamp: Date.now(),
         });
-      return;
+        logger.debug(`[Sync] Updated cursor: ${numCurrentCursor} -> ${numNewCursor}`);
+      } else {
+        logger.warn(`[Sync] Rejected cursor update: ${numNewCursor} <= ${numCurrentCursor}`);
+      }
+    });
+  }
+
+  private async safeRecordOperation(
+    table: string,
+    type: OperationType,
+    key: unknown,
+    payload: unknown
+  ): Promise<void> {
+    if (!this._cachedClientId) {
+      try {
+        await this.ensureClientId();
+        return this.safeRecordOperation(table, type, key, payload);
+      } catch (e) {
+        logger.error('[Sync] Failed to record operation (ID load failed):', e);
+        return;
+      }
     }
 
     const op: SyncOperation = {
@@ -209,39 +249,53 @@ export class SyncEngine {
       synced: 0,
     };
 
-    try {
-      if (Dexie.currentTransaction) {
-        // Dexie v3 exposes 'tables' on the transaction object
-        const tx = Dexie.currentTransaction as unknown as { tables: Record<string, unknown> };
-        const hasOperationsTable =
-          Object.prototype.hasOwnProperty.call(tx.tables, 'operations') || tx.tables.operations;
-
-        if (hasOperationsTable) {
-          this.db
-            .table('operations')
-            .add(op)
-            .catch((e) => {
-              logger.error(`[Sync] Failed to record operation in transaction for ${table}:`, e);
-            });
-          return;
-        }
-
+    // Strategy 1: Try to record within current transaction (if monkey patch applied)
+    if (Dexie.currentTransaction) {
+      try {
+        await this.db.table('operations').add(op);
+        return;
+      } catch (txErr) {
         logger.warn(
-          `[Sync] CRITICAL: Transaction for ${table} does not include 'operations' table! Atomicity lost.`
+          `[Sync] Failed to record in transaction for ${table}, scope may not include 'operations':`,
+          txErr
         );
+        // Fall through to Strategy 2
       }
+    }
 
-      // Fallback (should rarely be reached if monkey patch works)
-      Dexie.ignoreTransaction(() => {
-        this.db
-          .table('operations')
-          .add(op)
-          .catch((e) => {
-            logger.error(`[Sync] Failed to record operation (separate tx) for ${table}:`, e);
-          });
+    // Strategy 2: Try to create new transaction explicitly (respects monkey patch)
+    // Use ignoreTransaction to break out of restrictive parent transaction scope
+    try {
+      await Dexie.ignoreTransaction(async () => {
+        await this.db.transaction('rw', 'operations', async (tx) => {
+          await tx.table('operations').add(op);
+        });
       });
-    } catch (e) {
-      logger.error(`[Sync] Error triggering record operation for ${table}:`, e);
+      return;
+    } catch (explicitTxErr) {
+      logger.warn(`[Sync] Failed to record in explicit transaction for ${table}:`, explicitTxErr);
+      // Fall through to Strategy 3
+    }
+
+    // Strategy 3: Last resort - deferred operation storage (don't block on failure)
+    // Also wrapped in ignoreTransaction to ensure we're in a clean transaction context
+    try {
+      await Dexie.ignoreTransaction(async () => {
+        await this.db.table('deferred_ops').add({
+          table,
+          type,
+          key,
+          payload,
+          timestamp: Date.now(),
+        });
+      });
+      logger.warn(`[Sync] Operation deferred for ${table} (will retry later)`);
+    } catch (deferErr) {
+      // Even deferred storage failed - log but don't throw (prevent cascading failures)
+      logger.error(
+        `[Sync] Critical: Failed to record operation for ${table} (all strategies exhausted):`,
+        deferErr
+      );
     }
   }
 
@@ -270,7 +324,9 @@ export class SyncEngine {
           if (_primKey === undefined && resultKey !== undefined) {
             payload = { ...objWithTimestamp, id: resultKey };
           }
-          self.safeRecordOperation(tableName, 'create', resultKey, payload);
+          self.safeRecordOperation(tableName, 'create', resultKey, payload).catch((e) => {
+            logger.error(`[Sync] Uncaught error in safeRecordOperation for ${tableName}:`, e);
+          });
         };
       });
 
@@ -281,7 +337,9 @@ export class SyncEngine {
         const newObj = { ...obj, ...modifications, updatedAt: now };
 
         // Hook called before update. We optimistically record.
-        self.safeRecordOperation(tableName, 'update', primKey, newObj);
+        self.safeRecordOperation(tableName, 'update', primKey, newObj).catch((e) => {
+          logger.error(`[Sync] Uncaught error in safeRecordOperation for ${tableName}:`, e);
+        });
       });
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
@@ -297,16 +355,23 @@ export class SyncEngine {
           logger.error(`[Sync] Soft delete update failed for ${tableName}:`, e);
         });
 
-        self.safeRecordOperation(tableName, 'delete', primKey, updated);
+        self.safeRecordOperation(tableName, 'delete', primKey, updated).catch((e) => {
+          logger.error(`[Sync] Uncaught error in safeRecordOperation for ${tableName}:`, e);
+        });
 
         return false;
       });
     }
   }
 
-  public async recordOperation(table: string, type: OperationType, key: unknown, payload: unknown) {
+  public recordOperation(
+    table: string,
+    type: OperationType,
+    key: unknown,
+    payload: unknown
+  ): Promise<void> {
     // Kept for backward compatibility or direct usage, but delegates to safeRecordOperation
-    this.safeRecordOperation(table, type, key, payload);
+    return this.safeRecordOperation(table, type, key, payload);
   }
 
   /**
@@ -340,10 +405,15 @@ export class SyncEngine {
       // Process in batches
       for (let i = 0; i < ops.length; i += this.PUSH_BATCH_SIZE) {
         const batch = ops.slice(i, i + this.PUSH_BATCH_SIZE);
-        await this.withRetry(
+        const newCursor = await this.withRetry(
           () => this.provider.push(batch, clientId),
           `Push batch ${Math.floor(i / this.PUSH_BATCH_SIZE) + 1}`
         );
+
+        // Handle cursor update with monotonicity check and safe increment validation
+        if (newCursor !== undefined) {
+          await this.updateCursorAtomically(newCursor, batch.length);
+        }
 
         const updates = batch.map((op) => ({ ...op, synced: 1 }));
         await this.db.table('operations').bulkPut(updates);

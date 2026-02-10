@@ -45,7 +45,7 @@ wrangler secret put SYNC_ACCESS_TOKEN
 #### 4. 创建 KV Namespace
 
 ```bash
-wrangler kv:namespace create SYNC_KV
+wrangler kv namespace create SYNC_KV
 ```
 
 输出示例：
@@ -63,6 +63,14 @@ id = "abcd1234efgh5678"  # 复制这个 ID
 [[kv_namespaces]]
 binding = "SYNC_KV"
 id = "abcd1234efgh5678"  # 替换为你的 ID
+```
+
+**重要：初始化同步游标**
+
+为了确保同步功能正常，请执行以下命令初始化游标（将 ID 替换为你实际的 KV ID）：
+
+```bash
+wrangler kv key put "last_cursor" "0" --namespace-id=abcd1234efgh5678 --remote
 ```
 
 #### 5. 配置 Google Sheets 备份
@@ -120,8 +128,8 @@ curl https://your-worker-url.workers.dev/health
 - **服务器地址**: `https://your-worker-url.workers.dev`
 - **访问令牌**: 步骤3生成的令牌
 - **加密密钥**: 点击生成并立即备份
-
-保存后，在扩展中添加一个链接，打开 Google Sheets 检查 `Operations` 工作表是否有新记录。
+  f125d48544f74a2a902167be60f4d4da
+  保存后，在扩展中添加一个链接，打开 Google Sheets 检查 `Operations` 工作表是否有新记录。
 
 ---
 
@@ -150,20 +158,20 @@ wrangler secret put SECRET_NAME
 wrangler secret delete SECRET_NAME
 
 # 管理 KV (调试用)
-wrangler kv:namespace list
-wrangler kv:key get "last_cursor" --namespace-id=YOUR_KV_ID
-wrangler kv:key put "last_cursor" "0" --namespace-id=YOUR_KV_ID
+wrangler kv namespace list
+wrangler kv key get "last_cursor" --namespace-id=YOUR_KV_ID --remote
+wrangler kv key put "last_cursor" "0" --namespace-id=YOUR_KV_ID --remote
 ```
 
 ### 故障排查
 
-| 问题                | 解决方案                                                      |
-| ------------------- | ------------------------------------------------------------- |
-| 401 Unauthorized    | `wrangler secret put SYNC_ACCESS_TOKEN` 重新设置令牌          |
-| 部署失败            | `wrangler logout && wrangler login` 重新登录                  |
-| KV Namespace 未绑定 | 检查 `wrangler.toml` 中的 `id` 是否正确                       |
-| Sheets 备份失败     | 确认 Service Account 已分享 Editor 权限，检查 JSON 和 ID 配置 |
-| 同步游标异常        | `wrangler kv:key get "last_cursor" --namespace-id=ID` 查看值  |
+| 问题                | 解决方案                                                              |
+| ------------------- | --------------------------------------------------------------------- |
+| 401 Unauthorized    | `wrangler secret put SYNC_ACCESS_TOKEN` 重新设置令牌                  |
+| 部署失败            | `wrangler logout && wrangler login` 重新登录                          |
+| KV Namespace 未绑定 | 检查 `wrangler.toml` 中的 `id` 是否正确                               |
+| Sheets 备份失败     | 确认 Service Account 已分享 Editor 权限，检查 JSON 和 ID 配置         |
+| 同步游标异常        | `wrangler kv key get "last_cursor" --namespace-id=ID --remote` 查看值 |
 
 ---
 
@@ -331,7 +339,7 @@ git pull && pnpm build && pm2 restart dpp-sync
 
 | 名称      | 用途         | 创建命令                               |
 | --------- | ------------ | -------------------------------------- |
-| `SYNC_KV` | 存储同步游标 | `wrangler kv:namespace create SYNC_KV` |
+| `SYNC_KV` | 存储同步游标 | `wrangler kv namespace create SYNC_KV` |
 
 ### Node.js VPS
 

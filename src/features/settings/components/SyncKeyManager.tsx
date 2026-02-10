@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
-import { db, getSyncEngine } from '@/db';
+import { getSyncEngine } from '@/db';
 import {
   clearKey,
   exportKey,

@@ -7,7 +7,7 @@ interface Env {
   GOOGLE_SERVICE_ACCOUNT: string;
   SYNC_ACCESS_TOKEN: string;
   GOOGLE_SPREADSHEET_ID: string;
-  SYNC_KV: KVNamespace;
+  SYNC_KV_DEV: KVNamespace;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -43,7 +43,7 @@ app.post('/api/sync/push', async (c) => {
 
     const newCursor = await client.appendRows(opsWithServerTimestamp);
 
-    await c.env.SYNC_KV.put('last_cursor', newCursor.toString());
+    await c.env.SYNC_KV_DEV.put('last_cursor', newCursor.toString());
 
     return c.json({ success: true, cursor: newCursor });
   } catch (e) {
@@ -76,7 +76,7 @@ app.get('/api/sync/pending', async (c) => {
     const cursorStr = c.req.query('cursor');
     const cursor = Number.parseInt(cursorStr || '0', 10) || 0;
 
-    const lastCursorStr = await c.env.SYNC_KV.get('last_cursor');
+    const lastCursorStr = await c.env.SYNC_KV_DEV.get('last_cursor');
     const lastCursor = Number.parseInt(lastCursorStr || '0', 10) || 0;
 
     const count = Math.max(0, lastCursor - cursor);
