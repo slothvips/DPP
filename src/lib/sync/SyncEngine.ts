@@ -18,8 +18,6 @@ export interface SyncEngineOptions {
 type SyncEventType = 'status-change' | 'sync-error' | 'sync-complete';
 type SyncEventCallback = (data: unknown) => void;
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -570,16 +568,6 @@ export class SyncEngine {
 
   public destroy() {
     this.eventListeners.clear();
-  }
-
-  public async cleanupOldOperations(olderThanMs: number = SEVEN_DAYS_MS) {
-    const cutoff = Date.now() - olderThanMs;
-    await this.db
-      .table('operations')
-      .where('synced')
-      .equals(1)
-      .and((op) => op.timestamp < cutoff)
-      .delete();
   }
 
   public async getPendingCounts(): Promise<SyncPendingCounts> {
