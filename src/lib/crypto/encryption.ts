@@ -120,6 +120,22 @@ export async function clearKey(): Promise<void> {
   await db.settings.delete('sync_encryption_key');
 }
 
+/**
+ * Verify if a Base64 key string is valid and usable
+ */
+export async function verifyKey(base64Key: string): Promise<boolean> {
+  try {
+    const key = await importKey(base64Key);
+    // Try to encrypt and decrypt something to verify the key works
+    const testData = { test: 'verification' };
+    const encrypted = await encryptData(testData, key);
+    const decrypted = await decryptData(encrypted, key);
+    return JSON.stringify(decrypted) === JSON.stringify(testData);
+  } catch {
+    return false;
+  }
+}
+
 // --- Helpers ---
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {

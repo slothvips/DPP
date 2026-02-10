@@ -112,7 +112,7 @@ export function BlackboardView() {
 
     // Cleanup
     return () => {
-      masonryRef.current?.destroy();
+      masonryRef.current?.destroy?.();
       masonryRef.current = null;
     };
   }, []);
@@ -120,13 +120,13 @@ export function BlackboardView() {
   // Update layout when items change
   useEffect(() => {
     if (masonryRef.current) {
-      masonryRef.current.reloadItems();
-      masonryRef.current.layout();
+      masonryRef.current?.reloadItems?.();
+      masonryRef.current?.layout?.();
     }
   }, [sortedItems]);
 
   const handleResize = () => {
-    masonryRef.current?.layout();
+    masonryRef.current?.layout?.();
   };
 
   // Assign consistent colors based on ID hash

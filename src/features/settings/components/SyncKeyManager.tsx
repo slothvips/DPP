@@ -1,9 +1,19 @@
-import { Copy, Eye, EyeOff, Key, Shield, Users } from 'lucide-react';
+import { Copy, Eye, EyeOff, Key, RefreshCw, Shield, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
+import { getSyncEngine } from '@/db';
 import {
   clearKey,
   exportKey,
@@ -11,6 +21,7 @@ import {
   importKey,
   loadKey,
   storeKey,
+  verifyKey,
 } from '@/lib/crypto/encryption';
 import { logger } from '@/utils/logger';
 
@@ -35,6 +46,9 @@ export function SyncKeyManager({
   const [importInput, setImportInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isChangeDialogOpen, setIsChangeDialogOpen] = useState(false);
+  const [newKeyInput, setNewKeyInput] = useState('');
+  const [isMigrating, setIsMigrating] = useState(false);
 
   const checkKey = React.useCallback(async () => {
     try {
@@ -120,6 +134,53 @@ export function SyncKeyManager({
     }
   };
 
+  const handleGenerateNewKey = async () => {
+    try {
+      const key = await generateSyncKey();
+      const exported = await exportKey(key);
+      setNewKeyInput(exported);
+    } catch (e) {
+      logger.error(e);
+      toast('生成新密钥失败', 'error');
+    }
+  };
+
+  const handleMigration = async () => {
+    if (!newKeyInput.trim()) return;
+
+    try {
+      setIsMigrating(true);
+
+      const isValid = await verifyKey(newKeyInput.trim());
+      if (!isValid) {
+        toast('无效的密钥格式', 'error');
+        return;
+      }
+
+      const key = await importKey(newKeyInput.trim());
+      await storeKey(key);
+
+      const engine = await getSyncEngine();
+      if (engine) {
+        await engine.resetAndRegenerateOperations();
+      }
+
+      await checkKey();
+      setIsChangeDialogOpen(false);
+      setNewKeyInput('');
+      toast('密钥已更换，正在重新加密同步数据...', 'success');
+
+      if (onKeyChange) {
+        onKeyChange(newKeyInput.trim());
+      }
+    } catch (e) {
+      logger.error('Key migration failed:', e);
+      toast('更换密钥失败', 'error');
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(keyString);
     toast('密钥已复制到剪贴板', 'success');
@@ -136,14 +197,76 @@ export function SyncKeyManager({
               已启用加密
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleClear}
-            className="h-6 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            清除密钥
-          </Button>
+          <div className="flex items-center gap-2">
+            <Dialog open={isChangeDialogOpen} onOpenChange={setIsChangeDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-primary hover:text-primary hover:bg-primary/10"
+                >
+                  <RefreshCw className="w-3 h-3 mr-1" />
+                  更换密钥
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>更换同步密钥</DialogTitle>
+                  <DialogDescription>
+                    更换密钥将导致所有本地数据被重新加密并上传。
+                    <br />
+                    <span className="text-destructive font-medium">
+                      注意：团队其他成员必须同步更新此密钥，否则将无法解密数据。
+                    </span>
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>新密钥</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newKeyInput}
+                        onChange={(e) => setNewKeyInput(e.target.value)}
+                        placeholder="输入新密钥或生成随机密钥"
+                        className="font-mono text-sm"
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={handleGenerateNewKey}
+                        title="生成随机密钥"
+                        className="shrink-0"
+                      >
+                        <Key className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsChangeDialogOpen(false)}
+                    disabled={isMigrating}
+                  >
+                    取消
+                  </Button>
+                  <Button onClick={handleMigration} disabled={isMigrating || !newKeyInput}>
+                    {isMigrating ? '正在处理...' : '确认更换'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClear}
+              className="h-6 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+            >
+              清除密钥
+            </Button>
+          </div>
         </Label>
 
         <div className="relative">

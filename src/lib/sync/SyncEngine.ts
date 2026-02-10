@@ -572,6 +572,84 @@ export class SyncEngine {
   }
 
   /**
+   * Reset sync state and regenerate create operations for all local data.
+   * This is used when the encryption key changes, to re-encrypt all data with the new key.
+   */
+  public async resetAndRegenerateOperations() {
+    // 1. Stop any ongoing sync
+    if (this.syncLock) {
+      throw new Error('Cannot reset sync while sync is in progress');
+    }
+
+    try {
+      this.syncLock = true;
+      this.setStatus('idle'); // Ensure status is clear
+
+      // 2. Clear sync metadata and existing operations
+      await this.db.transaction(
+        'rw',
+        this.db.table('syncMetadata'),
+        this.db.table('operations'),
+        this.db.table('deferred_ops'),
+        async () => {
+          await this.db.table('syncMetadata').clear();
+          await this.db.table('operations').clear();
+          await this.db.table('deferred_ops').clear();
+
+          // Reset local cursor state in memory if needed (though it's read from DB)
+          this._lastSyncTime = null;
+          this._lastError = null;
+        }
+      );
+
+      logger.info('[Sync] Sync state reset. Regenerating operations...');
+
+      // 3. Regenerate create operations for all tables
+      for (const tableName of this.tables) {
+        const table = this.db.table(tableName);
+        const items = await table.toArray();
+        const primKeyPath = table.schema.primKey.keyPath;
+
+        const ops: SyncOperation[] = [];
+
+        for (const item of items) {
+          let key: unknown;
+          if (typeof primKeyPath === 'string') {
+            key = item[primKeyPath as keyof typeof item];
+          } else if (Array.isArray(primKeyPath)) {
+            key = primKeyPath.map((k) => item[k as keyof typeof item]);
+          }
+
+          // Construct operation manually to batch add
+          const op: SyncOperation = {
+            id: generateUUID(),
+            clientId: await this.ensureClientId(),
+            table: tableName,
+            type: 'create',
+            key,
+            payload: item,
+            timestamp: Date.now(),
+            synced: 0,
+          };
+          ops.push(op);
+        }
+
+        if (ops.length > 0) {
+          await this.db.table('operations').bulkAdd(ops);
+          logger.info(`[Sync] Regenerated ${ops.length} operations for table ${tableName}`);
+        }
+      }
+
+      logger.info('[Sync] Operations regeneration complete.');
+    } catch (e) {
+      logger.error('[Sync] Failed to reset and regenerate operations:', e);
+      throw e;
+    } finally {
+      this.syncLock = false;
+    }
+  }
+
+  /**
    * Process any deferred operations for tables that are now supported
    * This handles the case where data was received before the schema was updated
    */
