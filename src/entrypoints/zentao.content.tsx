@@ -1,8 +1,4 @@
-const DEBUG = false;
-
-function log(...args: unknown[]) {
-  if (DEBUG) console.log('[DPP Zentao]', ...args);
-}
+import { logger } from '@/utils/logger';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -12,7 +8,7 @@ export default defineContentScript({
     const currentUrl = window.location.href;
     const isInIframe = window !== window.top;
 
-    log('Init:', currentUrl, 'iframe:', isInIframe);
+    logger.debug('[DPP Zentao]', 'Init:', currentUrl, 'iframe:', isInIframe);
 
     if (isInIframe) {
       runInIframe();
@@ -23,7 +19,7 @@ export default defineContentScript({
 });
 
 function runInIframe() {
-  log('Running in iframe context');
+  logger.debug('[DPP Zentao]', 'Running in iframe context');
 
   function enhanceZentaoAttachments(): number {
     let enhanced = 0;
@@ -69,12 +65,12 @@ function runInIframe() {
   function runInjection() {
     const attachments = enhanceZentaoAttachments();
     if (attachments > 0) {
-      log(`Enhanced: ${attachments} attachments`);
+      logger.debug('[DPP Zentao]', `Enhanced: ${attachments} attachments`);
     }
   }
 
   if (document.body) {
-    log('Body ready, starting injection');
+    logger.debug('[DPP Zentao]', 'Body ready, starting injection');
     runInjection();
 
     const retryIntervals = [500, 1000, 2000, 3000, 5000, 8000];
@@ -92,7 +88,7 @@ function runInIframe() {
 }
 
 function runInMainFrame() {
-  log('Running in main frame - will monitor iframes');
+  logger.debug('[DPP Zentao]', 'Running in main frame - will monitor iframes');
 
   function processIframe(iframe: HTMLIFrameElement) {
     try {
@@ -100,15 +96,15 @@ function runInMainFrame() {
       const iframeWin = iframe.contentWindow;
 
       if (!iframeDoc || !iframeWin) {
-        log('Cannot access iframe content (cross-origin or not ready)');
+        logger.debug('[DPP Zentao]', 'Cannot access iframe content (cross-origin or not ready)');
         return;
       }
 
-      log('Processing iframe:', iframe.src || iframe.id);
+      logger.debug('[DPP Zentao]', 'Processing iframe:', iframe.src || iframe.id);
 
       injectIntoDocument(iframeDoc, iframeWin);
     } catch (e) {
-      log('Error accessing iframe:', e);
+      logger.debug('[DPP Zentao]', 'Error accessing iframe:', e);
     }
   }
 
@@ -117,7 +113,7 @@ function runInMainFrame() {
       if (formGroup.dataset.dppInjected) return;
       formGroup.dataset.dppInjected = 'true';
 
-      log('Injecting button into form group');
+      logger.debug('[DPP Zentao]', 'Injecting button into form group');
 
       const button = doc.createElement('button');
       button.type = 'button';
@@ -167,7 +163,7 @@ function runInMainFrame() {
             button.disabled = false;
           }
         } catch (err) {
-          log('Error loading recordings:', err);
+          logger.debug('[DPP Zentao]', 'Error loading recordings:', err);
           win.alert('加载录像失败');
           button.innerHTML = originalText;
           button.disabled = false;
@@ -266,7 +262,7 @@ function runInMainFrame() {
 
         if (isRrwebFile) {
           foundRrweb = true;
-          log('Found rrweb attachment:', { href, text, title });
+          logger.debug('[DPP Zentao]', 'Found rrweb attachment:', { href, text, title });
 
           link.dataset.dppEnhanced = 'true';
 
@@ -307,7 +303,7 @@ function runInMainFrame() {
               jsonUrl = downloadLink;
             }
 
-            log('Fetching recording from:', jsonUrl);
+            logger.debug('[DPP Zentao]', 'Fetching recording from:', jsonUrl);
 
             const originalText = playBtn.innerHTML;
             playBtn.innerHTML = '⏳ 加载中...';
@@ -320,7 +316,7 @@ function runInMainFrame() {
               }
 
               const events = await response.json();
-              log('Fetched events count:', events.length);
+              logger.debug('[DPP Zentao]', 'Fetched events count:', events.length);
 
               const cacheId = `remote_${Date.now()}_${Math.random().toString(36).slice(2)}`;
               const fileName = text || title || 'Remote Recording';
@@ -338,7 +334,7 @@ function runInMainFrame() {
               playBtn.innerHTML = originalText;
               playBtn.disabled = false;
             } catch (err) {
-              log('Error fetching recording:', err);
+              logger.debug('[DPP Zentao]', 'Error fetching recording:', err);
               playBtn.innerHTML = '❌ 失败';
               setTimeout(() => {
                 playBtn.innerHTML = originalText;
@@ -355,7 +351,7 @@ function runInMainFrame() {
       if (!foundRrweb) {
         const linksCount = allLinks.length;
         if (linksCount > 0) {
-          log(`Scanned ${linksCount} links, no .rrweb.json found`);
+          logger.debug('[DPP Zentao]', `Scanned ${linksCount} links, no .rrweb.json found`);
         }
       }
     }
@@ -478,7 +474,7 @@ function runInMainFrame() {
             button.disabled = false;
           }, 2000);
         } catch (err) {
-          log('Error fetching recording:', err);
+          logger.debug('[DPP Zentao]', 'Error fetching recording:', err);
           win.alert('加载录像失败');
           recTitle.textContent = rec.title;
           item.style.pointerEvents = '';
@@ -523,7 +519,7 @@ function runInMainFrame() {
     const iframes = document.querySelectorAll<HTMLIFrameElement>(
       '#apps iframe, .app-container iframe'
     );
-    log(`Found ${iframes.length} app iframes`);
+    logger.debug('[DPP Zentao]', `Found ${iframes.length} app iframes`);
 
     for (const iframe of iframes) {
       if (iframe.dataset.dppProcessed) continue;
@@ -537,13 +533,13 @@ function runInMainFrame() {
             setTimeout(tryProcess, 500);
           }
         } catch {
-          log('Iframe not ready yet, retrying...');
+          logger.debug('[DPP Zentao]', 'Iframe not ready yet, retrying...');
           setTimeout(tryProcess, 500);
         }
       };
 
       iframe.addEventListener('load', () => {
-        log('Iframe load event fired');
+        logger.debug('[DPP Zentao]', 'Iframe load event fired');
         setTimeout(() => {
           iframe.dataset.dppProcessed = 'true';
           processIframe(iframe);

@@ -107,7 +107,7 @@ function HostView() {
           <summary className="cursor-pointer hover:text-foreground text-xs mb-2">调试日志</summary>
           <div className="bg-muted p-2 rounded text-[10px] font-mono h-32 overflow-y-auto border border-border">
             {logs.map((log, i) => (
-              <div key={i} className="mb-1">
+              <div key={`${i}-${log.slice(0, 5)}`} className="mb-1">
                 {log}
               </div>
             ))}
@@ -151,7 +151,7 @@ function ViewerView() {
   useEffect(() => {
     if (status === 'connected' && remoteStream && videoRef.current) {
       videoRef.current.srcObject = remoteStream;
-      videoRef.current.play().catch(console.error);
+      videoRef.current.play().catch(logger.error);
     }
   }, [status, remoteStream]);
 
@@ -198,7 +198,7 @@ function ViewerView() {
       });
 
       call.on('error', (err) => {
-        console.error('Call error:', err);
+        logger.error('Call error:', err);
         setError('呼叫失败');
         setStatus('failed');
       });
@@ -209,7 +209,7 @@ function ViewerView() {
         setRemoteStream(null);
       });
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       setError('连接尝试失败');
     }
   }
