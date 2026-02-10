@@ -4,7 +4,6 @@ import { http, httpPost } from '@/lib/http';
 import { SyncEngine } from '@/lib/sync/SyncEngine';
 import { decryptOperation, encryptOperation } from '@/lib/sync/crypto-helpers';
 import type { SyncOperation, SyncPendingCounts, SyncProvider } from '@/lib/sync/types';
-import { logger } from '@/utils/logger';
 import type {
   DPPDatabase,
   HotNewsCache,
@@ -236,28 +235,9 @@ const defaultSyncProvider: SyncProvider = {
       }
     );
 
-    const data = res as { cursor?: number; success?: boolean };
+    const data = res as { cursor?: number | string; success?: boolean };
 
-    // Update cursor atomically in a transaction to prevent race conditions
-    if (data.cursor && data.success) {
-      await db.transaction('rw', db.syncMetadata, async () => {
-        const currentMeta = await db.syncMetadata.get('global');
-        const currentCursor = currentMeta?.lastServerCursor || 0;
-        const newCursor = Number(data.cursor);
-
-        // Only update if the new cursor is greater (prevents rollback)
-        if (newCursor > Number(currentCursor)) {
-          await db.syncMetadata.put({
-            id: 'global',
-            lastServerCursor: newCursor,
-            lastSyncTimestamp: Date.now(),
-          });
-          logger.debug(`[Sync] Updated cursor: ${currentCursor} -> ${newCursor}`);
-        } else {
-          logger.warn(`[Sync] Rejected cursor update: ${newCursor} <= ${currentCursor}`);
-        }
-      });
-    }
+    return data.cursor ? { cursor: data.cursor } : undefined;
   },
   pull: async (cursor, clientId) => {
     const setting = await db.settings.get('custom_server_url');

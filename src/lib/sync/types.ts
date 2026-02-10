@@ -25,7 +25,7 @@ export interface SyncPendingCounts {
 }
 
 export interface SyncProvider {
-  push(ops: SyncOperation[], clientId: string): Promise<void>;
+  push(ops: SyncOperation[], clientId: string): Promise<{ cursor?: number | string } | undefined>;
   pull(
     cursor?: string | number,
     clientId?: string

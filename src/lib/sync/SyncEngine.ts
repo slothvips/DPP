@@ -273,13 +273,32 @@ export class SyncEngine {
       // Process in batches
       for (let i = 0; i < ops.length; i += this.PUSH_BATCH_SIZE) {
         const batch = ops.slice(i, i + this.PUSH_BATCH_SIZE);
-        await this.withRetry(
+        const result = await this.withRetry(
           () => this.provider.push(batch, clientId),
           `Push batch ${Math.floor(i / this.PUSH_BATCH_SIZE) + 1}`
         );
 
         const updates = batch.map((op) => ({ ...op, synced: 1 }));
         await this.db.table('operations').bulkPut(updates);
+
+        if (result?.cursor) {
+          await this.db.transaction('rw', this.db.table('syncMetadata'), async () => {
+            const currentMeta = await this.db.table('syncMetadata').get('global');
+            const currentCursor = currentMeta?.lastServerCursor || 0;
+            const newCursor = Number(result.cursor);
+
+            if (newCursor > Number(currentCursor)) {
+              await this.db.table('syncMetadata').put({
+                id: 'global',
+                lastServerCursor: newCursor,
+                lastSyncTimestamp: Date.now(),
+              });
+              logger.debug(`[Sync] Updated cursor: ${currentCursor} -> ${newCursor}`);
+            } else {
+              logger.warn(`[Sync] Rejected cursor update: ${newCursor} <= ${currentCursor}`);
+            }
+          });
+        }
       }
 
       this._lastSyncTime = Date.now();
