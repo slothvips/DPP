@@ -1,4 +1,4 @@
-import type Dexie from 'dexie';
+import Dexie from 'dexie';
 import type { IndexableType } from 'dexie';
 import { logger } from '@/utils/logger';
 import type {
@@ -41,12 +41,6 @@ export class SyncEngine {
    * This replaces the separate isSyncing and isPushing flags to prevent race conditions
    */
   private syncLock = false;
-
-  /**
-   * Flag to indicate we're currently applying remote operations
-   * Used to prevent recording local operations during pull
-   */
-  private isApplyingRemoteOps = false;
 
   private clientId: string | null = null;
 
@@ -184,8 +178,9 @@ export class SyncEngine {
       const self = this;
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
-      table.hook('creating', function (_primKey, obj, _transaction) {
-        if (self.isApplyingRemoteOps) return;
+      table.hook('creating', function (_primKey, obj, transaction) {
+        // @ts-expect-error - Check for transaction source tag to identify sync operations
+        if (transaction?.source === 'sync') return;
         const now = Date.now();
         const objWithTimestamp = { ...obj, updatedAt: now };
         // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
@@ -200,8 +195,9 @@ export class SyncEngine {
         };
       });
 
-      table.hook('updating', (modifications, primKey, obj) => {
-        if (this.isApplyingRemoteOps) return;
+      table.hook('updating', (modifications, primKey, obj, transaction) => {
+        // @ts-expect-error - Check for transaction source tag to identify sync operations
+        if (transaction?.source === 'sync') return;
         const now = Date.now();
         const newObj = { ...obj, ...modifications, updatedAt: now };
         setTimeout(() => {
@@ -210,8 +206,9 @@ export class SyncEngine {
       });
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
-      table.hook('deleting', function (primKey, obj) {
-        if (self.isApplyingRemoteOps) return;
+      table.hook('deleting', function (primKey, obj, transaction) {
+        // @ts-expect-error - Check for transaction source tag to identify sync operations
+        if (transaction?.source === 'sync') return;
         const now = Date.now();
 
         setTimeout(async () => {
@@ -338,27 +335,24 @@ export class SyncEngine {
         const remoteOps = ops.filter((op) => op.clientId !== clientId);
 
         if (remoteOps.length > 0) {
-          // Set flag to prevent recording operations during remote apply
-          this.isApplyingRemoteOps = true;
-          try {
-            await this.db.transaction(
-              'rw',
-              [...this.tables.map((t) => this.db.table(t)), this.db.table('syncMetadata')],
-              async () => {
-                for (const op of remoteOps) {
-                  await this.applyOperation(op);
-                }
+          await this.db.transaction(
+            'rw',
+            [...this.tables.map((t) => this.db.table(t)), this.db.table('syncMetadata')],
+            async (tx) => {
+              // @ts-expect-error - Tag transaction to prevent echoing these ops
+              tx.source = 'sync';
 
-                await this.db.table('syncMetadata').put({
-                  id: 'global',
-                  lastServerCursor: nextCursor,
-                  lastSyncTimestamp: Date.now(),
-                });
+              for (const op of remoteOps) {
+                await this.applyOperation(op);
               }
-            );
-          } finally {
-            this.isApplyingRemoteOps = false;
-          }
+
+              await this.db.table('syncMetadata').put({
+                id: 'global',
+                lastServerCursor: nextCursor,
+                lastSyncTimestamp: Date.now(),
+              });
+            }
+          );
           totalPulled += remoteOps.length;
         } else {
           // Even if no ops (e.g. filtered out echoes), update cursor to advance
@@ -392,7 +386,6 @@ export class SyncEngine {
       this.setStatus('error', errorMsg);
       this.emit('sync-error', { type: 'pull', error: errorMsg });
     } finally {
-      this.isApplyingRemoteOps = false;
       this.syncLock = false;
     }
   }
@@ -565,7 +558,10 @@ export class SyncEngine {
           await this.db.transaction(
             'rw',
             [this.db.table('deferred_ops'), this.db.table(tableName as string)],
-            async () => {
+            async (tx) => {
+              // @ts-expect-error - Tag transaction to prevent echoing these ops
+              tx.source = 'sync';
+
               // Get ops sorted by timestamp to ensure correct replay order
               const entries = await this.db
                 .table('deferred_ops')
