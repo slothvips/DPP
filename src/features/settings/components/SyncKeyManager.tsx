@@ -1,9 +1,19 @@
-import { Copy, Eye, EyeOff, Key, Shield, Users } from 'lucide-react';
+import { AlertTriangle, Copy, Eye, EyeOff, Key, RefreshCw, Shield, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
+import { db, getSyncEngine } from '@/db';
 import {
   clearKey,
   exportKey,
@@ -35,6 +45,9 @@ export function SyncKeyManager({
   const [importInput, setImportInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isRotateDialogOpen, setIsRotateDialogOpen] = useState(false);
+  const [newKey, setNewKey] = useState('');
+  const [isRotating, setIsRotating] = useState(false);
 
   const checkKey = React.useCallback(async () => {
     try {
@@ -120,6 +133,33 @@ export function SyncKeyManager({
     }
   };
 
+  const handleRotate = async () => {
+    if (!newKey.trim()) return;
+
+    try {
+      setIsRotating(true);
+      await importKey(newKey.trim());
+
+      const engine = await getSyncEngine();
+      if (engine) {
+        await engine.rotateKey(newKey.trim());
+        await checkKey();
+        toast('密钥已轮换并重新同步', 'success');
+        setIsRotateDialogOpen(false);
+        if (onKeyChange) {
+          onKeyChange(newKey.trim());
+        }
+      } else {
+        throw new Error('Sync engine not initialized');
+      }
+    } catch (e) {
+      logger.error(e);
+      toast(`密钥轮换失败: ${e instanceof Error ? e.message : String(e)}`, 'error');
+    } finally {
+      setIsRotating(false);
+    }
+  };
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(keyString);
     toast('密钥已复制到剪贴板', 'success');
@@ -183,6 +223,74 @@ export function SyncKeyManager({
             <Users className="w-3 h-3 text-primary" />
             若需共享数据，请确保团队成员使用相同密钥
           </p>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-border">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-destructive flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" />
+                危险区域
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                轮换密钥将重置同步历史，其他设备需手动更新密钥。
+              </p>
+            </div>
+            <Dialog open={isRotateDialogOpen} onOpenChange={setIsRotateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    generateSyncKey().then((k) => exportKey(k).then(setNewKey));
+                  }}
+                >
+                  <RefreshCw className="w-3 h-3 mr-2" />
+                  轮换密钥
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>轮换同步密钥</DialogTitle>
+                  <DialogDescription>
+                    警告：此操作将使用新密钥重新加密所有本地数据并强制推送到服务器。
+                    <br />
+                    服务器上的旧数据将无法读取。您必须在所有其他设备上更新此新密钥。
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>新密钥 (自动生成)</Label>
+                    <div className="relative">
+                      <Input
+                        value={newKey}
+                        onChange={(e) => setNewKey(e.target.value)}
+                        className="font-mono pr-10"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="absolute right-1 top-1 h-7 w-7"
+                        onClick={() => generateSyncKey().then((k) => exportKey(k).then(setNewKey))}
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsRotateDialogOpen(false)}>
+                    取消
+                  </Button>
+                  <Button variant="destructive" onClick={handleRotate} disabled={isRotating}>
+                    {isRotating ? '轮换中...' : '确认轮换 & 重置同步'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
     );

@@ -566,6 +566,115 @@ export class SyncEngine {
     return null;
   }
 
+  /**
+   * Reset sync state: clear metadata and delete all synced operations.
+   * Unsynced operations are preserved for pushing with new key.
+   */
+  public async resetSyncState(): Promise<void> {
+    try {
+      await this.db.transaction(
+        'rw',
+        [this.db.table('syncMetadata'), this.db.table('operations')],
+        async () => {
+          await this.db.table('syncMetadata').clear();
+          await this.db.table('operations').where('synced').equals(1).delete();
+          logger.info('[Sync] Reset sync state: cleared metadata and synced operations');
+        }
+      );
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      logger.error('[Sync] Failed to reset sync state:', errorMsg);
+      throw e;
+    }
+  }
+
+  /**
+   * Resync all data: generate create operations for all existing records.
+   * This ensures all current data is re-sent to the server with the new encryption key.
+   */
+  public async resyncAllData(): Promise<void> {
+    try {
+      for (const tableName of this.tables) {
+        const records = await this.db.table(tableName).toArray();
+
+        await this.db.transaction(
+          'rw',
+          [this.db.table(tableName), this.db.table('operations')],
+          async (tx) => {
+            // @ts-expect-error - Tag transaction to prevent echoing
+            tx.source = 'sync';
+
+            for (const record of records) {
+              const key = this.getRecordKey(record, tableName);
+              this.safeRecordOperation(tableName, 'create', key, record);
+            }
+          }
+        );
+      }
+
+      logger.info('[Sync] Resynced all data: generated create operations for all records');
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      logger.error('[Sync] Failed to resync all data:', errorMsg);
+      throw e;
+    }
+  }
+
+  /**
+   * Rotate encryption key: update settings, reset sync state, resync all data, and push.
+   */
+  public async rotateKey(newKey: string): Promise<void> {
+    try {
+      this.setStatus('pushing');
+
+      await this.db.table('settings').put({
+        key: 'sync_encryption_key',
+        value: newKey,
+      });
+
+      logger.info('[Sync] Updated encryption key in settings');
+
+      await this.resetSyncState();
+      await this.resyncAllData();
+      await this.push();
+
+      logger.info('[Sync] Key rotation completed successfully');
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      logger.error('[Sync] Key rotation failed:', errorMsg);
+      this.setStatus('error', errorMsg);
+      throw e;
+    }
+  }
+
+  /**
+   * Extract primary key from a record based on table schema.
+   */
+  private getRecordKey(record: unknown, tableName: string): unknown {
+    if (!record || typeof record !== 'object') {
+      return undefined;
+    }
+
+    const table = this.db.table(tableName);
+    const keyPath = table.schema.primKey.keyPath;
+
+    const recordObj = record as Record<string, unknown>;
+
+    if (!keyPath) {
+      return undefined;
+    }
+
+    if (typeof keyPath === 'string') {
+      return recordObj[keyPath];
+    }
+
+    if (Array.isArray(keyPath)) {
+      return keyPath.map((path) => recordObj[path]);
+    }
+
+    return undefined;
+  }
+
   public destroy() {
     this.eventListeners.clear();
   }
