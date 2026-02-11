@@ -1,4 +1,4 @@
-import { BookOpen, Download, Upload } from 'lucide-react';
+import { Download, Github, Upload } from 'lucide-react';
 import 'virtual:uno.css';
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
@@ -223,10 +223,6 @@ function OptionsApp() {
     }
   };
 
-  const openGuide = () => {
-    browser.tabs.create({ url: browser.runtime.getURL('/guide.html') });
-  };
-
   const toggleFeature = async (feature: 'hotNews' | 'links', enabled: boolean) => {
     const key = feature === 'hotNews' ? 'feature_hotnews_enabled' : 'feature_links_enabled';
     await db.settings.put({ key, value: enabled });
@@ -265,17 +261,6 @@ function OptionsApp() {
                   热点
                 </Label>
               </div>
-            </div>
-          </section>
-
-          <section className="space-y-4 border p-4 rounded-lg">
-            <h2 className="text-xl font-semibold">帮助</h2>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">查看详细的功能介绍和使用说明</p>
-              <Button onClick={openGuide} variant="outline" className="gap-2">
-                <BookOpen className="w-4 h-4" />
-                打开使用指南
-              </Button>
             </div>
           </section>
 
@@ -365,6 +350,18 @@ function OptionsApp() {
               清空所有数据并重置
             </Button>
           </section>
+
+          <div className="flex justify-center pt-8 pb-4 opacity-50 hover:opacity-100 transition-opacity">
+            <a
+              href="https://github.com/slothvips/DPP"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <Github className="w-3 h-3" />
+              Open Source on GitHub
+            </a>
+          </div>
         </div>
       </div>
     </div>

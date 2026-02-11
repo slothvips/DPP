@@ -596,10 +596,10 @@ export class SyncEngine {
   }
 
   /**
-   * Reset sync state and regenerate create operations for all local data.
-   * This is used when the encryption key changes, to re-encrypt all data with the new key.
+   * Reset sync state (clear metadata and operations).
+   * This is used when the encryption key changes.
    */
-  public async resetAndRegenerateOperations() {
+  public async resetSyncState() {
     // 1. Stop any ongoing sync
     if (this.syncLock) {
       throw new Error('Cannot reset sync while sync is in progress');
@@ -626,9 +626,63 @@ export class SyncEngine {
         }
       );
 
-      logger.info('[Sync] Sync state reset. Regenerating operations...');
+      logger.info('[Sync] Sync state reset.');
+    } catch (e) {
+      logger.error('[Sync] Failed to reset sync state:', e);
+      throw e;
+    } finally {
+      this.syncLock = false;
+    }
+  }
 
-      // 3. Regenerate create operations for all tables
+  /**
+   * Clear all local data and sync state.
+   * Used when a normal user imports a new key and needs to resync from server.
+   */
+  public async clearAllData() {
+    if (this.syncLock) {
+      throw new Error('Cannot clear data while sync is in progress');
+    }
+
+    try {
+      this.syncLock = true;
+      this.setStatus('idle');
+
+      const tablesToClear = ['syncMetadata', 'operations', 'deferred_ops', ...this.tables];
+
+      await this.db.transaction(
+        'rw',
+        tablesToClear.map((t) => this.db.table(t)),
+        async () => {
+          for (const table of tablesToClear) {
+            await this.db.table(table).clear();
+          }
+          this._lastSyncTime = null;
+          this._lastError = null;
+        }
+      );
+
+      logger.info('[Sync] All local data and sync state cleared.');
+    } catch (e) {
+      logger.error('[Sync] Failed to clear all data:', e);
+      throw e;
+    } finally {
+      this.syncLock = false;
+    }
+  }
+
+  /**
+   * Regenerate create operations for all local data.
+   * Used by the "Authority" when changing the key to re-upload existing data.
+   */
+  public async regenerateOperations() {
+    if (this.syncLock) {
+      throw new Error('Cannot regenerate operations while sync is in progress');
+    }
+
+    try {
+      this.syncLock = true;
+
       for (const tableName of this.tables) {
         const table = this.db.table(tableName);
         const items = await table.toArray();
@@ -644,7 +698,6 @@ export class SyncEngine {
             key = primKeyPath.map((k) => item[k as keyof typeof item]);
           }
 
-          // Construct operation manually to batch add
           const op: SyncOperation = {
             id: generateUUID(),
             clientId: await this.ensureClientId(),
@@ -666,7 +719,7 @@ export class SyncEngine {
 
       logger.info('[Sync] Operations regeneration complete.');
     } catch (e) {
-      logger.error('[Sync] Failed to reset and regenerate operations:', e);
+      logger.error('[Sync] Failed to regenerate operations:', e);
       throw e;
     } finally {
       this.syncLock = false;

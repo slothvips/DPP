@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Edit, Eye, Pin, PinOff, Plus, Search, StickyNote, Trash2, Upload } from 'lucide-react';
+import { Bot, Edit, Eye, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 import { type AnchorHTMLAttributes, type MouseEvent, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -245,11 +245,10 @@ export function LinksView() {
           onClick={() => setIsImportDialogOpen(true)}
           variant="ghost"
           size="sm"
-          className="shrink-0 gap-1.5 h-8 text-xs"
-          title="导入链接"
+          className="shrink-0 h-8 w-8 p-0"
+          title="智能导入"
         >
-          <Upload className="h-3.5 w-3.5" />
-          导入
+          <Bot className="h-4 w-4 text-blue-500" />
         </Button>
         <Button onClick={handleAdd} size="sm" className="shrink-0 h-8 w-8 p-0" title="添加链接">
           <Plus className="h-4 w-4" />

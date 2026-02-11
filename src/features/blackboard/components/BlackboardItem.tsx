@@ -89,7 +89,7 @@ export function BlackboardItemView({
 
   const handleBlur = async () => {
     setIsEditing(false);
-    if (content.trim() !== item.content) {
+    if (content !== item.content) {
       await onUpdate(item.id, content);
     }
   };
