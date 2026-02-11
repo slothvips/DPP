@@ -38,7 +38,7 @@ export function RecorderControl() {
               }
             }}
           >
-            共享屏幕
+            共享屏幕 (Beta)
           </Button>
           <Button
             variant="outline"

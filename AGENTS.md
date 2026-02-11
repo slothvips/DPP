@@ -40,12 +40,6 @@ pnpm compile          # Type check (tsc --noEmit) - MUST PASS
 pnpm lint             # ESLint check
 pnpm lint:fix         # Auto-fix lint issues
 pnpm format           # Prettier format
-
-# Testing (Vitest)
-pnpm test             # Run all tests in watch mode
-pnpm test -- run      # Run all tests once (CI mode)
-pnpm test -- path/to/file.test.ts   # Run single test file (CRITICAL)
-pnpm test:coverage    # Run tests with coverage report
 ```
 
 ## 4. Directory Structure
@@ -102,19 +96,7 @@ export function Badge({ variant = 'default', className, ...props }: BadgeProps) 
 }
 ```
 
-### 5.3 Testing (Vitest)
-
-- **Mocking:** Use `vi.fn()` and `vi.mock`.
-- **Browser APIs:** Mock `browser.runtime` globally or per test.
-- **Assertions:** Use `expect(...).toHaveBeenCalledWith(...)`.
-
-```typescript
-// Mock browser API example
-const mockSendMessage = vi.fn();
-global.browser = { runtime: { sendMessage: mockSendMessage } } as any;
-```
-
-### 5.4 Patterns
+### 5.3 Patterns
 
 - **API Clients:** Factory pattern `createClient(credentials)`.
 - **Sync:** Use `SyncEngine` class. Ensure E2EE with `crypto` lib.
@@ -140,4 +122,3 @@ global.browser = { runtime: { sendMessage: mockSendMessage } } as any;
 4.  **Verify:**
     - `pnpm compile` (MUST PASS).
     - `pnpm lint:fix`.
-    - `pnpm test`.
