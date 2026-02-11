@@ -3,7 +3,7 @@ import { BlackboardItem } from '../types';
 export const SYSTEM_NOTES: BlackboardItem[] = [
   {
     id: 'system-welcome',
-    content: `# 👋 欢迎使用 DPP (Developer Productivity Platform)
+    content: `# 👋 欢迎使用 DPP
 
 这是一个专为开发者打造的效率工具，旨在简化日常开发流程。
 
