@@ -104,12 +104,6 @@ export default defineBackground(() => {
     }
   });
 
-  browser.runtime.onInstalled.addListener((details) => {
-    if (details.reason === 'install') {
-      browser.tabs.create({ url: browser.runtime.getURL('/guide.html') });
-    }
-  });
-
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message.type === 'OFFSCREEN_RECORDING_START_WITH_ID') {
       (async () => {

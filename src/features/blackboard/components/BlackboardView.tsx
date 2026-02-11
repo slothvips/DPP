@@ -12,8 +12,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { db } from '@/db';
-import type { BlackboardItem } from '../types';
 import { BlackboardItemView } from './BlackboardItem';
+import { SYSTEM_NOTES } from './tips';
 
 const STICKY_COLORS = [
   'bg-yellow-100',
@@ -22,30 +22,6 @@ const STICKY_COLORS = [
   'bg-pink-100',
   'bg-purple-100',
   'bg-orange-100',
-];
-
-const SYSTEM_NOTES: BlackboardItem[] = [
-  {
-    id: 'system-welcome',
-    content: `# 👋 欢迎使用团队黑板\n\n这是一个团队共享的**实时便签墙**。\n\n你在这里写的每一张便签，团队成员都能实时看到。\n\n用它来记录：\n- 每日站会重点\n- 临时的技术想法\n- 共享的测试账号\n- 甚至是午餐投票！`,
-    createdAt: 0,
-    updatedAt: 0,
-    pinned: false,
-  },
-  {
-    id: 'system-markdown',
-    content: `# 📝 Markdown 指南\n\n点击便签即可**查看源码**，支持标准 Markdown 语法：\n\n- **加粗**: \`**text**\`\n- *斜体*: \`*text*\`\n- 列表: \`- item\`\n- 引用: \`> text\`\n- 代码: \`\` \`code\` \`\`\n\n还有待办事项：\n- [ ] 这是一个任务\n- [x] 已完成的任务`,
-    createdAt: 0,
-    updatedAt: 0,
-    pinned: false,
-  },
-  {
-    id: 'system-tips',
-    content: `# 💡 使用小贴士\n\n1. **源码模式**：点击便签进入编辑模式，可以看到 Markdown 源码。\n2. **实时预览**：点击空白处，源码会自动渲染成漂亮的格式。\n3. **自动布局**：便签会根据内容高度自动调整位置，无需手动整理。\n4. **置顶**：点击右上角的图钉 📌 可以将重要便签固定在前面。`,
-    createdAt: 0,
-    updatedAt: 0,
-    pinned: false,
-  },
 ];
 
 export function BlackboardView() {
@@ -64,7 +40,7 @@ export function BlackboardView() {
     setFocusId(newId);
     await db.blackboard.add({
       id: newId,
-      content: '', // Start empty
+      content: '',
       createdAt: now,
       updatedAt: now,
       pinned: false,
