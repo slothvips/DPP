@@ -333,14 +333,16 @@ export function SyncKeyManager({
                         placeholder="输入新密钥或生成随机密钥"
                         className="font-mono text-sm"
                       />
-                      <Button
-                        variant="outline"
-                        onClick={handleGenerateNewKey}
-                        title="生成随机密钥"
-                        className="shrink-0"
-                      >
-                        <Key className="w-4 h-4" />
-                      </Button>
+                      {migrationMode === 'authority' && (
+                        <Button
+                          variant="outline"
+                          onClick={handleGenerateNewKey}
+                          title="生成随机密钥"
+                          className="shrink-0"
+                        >
+                          <Key className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
 
