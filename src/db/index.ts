@@ -19,191 +19,35 @@ export type { Recording } from '@/features/recorder/types';
 
 export const db = new Dexie('DPPDB') as DPPDatabase;
 
+// Database schema - all tables defined in a single version
+// Note: This is a development version. In production, use incremental migrations.
 db.version(1).stores({
+  // Core tables
   links: 'id, category, name',
-  jobs: 'url, name',
+  jobs: 'url, name, env',
   settings: 'key',
-});
+  tags: 'id, &name',
+  jobTags: '[jobUrl+tagId], jobUrl, tagId',
+  linkTags: '[linkId+tagId], linkId, tagId',
+  linkStats: 'id, usageCount, lastUsedAt',
 
-// Upgrade schema
-db.version(2).stores({
-  tags: '++id, name',
-  jobTags: '[jobUrl+tagId], jobUrl, tagId', // Compound primary key
-});
+  // Build history
+  myBuilds: 'id, timestamp, env',
+  othersBuilds: 'id, timestamp, env',
 
-db.version(3).stores({
-  myBuilds: 'id, timestamp',
-});
-
-db.version(4).stores({
-  linkStats: 'id, usageCount, lastUsedAt', // id matches LinkItem.id
-});
-
-db.version(5).stores({
+  // Cache
   hotNews: 'date',
-});
 
-db.version(6).stores({
-  operations: 'id, table, type, synced, timestamp',
-  syncState: 'id',
-});
-
-db.version(7).stores({
-  tags: '++id, &name',
-});
-
-db.version(9).stores({
-  syncMetadata: 'id',
-  syncState: null,
-});
-
-db.version(10).stores({
-  _tags_migration: 'id, &name',
-  _jobTags_migration: '[jobUrl+tagId], jobUrl, tagId',
-});
-
-db.version(11)
-  .stores({
-    tags: null,
-    jobTags: null,
-  })
-  .upgrade(async (tx) => {
-    const oldTags = await tx.table('tags').toArray();
-    const oldJobTags = await tx.table('jobTags').toArray();
-
-    const idMapping = new Map<number, string>();
-
-    for (const tag of oldTags) {
-      const newId = crypto.randomUUID();
-      idMapping.set(tag.id as number, newId);
-      await tx.table('_tags_migration').add({
-        id: newId,
-        name: tag.name,
-        color: tag.color,
-      });
-    }
-
-    for (const jobTag of oldJobTags) {
-      const newTagId = idMapping.get(jobTag.tagId as number);
-      if (newTagId) {
-        await tx.table('_jobTags_migration').add({
-          jobUrl: jobTag.jobUrl,
-          tagId: newTagId,
-        });
-      }
-    }
-  });
-
-db.version(12)
-  .stores({
-    tags: 'id, &name',
-    jobTags: '[jobUrl+tagId], jobUrl, tagId',
-    _tags_migration: null,
-    _jobTags_migration: null,
-  })
-  .upgrade(async (tx) => {
-    const migratedTags = await tx.table('_tags_migration').toArray();
-    const migratedJobTags = await tx.table('_jobTags_migration').toArray();
-
-    for (const tag of migratedTags) {
-      await tx.table('tags').add(tag);
-    }
-
-    for (const jobTag of migratedJobTags) {
-      await tx.table('jobTags').add(jobTag);
-    }
-  });
-
-db.version(13)
-  .stores({
-    linkTags: '[linkId+tagId], linkId, tagId',
-  })
-  .upgrade(async (tx) => {
-    const links = await tx.table('links').toArray();
-    const existingTags = await tx.table('tags').toArray();
-    const tagMap = new Map(existingTags.map((t) => [t.name, t]));
-
-    for (const link of links) {
-      if (link.category && !link.deletedAt) {
-        let tag = tagMap.get(link.category);
-
-        if (!tag) {
-          // Create new tag for category
-          tag = {
-            id: crypto.randomUUID(),
-            name: link.category,
-            color: 'blue', // Default color
-            updatedAt: Date.now(),
-          };
-          await tx.table('tags').add(tag);
-          tagMap.set(tag.name, tag);
-        }
-
-        // Link tag to link
-        await tx.table('linkTags').add({
-          linkId: link.id,
-          tagId: tag.id,
-          updatedAt: Date.now(),
-        });
-      }
-    }
-  });
-
-db.version(14).stores({
+  // Recordings
   recordings: '&id, createdAt, url',
-});
 
-db.version(15).stores({
-  othersBuilds: 'id, timestamp',
-});
+  // Blackboard
+  blackboard: 'id, createdAt, pinned',
 
-db.version(16)
-  .stores({
-    jobs: 'url, name, env',
-    myBuilds: 'id, timestamp, env',
-    othersBuilds: 'id, timestamp, env',
-  })
-  .upgrade(async (tx) => {
-    const host = await tx.table('settings').get('jenkins_host');
-    const user = await tx.table('settings').get('jenkins_user');
-    const token = await tx.table('settings').get('jenkins_token');
-
-    if (host || user || token) {
-      const defaultEnv = {
-        id: 'default',
-        name: 'Default',
-        host: (host?.value as string) || '',
-        user: (user?.value as string) || '',
-        token: (token?.value as string) || '',
-        order: 0,
-      };
-      await tx.table('settings').add({ key: 'jenkins_environments', value: [defaultEnv] });
-      await tx.table('settings').add({ key: 'jenkins_current_env', value: 'default' });
-    }
-
-    await tx.table('jobs').toCollection().modify({ env: 'default' });
-    await tx.table('myBuilds').toCollection().modify({ env: 'default' });
-    await tx.table('othersBuilds').toCollection().modify({ env: 'default' });
-  });
-
-db.version(17).upgrade(async (tx) => {
-  // Remove legacy Jenkins settings that have been migrated to jenkins_environments
-  await tx
-    .table('settings')
-    .where('key')
-    .anyOf(['jenkins_host', 'jenkins_user', 'jenkins_token'])
-    .delete();
-});
-
-db.version(18).upgrade(async (tx) => {
-  await tx
-    .table('links')
-    .toCollection()
-    .modify((link) => {
-      if (!link.createdAt) {
-        link.createdAt = link.updatedAt || Date.now();
-      }
-    });
+  // Sync tables
+  operations: 'id, table, type, synced, timestamp',
+  syncMetadata: 'id',
+  deferred_ops: '++id, table, timestamp',
 });
 
 const defaultSyncProvider: SyncProvider = {
@@ -297,16 +141,8 @@ const defaultSyncProvider: SyncProvider = {
   },
 };
 
-db.version(19).stores({
-  blackboard: 'id, createdAt, pinned',
-});
-
 // Lazy-load syncEngine to avoid initializing in Service Worker (no localStorage)
 let _syncEngine: SyncEngine | null = null;
-
-db.version(20).stores({
-  deferred_ops: '++id, table, timestamp',
-});
 
 export async function getSyncEngine(): Promise<SyncEngine | null> {
   if (!_syncEngine) {

@@ -4,6 +4,13 @@ import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
 import type { SyncMetadata, SyncOperation } from '@/lib/sync/types';
 
+export interface DeferredOp {
+  id?: number;
+  table: string;
+  op: SyncOperation;
+  timestamp: number;
+}
+
 export interface LinkItem {
   id: string;
   category: string; // Deprecated, keeping for type safety during migration
@@ -130,4 +137,5 @@ export type DPPDatabase = Dexie & {
   recordings: EntityTable<Recording, 'id'>;
   operations: EntityTable<SyncOperation, 'id'>;
   syncMetadata: EntityTable<SyncMetadata, 'id'>;
+  deferred_ops: EntityTable<DeferredOp, 'id'>;
 };
