@@ -5,6 +5,14 @@ import ReactDOM from 'react-dom/client';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ToastProvider, useToast } from '@/components/ui/toast';
@@ -26,6 +34,40 @@ const EXCLUDED_SETTINGS = [
   'global_sync_start_time',
 ];
 
+// Settings categories for granular export/import
+const SETTINGS_CATEGORIES = [
+  {
+    key: 'theme',
+    label: '主题设置',
+    description: '深色/浅色主题',
+    keys: ['theme'],
+  },
+  {
+    key: 'feature_toggles',
+    label: '功能开关',
+    description: '热点、链接等功能开关',
+    keys: ['feature_hotnews_enabled', 'feature_links_enabled'],
+  },
+  {
+    key: 'jenkins_envs',
+    label: 'Jenkins 环境',
+    description: 'Jenkins 服务器配置',
+    keys: ['jenkins_environments', 'jenkins_current_env'],
+  },
+  {
+    key: 'sync_settings',
+    label: '同步设置',
+    description: '服务器地址、访问令牌、加密密钥',
+    keys: ['custom_server_url', 'sync_access_token', 'sync_encryption_key'],
+  },
+  {
+    key: 'display_prefs',
+    label: '显示偏好',
+    description: '其他显示相关设置',
+    keys: ['show_others_builds'],
+  },
+];
+
 function OptionsApp() {
   useTheme();
   const { toast } = useToast();
@@ -36,6 +78,12 @@ function OptionsApp() {
     hotNews: true,
     links: true,
   });
+
+  // Export state
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    SETTINGS_CATEGORIES.map((c) => c.key)
+  );
 
   // Load existing config
   useEffect(() => {
@@ -96,25 +144,40 @@ function OptionsApp() {
     }
   };
 
-  const exportData = async () => {
+  const handleExport = async () => {
+    if (selectedCategories.length === 0) {
+      toast('请至少选择一种设置类型', 'error');
+      return;
+    }
+
     try {
       const allSettings = await db.settings.toArray();
       const safeSettings = allSettings.filter((s) => !EXCLUDED_SETTINGS.includes(s.key));
 
-      const hasEncryptionKey = safeSettings.some((s) => s.key === 'sync_encryption_key');
+      // Filter by selected categories
+      const allowedKeys = new Set(
+        SETTINGS_CATEGORIES.filter((c) => selectedCategories.includes(c.key)).flatMap((c) => c.keys)
+      );
+      const filteredSettings = safeSettings.filter((s) => allowedKeys.has(s.key));
+
+      // Check for encryption key in settings
+      const hasEncryptionKey = filteredSettings.some((s) => s.key === 'sync_encryption_key');
 
       if (hasEncryptionKey) {
         const confirmed = confirm(
           '安全提示：\n\n导出文件中将包含您的【同步加密密钥】。\n\n请务必妥善保管导出文件，不要分享给不可信的人，否则可能导致您的加密数据泄露。\n\n是否继续？'
         );
-        if (!confirmed) return;
+        if (!confirmed) {
+          setShowExportDialog(false);
+          return;
+        }
       }
 
       const exportObj = {
         version: '1.3',
         exportDate: new Date().toISOString(),
         data: {
-          settings: safeSettings,
+          settings: filteredSettings,
         },
       };
 
@@ -129,6 +192,7 @@ function OptionsApp() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
+      setShowExportDialog(false);
       toast('配置导出成功！', 'success');
     } catch (e) {
       logger.error('Export error:', e);
@@ -136,7 +200,7 @@ function OptionsApp() {
     }
   };
 
-  const importData = async () => {
+  const handleSelectFile = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json';
@@ -147,60 +211,65 @@ function OptionsApp() {
 
       try {
         const text = await file.text();
-        const importObj = JSON.parse(text);
+        const parsed = JSON.parse(text);
 
-        if (!importObj.version || !importObj.data) {
+        if (!parsed.version || !parsed.data) {
           throw new Error('无效的备份文件格式');
         }
 
-        const hasKey = importObj.data.settings?.some(
+        if (!parsed.data.settings?.length) {
+          throw new Error('文件中没有应用设置数据');
+        }
+
+        const hasKey = parsed.data.settings.some(
           (s: { key: string }) => s.key === 'sync_encryption_key'
         );
         const confirmed = confirm(
-          `确定要导入配置数据吗？\n\n导出时间: ${new Date(importObj.exportDate).toLocaleString()}\n版本: ${importObj.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}\n这将覆盖当前配置！(链接等数据需重新同步)`
+          `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}\n⚠️ 这将清空所有本地数据，导入后请重新同步！`
         );
 
         if (!confirmed) return;
 
-        await db.transaction('rw', ['settings'], async () => {
-          await db.settings.clear();
-          if (importObj.data.settings?.length) {
-            let settings = importObj.data.settings.filter(
-              (s: { key: string }) => !EXCLUDED_SETTINGS.includes(s.key)
-            );
+        // Clear all data first
+        await db.delete();
+        await db.open();
 
-            const hasEnvironments = settings.some(
-              (s: { key: string }) => s.key === 'jenkins_environments'
-            );
-            const host = settings.find((s: { key: string }) => s.key === 'jenkins_host');
-            const user = settings.find((s: { key: string }) => s.key === 'jenkins_user');
-            const token = settings.find((s: { key: string }) => s.key === 'jenkins_token');
+        await db.transaction('rw', db.settings, async () => {
+          let settings = parsed.data.settings.filter(
+            (s: { key: string }) => !EXCLUDED_SETTINGS.includes(s.key)
+          );
 
-            if (!hasEnvironments && (host || user || token)) {
-              const defaultEnv = {
-                id: crypto.randomUUID(), // Use UUID for new environment
-                name: 'Default',
-                host: (host?.value as string) || '',
-                user: (user?.value as string) || '',
-                token: (token?.value as string) || '',
-                order: 0,
-              };
-              settings.push({ key: 'jenkins_environments', value: [defaultEnv] });
+          const hasEnvironments = settings.some(
+            (s: { key: string }) => s.key === 'jenkins_environments'
+          );
+          const host = settings.find((s: { key: string }) => s.key === 'jenkins_host');
+          const user = settings.find((s: { key: string }) => s.key === 'jenkins_user');
+          const token = settings.find((s: { key: string }) => s.key === 'jenkins_token');
 
-              if (!settings.some((s: { key: string }) => s.key === 'jenkins_current_env')) {
-                settings.push({ key: 'jenkins_current_env', value: defaultEnv.id });
-              }
+          if (!hasEnvironments && (host || user || token)) {
+            const defaultEnv = {
+              id: crypto.randomUUID(),
+              name: 'Default',
+              host: (host?.value as string) || '',
+              user: (user?.value as string) || '',
+              token: (token?.value as string) || '',
+              order: 0,
+            };
+            settings.push({ key: 'jenkins_environments', value: [defaultEnv] });
 
-              logger.info('Migrated legacy Jenkins settings during import');
+            if (!settings.some((s: { key: string }) => s.key === 'jenkins_current_env')) {
+              settings.push({ key: 'jenkins_current_env', value: defaultEnv.id });
             }
 
-            settings = settings.filter(
-              (s: { key: string }) =>
-                !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(s.key)
-            );
-
-            await db.settings.bulkAdd(settings);
+            logger.info('Migrated legacy Jenkins settings during import');
           }
+
+          settings = settings.filter(
+            (s: { key: string }) =>
+              !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(s.key)
+          );
+
+          await db.settings.bulkAdd(settings as Parameters<typeof db.settings.bulkAdd>[0]);
         });
 
         toast('配置导入成功！即将刷新页面...', 'success');
@@ -312,14 +381,12 @@ function OptionsApp() {
 
               <SyncKeyManager />
 
-              <div className="pt-2">
-                <Button
-                  onClick={saveDataSourceConfig}
-                  className="bg-purple-600 hover:bg-purple-700 w-full sm:w-auto"
-                >
-                  保存
-                </Button>
-              </div>
+              <Button
+                onClick={saveDataSourceConfig}
+                className="bg-purple-600 hover:bg-purple-700 w-full"
+              >
+                保存
+              </Button>
             </div>
           </section>
 
@@ -331,11 +398,15 @@ function OptionsApp() {
                 导出仅包含关键配置项，链接和任务数据请通过远程同步获取。
               </p>
               <div className="flex gap-2">
-                <Button onClick={exportData} variant="outline" className="gap-2">
+                <Button
+                  onClick={() => setShowExportDialog(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
                   <Download className="w-4 h-4" />
                   导出配置
                 </Button>
-                <Button onClick={importData} variant="outline" className="gap-2">
+                <Button onClick={handleSelectFile} variant="outline" className="gap-2">
                   <Upload className="w-4 h-4" />
                   导入配置
                 </Button>
@@ -350,6 +421,50 @@ function OptionsApp() {
               清空所有数据并重置
             </Button>
           </section>
+
+          {/* Export Dialog */}
+          <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>导出应用设置</DialogTitle>
+                <DialogDescription>选择要导出的设置类型</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-4">
+                {SETTINGS_CATEGORIES.map((category) => (
+                  <div key={category.key} className="flex items-center space-x-3">
+                    <Checkbox
+                      id={`export-${category.key}`}
+                      checked={selectedCategories.includes(category.key)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedCategories([...selectedCategories, category.key]);
+                        } else {
+                          setSelectedCategories(
+                            selectedCategories.filter((k) => k !== category.key)
+                          );
+                        }
+                      }}
+                    />
+                    <Label
+                      htmlFor={`export-${category.key}`}
+                      className="text-sm font-medium cursor-pointer"
+                    >
+                      {category.label}
+                      <span className="text-muted-foreground text-xs ml-2">
+                        {category.description}
+                      </span>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowExportDialog(false)}>
+                  取消
+                </Button>
+                <Button onClick={handleExport}>导出</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <div className="flex justify-center pt-8 pb-4 opacity-50 hover:opacity-100 transition-opacity">
             <a
