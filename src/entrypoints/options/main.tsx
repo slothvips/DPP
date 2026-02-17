@@ -308,12 +308,14 @@ function OptionsApp() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground" data-testid="options-page">
       <div className="container mx-auto p-8 max-w-2xl">
-        <h1 className="text-2xl font-bold mb-6">DPP 设置</h1>
+        <h1 className="text-2xl font-bold mb-6" data-testid="options-title">
+          DPP 设置
+        </h1>
 
         <div className="space-y-8">
-          <section className="space-y-4 border p-4 rounded-lg">
+          <section className="space-y-4 border p-4 rounded-lg" data-testid="section-appearance">
             <h2 className="text-xl font-semibold">外观</h2>
             <div className="space-y-2">
               <div className="text-sm font-medium">主题</div>
@@ -324,10 +326,11 @@ function OptionsApp() {
           <section className="space-y-4 border p-4 rounded-lg">
             <h2 className="text-xl font-semibold">功能开关</h2>
             <p className="text-sm text-muted-foreground">控制在主界面中显示哪些功能标签页</p>
-            <div className="space-y-3">
+            <div className="space-y-3" data-testid="feature-toggles">
               <div className="flex items-center space-x-3">
                 <Checkbox
                   id="feature-hotnews"
+                  data-testid="checkbox-feature-hotnews"
                   checked={featureToggles.hotNews}
                   onCheckedChange={(checked) => toggleFeature('hotNews', !!checked)}
                 />
@@ -366,6 +369,7 @@ function OptionsApp() {
                 <Label htmlFor="custom-url">服务器地址</Label>
                 <Input
                   id="custom-url"
+                  data-testid="input-server-url"
                   value={customConfig.serverUrl}
                   onChange={(e) => setCustomConfig({ ...customConfig, serverUrl: e.target.value })}
                   placeholder="http://localhost:3000"
@@ -376,6 +380,7 @@ function OptionsApp() {
                 <Label htmlFor="access-token">访问令牌 (可选)</Label>
                 <Input
                   id="access-token"
+                  data-testid="input-access-token"
                   type="password"
                   value={accessToken}
                   onChange={(e) => setAccessToken(e.target.value)}
@@ -388,6 +393,7 @@ function OptionsApp() {
 
               <Button
                 onClick={saveDataSourceConfig}
+                data-testid="button-save-sync"
                 className="bg-purple-600 hover:bg-purple-700 w-full"
               >
                 保存
@@ -407,11 +413,17 @@ function OptionsApp() {
                   onClick={() => setShowExportDialog(true)}
                   variant="outline"
                   className="gap-2"
+                  data-testid="button-export"
                 >
                   <Download className="w-4 h-4" />
                   导出配置
                 </Button>
-                <Button onClick={handleSelectFile} variant="outline" className="gap-2">
+                <Button
+                  onClick={handleSelectFile}
+                  variant="outline"
+                  className="gap-2"
+                  data-testid="button-import"
+                >
                   <Upload className="w-4 h-4" />
                   导入配置
                 </Button>
@@ -420,9 +432,12 @@ function OptionsApp() {
           </section>
 
           {/* Danger Zone */}
-          <section className="space-y-4 border p-4 rounded-lg border-destructive/30">
+          <section
+            className="space-y-4 border p-4 rounded-lg border-destructive/30"
+            data-testid="danger-zone"
+          >
             <h2 className="text-xl font-semibold text-destructive">危险区域</h2>
-            <Button variant="destructive" onClick={clearData}>
+            <Button variant="destructive" onClick={clearData} data-testid="button-clear-data">
               清空所有数据并重置
             </Button>
           </section>

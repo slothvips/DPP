@@ -7,10 +7,14 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
 
   return (
-    <div className="flex items-center gap-2 p-1 border rounded-lg bg-card text-card-foreground">
+    <div
+      className="flex items-center gap-2 p-1 border rounded-lg bg-card text-card-foreground"
+      data-testid="theme-toggle"
+    >
       <Button
         variant="ghost"
         size="sm"
+        data-testid="theme-toggle-light"
         className={cn(
           'gap-2 flex-1',
           theme === 'light' && 'bg-accent text-accent-foreground shadow-sm'
@@ -23,6 +27,7 @@ export function ThemeToggle() {
       <Button
         variant="ghost"
         size="sm"
+        data-testid="theme-toggle-dark"
         className={cn(
           'gap-2 flex-1',
           theme === 'dark' && 'bg-accent text-accent-foreground shadow-sm'
@@ -35,6 +40,7 @@ export function ThemeToggle() {
       <Button
         variant="ghost"
         size="sm"
+        data-testid="theme-toggle-system"
         className={cn(
           'gap-2 flex-1',
           theme === 'system' && 'bg-accent text-accent-foreground shadow-sm'

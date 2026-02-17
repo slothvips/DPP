@@ -15,6 +15,7 @@ export default defineConfig({
     disabled: true,
   },
   manifest: {
+    id: 'dpp@local',
     permissions: ['storage', 'offscreen', 'desktopCapture'],
     host_permissions: ['<all_urls>'],
     name: 'DPP',

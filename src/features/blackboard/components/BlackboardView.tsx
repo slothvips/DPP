@@ -118,8 +118,15 @@ export function BlackboardView() {
   return (
     <div className="flex flex-col h-full bg-stone-100 dark:bg-stone-900 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')]">
       <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+        {/* Loading State */}
+        {items === undefined && (
+          <div className="flex items-center justify-center h-32" data-testid="loading">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          </div>
+        )}
+
         {/* Empty State */}
-        {sortedItems?.length === 0 && (
+        {items !== undefined && sortedItems?.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-50">
             <div className="border-2 border-dashed border-current rounded-lg p-8 mb-4">
               <Plus className="w-12 h-12" />

@@ -83,11 +83,18 @@ export function App() {
           {/* Header */}
           {!isMinimalMode && (
             <header className="flex items-center justify-between p-4 border-b">
-              <h1 className="text-lg font-bold">DPP</h1>
+              <h1 className="text-lg font-bold" data-testid="app-title">
+                DPP
+              </h1>
               <Tips />
               <div className="flex items-center gap-1">
                 {showSyncButton && <GlobalSyncButton />}
-                <Button variant="ghost" size="icon" onClick={openSettings}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={openSettings}
+                  data-testid="settings-button"
+                >
                   <Settings className="w-4 h-4" />
                 </Button>
               </div>
@@ -96,9 +103,10 @@ export function App() {
 
           {/* Tabs */}
           {!isMinimalMode && (
-            <div className="flex border-b">
+            <div className="flex border-b" data-testid="tab-container">
               <button
                 type="button"
+                data-testid="tab-blackboard"
                 className={`flex-1 py-2 text-sm font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('blackboard')}
               >
@@ -107,6 +115,7 @@ export function App() {
               {hasJenkins && (
                 <button
                   type="button"
+                  data-testid="tab-jenkins"
                   className={`flex-1 py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('jenkins')}
                 >
@@ -116,6 +125,7 @@ export function App() {
               {featureToggles.links && (
                 <button
                   type="button"
+                  data-testid="tab-links"
                   className={`flex-1 py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('links')}
                 >
@@ -124,6 +134,7 @@ export function App() {
               )}
               <button
                 type="button"
+                data-testid="tab-recorder"
                 className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('recorder')}
               >
@@ -132,6 +143,7 @@ export function App() {
               {featureToggles.hotNews && (
                 <button
                   type="button"
+                  data-testid="tab-hotnews"
                   className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('hotNews')}
                 >
@@ -142,7 +154,7 @@ export function App() {
           )}
 
           {/* Content */}
-          <main className="flex-1 overflow-hidden p-2">
+          <main className="flex-1 overflow-hidden p-2" data-testid="main-content">
             {activeTab === 'links' && featureToggles.links && <LinksView />}
             {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
             {activeTab === 'recorder' && <RecordingsView />}
