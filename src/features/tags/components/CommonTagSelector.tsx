@@ -5,6 +5,7 @@ import { TagSelector } from '@/components/ui/tag-selector';
 import { useToast } from '@/components/ui/toast';
 import { db } from '@/db';
 import type { JobTagItem, LinkTagItem, TagItem } from '@/db/types';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 
 interface CommonTagSelectorProps {
@@ -23,6 +24,7 @@ export function CommonTagSelector({
   availableTags,
 }: CommonTagSelectorProps) {
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
 
   const tags =
     useLiveQuery(
@@ -107,7 +109,8 @@ export function CommonTagSelector({
       return;
     }
 
-    if (confirm(`确定要删除标签 "${tagName}" 吗？`)) {
+    const confirmed = await confirm(`确定要删除标签 "${tagName}" 吗？`, '确认删除', 'danger');
+    if (confirmed) {
       await db.tags.delete(tagId);
       toast('标签已删除', 'success');
     }

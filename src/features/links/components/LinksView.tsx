@@ -18,6 +18,7 @@ import { LinkDialog } from '@/features/links/components/LinkDialog';
 import { LinkTagSelector } from '@/features/links/components/LinkTagSelector';
 import { type LinkWithStats, useLinks } from '@/features/links/hooks/useLinks';
 import { cn } from '@/utils/cn';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
 type SortOption = 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt';
@@ -100,6 +101,7 @@ export function LinksView() {
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingLink, setEditingLink] = useState<(LinkItem & { tags?: TagItem[] }) | null>(null);
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
 
   const filteredAndSortedLinks = useMemo(() => {
     if (!links) return [];
@@ -183,7 +185,8 @@ export function LinksView() {
   };
 
   const handleDelete = async (link: LinkItem) => {
-    if (confirm(`确定要删除 "${link.name}" 吗？`)) {
+    const confirmed = await confirm(`确定要删除 "${link.name}" 吗？`, '确认删除', 'danger');
+    if (confirmed) {
       try {
         await deleteLink(link.id);
         toast('删除成功', 'success');

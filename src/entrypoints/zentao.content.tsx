@@ -1,4 +1,5 @@
 import { logger } from '@/utils/logger';
+import { showAlert } from '@/utils/modal';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -102,13 +103,13 @@ function runInMainFrame() {
 
       logger.debug('[DPP Zentao]', 'Processing iframe:', iframe.src || iframe.id);
 
-      injectIntoDocument(iframeDoc, iframeWin);
+      injectIntoDocument(iframeDoc);
     } catch (e) {
       logger.debug('[DPP Zentao]', 'Error accessing iframe:', e);
     }
   }
 
-  function injectIntoDocument(doc: Document, win: Window) {
+  function injectIntoDocument(doc: Document) {
     function injectButton(formGroup: HTMLElement, input: HTMLInputElement) {
       if (formGroup.dataset.dppInjected) return;
       formGroup.dataset.dppInjected = 'true';
@@ -156,15 +157,15 @@ function runInMainFrame() {
         try {
           const res = await browser.runtime.sendMessage({ type: 'RECORDER_GET_ALL_RECORDINGS' });
           if (res.success && res.recordings?.length > 0) {
-            showRecordingPicker(doc, res.recordings, input, button, originalText, win);
+            showRecordingPicker(doc, res.recordings, input, button, originalText);
           } else {
-            win.alert('暂无录像记录');
+            showAlert('暂无录像记录');
             button.innerHTML = originalText;
             button.disabled = false;
           }
         } catch (err) {
           logger.debug('[DPP Zentao]', 'Error loading recordings:', err);
-          win.alert('加载录像失败');
+          showAlert('加载录像失败');
           button.innerHTML = originalText;
           button.disabled = false;
         }
@@ -340,7 +341,7 @@ function runInMainFrame() {
                 playBtn.innerHTML = originalText;
                 playBtn.disabled = false;
               }, 2000);
-              win.alert(`加载录像失败: ${err instanceof Error ? err.message : String(err)}`);
+              showAlert(`加载录像失败: ${err instanceof Error ? err.message : String(err)}`);
             }
           };
 
@@ -367,8 +368,7 @@ function runInMainFrame() {
     }>,
     input: HTMLInputElement,
     button: HTMLButtonElement,
-    originalText: string,
-    win: Window
+    originalText: string
   ) {
     const existing = doc.getElementById('dpp-recording-picker');
     if (existing) existing.remove();
@@ -449,7 +449,7 @@ function runInMainFrame() {
           });
 
           if (!res.success || !res.recording) {
-            win.alert('加载录像失败');
+            showAlert('加载录像失败');
             recTitle.textContent = rec.title;
             item.style.pointerEvents = '';
             item.style.opacity = '';
@@ -475,7 +475,7 @@ function runInMainFrame() {
           }, 2000);
         } catch (err) {
           logger.debug('[DPP Zentao]', 'Error fetching recording:', err);
-          win.alert('加载录像失败');
+          showAlert('加载录像失败');
           recTitle.textContent = rec.title;
           item.style.pointerEvents = '';
           item.style.opacity = '';

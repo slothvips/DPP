@@ -20,6 +20,7 @@ import { db } from '@/db';
 import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 import { SyncKeyManager } from '@/features/settings/components/SyncKeyManager';
 import { useTheme } from '@/hooks/useTheme';
+import { ConfirmDialogProvider, useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 import '@unocss/reset/tailwind.css';
@@ -71,6 +72,7 @@ const SETTINGS_CATEGORIES = [
 function OptionsApp() {
   useTheme();
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
   const [customConfig, setCustomConfig] = useState({ serverUrl: '' });
   const [accessToken, setAccessToken] = useState('');
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
@@ -164,8 +166,9 @@ function OptionsApp() {
       const hasEncryptionKey = filteredSettings.some((s) => s.key === 'sync_encryption_key');
 
       if (hasEncryptionKey) {
-        const confirmed = confirm(
-          '安全提示：\n\n导出文件中将包含您的【同步加密密钥】。\n\n请务必妥善保管导出文件，不要分享给不可信的人，否则可能导致您的加密数据泄露。\n\n是否继续？'
+        const confirmed = await confirm(
+          '安全提示：\n\n导出文件中将包含您的【同步加密密钥】。\n\n请务必妥善保管导出文件，不要分享给不可信的人，否则可能导致您的加密数据泄露。\n\n是否继续？',
+          '确认导出'
         );
         if (!confirmed) {
           setShowExportDialog(false);
@@ -224,8 +227,9 @@ function OptionsApp() {
         const hasKey = parsed.data.settings.some(
           (s: { key: string }) => s.key === 'sync_encryption_key'
         );
-        const confirmed = confirm(
-          `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}\n⚠️ 这将清空所有本地数据，导入后请重新同步！`
+        const confirmed = await confirm(
+          `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}\n⚠️ 这将清空所有本地数据，导入后请重新同步！`,
+          '确认导入'
         );
 
         if (!confirmed) return;
@@ -284,7 +288,8 @@ function OptionsApp() {
   };
 
   const clearData = async () => {
-    if (confirm('确定要清空所有数据并重置吗？')) {
+    const confirmed = await confirm('确定要清空所有数据并重置吗？', '确认清空', 'danger');
+    if (confirmed) {
       await db.delete();
       await db.open();
       toast('数据已清空', 'info');
@@ -488,7 +493,9 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ToastProvider>
-        <OptionsApp />
+        <ConfirmDialogProvider>
+          <OptionsApp />
+        </ConfirmDialogProvider>
       </ToastProvider>
     </React.StrictMode>
   );

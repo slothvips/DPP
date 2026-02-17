@@ -36,6 +36,7 @@ import {
   storeKey,
   verifyKey,
 } from '@/lib/crypto/encryption';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
 interface SyncKeyManagerProps {
@@ -53,6 +54,7 @@ export function SyncKeyManager({
   initialKeyLoaded,
 }: SyncKeyManagerProps = {}) {
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
   const [hasKey, setHasKey] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [keyString, setKeyString] = useState('');
@@ -129,11 +131,12 @@ export function SyncKeyManager({
   };
 
   const handleClear = async () => {
-    if (
-      !confirm(
-        '确定要清除同步密钥吗？\n\n如果没有密钥，您将无法解密服务器上的同步数据。请确保您已经备份了密钥。'
-      )
-    ) {
+    const confirmed = await confirm(
+      '确定要清除同步密钥吗？\n\n如果没有密钥，您将无法解密服务器上的同步数据。请确保您已经备份了密钥。',
+      '确认清除',
+      'danger'
+    );
+    if (!confirmed) {
       return;
     }
 

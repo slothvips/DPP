@@ -2,6 +2,7 @@ import { Trash2, Upload } from 'lucide-react';
 import { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { useRecordings } from '../hooks/useRecordings';
 import { RecorderControl } from './RecorderControl';
 import { RecordingsList } from './RecordingsList';
@@ -16,6 +17,7 @@ export function RecordingsView() {
     importRecording,
   } = useRecordings();
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportClick = () => {
@@ -65,8 +67,9 @@ export function RecordingsView() {
               variant="ghost"
               size="sm"
               className="h-6 text-xs text-muted-foreground hover:text-destructive"
-              onClick={() => {
-                if (confirm('确定要删除所有录制吗?')) {
+              onClick={async () => {
+                const confirmed = await confirm('确定要删除所有录制吗?', '确认删除', 'danger');
+                if (confirmed) {
                   clearRecordings();
                 }
               }}

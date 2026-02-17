@@ -97,23 +97,6 @@ export async function http(url: string, options: HttpOptions = {}): Promise<Resp
 }
 
 /**
- * HTTP GET request with automatic JSON parsing
- *
- * @param url - The URL to fetch
- * @param options - HTTP options
- * @returns Promise resolving to parsed JSON data
- */
-export async function httpGet<T = unknown>(url: string, options: HttpOptions = {}): Promise<T> {
-  const response = await http(url, { ...options, method: 'GET' });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  return response.json() as Promise<T>;
-}
-
-/**
  * HTTP POST request with automatic JSON handling
  *
  * @param url - The URL to post to

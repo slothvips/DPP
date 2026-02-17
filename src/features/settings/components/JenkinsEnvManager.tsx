@@ -16,11 +16,13 @@ import { useToast } from '@/components/ui/toast';
 import { type JenkinsEnvironment, db } from '@/db';
 import { http } from '@/lib/http';
 import { cn } from '@/utils/cn';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 
 export function JenkinsEnvManager() {
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEnv, setEditingEnv] = useState<JenkinsEnvironment | null>(null);
 
@@ -35,7 +37,8 @@ export function JenkinsEnvManager() {
   });
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除此环境吗？')) return;
+    const confirmed = await confirm('确定要删除此环境吗？', '确认删除', 'danger');
+    if (!confirmed) return;
 
     try {
       const newEnvs = environments?.filter((e) => e.id !== id) || [];
@@ -272,7 +275,8 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
       const userRes = await http(`${url}/me/api/json?tree=id`, { timeout: 15000 });
 
       if (userRes.status === 403 || userRes.status === 401) {
-        if (confirm('需要认证。是否打开 Jenkins 登录页面？')) {
+        const confirmed = await confirm('需要认证。是否打开 Jenkins 登录页面？');
+        if (confirmed) {
           window.open(url, '_blank');
         }
         return;
@@ -284,7 +288,8 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
       const userId = userData.id;
 
       if (userId === 'anonymous') {
-        if (confirm('当前为“匿名”登录。是否打开 Jenkins 登录页面？')) {
+        const confirmed = await confirm('当前为"匿名"登录。是否打开 Jenkins 登录页面？');
+        if (confirmed) {
           window.open(`${url}/login`, '_blank');
         }
         return;

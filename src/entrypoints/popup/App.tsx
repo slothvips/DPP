@@ -13,6 +13,7 @@ import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
 import { RecordingsView } from '@/features/recorder/components/RecordingsView';
 import { useTheme } from '@/hooks/useTheme';
+import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 
 export function App() {
   useTheme();
@@ -77,77 +78,79 @@ export function App() {
 
   return (
     <ToastProvider>
-      <div className="flex flex-col h-full bg-background text-foreground">
-        {/* Header */}
-        {!isMinimalMode && (
-          <header className="flex items-center justify-between p-4 border-b">
-            <h1 className="text-lg font-bold">DPP</h1>
-            <Tips />
-            <div className="flex items-center gap-1">
-              {showSyncButton && <GlobalSyncButton />}
-              <Button variant="ghost" size="icon" onClick={openSettings}>
-                <Settings className="w-4 h-4" />
-              </Button>
+      <ConfirmDialogProvider>
+        <div className="flex flex-col h-full bg-background text-foreground">
+          {/* Header */}
+          {!isMinimalMode && (
+            <header className="flex items-center justify-between p-4 border-b">
+              <h1 className="text-lg font-bold">DPP</h1>
+              <Tips />
+              <div className="flex items-center gap-1">
+                {showSyncButton && <GlobalSyncButton />}
+                <Button variant="ghost" size="icon" onClick={openSettings}>
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </div>
+            </header>
+          )}
+
+          {/* Tabs */}
+          {!isMinimalMode && (
+            <div className="flex border-b">
+              <button
+                type="button"
+                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('blackboard')}
+              >
+                黑板
+              </button>
+              {hasJenkins && (
+                <button
+                  type="button"
+                  className={`flex-1 py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => handleTabChange('jenkins')}
+                >
+                  Jenkins
+                </button>
+              )}
+              {featureToggles.links && (
+                <button
+                  type="button"
+                  className={`flex-1 py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => handleTabChange('links')}
+                >
+                  链接
+                </button>
+              )}
+              <button
+                type="button"
+                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('recorder')}
+              >
+                录制
+              </button>
+              {featureToggles.hotNews && (
+                <button
+                  type="button"
+                  className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => handleTabChange('hotNews')}
+                >
+                  热点
+                </button>
+              )}
             </div>
-          </header>
-        )}
+          )}
 
-        {/* Tabs */}
-        {!isMinimalMode && (
-          <div className="flex border-b">
-            <button
-              type="button"
-              className={`flex-1 py-2 text-sm font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => handleTabChange('blackboard')}
-            >
-              黑板
-            </button>
-            {hasJenkins && (
-              <button
-                type="button"
-                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('jenkins')}
-              >
-                Jenkins
-              </button>
-            )}
-            {featureToggles.links && (
-              <button
-                type="button"
-                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('links')}
-              >
-                链接
-              </button>
-            )}
-            <button
-              type="button"
-              className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-              onClick={() => handleTabChange('recorder')}
-            >
-              录制
-            </button>
-            {featureToggles.hotNews && (
-              <button
-                type="button"
-                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('hotNews')}
-              >
-                热点
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Content */}
-        <main className="flex-1 overflow-hidden p-2">
-          {activeTab === 'links' && featureToggles.links && <LinksView />}
-          {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
-          {activeTab === 'recorder' && <RecordingsView />}
-          {activeTab === 'blackboard' && <BlackboardView />}
-          {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
-        </main>
-      </div>
+          {/* Content */}
+          <main className="flex-1 overflow-hidden p-2">
+            {activeTab === 'links' && featureToggles.links && <LinksView />}
+            {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
+            {activeTab === 'recorder' && <RecordingsView />}
+            {activeTab === 'blackboard' && <BlackboardView />}
+            {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
+          </main>
+        </div>
+      </ConfirmDialogProvider>
     </ToastProvider>
   );
 }
