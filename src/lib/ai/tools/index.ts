@@ -5,3 +5,4 @@ export * from './jenkins';
 export * from './blackboard';
 export * from './tags';
 export * from './recorder';
+export * from './hotnews';
