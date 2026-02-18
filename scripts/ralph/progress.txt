@@ -13,7 +13,7 @@
 - [x] US-006: 实现便签管理工具
 - [x] US-007: 实现标签管理工具
 - [x] US-008: 实现录屏管理工具
-- [ ] US-009: 实现热榜和同步工具
+- [x] US-009: 实现热榜和同步工具
 - [ ] US-010: 实现系统提示词生成器
 - [ ] US-011: 实现 AI 对话核心逻辑 Hook
 - [ ] US-012: 实现 AI 助手 Tab 入口和对话界面
@@ -102,3 +102,11 @@
   - Use browser.runtime.sendMessage to communicate with background script
   - Recorder messages use RECORDER_* prefix
   - Can get current tab with browser.tabs.query({active: true, currentWindow: true})
+
+## 2026-02-18 - US-009
+- Created src/lib/ai/tools/hotnews.ts with hotnews and sync tools
+- hotnews_get: Get hot news from cache (user must open Hot News tab first to fetch data)
+- sync_trigger: Trigger global sync using syncEngine.push() and syncEngine.pull()
+- **Learnings for future iterations:**
+  - Hot news data is stored in db.hotNews table
+  - Use syncEngine from @/db for sync operations
