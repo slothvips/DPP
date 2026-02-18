@@ -4,7 +4,7 @@ import type { AIToolDefinition, ToolParameter } from './types';
 /**
  * Tool execution handler type
  */
-export type ToolHandler<T = unknown> = (args: Record<string, unknown>) => Promise<T>;
+export type ToolHandler<T = unknown> = (args: unknown) => Promise<T>;
 
 /**
  * Tool metadata for registry
