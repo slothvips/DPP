@@ -11,7 +11,7 @@
 - [x] US-004: 实现链接管理工具
 - [x] US-005: 实现 Jenkins 管理工具
 - [x] US-006: 实现便签管理工具
-- [ ] US-007: 实现标签管理工具
+- [x] US-007: 实现标签管理工具
 - [ ] US-008: 实现录屏管理工具
 - [ ] US-009: 实现热榜和同步工具
 - [ ] US-010: 实现系统提示词生成器
@@ -82,3 +82,13 @@
 - **Learnings for future iterations:**
   - Blackboard items are stored in db.blackboard table
   - Use db.blackboard.orderBy().reverse().sortBy() for ordering
+
+## 2026-02-18 - US-007
+- Created src/lib/ai/tools/tags.ts with tags management tools
+- tags_list: List all tags with link and job counts
+- tags_add: Create new tag with name and color (validates uniqueness)
+- tags_delete: Delete tag and remove all link/job associations (requires confirmation)
+- **Learnings for future iterations:**
+  - Tags are stored in db.tags table
+  - Link-tag associations in db.linkTags, job-tag in db.jobTags
+  - Use soft delete for tags (mark deletedAt)
