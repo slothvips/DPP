@@ -15,7 +15,7 @@
 - [x] US-008: 实现录屏管理工具
 - [x] US-009: 实现热榜和同步工具
 - [x] US-010: 实现系统提示词生成器
-- [ ] US-011: 实现 AI 对话核心逻辑 Hook
+- [x] US-011: 实现 AI 对话核心逻辑 Hook
 - [ ] US-012: 实现 AI 助手 Tab 入口和对话界面
 - [ ] US-013: 实现 AI 配置页面
 - [ ] US-014: 实现危险操作确认弹窗
@@ -110,3 +110,15 @@
 - **Learnings for future iterations:**
   - Hot news data is stored in db.hotNews table
   - Use syncEngine from @/db for sync operations
+
+## 2026-02-19 - US-011
+- Created src/features/aiAssistant/hooks/useAIChat.ts with core conversation logic
+- Implements sendMessage, tool execution, dangerous operation confirmation, and streaming support
+- AIChatStatus: idle, loading, streaming, error, confirming
+- Added PendingToolCall interface for confirmation workflow
+- Uses refs to avoid circular dependency warnings between callbacks
+- **Learnings for future iterations:**
+  - Use refs for callbacks to avoid react-hooks/exhaustive-deps warnings when callbacks call each other
+  - Use db.settings.where('key').equals('key').first() for dynamic settings keys
+  - generateSystemPrompt is in @/lib/ai/prompt, not @/lib/ai/tools
+  - Feature types (src/features/aiAssistant/types.ts) must match lib types (src/lib/ai/types.ts) for ToolCall
