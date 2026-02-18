@@ -3,7 +3,6 @@
 export interface ModelProvider {
   name: string;
   baseUrl: string;
-  model: string;
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResponse>;
   listModels(): Promise<Model[]>;
   getModelName(): string;
@@ -23,7 +22,7 @@ export interface ToolCall {
   type: 'function';
   function: {
     name: string;
-    arguments: Record<string, unknown>;
+    arguments: string | Record<string, unknown>;
   };
 }
 
