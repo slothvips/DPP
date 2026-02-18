@@ -12,7 +12,7 @@
 - [x] US-005: 实现 Jenkins 管理工具
 - [x] US-006: 实现便签管理工具
 - [x] US-007: 实现标签管理工具
-- [ ] US-008: 实现录屏管理工具
+- [x] US-008: 实现录屏管理工具
 - [ ] US-009: 实现热榜和同步工具
 - [ ] US-010: 实现系统提示词生成器
 - [ ] US-011: 实现 AI 对话核心逻辑 Hook
@@ -92,3 +92,13 @@
   - Tags are stored in db.tags table
   - Link-tag associations in db.linkTags, job-tag in db.jobTags
   - Use soft delete for tags (mark deletedAt)
+
+## 2026-02-18 - US-008
+- Created src/lib/ai/tools/recorder.ts with recorder management tools
+- recorder_list: List all recordings with metadata (title, url, duration, etc.)
+- recorder_start: Start recording (requires confirmation)
+- recorder_stop: Stop recording
+- **Learnings for future iterations:**
+  - Use browser.runtime.sendMessage to communicate with background script
+  - Recorder messages use RECORDER_* prefix
+  - Can get current tab with browser.tabs.query({active: true, currentWindow: true})
