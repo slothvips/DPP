@@ -17,7 +17,7 @@
 - [x] US-010: 实现系统提示词生成器
 - [x] US-011: 实现 AI 对话核心逻辑 Hook
 - [x] US-012: 实现 AI 助手 Tab 入口和对话界面
-- [ ] US-013: 实现 AI 配置页面
+- [x] US-013: 实现 AI 配置页面
 - [ ] US-014: 实现危险操作确认弹窗
 
 ## 2026-02-18 - US-001
@@ -139,3 +139,20 @@
   - Export components from index.ts in the components folder
   - Use refs (messagesEndRef) for auto-scrolling to bottom on new messages
   - useAIChat hook provides isConnected, status, error for UI states
+
+## 2026-02-19 - US-013
+- Created AIConfigDialog component (src/features/aiAssistant/components/AIConfigDialog.tsx)
+- Supports configuring Ollama service URL (default http://localhost:11434)
+- Supports selecting model from available models fetched from Ollama
+- Includes "Test Connection" button to verify connectivity
+- Shows connection status (success/error) after testing
+- Settings are saved to db.settings with keys: ai_ollama_base_url, ai_ollama_model
+- Added Settings button to AIAssistantView header to open config dialog
+- Shows "需要配置 AI 服务" prompt when config is missing
+- Added isAIConfigConfigured() helper to check if AI settings exist
+- **Learnings for future iterations:**
+  - Use Dialog from @/components/ui/dialog for modal dialogs
+  - Use db.settings.put({ key, value }) to save settings
+  - Use db.settings.where('key').equals('key').first() to read settings
+  - OllamaProvider.listModels() returns Model[] with name property
+  - Need to add Settings icon to AIAssistantView imports when adding config button

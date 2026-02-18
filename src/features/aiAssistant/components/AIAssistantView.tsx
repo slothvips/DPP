@@ -1,17 +1,32 @@
 // AI Assistant View - Main conversation interface
-import { Send, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { Send, Settings, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useAIChat } from '../hooks/useAIChat';
+import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
 
 export function AIAssistantView() {
   const { messages, status, error, isConnected, sendMessage, clearMessages, checkConnection } =
     useAIChat();
 
   const [input, setInput] = useState('');
+  const [isConfigMissing, setIsConfigMissing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Check if config is configured on mount
+  useEffect(() => {
+    isAIConfigConfigured().then((configured) => {
+      setIsConfigMissing(!configured);
+    });
+  }, []);
+
+  // Re-check config when connection status changes (in case config was saved)
+  const handleConfigSaved = () => {
+    setIsConfigMissing(false);
+    checkConnection();
+  };
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -62,21 +77,42 @@ export function AIAssistantView() {
           )}
           <span className="text-xs text-muted-foreground">{isConnected ? '已连接' : '未连接'}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleClear}
-          disabled={messages.length === 0}
-          title="清空对话"
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <AIConfigDialog onSaved={handleConfigSaved}>
+            <Button variant="ghost" size="sm" title="AI 设置" data-testid="ai-config-button">
+              <Settings className="w-4 h-4" />
+            </Button>
+          </AIConfigDialog>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClear}
+            disabled={messages.length === 0}
+            title="清空对话"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
-        {/* Welcome message when empty */}
-        {messages.length === 0 && (
+        {/* Config not configured prompt */}
+        {isConfigMissing && messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="text-4xl mb-4">⚙️</div>
+            <p className="text-sm font-medium">需要配置 AI 服务</p>
+            <p className="text-xs mt-1 text-muted-foreground">请先配置 Ollama 服务地址和模型</p>
+            <AIConfigDialog onSaved={handleConfigSaved}>
+              <Button className="mt-4" size="sm">
+                去配置
+              </Button>
+            </AIConfigDialog>
+          </div>
+        )}
+
+        {/* Welcome message when empty and configured */}
+        {!isConfigMissing && messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
             <div className="text-4xl mb-4">🤖</div>
             <p className="text-sm font-medium">你好！我是 AI 助手</p>
