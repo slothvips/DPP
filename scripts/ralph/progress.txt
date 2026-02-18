@@ -8,7 +8,7 @@
 - [x] US-001: 创建 AI 助手目录结构和基础类型定义
 - [x] US-002: 实现模型提供商接口和 Ollama 实现
 - [x] US-003: 实现统一工具定义格式
-- [ ] US-004: 实现链接管理工具
+- [x] US-004: 实现链接管理工具
 - [ ] US-005: 实现 Jenkins 管理工具
 - [ ] US-006: 实现便签管理工具
 - [ ] US-007: 实现标签管理工具
@@ -50,3 +50,15 @@
   - Tool handlers should return Promise<T> and accept Record<string, unknown>
   - Use toolRegistry.execute(name, args) to run tools
   - Set requiresConfirmation: true for dangerous operations
+
+## 2026-02-18 - US-004
+- Created src/lib/ai/tools/links.ts with all link management tools
+- links_list: List all links with keyword and tag filtering, returns usage stats
+- links_add: Add new link with name, URL, note, tags
+- links_update: Update existing link (name, URL, note, tags)
+- links_delete: Soft delete link (marks as deleted, requires confirmation)
+- links_visit: Open link in new tab and record statistics
+- **Learnings for future iterations:**
+  - Use db.transaction('rw', table, ...) for write transactions
+  - Cast db.linkTags as Table<LinkTagItem, [string, string]> for transaction type compatibility
+  - Use openLink from @/features/links/utils to open links with security validation
