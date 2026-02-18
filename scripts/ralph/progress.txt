@@ -7,7 +7,7 @@
 
 - [x] US-001: 创建 AI 助手目录结构和基础类型定义
 - [x] US-002: 实现模型提供商接口和 Ollama 实现
-- [ ] US-003: 实现统一工具定义格式
+- [x] US-003: 实现统一工具定义格式
 - [ ] US-004: 实现链接管理工具
 - [ ] US-005: 实现 Jenkins 管理工具
 - [ ] US-006: 实现便签管理工具
@@ -39,3 +39,14 @@
   - Use http and httpPost from @/lib/http for API calls
   - Use logger from @/utils/logger for logging
   - Streaming is handled by reading the response body as a ReadableStream
+
+## 2026-02-18 - US-003
+- Created src/lib/ai/tools.ts with ToolRegistry class
+- Implements tool registration, execution, and listing
+- Provides toOllamaTools() conversion function
+- Includes registerTool() decorator and createToolParameter() helper
+- Added requiresConfirmation flag for dangerous operations
+- **Learnings for future iterations:**
+  - Tool handlers should return Promise<T> and accept Record<string, unknown>
+  - Use toolRegistry.execute(name, args) to run tools
+  - Set requiresConfirmation: true for dangerous operations
