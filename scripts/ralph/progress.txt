@@ -18,7 +18,7 @@
 - [x] US-011: 实现 AI 对话核心逻辑 Hook
 - [x] US-012: 实现 AI 助手 Tab 入口和对话界面
 - [x] US-013: 实现 AI 配置页面
-- [ ] US-014: 实现危险操作确认弹窗
+- [x] US-014: 实现危险操作确认弹窗
 
 ## 2026-02-18 - US-001
 - Created src/features/aiAssistant/types.ts with ChatMessage, ToolCall, ChatResponse, AIConfig types
@@ -156,3 +156,19 @@
   - Use db.settings.where('key').equals('key').first() to read settings
   - OllamaProvider.listModels() returns Model[] with name property
   - Need to add Settings icon to AIAssistantView imports when adding config button
+
+## 2026-02-19 - US-014
+- Created ToolConfirmationDialog component (src/features/aiAssistant/components/ToolConfirmationDialog.tsx)
+- Shows confirmation dialog when AI requests dangerous operations
+- Supports: links_delete, blackboard_delete, tags_delete, jenkins_trigger_build, recorder_start
+- Dialog displays operation title, description, impact, and parameters
+- Provides Confirm and Cancel buttons
+- Handles dialog close (Escape or click outside) as cancel
+- Integrated into AIAssistantView with pendingToolCall, confirmToolCall, cancelToolCall from useAIChat
+- Disabled input field during confirmation to prevent concurrent operations
+- **Learnings for future iterations:**
+  - useAIChat hook already has pendingToolCall, confirmToolCall, and cancelToolCall for confirmation workflow
+  - Use status === 'confirming' to show pending confirmation state in UI
+  - Use Dialog's onOpenChange prop to handle cancel on close
+  - Show different confirmation text based on tool (确认删除 vs 确认构建 vs 开始录制)
+  - Input should be disabled during confirmation to prevent message sending

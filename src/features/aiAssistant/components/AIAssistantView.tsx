@@ -5,10 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useAIChat } from '../hooks/useAIChat';
 import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
+import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 export function AIAssistantView() {
-  const { messages, status, error, isConnected, sendMessage, clearMessages, checkConnection } =
-    useAIChat();
+  const {
+    messages,
+    status,
+    error,
+    isConnected,
+    pendingToolCall,
+    sendMessage,
+    confirmToolCall,
+    cancelToolCall,
+    clearMessages,
+    checkConnection,
+  } = useAIChat();
 
   const [input, setInput] = useState('');
   const [isConfigMissing, setIsConfigMissing] = useState(false);
@@ -179,7 +190,7 @@ export function AIAssistantView() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="发送消息... (Shift+Enter 换行)"
-            disabled={status === 'loading' || status === 'streaming'}
+            disabled={status === 'loading' || status === 'streaming' || status === 'confirming'}
             className="min-h-[44px] max-h-32 resize-none"
             rows={1}
             data-testid="ai-chat-input"
@@ -194,6 +205,13 @@ export function AIAssistantView() {
           </Button>
         </div>
       </div>
+
+      {/* Tool Confirmation Dialog */}
+      <ToolConfirmationDialog
+        pendingToolCall={pendingToolCall}
+        onConfirm={confirmToolCall}
+        onCancel={cancelToolCall}
+      />
     </div>
   );
 }
