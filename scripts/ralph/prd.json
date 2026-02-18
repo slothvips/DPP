@@ -1,0 +1,223 @@
+{
+  "project": "DPP Browser Extension - AI Assistant",
+  "branchName": "ralph/ai-assistant",
+  "description": "为浏览器扩展新增 AI 助手功能，用户可以通过自然语言指令调用工具完成链接管理、Jenkins 构建、便签管理、录屏、热榜、同步等任务",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "创建 AI 助手目录结构和基础类型定义",
+      "description": "作为开发者，我需要创建 AI 助手功能的基础目录结构和类型定义",
+      "acceptanceCriteria": [
+        "创建 src/features/aiAssistant/ 目录结构",
+        "创建 src/lib/ai/ 目录用于模型接入层",
+        "创建基础 TypeScript 类型定义文件",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "实现模型提供商接口和 Ollama 实现",
+      "description": "作为开发者，我需要实现模型接入层，支持 Ollama 作为默认模型",
+      "acceptanceCriteria": [
+        "创建 ModelProvider 接口定义",
+        "实现 OllamaProvider 类",
+        "支持 /api/chat 接口调用",
+        "支持流式响应处理",
+        "支持获取可用模型列表",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "实现统一工具定义格式",
+      "description": "作为开发者，我需要定义统一的工具格式，兼容多模型",
+      "acceptanceCriteria": [
+        "创建 AIToolDefinition 接口",
+        "创建 ToolParameter 类型",
+        "实现 toOllamaTools 转换函数",
+        "实现工具注册中心",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "实现链接管理工具",
+      "description": "作为用户，我想通过 AI 管理链接",
+      "acceptanceCriteria": [
+        "实现 links_list: 列出所有链接，支持关键词和标签筛选",
+        "实现 links_add: 添加新链接，支持名称、URL、备注、标签",
+        "实现 links_update: 修改链接信息",
+        "实现 links_delete: 删除链接",
+        "实现 links_visit: 访问链接并记录统计",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "实现 Jenkins 管理工具",
+      "description": "作为用户，我想通过 AI 查看 Jenkins Jobs 状态并触发构建",
+      "acceptanceCriteria": [
+        "实现 jenkins_list_jobs: 列出所有 Jobs，支持关键词筛选",
+        "实现 jenkins_list_builds: 获取构建历史",
+        "实现 jenkins_trigger_build: 触发构建",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "实现便签管理工具",
+      "description": "作为用户，我想通过 AI 管理便签",
+      "acceptanceCriteria": [
+        "实现 blackboard_list: 列出所有便签",
+        "实现 blackboard_add: 添加新便签",
+        "实现 blackboard_update: 修改便签内容",
+        "实现 blackboard_delete: 删除便签",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "实现标签管理工具",
+      "description": "作为用户，我想通过 AI 管理统一标签系统",
+      "acceptanceCriteria": [
+        "实现 tags_list: 列出所有标签",
+        "实现 tags_add: 创建新标签",
+        "实现 tags_delete: 删除标签",
+        "标签可关联到链接和 Jobs",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "实现录屏管理工具",
+      "description": "作为用户，我想通过 AI 管理录屏功能",
+      "acceptanceCriteria": [
+        "实现 recorder_list: 列出所有录制",
+        "实现 recorder_start: 开始录制",
+        "实现 recorder_stop: 停止录制",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "实现热榜和同步工具",
+      "description": "作为用户，我想通过 AI 获取热榜和触发同步",
+      "acceptanceCriteria": [
+        "实现 hotnews_get: 获取今日热榜列表",
+        "实现 sync_trigger: 触发全局同步",
+        "返回结果包含标题、链接、来源等信息",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "实现系统提示词生成器",
+      "description": "作为开发者，我需要生成系统提示词让 AI 理解工具用途和调用规范",
+      "acceptanceCriteria": [
+        "生成包含所有工具描述的系统提示词",
+        "说明工具调用规则（查询直接执行，危险操作需确认）",
+        "定义响应格式规范",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "实现 AI 对话核心逻辑 Hook",
+      "description": "作为开发者，我需要实现 AI 对话的核心逻辑",
+      "acceptanceCriteria": [
+        "实现 useAIChat hook",
+        "处理消息发送和接收",
+        "处理工具调用和执行",
+        "处理危险操作确认流程",
+        "支持流式响应",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "实现 AI 助手 Tab 入口和对话界面",
+      "description": "作为用户，我想在 Popup 中看到 AI 助手入口并使用对话功能",
+      "acceptanceCriteria": [
+        "在 App.tsx 中添加 AI 助手 Tab",
+        "实现 AIAssistantView 主视图组件",
+        "显示消息输入框，支持发送文字消息",
+        "展示对话历史（当前会话内）",
+        "AI 回复以流式方式逐步显示",
+        "加载状态显示（思考中...）",
+        "连接状态指示（已连接/未连接）",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "实现 AI 配置页面",
+      "description": "作为用户，我想配置 AI 模型服务地址和模型名称",
+      "acceptanceCriteria": [
+        "显示配置入口（设置图标或配置按钮）",
+        "支持配置 Ollama 服务地址（默认 http://localhost:11434）",
+        "支持选择可用模型列表",
+        "配置保存后立即生效",
+        "未配置时显示提示，引导用户配置",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "实现危险操作确认弹窗",
+      "description": "作为用户，当 AI 执行危险操作时，我想确认操作内容以防止误操作",
+      "acceptanceCriteria": [
+        "删除操作（links_delete, blackboard_delete, tags_delete）触发确认弹窗",
+        "触发构建（jenkins_trigger_build）触发确认弹窗",
+        "开始录制（recorder_start）触发确认弹窗",
+        "弹窗显示操作描述和影响",
+        "用户可确认或取消操作",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

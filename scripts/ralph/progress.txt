@@ -1,0 +1,21 @@
+# Ralph Progress - AI Assistant Feature
+
+## Project: DPP Browser Extension - AI Assistant
+## Branch: ralph/ai-assistant
+
+## Progress
+
+- [ ] US-001: 创建 AI 助手目录结构和基础类型定义
+- [ ] US-002: 实现模型提供商接口和 Ollama 实现
+- [ ] US-003: 实现统一工具定义格式
+- [ ] US-004: 实现链接管理工具
+- [ ] US-005: 实现 Jenkins 管理工具
+- [ ] US-006: 实现便签管理工具
+- [ ] US-007: 实现标签管理工具
+- [ ] US-008: 实现录屏管理工具
+- [ ] US-009: 实现热榜和同步工具
+- [ ] US-010: 实现系统提示词生成器
+- [ ] US-011: 实现 AI 对话核心逻辑 Hook
+- [ ] US-012: 实现 AI 助手 Tab 入口和对话界面
+- [ ] US-013: 实现 AI 配置页面
+- [ ] US-014: 实现危险操作确认弹窗
