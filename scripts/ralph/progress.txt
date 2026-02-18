@@ -10,7 +10,7 @@
 - [x] US-003: 实现统一工具定义格式
 - [x] US-004: 实现链接管理工具
 - [x] US-005: 实现 Jenkins 管理工具
-- [ ] US-006: 实现便签管理工具
+- [x] US-006: 实现便签管理工具
 - [ ] US-007: 实现标签管理工具
 - [ ] US-008: 实现录屏管理工具
 - [ ] US-009: 实现热榜和同步工具
@@ -72,3 +72,13 @@
   - Use JenkinsService from @/features/jenkins/service to interact with Jenkins
   - Jobs are stored in db.jobs table with url as primary key
   - Builds are stored in db.myBuilds table
+
+## 2026-02-18 - US-006
+- Created src/lib/ai/tools/blackboard.ts with blackboard management tools
+- blackboard_list: List all blackboard items
+- blackboard_add: Add new item with content and optional pinned flag
+- blackboard_update: Update item content and pinned status
+- blackboard_delete: Delete item (requires confirmation)
+- **Learnings for future iterations:**
+  - Blackboard items are stored in db.blackboard table
+  - Use db.blackboard.orderBy().reverse().sortBy() for ordering
