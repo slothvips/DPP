@@ -87,7 +87,9 @@ export type SettingKey =
   | 'feature_links_enabled'
   | 'sync_client_id'
   | 'global_sync_start_time'
-  | 'show_others_builds';
+  | 'show_others_builds'
+  | 'ai_ollama_base_url'
+  | 'ai_ollama_model';
 
 export interface Setting {
   key: SettingKey;
