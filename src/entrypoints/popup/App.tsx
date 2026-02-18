@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ToastProvider } from '@/components/ui/toast';
 import { db } from '@/db';
 import type { JenkinsEnvironment } from '@/db';
+import { AIAssistantView } from '@/features/aiAssistant/components/AIAssistantView';
 import { BlackboardView } from '@/features/blackboard/components/BlackboardView';
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
@@ -44,17 +45,29 @@ export function App() {
   const isMinimalMode = !!params.get('buildJobUrl');
 
   const [activeTab, setActiveTab] = useState<
-    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard'
+    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant'
   >(() => {
     // Check URL params first for deep linking
     const tabParam = params.get('tab');
-    if (tabParam && ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard'].includes(tabParam)) {
-      return tabParam as 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard';
+    if (
+      tabParam &&
+      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant'].includes(tabParam)
+    ) {
+      return tabParam as
+        | 'links'
+        | 'jenkins'
+        | 'hotNews'
+        | 'recorder'
+        | 'blackboard'
+        | 'aiAssistant';
     }
 
     const saved = localStorage.getItem('dpp_active_tab');
-    if (saved && ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard'].includes(saved)) {
-      return saved as 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard';
+    if (
+      saved &&
+      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant'].includes(saved)
+    ) {
+      return saved as 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant';
     }
     return 'blackboard';
   });
@@ -67,7 +80,9 @@ export function App() {
     }
   }, []);
 
-  const handleTabChange = (tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard') => {
+  const handleTabChange = (
+    tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant'
+  ) => {
     setActiveTab(tab);
     localStorage.setItem('dpp_active_tab', tab);
   };
@@ -150,6 +165,14 @@ export function App() {
                   热点
                 </button>
               )}
+              <button
+                type="button"
+                data-testid="tab-ai-assistant"
+                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('aiAssistant')}
+              >
+                AI
+              </button>
             </div>
           )}
 
@@ -160,6 +183,7 @@ export function App() {
             {activeTab === 'recorder' && <RecordingsView />}
             {activeTab === 'blackboard' && <BlackboardView />}
             {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
+            {activeTab === 'aiAssistant' && <AIAssistantView />}
           </main>
         </div>
       </ConfirmDialogProvider>

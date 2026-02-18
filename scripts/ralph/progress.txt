@@ -16,7 +16,7 @@
 - [x] US-009: 实现热榜和同步工具
 - [x] US-010: 实现系统提示词生成器
 - [x] US-011: 实现 AI 对话核心逻辑 Hook
-- [ ] US-012: 实现 AI 助手 Tab 入口和对话界面
+- [x] US-012: 实现 AI 助手 Tab 入口和对话界面
 - [ ] US-013: 实现 AI 配置页面
 - [ ] US-014: 实现危险操作确认弹窗
 
@@ -122,3 +122,20 @@
   - Use db.settings.where('key').equals('key').first() for dynamic settings keys
   - generateSystemPrompt is in @/lib/ai/prompt, not @/lib/ai/tools
   - Feature types (src/features/aiAssistant/types.ts) must match lib types (src/lib/ai/types.ts) for ToolCall
+
+## 2026-02-19 - US-012
+- Added AI Assistant Tab in App.tsx (src/entrypoints/popup/App.tsx)
+- Created AIAssistantView component (src/features/aiAssistant/components/AIAssistantView.tsx)
+- Displays conversation history with user/assistant/tool message roles
+- Shows streaming AI responses with auto-scroll
+- Shows "思考中..." loading state during AI processing
+- Shows connection status indicator (Wifi/WifiOff icons)
+- Supports sending messages with Enter, new line with Shift+Enter
+- Clear button to reset conversation
+- **Learnings for future iterations:**
+  - Use data-testid attributes for browser testing automation
+  - Feature views go in src/features/{feature}/components/{Feature}View.tsx
+  - Always use @/ alias for imports from src/
+  - Export components from index.ts in the components folder
+  - Use refs (messagesEndRef) for auto-scrolling to bottom on new messages
+  - useAIChat hook provides isConnected, status, error for UI states
