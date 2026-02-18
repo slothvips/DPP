@@ -5,7 +5,7 @@
 
 ## Progress
 
-- [ ] US-001: 创建 AI 助手目录结构和基础类型定义
+- [x] US-001: 创建 AI 助手目录结构和基础类型定义
 - [ ] US-002: 实现模型提供商接口和 Ollama 实现
 - [ ] US-003: 实现统一工具定义格式
 - [ ] US-004: 实现链接管理工具
@@ -19,3 +19,12 @@
 - [ ] US-012: 实现 AI 助手 Tab 入口和对话界面
 - [ ] US-013: 实现 AI 配置页面
 - [ ] US-014: 实现危险操作确认弹窗
+
+## 2026-02-18 - US-001
+- Created src/features/aiAssistant/types.ts with ChatMessage, ToolCall, ChatResponse, AIConfig types
+- Created src/lib/ai/types.ts with ModelProvider interface and tool definition types (AIToolDefinition, ToolParameter, Ollama API types)
+- **Learnings for future iterations:**
+  - This codebase follows feature-based structure: types.ts, api.ts, components/, hooks/ in each feature directory
+  - Use @/ alias for imports from src/
+  - Model provider types (ModelProvider, ChatMessage, etc.) are in src/lib/ai/types.ts while feature-specific types go in src/features/{feature}/types.ts
+  - Need to import AIToolDefinition from @/lib/ai/types in feature types
