@@ -9,7 +9,7 @@
 - [x] US-002: 实现模型提供商接口和 Ollama 实现
 - [x] US-003: 实现统一工具定义格式
 - [x] US-004: 实现链接管理工具
-- [ ] US-005: 实现 Jenkins 管理工具
+- [x] US-005: 实现 Jenkins 管理工具
 - [ ] US-006: 实现便签管理工具
 - [ ] US-007: 实现标签管理工具
 - [ ] US-008: 实现录屏管理工具
@@ -62,3 +62,13 @@
   - Use db.transaction('rw', table, ...) for write transactions
   - Cast db.linkTags as Table<LinkTagItem, [string, string]> for transaction type compatibility
   - Use openLink from @/features/links/utils to open links with security validation
+
+## 2026-02-18 - US-005
+- Created src/lib/ai/tools/jenkins.ts with Jenkins management tools
+- jenkins_list_jobs: List all jobs with keyword filtering
+- jenkins_list_builds: Get build history for a job with limit
+- jenkins_trigger_build: Trigger a build (requires confirmation)
+- **Learnings for future iterations:**
+  - Use JenkinsService from @/features/jenkins/service to interact with Jenkins
+  - Jobs are stored in db.jobs table with url as primary key
+  - Builds are stored in db.myBuilds table
