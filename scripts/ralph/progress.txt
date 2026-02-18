@@ -6,7 +6,7 @@
 ## Progress
 
 - [x] US-001: 创建 AI 助手目录结构和基础类型定义
-- [ ] US-002: 实现模型提供商接口和 Ollama 实现
+- [x] US-002: 实现模型提供商接口和 Ollama 实现
 - [ ] US-003: 实现统一工具定义格式
 - [ ] US-004: 实现链接管理工具
 - [ ] US-005: 实现 Jenkins 管理工具
@@ -28,3 +28,14 @@
   - Use @/ alias for imports from src/
   - Model provider types (ModelProvider, ChatMessage, etc.) are in src/lib/ai/types.ts while feature-specific types go in src/features/{feature}/types.ts
   - Need to import AIToolDefinition from @/lib/ai/types in feature types
+
+## 2026-02-18 - US-002
+- Created src/lib/ai/ollama.ts with OllamaProvider class
+- Supports /api/chat endpoint with streaming via onChunk callback
+- Supports /api/tags for listing available models
+- Includes healthCheck() method for connection testing
+- Created src/lib/ai/index.ts for exports
+- **Learnings for future iterations:**
+  - Use http and httpPost from @/lib/http for API calls
+  - Use logger from @/utils/logger for logging
+  - Streaming is handled by reading the response body as a ReadableStream
