@@ -94,12 +94,16 @@ export function PlayerApp() {
         if (containerRef.current) {
           containerRef.current.innerHTML = '';
 
+          // Get viewport dimensions
+          const width = window.innerWidth;
+          const height = window.innerHeight - 52; // Subtract header height
+
           instance = new rrwebPlayer({
             target: containerRef.current,
             props: {
               events,
-              width: 1024,
-              height: 576,
+              width,
+              height,
               autoPlay: true,
               showController: true,
             },
@@ -133,7 +137,7 @@ export function PlayerApp() {
           </Button>
         )}
       </header>
-      <main className="flex-1 flex flex-col justify-center items-center overflow-auto bg-background/50 p-4">
+      <main className="flex-1 flex flex-col justify-center items-center overflow-hidden p-0">
         {loading && <div className="text-muted-foreground text-lg">正在加载录制...</div>}
 
         {error && (
@@ -149,10 +153,7 @@ export function PlayerApp() {
           </div>
         )}
 
-        <div
-          ref={containerRef}
-          className="rrweb-player-container bg-card shadow-2xl rounded-lg overflow-hidden border border-border"
-        />
+        <div ref={containerRef} className="rrweb-player-container w-full h-full" />
       </main>
     </div>
   );
