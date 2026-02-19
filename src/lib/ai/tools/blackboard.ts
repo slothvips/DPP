@@ -1,5 +1,11 @@
 // Blackboard (便签) management AI tools
-import { addBlackboard, deleteBlackboard, listBlackboard, updateBlackboard } from '@/lib/db';
+import {
+  addBlackboard,
+  deleteBlackboard,
+  listBlackboard,
+  toggleBlackboardPin,
+  updateBlackboard,
+} from '@/lib/db';
 import type { ToolHandler } from '../tools';
 import { createToolParameter, toolRegistry } from '../tools';
 
@@ -29,6 +35,13 @@ async function blackboard_update(args: { id: string; content?: string; pinned?: 
  */
 async function blackboard_delete(args: { id: string }) {
   return deleteBlackboard(args);
+}
+
+/**
+ * Toggle pin status of a blackboard item
+ */
+async function blackboard_togglePin(args: { id: string }) {
+  return toggleBlackboardPin(args);
 }
 
 /**
@@ -87,5 +100,18 @@ export function registerBlackboardTools() {
     ),
     handler: blackboard_delete as ToolHandler,
     requiresConfirmation: true,
+  });
+
+  // blackboard_togglePin
+  toolRegistry.register({
+    name: 'blackboard_togglePin',
+    description: 'Toggle pin status of a blackboard item (便签)',
+    parameters: createToolParameter(
+      {
+        id: { type: 'string', description: 'The item ID to toggle pin status' },
+      },
+      ['id']
+    ),
+    handler: blackboard_togglePin as ToolHandler,
   });
 }

@@ -89,7 +89,15 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
           <div className="flex gap-2 items-center truncate max-w-[120px]">
             {recording.favicon && <img src={recording.favicon} className="w-3 h-3" alt="" />}
             <span className="truncate" title={recording.url}>
-              {new URL(recording.url).hostname}
+              {recording.url
+                ? (() => {
+                    try {
+                      return new URL(recording.url).hostname;
+                    } catch {
+                      return recording.url;
+                    }
+                  })()
+                : '-'}
             </span>
           </div>
           <span>{formatSize(recording.fileSize)}</span>

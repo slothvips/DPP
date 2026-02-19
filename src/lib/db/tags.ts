@@ -54,7 +54,7 @@ export async function listTags(): Promise<{
  */
 export async function addTag(args: {
   name: string;
-  color: string;
+  color?: string;
 }): Promise<{ success: boolean; id: string; message: string }> {
   const now = Date.now();
   const id = crypto.randomUUID();
@@ -67,10 +67,17 @@ export async function addTag(args: {
     throw new Error(`标签 "${args.name}" 已存在`);
   }
 
+  // Generate random color if not provided
+  const color =
+    args.color ??
+    `#${Math.floor(Math.random() * 16777215)
+      .toString(16)
+      .padStart(6, '0')}`;
+
   await db.tags.add({
     id,
     name: args.name,
-    color: args.color,
+    color,
     updatedAt: now,
   });
 
@@ -144,4 +151,90 @@ export async function deleteTag(args: {
     success: true,
     message: `Tag "${existing.name}" deleted successfully`,
   };
+}
+
+/**
+ * Toggle tag association with a link or job
+ */
+export async function toggleTagAssociation(args: {
+  tagId: string;
+  entityId: string;
+  entityType: 'link' | 'job';
+}): Promise<{ success: boolean; message: string }> {
+  // Check if tag exists
+  const tag = await db.tags.get(args.tagId);
+  if (!tag || tag.deletedAt) {
+    throw new Error('标签不存在或已被删除');
+  }
+
+  const now = Date.now();
+
+  if (args.entityType === 'link') {
+    // Check if link exists
+    const link = await db.links.get(args.entityId);
+    if (!link || link.deletedAt) {
+      throw new Error('链接不存在或已被删除');
+    }
+
+    // Check if association exists
+    const existingAssociation = await db.linkTags
+      .filter((lt) => !lt.deletedAt && lt.tagId === args.tagId && lt.linkId === args.entityId)
+      .first();
+
+    if (existingAssociation) {
+      // Remove association (soft delete) - use compound key
+      await db.linkTags
+        .where({ linkId: args.entityId, tagId: args.tagId })
+        .modify({ deletedAt: now });
+      return {
+        success: true,
+        message: `Tag "${tag.name}" removed from link`,
+      };
+    } else {
+      // Create association - no id needed, compound key
+      await db.linkTags.add({
+        tagId: args.tagId,
+        linkId: args.entityId,
+        updatedAt: now,
+      });
+      return {
+        success: true,
+        message: `Tag "${tag.name}" added to link`,
+      };
+    }
+  } else {
+    // entityType === 'job' - use jobUrl as key
+    // Check if job exists
+    const job = await db.jobs.get(args.entityId);
+    if (!job) {
+      throw new Error('任务不存在或已被删除');
+    }
+
+    // Check if association exists - use jobUrl instead of jobId
+    const existingAssociation = await db.jobTags
+      .filter((jt) => !jt.deletedAt && jt.tagId === args.tagId && jt.jobUrl === args.entityId)
+      .first();
+
+    if (existingAssociation) {
+      // Remove association (soft delete) - use compound key
+      await db.jobTags
+        .where({ jobUrl: args.entityId, tagId: args.tagId })
+        .modify({ deletedAt: now });
+      return {
+        success: true,
+        message: `Tag "${tag.name}" removed from job`,
+      };
+    } else {
+      // Create association - use jobUrl instead of jobId, no id needed
+      await db.jobTags.add({
+        tagId: args.tagId,
+        jobUrl: args.entityId,
+        updatedAt: now,
+      });
+      return {
+        success: true,
+        message: `Tag "${tag.name}" added to job`,
+      };
+    }
+  }
 }

@@ -103,3 +103,26 @@ export async function deleteBlackboard(args: {
     message: 'Blackboard item deleted successfully',
   };
 }
+
+/**
+ * Toggle blackboard item pinned status
+ */
+export async function toggleBlackboardPin(args: {
+  id: string;
+}): Promise<{ success: boolean; message: string }> {
+  const existing = await db.blackboard.get(args.id);
+  if (!existing) {
+    throw new Error(`便签不存在或已被删除`);
+  }
+
+  const newPinnedStatus = !existing.pinned;
+  await db.blackboard.update(args.id, {
+    pinned: newPinnedStatus,
+    updatedAt: Date.now(),
+  });
+
+  return {
+    success: true,
+    message: newPinnedStatus ? '便签已置顶' : '便签已取消置顶',
+  };
+}

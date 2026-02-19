@@ -1,6 +1,7 @@
 // Jenkins management AI tools
 import { db } from '@/db';
 import { JenkinsService } from '@/features/jenkins/service';
+import { switchJenkinsEnv, syncJenkins } from '@/lib/db/jenkins';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
 
@@ -104,6 +105,30 @@ async function jenkins_trigger_build(args: {
 }
 
 /**
+ * Sync Jenkins data (jobs and builds)
+ */
+async function jenkins_sync(args: { envId?: string }) {
+  const result = await syncJenkins(args);
+  if (result.success) {
+    return result;
+  } else {
+    throw new Error(result.message);
+  }
+}
+
+/**
+ * Switch Jenkins environment
+ */
+async function jenkins_switchEnv(args: { envId: string }) {
+  const result = await switchJenkinsEnv(args);
+  if (result.success) {
+    return result;
+  } else {
+    throw new Error(result.message);
+  }
+}
+
+/**
  * Register all Jenkins tools
  */
 export function registerJenkinsTools() {
@@ -155,6 +180,37 @@ export function registerJenkinsTools() {
       ['jobUrl']
     ),
     handler: jenkins_trigger_build as ToolHandler,
+    requiresConfirmation: true,
+  });
+
+  // jenkins_sync
+  toolRegistry.register({
+    name: 'jenkins_sync',
+    description: 'Sync Jenkins jobs and builds data',
+    parameters: createToolParameter(
+      {
+        envId: {
+          type: 'string',
+          description:
+            'Environment ID to sync (optional, uses current environment if not provided)',
+        },
+      },
+      []
+    ),
+    handler: jenkins_sync as ToolHandler,
+  });
+
+  // jenkins_switchEnv
+  toolRegistry.register({
+    name: 'jenkins_switchEnv',
+    description: 'Switch to a different Jenkins environment',
+    parameters: createToolParameter(
+      {
+        envId: { type: 'string', description: 'The environment ID to switch to' },
+      },
+      ['envId']
+    ),
+    handler: jenkins_switchEnv as ToolHandler,
     requiresConfirmation: true,
   });
 }

@@ -1,4 +1,11 @@
 // Recorder management AI tools
+import {
+  clearRecordings,
+  deleteRecording,
+  exportRecordingAsJson,
+  importRecordingFromJson,
+  updateRecordingTitle,
+} from '@/lib/db';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
 
@@ -99,6 +106,41 @@ async function recorder_stop(args: { tabId?: number }) {
 }
 
 /**
+ * Delete a recording by ID
+ */
+async function recorder_delete(args: { id: string }) {
+  return deleteRecording({ id: args.id });
+}
+
+/**
+ * Clear all recordings
+ */
+async function recorder_clear() {
+  return clearRecordings();
+}
+
+/**
+ * Update recording title
+ */
+async function recorder_updateTitle(args: { id: string; title: string }) {
+  return updateRecordingTitle({ id: args.id, title: args.title });
+}
+
+/**
+ * Import recording from JSON
+ */
+async function recorder_import(args: { events: unknown[]; title?: string }) {
+  return importRecordingFromJson({ events: args.events, title: args.title });
+}
+
+/**
+ * Export recording as JSON
+ */
+async function recorder_export(args: { id: string }) {
+  return exportRecordingAsJson({ id: args.id });
+}
+
+/**
  * Register all recorder tools
  */
 export function registerRecorderTools() {
@@ -141,5 +183,85 @@ export function registerRecorderTools() {
       []
     ),
     handler: recorder_stop as ToolHandler,
+  });
+
+  // recorder_delete
+  toolRegistry.register({
+    name: 'recorder_delete',
+    description: 'Delete a recording by ID',
+    parameters: createToolParameter(
+      {
+        id: {
+          type: 'string',
+          description: 'The ID of the recording to delete',
+        },
+      },
+      []
+    ),
+    handler: recorder_delete as ToolHandler,
+  });
+
+  // recorder_clear
+  toolRegistry.register({
+    name: 'recorder_clear',
+    description: 'Clear all recordings from the database',
+    parameters: createToolParameter({}, []),
+    handler: recorder_clear as ToolHandler,
+  });
+
+  // recorder_updateTitle
+  toolRegistry.register({
+    name: 'recorder_updateTitle',
+    description: 'Update the title of a recording',
+    parameters: createToolParameter(
+      {
+        id: {
+          type: 'string',
+          description: 'The ID of the recording to update',
+        },
+        title: {
+          type: 'string',
+          description: 'The new title for the recording',
+        },
+      },
+      []
+    ),
+    handler: recorder_updateTitle as ToolHandler,
+  });
+
+  // recorder_import
+  toolRegistry.register({
+    name: 'recorder_import',
+    description: 'Import a recording from JSON events array',
+    parameters: createToolParameter(
+      {
+        events: {
+          type: 'array',
+          description: 'The JSON events array to import',
+        },
+        title: {
+          type: 'string',
+          description: 'Optional title for the imported recording',
+        },
+      },
+      []
+    ),
+    handler: recorder_import as ToolHandler,
+  });
+
+  // recorder_export
+  toolRegistry.register({
+    name: 'recorder_export',
+    description: 'Export a recording as JSON',
+    parameters: createToolParameter(
+      {
+        id: {
+          type: 'string',
+          description: 'The ID of the recording to export',
+        },
+      },
+      []
+    ),
+    handler: recorder_export as ToolHandler,
   });
 }

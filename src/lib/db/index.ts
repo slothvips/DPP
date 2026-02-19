@@ -5,4 +5,6 @@
 export * from './links';
 export * from './tags';
 export * from './blackboard';
+export * from './recorder';
+export * from './jenkins';
 export * from './ai';

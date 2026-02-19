@@ -1,7 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type LinkItem, type TagItem, db } from '@/db';
-import { recordLinkVisit } from '@/features/links/utils';
-import { addLink, deleteLink, updateLink } from '@/lib/db';
+import {
+  addLink,
+  bulkAddLinks as bulkAddLinksDB,
+  deleteLink,
+  recordLinkVisit,
+  toggleLinkPin,
+  updateLink,
+} from '@/lib/db';
 
 export interface LinkWithStats extends LinkItem {
   usageCount: number;
@@ -42,20 +48,11 @@ export function useLinks() {
   }, []);
 
   const recordVisit = async (id: string) => {
-    await recordLinkVisit(id);
+    await recordLinkVisit({ id });
   };
 
   const togglePin = async (id: string) => {
-    await db.transaction('rw', db.linkStats, async () => {
-      const stat = await db.linkStats.get(id);
-      const isPinned = !!stat?.pinnedAt;
-      await db.linkStats.put({
-        id,
-        usageCount: stat?.usageCount || 0,
-        lastUsedAt: stat?.lastUsedAt || 0,
-        pinnedAt: isPinned ? undefined : Date.now(),
-      });
-    });
+    await toggleLinkPin({ id });
   };
 
   const addLinkData = async (
@@ -76,14 +73,14 @@ export function useLinks() {
       Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
     >
   ) => {
-    for (const data of items) {
-      await addLink({
+    await bulkAddLinksDB({
+      links: items.map((data) => ({
         name: data.name,
         url: data.url,
         note: data.note,
         tags: data.tags,
-      });
-    }
+      })),
+    });
   };
 
   const updateLinkData = async (

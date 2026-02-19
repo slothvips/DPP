@@ -1,5 +1,5 @@
 // Tags management AI tools
-import { addTag, deleteTag, listTags, updateTag } from '@/lib/db';
+import { addTag, deleteTag, listTags, toggleTagAssociation, updateTag } from '@/lib/db';
 import type { ToolHandler } from '../tools';
 import { createToolParameter, toolRegistry } from '../tools';
 
@@ -13,7 +13,7 @@ async function tags_list() {
 /**
  * Add a new tag
  */
-async function tags_add(args: { name: string; color: string }) {
+async function tags_add(args: { name: string; color?: string }) {
   return addTag(args);
 }
 
@@ -29,6 +29,13 @@ async function tags_update(args: { id: string; name?: string; color?: string }) 
  */
 async function tags_delete(args: { id: string }) {
   return deleteTag(args);
+}
+
+/**
+ * Toggle tag association with a link or job
+ */
+async function tags_toggle(args: { tagId: string; entityId: string; entityType: 'link' | 'job' }) {
+  return toggleTagAssociation(args);
 }
 
 /**
@@ -50,9 +57,9 @@ export function registerTagsTools() {
     parameters: createToolParameter(
       {
         name: { type: 'string', description: 'Tag name' },
-        color: { type: 'string', description: 'Tag color (hex color like #FF5733)' },
+        color: { type: 'string', description: 'Tag color (hex color like #FF5733, optional)' },
       },
-      ['name', 'color']
+      ['name']
     ),
     handler: tags_add as ToolHandler,
   });
@@ -84,5 +91,20 @@ export function registerTagsTools() {
     ),
     handler: tags_delete as ToolHandler,
     requiresConfirmation: true,
+  });
+
+  // tags_toggle
+  toolRegistry.register({
+    name: 'tags_toggle',
+    description: 'Toggle tag association with a link or job',
+    parameters: createToolParameter(
+      {
+        tagId: { type: 'string', description: 'Tag ID to toggle' },
+        entityId: { type: 'string', description: 'Link or Job ID to associate/disassociate' },
+        entityType: { type: 'string', description: 'Entity type: "link" or "job"' },
+      },
+      ['tagId', 'entityId', 'entityType']
+    ),
+    handler: tags_toggle as ToolHandler,
   });
 }

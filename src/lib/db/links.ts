@@ -276,3 +276,143 @@ export async function deleteLink(args: {
     message: `Link "${existingLink.name}" deleted successfully`,
   };
 }
+
+/**
+ * Toggle link pin status
+ * @param args - Link ID
+ */
+export async function toggleLinkPin(args: {
+  id: string;
+}): Promise<{ success: boolean; message: string }> {
+  const existingLink = await db.links.get(args.id);
+  if (!existingLink) {
+    throw new Error(`链接不存在或已被删除`);
+  }
+
+  const now = Date.now();
+  const stat = await db.linkStats.get(args.id);
+  const currentPinnedAt = stat?.pinnedAt;
+
+  await db.transaction('rw', db.linkStats, async () => {
+    if (currentPinnedAt) {
+      // Unpin: remove pinnedAt
+      await db.linkStats.update(args.id, { pinnedAt: undefined });
+    } else {
+      // Pin: set pinnedAt to current timestamp
+      if (stat) {
+        await db.linkStats.update(args.id, { pinnedAt: now });
+      } else {
+        // Create stat record if doesn't exist
+        await db.linkStats.add({
+          id: args.id,
+          usageCount: 0,
+          lastUsedAt: now,
+          pinnedAt: now,
+        });
+      }
+    }
+  });
+
+  return {
+    success: true,
+    message: currentPinnedAt ? `Link unpinned successfully` : `Link pinned successfully`,
+  };
+}
+
+/**
+ * Record link visit (increment usageCount, update lastUsedAt)
+ * @param args - Link ID
+ */
+export async function recordLinkVisit(args: {
+  id: string;
+}): Promise<{ success: boolean; message: string }> {
+  const existingLink = await db.links.get(args.id);
+  if (!existingLink) {
+    throw new Error(`链接不存在或已被删除`);
+  }
+
+  const now = Date.now();
+
+  await db.transaction('rw', db.linkStats, async () => {
+    const stat = await db.linkStats.get(args.id);
+    if (stat) {
+      await db.linkStats.update(args.id, {
+        usageCount: (stat.usageCount || 0) + 1,
+        lastUsedAt: now,
+      });
+    } else {
+      // Create stat record if doesn't exist
+      await db.linkStats.add({
+        id: args.id,
+        usageCount: 1,
+        lastUsedAt: now,
+      });
+    }
+  });
+
+  return {
+    success: true,
+    message: `Link visit recorded`,
+  };
+}
+
+/**
+ * Bulk add links
+ * @param args - Array of link data
+ */
+export async function bulkAddLinks(args: {
+  links: Array<{ name: string; url: string; note?: string; tags?: string[] }>;
+}): Promise<{ success: boolean; count: number; message: string }> {
+  const now = Date.now();
+  const results: Array<{ name: string; url: string; note?: string; tags?: string[] }> = [];
+
+  for (const link of args.links) {
+    // Validate URL format
+    if (!isValidUrl(link.url)) {
+      throw new Error(`URL "${link.url}" 格式不正确，请以 http:// 或 https:// 开头`);
+    }
+
+    const tagIds = link.tags ? await resolveTagNamesToIds(link.tags) : [];
+
+    results.push({
+      name: link.name,
+      url: link.url,
+      note: link.note,
+      tags: tagIds,
+    });
+  }
+
+  await db.transaction('rw', db.links, linkTagsTable, async () => {
+    for (const link of results) {
+      const id = crypto.randomUUID();
+
+      // Create link
+      await db.links.add({
+        id,
+        name: link.name,
+        url: link.url,
+        note: link.note,
+        category: '',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Add tags if provided
+      if (link.tags && link.tags.length > 0) {
+        for (const tagId of link.tags) {
+          await linkTagsTable.add({
+            linkId: id,
+            tagId,
+            updatedAt: now,
+          });
+        }
+      }
+    }
+  });
+
+  return {
+    success: true,
+    count: results.length,
+    message: `Successfully added ${results.length} links`,
+  };
+}

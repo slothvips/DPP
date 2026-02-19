@@ -1,7 +1,15 @@
 // Links management AI tools
 import { db } from '@/db';
 import { openLink } from '@/features/links/utils';
-import { addLink, deleteLink, listLinks, updateLink } from '@/lib/db';
+import {
+  addLink,
+  bulkAddLinks,
+  deleteLink,
+  listLinks,
+  recordLinkVisit,
+  toggleLinkPin,
+  updateLink,
+} from '@/lib/db';
 import type { ToolHandler } from '../tools';
 import { createToolParameter, toolRegistry } from '../tools';
 
@@ -55,6 +63,29 @@ async function links_visit(args: { id: string }) {
     message: `Opening "${link.name}" in new tab`,
     url: link.url,
   };
+}
+
+/**
+ * Toggle link pin status
+ */
+async function links_togglePin(args: { id: string }) {
+  return toggleLinkPin(args);
+}
+
+/**
+ * Record link visit (increment usageCount, update lastUsedAt)
+ */
+async function links_recordVisit(args: { id: string }) {
+  return recordLinkVisit(args);
+}
+
+/**
+ * Bulk add multiple links at once
+ */
+async function links_bulkAdd(args: {
+  links: Array<{ name: string; url: string; note?: string; tags?: string[] }>;
+}) {
+  return bulkAddLinks(args);
 }
 
 /**
@@ -147,5 +178,47 @@ export function registerLinksTools() {
       ['id']
     ),
     handler: links_visit as ToolHandler,
+  });
+
+  // links_togglePin
+  toolRegistry.register({
+    name: 'links_togglePin',
+    description: 'Toggle link pin status (pin or unpin a link)',
+    parameters: createToolParameter(
+      {
+        id: { type: 'string', description: 'Link ID to toggle pin status' },
+      },
+      ['id']
+    ),
+    handler: links_togglePin as ToolHandler,
+  });
+
+  // links_recordVisit
+  toolRegistry.register({
+    name: 'links_recordVisit',
+    description: 'Record a link visit (increment usage count and update last used time)',
+    parameters: createToolParameter(
+      {
+        id: { type: 'string', description: 'Link ID to record visit' },
+      },
+      ['id']
+    ),
+    handler: links_recordVisit as ToolHandler,
+  });
+
+  // links_bulkAdd
+  toolRegistry.register({
+    name: 'links_bulkAdd',
+    description: 'Bulk add multiple links at once',
+    parameters: createToolParameter(
+      {
+        links: {
+          type: 'array',
+          description: 'Array of links to add, each with name, url, optional note and tags',
+        },
+      },
+      ['links']
+    ),
+    handler: links_bulkAdd as ToolHandler,
   });
 }
