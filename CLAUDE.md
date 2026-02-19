@@ -61,8 +61,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This extension is designed for automation testing via Chrome DevTools MCP. All interactive elements have `data-testid` attributes for reliable selection.
 
-
-
 ### Test IDs Reference
 
 #### Popup Page

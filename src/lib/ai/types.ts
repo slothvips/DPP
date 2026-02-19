@@ -3,7 +3,7 @@
 /**
  * Supported AI provider types
  */
-export type AIProviderType = 'ollama' | 'openai' | 'anthropic' | 'custom';
+export type AIProviderType = 'ollama' | 'openai' | 'anthropic' | 'custom' | 'webllm';
 
 export interface ModelProvider {
   name: string;
@@ -12,6 +12,8 @@ export interface ModelProvider {
   listModels(): Promise<Model[]>;
   getModelName(): string;
   setModel(model: string): void;
+  initialize?(onProgress?: InitProgressCallback): Promise<void>;
+  isInitialized?(): boolean;
 }
 
 export interface ChatMessage {
@@ -23,6 +25,11 @@ export interface ChatOptions {
   temperature?: number;
   stream?: boolean;
   onChunk?: (chunk: string) => void;
+}
+
+// WebLLM loading progress callback
+export interface InitProgressCallback {
+  (progress: number, text: string): void;
 }
 
 export interface ChatResponse {

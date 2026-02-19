@@ -31,6 +31,7 @@
 ```
 
 **为什么选择 JSON 代码块格式：**
+
 - 格式清晰，模型容易理解和遵循
 - JSON 解析在 JavaScript 中天然支持
 - 结构化程度高，不易产生歧义
@@ -44,13 +45,13 @@
 
 ### 3. 关键文件修改
 
-| 文件 | 修改内容 |
-|------|----------|
-| `src/lib/ai/prompt.ts` | 重构提示词，定义工具调用协议格式 |
-| `src/lib/ai/tools.ts` | 移除对模型原生工具调用的依赖 |
-| `src/lib/ai/provider.ts` | 简化工具传递，改为提示词内嵌 |
-| `src/lib/ai/response-parser.ts` | **(新增)** 响应解析器 |
-| `src/features/aiAssistant/hooks/useAIChat.ts` | 修改工具调用解析逻辑 |
+| 文件                                          | 修改内容                         |
+| --------------------------------------------- | -------------------------------- |
+| `src/lib/ai/prompt.ts`                        | 重构提示词，定义工具调用协议格式 |
+| `src/lib/ai/tools.ts`                         | 移除对模型原生工具调用的依赖     |
+| `src/lib/ai/provider.ts`                      | 简化工具传递，改为提示词内嵌     |
+| `src/lib/ai/response-parser.ts`               | **(新增)** 响应解析器            |
+| `src/features/aiAssistant/hooks/useAIChat.ts` | 修改工具调用解析逻辑             |
 
 ## 实现步骤
 
@@ -74,22 +75,22 @@ interface ParseResult {
  * 从模型输出中解析工具调用
  * 支持流式和完整响应
  */
-export function parseResponse(content: string): ParseResult
+export function parseResponse(content: string): ParseResult;
 
 /**
  * 检查内容是否包含工具调用
  */
-export function containsToolCall(content: string): boolean
+export function containsToolCall(content: string): boolean;
 
 /**
  * 从累积的内容中提取完整的 JSON 对象
  */
-export function extractJSONBlock(content: string): string | null
+export function extractJSONBlock(content: string): string | null;
 ```
 
 ### Step 2: 重构提示词 (prompt.ts)
 
-```
+````
 ## Tool Call Protocol
 
 When you need to use a tool, use this exact JSON format in a code block:
@@ -102,9 +103,10 @@ When you need to use a tool, use this exact JSON format in a code block:
     "arg1": "value1"
   }
 }
-```
+````
 
 Rules:
+
 1. Always use a code block with ```json
 2. Set "action" to "tool_call"
 3. "name" must be exactly one of the available tools
@@ -113,13 +115,16 @@ Rules:
 6. After receiving tool results, respond naturally to the user
 
 ## Available Tools
+
 [动态生成的工具列表]
 
 ## Tool Usage Rules
+
 1. Query operations: 直接执行
 2. Write operations: 直接执行
 3. Dangerous operations: 需要用户确认
-```
+
+````
 
 ### Step 3: 修改工具注册 (tools.ts)
 
@@ -150,7 +155,7 @@ if (parsed.type === 'tool_call' && parsed.toolCall) {
   );
   // 返回结果给模型
 }
-```
+````
 
 ## 验证方式
 

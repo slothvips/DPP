@@ -8,6 +8,7 @@ import { DEFAULT_CONFIGS, createProvider } from '@/lib/ai/provider';
 import { containsToolCall, parseResponse } from '@/lib/ai/response-parser';
 import { toolRegistry } from '@/lib/ai/tools';
 import type { AIProviderType, ModelProvider } from '@/lib/ai/types';
+import { WebLLMProvider } from '@/lib/ai/webllm';
 import { decryptData, loadKey } from '@/lib/crypto/encryption';
 import {
   addMessage,
@@ -67,6 +68,12 @@ export interface UseAIChatReturn {
   pendingToolCalls: PendingToolCalls | null;
   sessionId: string | null;
   sessions: AISession[];
+  // WebLLM loading state
+  isLoadingModel: boolean;
+  modelLoadProgress: number;
+  modelLoadStatus: string;
+  // Current provider type for UI warnings
+  currentProvider: AIProviderType | null;
 
   // Actions
   sendMessage: (content: string) => Promise<void>;
@@ -77,6 +84,7 @@ export interface UseAIChatReturn {
   createNewSession: () => Promise<void>;
   switchSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
+  resetProvider: () => void;
 }
 
 /**
@@ -98,6 +106,12 @@ export function useAIChat(): UseAIChatReturn {
   const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AISession[]>([]);
+  // WebLLM loading state
+  const [isLoadingModel, setIsLoadingModel] = useState(false);
+  const [modelLoadProgress, setModelLoadProgress] = useState(0);
+  const [modelLoadStatus, setModelLoadStatus] = useState('');
+  // Current provider type for UI
+  const [currentProvider, setCurrentProvider] = useState<AIProviderType | null>(null);
 
   // Refs
   const providerRef = useRef<ModelProvider | null>(null);
@@ -121,34 +135,65 @@ export function useAIChat(): UseAIChatReturn {
    */
   const getProvider = useCallback(async (): Promise<ModelProvider> => {
     if (providerRef.current) {
-      return providerRef.current;
+      // Check if WebLLM needs initialization
+      const provider = providerRef.current;
+      if (
+        provider.name === 'webllm' &&
+        typeof provider.isInitialized === 'function' &&
+        !provider.isInitialized()
+      ) {
+        await (provider as WebLLMProvider).initialize();
+      }
+      return provider;
     }
 
     // Get config from settings
     const providerTypeSetting = await db.settings.where('key').equals('ai_provider_type').first();
-    const baseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
-    const modelSetting = await db.settings.where('key').equals('ai_model').first();
-    const apiKeySetting = await db.settings.where('key').equals('ai_api_key').first();
-
     const providerType = (providerTypeSetting?.value as AIProviderType) || 'ollama';
-    const defaults = DEFAULT_CONFIGS[providerType];
-    const baseUrl = (baseUrlSetting?.value as string) || (defaults?.baseUrl as string) || '';
-    const model = (modelSetting?.value as string) || (defaults?.model as string) || '';
 
-    // Decrypt API key if present
+    // Update current provider for UI warnings
+    setCurrentProvider(providerType);
+
+    // Use provider-specific keys
+    const baseUrlKey = `ai_${providerType}_base_url`;
+    const modelKey = `ai_${providerType}_model`;
+    const apiKeyKey = `ai_${providerType}_api_key`;
+
+    // Fallback to legacy keys for backwards compatibility
+    const baseUrlSetting = await db.settings.where('key').equals(baseUrlKey).first();
+    const legacyBaseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
+    const modelSetting = await db.settings.where('key').equals(modelKey).first();
+    const legacyModelSetting = await db.settings.where('key').equals('ai_model').first();
+    const apiKeySetting = await db.settings.where('key').equals(apiKeyKey).first();
+    const legacyApiKeySetting = await db.settings.where('key').equals('ai_api_key').first();
+
+    const defaults = DEFAULT_CONFIGS[providerType];
+    const baseUrl =
+      (baseUrlSetting?.value as string) ||
+      (legacyBaseUrlSetting?.value as string) ||
+      (defaults?.baseUrl as string) ||
+      '';
+    const model =
+      (modelSetting?.value as string) ||
+      (legacyModelSetting?.value as string) ||
+      (defaults?.model as string) ||
+      '';
+
+    // Decrypt API key if present (use provider-specific key, fallback to legacy)
     let apiKey = '';
-    if (apiKeySetting?.value) {
+    const apiKeyValue = apiKeySetting?.value || legacyApiKeySetting?.value;
+    if (apiKeyValue) {
       try {
         const encryptionKey = await loadKey();
         if (encryptionKey) {
           const decrypted = await decryptData(
-            apiKeySetting.value as { ciphertext: string; iv: string },
+            apiKeyValue as { ciphertext: string; iv: string },
             encryptionKey
           );
           apiKey = decrypted as string;
         } else {
           // Fallback: use raw value
-          apiKey = apiKeySetting.value as string;
+          apiKey = apiKeyValue as string;
         }
       } catch (err) {
         logger.error('[AIChat] Failed to decrypt API key:', err);
@@ -156,6 +201,27 @@ export function useAIChat(): UseAIChatReturn {
     }
 
     providerRef.current = createProvider(providerType, baseUrl, model, apiKey);
+
+    // Initialize WebLLM provider if needed
+    if (providerType === 'webllm') {
+      try {
+        setIsLoadingModel(true);
+        setModelLoadProgress(0);
+        setModelLoadStatus('正在初始化...');
+        await (providerRef.current as WebLLMProvider).initialize((progress, text) => {
+          setModelLoadProgress(progress);
+          setModelLoadStatus(text);
+        });
+        setIsLoadingModel(false);
+        setModelLoadStatus('模型已就绪');
+      } catch (err) {
+        setIsLoadingModel(false);
+        setModelLoadStatus('加载失败');
+        logger.error('[AIChat] WebLLM initialization failed:', err);
+        throw err;
+      }
+    }
+
     return providerRef.current;
   }, []);
 
@@ -711,6 +777,20 @@ export function useAIChat(): UseAIChatReturn {
     [sessionId, loadSession, loadSessions, createNewSession]
   );
 
+  /**
+   * Reset the provider cache so it will be recreated on next use
+   * This allows switching providers mid-conversation
+   */
+  const resetProvider = useCallback(() => {
+    providerRef.current = null;
+    setIsLoadingModel(false);
+    setModelLoadProgress(0);
+    setModelLoadStatus('');
+    // Reset current provider so warning will update when new provider is used
+    setCurrentProvider(null);
+    logger.info('[AIChat] Provider cache reset');
+  }, []);
+
   // Initialize sessions on mount - only run once per page load
   useEffect(() => {
     let mounted = true;
@@ -777,6 +857,10 @@ export function useAIChat(): UseAIChatReturn {
     pendingToolCalls,
     sessionId,
     sessions,
+    isLoadingModel,
+    modelLoadProgress,
+    modelLoadStatus,
+    currentProvider,
     sendMessage,
     confirmToolCall,
     confirmAllToolCalls,
@@ -785,5 +869,6 @@ export function useAIChat(): UseAIChatReturn {
     createNewSession,
     switchSession,
     deleteSession: deleteSessionHandler,
+    resetProvider,
   };
 }

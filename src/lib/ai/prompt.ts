@@ -82,7 +82,7 @@ Rules:
 5. Set "action" to "tool_call" for each tool
 6. "name" must be exactly one of the available tools listed below
 7. "arguments" must be valid JSON matching the tool's parameters
-8. Do not add any other text outside the code block when making tool calls
+8. **CRITICAL - Only return the JSON code block, nothing else**: Do not add any explanation, greeting, or any other text before or after the JSON. Any extra text will break the tool call parsing.
 9. After receiving tool results, respond naturally to the user
 
 ## Available Tools

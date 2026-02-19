@@ -23,6 +23,7 @@ import {
 import { db } from '@/db';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import type { AIProviderType } from '@/lib/ai/types';
+import { WEBLLM_MODELS } from '@/lib/ai/webllm';
 import { decryptData, encryptData, loadKey } from '@/lib/crypto/encryption';
 import { logger } from '@/utils/logger';
 
@@ -33,6 +34,7 @@ interface AIConfigDialogProps {
 
 const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
   { value: 'ollama', label: 'Ollama (本地)' },
+  { value: 'webllm', label: 'WebLLM (浏览器本地)' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic Claude' },
   { value: 'custom', label: '自定义 (OpenAI 兼容)' },
@@ -40,9 +42,9 @@ const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
 
 export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
   const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState<AIProviderType>('ollama');
-  const [baseUrl, setBaseUrl] = useState<string>(DEFAULT_CONFIGS.ollama.baseUrl);
-  const [model, setModel] = useState<string>(DEFAULT_CONFIGS.ollama.model);
+  const [provider, setProvider] = useState<AIProviderType>('custom');
+  const [baseUrl, setBaseUrl] = useState<string>(DEFAULT_CONFIGS.custom.baseUrl);
+  const [model, setModel] = useState<string>(DEFAULT_CONFIGS.custom.model);
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -58,40 +60,11 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     try {
       // Load provider type
       const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
-      const savedProvider = (providerSetting?.value as AIProviderType) || 'ollama';
+      const savedProvider = (providerSetting?.value as AIProviderType) || 'custom';
       setProvider(savedProvider);
 
-      // Load base URL
-      const baseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
-      const savedBaseUrl =
-        (baseUrlSetting?.value as string) || DEFAULT_CONFIGS[savedProvider].baseUrl;
-      setBaseUrl(savedBaseUrl);
-
-      // Load model
-      const modelSetting = await db.settings.where('key').equals('ai_model').first();
-      const savedModel = (modelSetting?.value as string) || DEFAULT_CONFIGS[savedProvider].model;
-      setModel(savedModel);
-
-      // Load and decrypt API key
-      const apiKeySetting = await db.settings.where('key').equals('ai_api_key').first();
-      if (apiKeySetting?.value) {
-        try {
-          const encryptionKey = await loadKey();
-          if (encryptionKey) {
-            const decrypted = await decryptData(
-              apiKeySetting.value as { ciphertext: string; iv: string },
-              encryptionKey
-            );
-            setApiKey(decrypted as string);
-          } else {
-            // If no encryption key, try to use the raw value (legacy)
-            setApiKey(apiKeySetting.value as string);
-          }
-        } catch (err) {
-          logger.error('[AIConfig] Failed to decrypt API key:', err);
-          setApiKey('');
-        }
-      }
+      // Load provider-specific config
+      await loadProviderConfig(savedProvider);
     } catch (err) {
       logger.error('[AIConfig] Failed to load config:', err);
     } finally {
@@ -101,9 +74,43 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
 
   const handleProviderChange = (newProvider: AIProviderType) => {
     setProvider(newProvider);
-    setBaseUrl(DEFAULT_CONFIGS[newProvider].baseUrl as string);
-    setModel(DEFAULT_CONFIGS[newProvider].model as string);
-    setApiKey('');
+    // Load saved config for the new provider
+    loadProviderConfig(newProvider);
+  };
+
+  // Load config for a specific provider
+  const loadProviderConfig = async (providerType: AIProviderType) => {
+    const baseUrlKey = `ai_${providerType}_base_url` as const;
+    const modelKey = `ai_${providerType}_model` as const;
+    const apiKeyKey = `ai_${providerType}_api_key` as const;
+
+    const savedBaseUrl = await db.settings.where('key').equals(baseUrlKey).first();
+    const savedModel = await db.settings.where('key').equals(modelKey).first();
+    const savedApiKey = await db.settings.where('key').equals(apiKeyKey).first();
+
+    setBaseUrl((savedBaseUrl?.value as string) || DEFAULT_CONFIGS[providerType].baseUrl || '');
+    setModel((savedModel?.value as string) || DEFAULT_CONFIGS[providerType].model || '');
+
+    // Load and decrypt API key
+    if (savedApiKey?.value) {
+      try {
+        const encryptionKey = await loadKey();
+        if (encryptionKey) {
+          const decrypted = await decryptData(
+            savedApiKey.value as { ciphertext: string; iv: string },
+            encryptionKey
+          );
+          setApiKey(decrypted as string);
+        } else {
+          setApiKey(savedApiKey.value as string);
+        }
+      } catch (err) {
+        logger.error('[AIConfig] Failed to decrypt API key:', err);
+        setApiKey('');
+      }
+    } else {
+      setApiKey('');
+    }
   };
 
   const handleSave = async () => {
@@ -112,25 +119,27 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
       // Save provider type
       await db.settings.put({ key: 'ai_provider_type', value: provider });
 
-      // Save base URL
-      await db.settings.put({ key: 'ai_base_url', value: baseUrl });
+      // Save provider-specific config
+      const baseUrlKey = `ai_${provider}_base_url` as const;
+      const modelKey = `ai_${provider}_model` as const;
+      const apiKeyKey = `ai_${provider}_api_key` as const;
 
-      // Save model
-      await db.settings.put({ key: 'ai_model', value: model });
+      await db.settings.put({ key: baseUrlKey, value: baseUrl });
+      await db.settings.put({ key: modelKey, value: model });
 
       // Encrypt and save API key (if provided)
       if (apiKey) {
         const encryptionKey = await loadKey();
         if (encryptionKey) {
           const encrypted = await encryptData(apiKey, encryptionKey);
-          await db.settings.put({ key: 'ai_api_key', value: encrypted });
+          await db.settings.put({ key: apiKeyKey, value: encrypted });
         } else {
           // Fallback: store without encryption if no key available
-          await db.settings.put({ key: 'ai_api_key', value: apiKey });
+          await db.settings.put({ key: apiKeyKey, value: apiKey });
         }
       } else {
         // Clear API key if empty
-        await db.settings.put({ key: 'ai_api_key', value: '' });
+        await db.settings.put({ key: apiKeyKey, value: '' });
       }
 
       setOpen(false);
@@ -142,7 +151,8 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     }
   };
 
-  const showApiKey = provider !== 'ollama';
+  const showApiKey = provider !== 'ollama' && provider !== 'webllm';
+  const showBaseUrl = provider !== 'webllm';
   const showModelField = true;
 
   return (
@@ -195,38 +205,55 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
           )}
 
           {/* Base URL */}
-          <div className="grid gap-2">
-            <Label htmlFor="ai-base-url">服务地址</Label>
-            <Input
-              id="ai-base-url"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder={
-                provider === 'ollama'
-                  ? 'http://localhost:11434'
-                  : provider === 'anthropic'
-                    ? 'https://api.anthropic.com'
-                    : 'https://api.openai.com/v1'
-              }
-            />
-          </div>
+          {showBaseUrl && (
+            <div className="grid gap-2">
+              <Label htmlFor="ai-base-url">服务地址</Label>
+              <Input
+                id="ai-base-url"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder={
+                  provider === 'ollama'
+                    ? 'http://localhost:11434'
+                    : provider === 'anthropic'
+                      ? 'https://api.anthropic.com'
+                      : 'https://api.openai.com/v1'
+                }
+              />
+            </div>
+          )}
 
           {/* Model */}
           {showModelField && (
             <div className="grid gap-2">
               <Label htmlFor="ai-model">模型</Label>
-              <Input
-                id="ai-model"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={
-                  provider === 'ollama'
-                    ? 'llama3.2'
-                    : provider === 'anthropic'
-                      ? 'claude-3-5-sonnet-20241022'
-                      : 'gpt-4o-mini'
-                }
-              />
+              {provider === 'webllm' ? (
+                <Select value={model} onValueChange={setModel}>
+                  <SelectTrigger id="ai-model">
+                    <SelectValue placeholder="选择模型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {WEBLLM_MODELS.map((m) => (
+                      <SelectItem key={m.name} value={m.name}>
+                        {m.name} ({m.size})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id="ai-model"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder={
+                    provider === 'ollama'
+                      ? 'llama3.2'
+                      : provider === 'anthropic'
+                        ? 'claude-3-5-sonnet-20241022'
+                        : 'gpt-4o-mini'
+                  }
+                />
+              )}
             </div>
           )}
         </div>

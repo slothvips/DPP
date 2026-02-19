@@ -17,6 +17,10 @@ export function AIAssistantView() {
     pendingToolCalls,
     sessions,
     sessionId,
+    isLoadingModel,
+    modelLoadProgress,
+    modelLoadStatus,
+    currentProvider,
     sendMessage,
     confirmToolCall,
     confirmAllToolCalls,
@@ -25,6 +29,7 @@ export function AIAssistantView() {
     createNewSession,
     switchSession,
     deleteSession,
+    resetProvider,
   } = useAIChat();
 
   const [input, setInput] = useState('');
@@ -44,6 +49,8 @@ export function AIAssistantView() {
   // Re-check config when config is saved
   const handleConfigSaved = () => {
     setIsConfigMissing(false);
+    // Reset provider cache so new config takes effect immediately
+    resetProvider();
   };
 
   // Handle scroll event to detect if user is near bottom
@@ -123,6 +130,21 @@ export function AIAssistantView() {
         </div>
       </div>
 
+      {/* Local model warning */}
+      {(currentProvider === 'ollama' || currentProvider === 'webllm') && !isLoadingModel && (
+        <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800">
+          <div className="flex items-start gap-2">
+            <span className="text-amber-600 dark:text-amber-400 text-sm">⚠️</span>
+            <div className="text-xs text-amber-800 dark:text-amber-200">
+              <p className="font-medium">当前使用本地模型，体验可能不佳</p>
+              <p className="mt-0.5 opacity-80">
+                玩玩就好，别认真~ 如需更好的体验，请切换到 OpenAI、Anthropic 等知名供应商
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages area */}
       <div
         ref={messagesContainerRef}
@@ -134,7 +156,7 @@ export function AIAssistantView() {
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-4xl mb-4">⚙️</div>
             <p className="text-sm font-medium">需要配置 AI 服务</p>
-            <p className="text-xs mt-1 text-muted-foreground">请先配置 Ollama 服务地址和模型</p>
+            <p className="text-xs mt-1 text-muted-foreground">请先配置 AI 服务商和模型</p>
             <AIConfigDialog onSaved={handleConfigSaved}>
               <Button className="mt-4" size="sm">
                 去配置
@@ -143,8 +165,26 @@ export function AIAssistantView() {
           </div>
         )}
 
+        {/* WebLLM Model Loading Progress */}
+        {isLoadingModel && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="text-4xl mb-4">📥</div>
+            <p className="text-sm font-medium">正在加载模型...</p>
+            <div className="w-48 h-2 bg-muted rounded-full mt-3 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${modelLoadProgress}%` }}
+              />
+            </div>
+            <p className="text-xs mt-2 text-muted-foreground">
+              {modelLoadProgress}% - {modelLoadStatus}
+            </p>
+            <p className="text-xs mt-1 text-muted-foreground">首次加载需要下载模型，请耐心等待</p>
+          </div>
+        )}
+
         {/* Welcome message when empty and configured */}
-        {!isConfigMissing && messages.length === 0 && (
+        {!isConfigMissing && !isLoadingModel && messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
             <div className="text-4xl mb-4">🤖</div>
             <p className="text-sm font-medium">你好！我是 AI 助手</p>
@@ -210,15 +250,22 @@ export function AIAssistantView() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="发送消息... (Shift+Enter 换行)"
-            disabled={status === 'loading' || status === 'streaming' || status === 'confirming'}
+            placeholder={isLoadingModel ? '模型加载中...' : '发送消息... (Shift+Enter 换行)'}
+            disabled={
+              status === 'loading' ||
+              status === 'streaming' ||
+              status === 'confirming' ||
+              isLoadingModel
+            }
             className="min-h-[44px] max-h-32 resize-none"
             rows={1}
             data-testid="ai-chat-input"
           />
           <Button
             onClick={handleSend}
-            disabled={!input.trim() || status === 'loading' || status === 'streaming'}
+            disabled={
+              !input.trim() || status === 'loading' || status === 'streaming' || isLoadingModel
+            }
             size="icon"
             data-testid="ai-chat-send"
           >
