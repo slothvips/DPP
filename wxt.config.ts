@@ -14,10 +14,29 @@ export default defineConfig({
   webExt: {
     disabled: true,
   },
+  hooks: {
+    'build:manifestGenerated': async (_wxt, manifest) => {
+      // Remove default_popup from action to allow onClicked handler
+      if (manifest.action) {
+        delete manifest.action.default_popup;
+      }
+    },
+  },
   manifest: {
     id: 'dpp@local',
-    permissions: ['storage', 'offscreen', 'desktopCapture'],
+    permissions: [
+      'storage',
+      'offscreen',
+      'desktopCapture',
+      'debugger',
+      'scripting',
+      'sidePanel',
+      'contextMenus',
+    ],
     host_permissions: ['<all_urls>'],
+    side_panel: {
+      default_path: 'sidepanel.html',
+    },
     name: 'DPP',
     description: 'Team documentation & Jenkins deployment assistant with tech news',
     icons: {
