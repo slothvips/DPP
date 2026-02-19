@@ -40,6 +40,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/entrypoints/` - Extension entry points (background, popup, options, content scripts).
 - `src/features/` - Feature-based modules (jenkins, links, recorder, etc.).
 - `src/lib/` - Shared utilities, including `sync/` and `crypto/`.
+- `src/lib/db/` - Unified database CRUD operations (links, tags, blackboard).
+- `src/lib/ai/` - AI assistant tools and prompts.
 - `src/db/` - Database schema and configuration.
 - `src/components/` - UI components (contains `ui/` for Shadcn).
 - `src/hooks/` - Global React hooks.
@@ -49,6 +51,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Components**: Functional components with hooks. Prefer `features/{name}/components/{Name}View.tsx` pattern for feature-specific UIs.
 - **Database**: Use `useLiveQuery` for reactive data access from Dexie.
+- **Unified DB Operations**: Use `src/lib/db/` for all database CRUD operations. This module provides unified functions used by both AI tools and UI components.
 - **Message Passing**: Background script handles messages prefixed with feature namespaces (e.g., `JENKINS_*`, `RECORDER_*`).
 - **Imports**: Uses `@/` alias for `src/` (configured in tsconfig/wxt).
 - **Strict Mode**: TypeScript strict mode is enabled.
@@ -58,11 +61,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This extension is designed for automation testing via Chrome DevTools MCP. All interactive elements have `data-testid` attributes for reliable selection.
 
-### Extension Pages
 
-- **Popup**: `chrome-extension://ojabcppnngnamjmnojnodjmabipbnpgi/popup.html`
-- **Options**: `chrome-extension://ojabcppnngnamjmnojnodjmabipbnpgi/options.html`
-- **Player**: `chrome-extension://ojabcppnngnamjmnojnodjmabipbnpgi/player.html`
 
 ### Test IDs Reference
 
