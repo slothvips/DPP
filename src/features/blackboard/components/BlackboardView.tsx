@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { db } from '@/db';
+import { addBlackboard, deleteBlackboard, updateBlackboard } from '@/lib/db';
 import { BlackboardItemView } from './BlackboardItem';
 import { SYSTEM_NOTES } from './tips';
 
@@ -35,36 +36,31 @@ export function BlackboardView() {
   });
 
   const handleAdd = async () => {
-    const now = Date.now();
-    const newId = crypto.randomUUID();
-    setFocusId(newId);
-    await db.blackboard.add({
-      id: newId,
+    const result = await addBlackboard({
       content: '',
-      createdAt: now,
-      updatedAt: now,
       pinned: false,
     });
+    setFocusId(result.id);
   };
 
   const handleUpdate = async (id: string, content: string) => {
-    await db.blackboard.update(id, {
+    await updateBlackboard({
+      id,
       content,
-      updatedAt: Date.now(),
     });
   };
 
   const confirmDelete = async () => {
     if (deleteId) {
-      await db.blackboard.delete(deleteId);
+      await deleteBlackboard({ id: deleteId });
       setDeleteId(null);
     }
   };
 
   const handlePin = async (id: string, pinned: boolean) => {
-    await db.blackboard.update(id, {
+    await updateBlackboard({
+      id,
       pinned,
-      updatedAt: Date.now(),
     });
   };
 

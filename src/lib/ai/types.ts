@@ -1,5 +1,10 @@
 // AI Model Provider types
 
+/**
+ * Supported AI provider types
+ */
+export type AIProviderType = 'ollama' | 'openai' | 'anthropic' | 'custom';
+
 export interface ModelProvider {
   name: string;
   baseUrl: string;
@@ -10,24 +15,11 @@ export interface ModelProvider {
 }
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
+  role: 'system' | 'user' | 'assistant';
   content: string;
-  name?: string;
-  toolCallId?: string;
-  toolCalls?: ToolCall[];
-}
-
-export interface ToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string | Record<string, unknown>;
-  };
 }
 
 export interface ChatOptions {
-  tools?: AIToolDefinition[];
   temperature?: number;
   stream?: boolean;
   onChunk?: (chunk: string) => void;
@@ -37,7 +29,6 @@ export interface ChatResponse {
   message: {
     role: 'assistant';
     content: string;
-    toolCalls?: ToolCall[];
   };
   done: boolean;
 }
@@ -48,71 +39,103 @@ export interface Model {
   size?: number;
 }
 
-// Tool definitions
-export interface AIToolDefinition {
-  type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: ToolParameter;
-  };
-}
-
+// Tool parameter schema (used by tool registry)
 export interface ToolParameter {
   type: 'object';
-  properties: Record<string, ToolProperty>;
+  properties: Record<string, { type: string; description: string; enum?: string[] }>;
   required?: string[];
 }
 
-export interface ToolProperty {
-  type: string;
-  description: string;
-  enum?: string[];
+// Ollama API types
+export interface OllamaMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
 }
 
-// Ollama API types
 export interface OllamaChatRequest {
   model: string;
   messages: OllamaMessage[];
   stream?: boolean;
-  tools?: OllamaTool[];
-}
-
-export interface OllamaMessage {
-  role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
-  name?: string;
-  tool_call_id?: string;
-  tool_calls?: OllamaToolCall[];
-}
-
-export interface OllamaTool {
-  type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: ToolParameter;
-  };
-}
-
-export interface OllamaToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: Record<string, unknown>;
-  };
 }
 
 export interface OllamaChatResponse {
   message: {
     role: 'assistant';
     content: string;
-    tool_calls?: OllamaToolCall[];
   };
   done: boolean;
 }
 
 export interface OllamaModelListResponse {
   models: Model[];
+}
+
+// OpenAI-compatible API types
+export interface OpenAIChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export interface OpenAIChatRequest {
+  model: string;
+  messages: OpenAIChatMessage[];
+  stream?: boolean;
+  temperature?: number;
+}
+
+export interface OpenAIChatResponse {
+  id: string;
+  model: string;
+  choices: {
+    index: number;
+    message: {
+      role: 'assistant';
+      content: string;
+    };
+    finish_reason: string | null;
+  }[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+export interface OpenAIModel {
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
+}
+
+export interface OpenAIModelsResponse {
+  object: string;
+  data: OpenAIModel[];
+}
+
+// Anthropic API types
+export interface AnthropicChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AnthropicChatRequest {
+  model: string;
+  messages: AnthropicChatMessage[];
+  max_tokens: number;
+  stream?: boolean;
+  system?: string;
+}
+
+export interface AnthropicChatResponse {
+  id: string;
+  type: string;
+  role: 'assistant';
+  content: string;
+  model: string;
+  stop_reason: string | null;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+  };
 }

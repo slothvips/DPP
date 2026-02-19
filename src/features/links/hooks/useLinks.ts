@@ -1,8 +1,7 @@
-import type { Table } from 'dexie';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type LinkItem, type TagItem, db } from '@/db';
-import type { LinkTagItem } from '@/db/types';
 import { recordLinkVisit } from '@/features/links/utils';
+import { addLink, deleteLink, updateLink } from '@/lib/db';
 
 export interface LinkWithStats extends LinkItem {
   usageCount: number;
@@ -59,37 +58,17 @@ export function useLinks() {
     });
   };
 
-  const addLink = async (
+  const addLinkData = async (
     data: Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
   ) => {
-    const id = crypto.randomUUID();
-    const now = Date.now();
-
-    const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
-
-    await db.transaction('rw', db.links, linkTagsTable, async () => {
-      await db.links.add({
-        id,
-        name: data.name,
-        url: data.url,
-        note: data.note,
-        category: '',
-        updatedAt: now,
-        createdAt: now,
-      });
-
-      if (data.tags && data.tags.length > 0) {
-        for (const tagId of data.tags) {
-          await linkTagsTable.add({
-            linkId: id,
-            tagId,
-            updatedAt: now,
-          });
-        }
-      }
+    // Use unified addLink function - pass tag IDs directly
+    const result = await addLink({
+      name: data.name,
+      url: data.url,
+      note: data.note,
+      tags: data.tags,
     });
-
-    return id;
+    return result.id;
   };
 
   const bulkAddLinks = async (
@@ -97,120 +76,44 @@ export function useLinks() {
       Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
     >
   ) => {
-    const now = Date.now();
-    const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
-
-    await db.transaction('rw', db.links, db.tags, linkTagsTable, async () => {
-      // Pre-fetch all tags to minimize queries if needed, though simpler to just trust IDs are passed or handled
-      // Actually the import dialog will handle tag creation/lookup before calling this if strictly following ID pattern,
-      // OR we can make this smarter.
-      // For simplicity and matching addLink, we assume tags are passed as IDs.
-      // If we want to support creating tags on the fly during bulk import, we'd need more logic.
-      // The current requirement says "convert ... to format system can import", usually implying normalized data.
-      // Let's assume the import logic in the dialog will resolve tag names to IDs or create them.
-      // Wait, the prompt says "convert arbitrary data". The LLM output might just have tag names.
-      // It would be much better if bulkAddLinks handled tag name -> ID resolution automatically.
-
-      // Let's stick to the current pattern: The caller resolves tags.
-      // But wait, `addLink` takes `tags: string[]` which are IDs.
-      // So `bulkAddLinks` should also take IDs.
-      // The ImportDialog will handle the "Tag Name -> Tag ID" logic.
-
-      for (const data of items) {
-        const id = crypto.randomUUID();
-        await db.links.add({
-          id,
-          name: data.name,
-          url: data.url,
-          note: data.note,
-          category: '',
-          updatedAt: now,
-          createdAt: now,
-        });
-
-        if (data.tags && data.tags.length > 0) {
-          for (const tagId of data.tags) {
-            await linkTagsTable.add({
-              linkId: id,
-              tagId,
-              updatedAt: now,
-            });
-          }
-        }
-      }
-    });
+    for (const data of items) {
+      await addLink({
+        name: data.name,
+        url: data.url,
+        note: data.note,
+        tags: data.tags,
+      });
+    }
   };
 
-  const updateLink = async (
+  const updateLinkData = async (
     id: string,
     data: Partial<Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'>> & {
       tags?: string[];
     }
   ) => {
-    const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
-
-    await db.transaction('rw', db.links, linkTagsTable, async () => {
-      const now = Date.now();
-
-      const { tags, ...linkData } = data;
-      if (Object.keys(linkData).length > 0) {
-        await db.links.update(id, {
-          ...linkData,
-          updatedAt: now,
-        });
-      }
-
-      if (tags) {
-        const existingLinkTags = await db.linkTags.where('linkId').equals(id).toArray();
-        const existingTagIds = new Set(
-          existingLinkTags.filter((lt) => !lt.deletedAt).map((lt) => lt.tagId)
-        );
-        const newTagIds = new Set(tags);
-
-        for (const tagId of tags) {
-          if (!existingTagIds.has(tagId)) {
-            const deletedTag = existingLinkTags.find((lt) => lt.tagId === tagId && lt.deletedAt);
-            if (deletedTag) {
-              await linkTagsTable.put({ ...deletedTag, deletedAt: undefined, updatedAt: now });
-            } else {
-              await linkTagsTable.add({ linkId: id, tagId, updatedAt: now });
-            }
-          }
-        }
-
-        for (const existingId of existingTagIds) {
-          if (!newTagIds.has(existingId)) {
-            await db.linkTags
-              .where({ linkId: id, tagId: existingId })
-              .modify({ deletedAt: now, updatedAt: now });
-          }
-        }
-      }
+    // Use unified updateLink function - pass tag IDs directly
+    await updateLink({
+      id,
+      name: data.name,
+      url: data.url,
+      note: data.note,
+      tags: data.tags,
     });
   };
 
-  const deleteLink = async (id: string) => {
-    const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
-
-    await db.transaction('rw', db.links, db.linkStats, linkTagsTable, async () => {
-      await db.links.update(id, { deletedAt: Date.now(), updatedAt: Date.now() });
-
-      const linkTags = await db.linkTags.where('linkId').equals(id).toArray();
-      for (const lt of linkTags) {
-        await linkTagsTable.delete([lt.linkId, lt.tagId]);
-      }
-
-      await db.linkStats.delete(id);
-    });
+  const deleteLinkData = async (id: string) => {
+    // Use unified deleteLink function
+    await deleteLink({ id });
   };
 
   return {
     links,
     recordVisit,
     togglePin,
-    addLink,
+    addLink: addLinkData,
     bulkAddLinks,
-    updateLink,
-    deleteLink,
+    updateLink: updateLinkData,
+    deleteLink: deleteLinkData,
   };
 }

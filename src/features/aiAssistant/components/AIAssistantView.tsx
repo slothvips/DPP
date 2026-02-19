@@ -1,5 +1,5 @@
 // AI Assistant View - Main conversation interface
-import { Send, Settings, Trash2, Wifi, WifiOff } from 'lucide-react';
+import { Send, Settings, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,18 +12,20 @@ export function AIAssistantView() {
     messages,
     status,
     error,
-    isConnected,
     pendingToolCall,
+    pendingToolCalls,
     sendMessage,
     confirmToolCall,
+    confirmAllToolCalls,
     cancelToolCall,
     clearMessages,
-    checkConnection,
   } = useAIChat();
 
   const [input, setInput] = useState('');
   const [isConfigMissing, setIsConfigMissing] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Check if config is configured on mount
@@ -33,21 +35,28 @@ export function AIAssistantView() {
     });
   }, []);
 
-  // Re-check config when connection status changes (in case config was saved)
+  // Re-check config when config is saved
   const handleConfigSaved = () => {
     setIsConfigMissing(false);
-    checkConnection();
   };
 
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  // Handle scroll event to detect if user is near bottom
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
 
-  // Check connection on mount
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // Consider "near bottom" if within 100px of the bottom
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setIsNearBottom(nearBottom);
+  };
+
+  // Auto-scroll to bottom only when user is near bottom
   useEffect(() => {
-    checkConnection();
-  }, [checkConnection]);
+    if (isNearBottom && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isNearBottom]);
 
   const handleSend = async () => {
     const content = input.trim();
@@ -78,15 +87,10 @@ export function AIAssistantView() {
 
   return (
     <div className="flex flex-col h-full bg-background">
-      {/* Header with connection status */}
+      {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-2">
-          {isConnected ? (
-            <Wifi className="w-4 h-4 text-green-500" data-testid="connection-connected" />
-          ) : (
-            <WifiOff className="w-4 h-4 text-red-500" data-testid="connection-disconnected" />
-          )}
-          <span className="text-xs text-muted-foreground">{isConnected ? '已连接' : '未连接'}</span>
+          <span className="text-xs text-muted-foreground">AI 助手</span>
         </div>
         <div className="flex items-center gap-1">
           <AIConfigDialog onSaved={handleConfigSaved}>
@@ -107,7 +111,11 @@ export function AIAssistantView() {
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar"
+      >
         {/* Config not configured prompt */}
         {isConfigMissing && messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -142,12 +150,12 @@ export function AIAssistantView() {
               className={`max-w-[85%] rounded-lg px-3 py-2 ${
                 message.role === 'user'
                   ? 'bg-primary text-primary-foreground'
-                  : message.role === 'tool'
+                  : message.name
                     ? 'bg-muted text-xs font-mono'
                     : 'bg-muted'
               }`}
             >
-              {message.role === 'tool' && message.name && (
+              {message.name && (
                 <div className="text-xs font-medium text-muted-foreground mb-1">
                   {message.name} 结果:
                 </div>
@@ -209,7 +217,9 @@ export function AIAssistantView() {
       {/* Tool Confirmation Dialog */}
       <ToolConfirmationDialog
         pendingToolCall={pendingToolCall}
+        pendingToolCalls={pendingToolCalls}
         onConfirm={confirmToolCall}
+        onConfirmAll={confirmAllToolCalls}
         onCancel={cancelToolCall}
       />
     </div>

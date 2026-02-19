@@ -1,102 +1,34 @@
 // Tags management AI tools
-import type { Table } from 'dexie';
-import { db } from '@/db';
-import type { JobTagItem, LinkTagItem } from '@/db/types';
-import { createToolParameter, toolRegistry } from '../tools';
+import { addTag, deleteTag, listTags, updateTag } from '@/lib/db';
 import type { ToolHandler } from '../tools';
-
-// Cast tables for transaction
-const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
-const jobTagsTable = db.jobTags as unknown as Table<JobTagItem, [string, string]>;
+import { createToolParameter, toolRegistry } from '../tools';
 
 /**
  * List all tags
  */
 async function tags_list() {
-  const tags = await db.tags.filter((t) => !t.deletedAt).toArray();
-
-  // Get link counts for each tag
-  const tagsWithCounts = await Promise.all(
-    tags.map(async (tag) => {
-      const linkTags = await db.linkTags
-        .filter((lt) => !lt.deletedAt && lt.tagId === tag.id)
-        .toArray();
-      const jobTags = await db.jobTags
-        .filter((jt) => !jt.deletedAt && jt.tagId === tag.id)
-        .toArray();
-
-      return {
-        id: tag.id,
-        name: tag.name,
-        color: tag.color,
-        linkCount: linkTags.length,
-        jobCount: jobTags.length,
-        createdAt: tag.updatedAt,
-      };
-    })
-  );
-
-  return {
-    total: tags.length,
-    tags: tagsWithCounts,
-  };
+  return listTags();
 }
 
 /**
  * Add a new tag
  */
 async function tags_add(args: { name: string; color: string }) {
-  const now = Date.now();
-  const id = crypto.randomUUID();
-
-  // Check if tag already exists
-  const existing = await db.tags
-    .filter((t) => !t.deletedAt && t.name.toLowerCase() === args.name.toLowerCase())
-    .first();
-  if (existing) {
-    throw new Error(`Tag "${args.name}" already exists`);
-  }
-
-  await db.tags.add({
-    id,
-    name: args.name,
-    color: args.color,
-    updatedAt: now,
-  });
-
-  return {
-    success: true,
-    id,
-    message: `Tag "${args.name}" created successfully`,
-  };
+  return addTag(args);
 }
 
 /**
- * Delete a tag (soft delete)
+ * Update a tag
+ */
+async function tags_update(args: { id: string; name?: string; color?: string }) {
+  return updateTag(args);
+}
+
+/**
+ * Delete a tag
  */
 async function tags_delete(args: { id: string }) {
-  const existing = await db.tags.get(args.id);
-  if (!existing) {
-    throw new Error(`Tag not found: ${args.id}`);
-  }
-
-  const now = Date.now();
-
-  await db.transaction('rw', db.tags, linkTagsTable, jobTagsTable, async () => {
-    // Soft delete the tag
-    await db.tags.update(args.id, { deletedAt: now });
-
-    // Soft delete all link associations
-    await db.linkTags.where({ tagId: args.id }).modify({ deletedAt: now });
-
-    // Soft delete all job associations
-    await db.jobTags.where({ tagId: args.id }).modify({ deletedAt: now });
-  });
-
-  return {
-    success: true,
-    message: `Tag "${existing.name}" deleted successfully`,
-  };
+  return deleteTag(args);
 }
 
 /**
@@ -123,6 +55,21 @@ export function registerTagsTools() {
       ['name', 'color']
     ),
     handler: tags_add as ToolHandler,
+  });
+
+  // tags_update
+  toolRegistry.register({
+    name: 'tags_update',
+    description: 'Update an existing tag (name or color)',
+    parameters: createToolParameter(
+      {
+        id: { type: 'string', description: 'Tag ID to update' },
+        name: { type: 'string', description: 'New tag name (optional)' },
+        color: { type: 'string', description: 'New tag color (optional, hex like #FF5733)' },
+      },
+      ['id']
+    ),
+    handler: tags_update as ToolHandler,
   });
 
   // tags_delete (requires confirmation)

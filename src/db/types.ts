@@ -88,6 +88,10 @@ export type SettingKey =
   | 'sync_client_id'
   | 'global_sync_start_time'
   | 'show_others_builds'
+  | 'ai_provider_type'
+  | 'ai_base_url'
+  | 'ai_model'
+  | 'ai_api_key'
   | 'ai_ollama_base_url'
   | 'ai_ollama_model';
 

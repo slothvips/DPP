@@ -4,4 +4,5 @@ export interface BlackboardItem {
   createdAt: number;
   updatedAt: number;
   pinned?: boolean; // Pinned to top
+  deletedAt?: number; // Soft delete timestamp
 }

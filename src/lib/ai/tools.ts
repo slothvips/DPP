@@ -1,5 +1,5 @@
 // AI Tools - Tool registry and conversion utilities
-import type { AIToolDefinition, ToolParameter } from './types';
+import type { ToolParameter } from './types';
 
 /**
  * Tool execution handler type
@@ -56,20 +56,6 @@ class ToolRegistry {
   }
 
   /**
-   * Get all tools as AIToolDefinition format for AI
-   */
-  getToolDefinitions(): AIToolDefinition[] {
-    return this.getAll().map((tool) => ({
-      type: 'function',
-      function: {
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      },
-    }));
-  }
-
-  /**
    * Execute a tool by name
    */
   async execute<T = unknown>(name: string, args: Record<string, unknown>): Promise<T> {
@@ -116,36 +102,6 @@ class ToolRegistry {
  * Global tool registry instance
  */
 export const toolRegistry = new ToolRegistry();
-
-/**
- * Convert tool definitions to Ollama format
- */
-export function toOllamaTools(tools: AIToolDefinition[]): {
-  type: 'function';
-  function: {
-    name: string;
-    description: string;
-    parameters: ToolParameter;
-  };
-}[] {
-  return tools.map((tool) => ({
-    type: 'function',
-    function: {
-      name: tool.function.name,
-      description: tool.function.description,
-      parameters: tool.function.parameters,
-    },
-  }));
-}
-
-/**
- * Decorator to register a tool
- */
-export function registerTool(
-  tool: Omit<AIToolMetadata, 'handler'> & { handler: ToolHandler }
-): void {
-  toolRegistry.register(tool as AIToolMetadata);
-}
 
 /**
  * Helper to create tool parameter schema

@@ -10,7 +10,6 @@ import type {
   OllamaChatRequest,
   OllamaChatResponse,
   OllamaMessage,
-  OllamaTool,
 } from './types';
 
 /**
@@ -44,47 +43,10 @@ export class OllamaProvider implements ModelProvider {
    * Convert internal ChatMessage to Ollama message format
    */
   private toOllamaMessage(message: ChatMessage): OllamaMessage {
-    const ollamaMessage: OllamaMessage = {
-      role: message.role === 'tool' ? 'tool' : message.role,
+    return {
+      role: message.role,
       content: message.content,
     };
-
-    if (message.name) {
-      ollamaMessage.name = message.name;
-    }
-
-    if (message.toolCallId) {
-      ollamaMessage.tool_call_id = message.toolCallId;
-    }
-
-    if (message.toolCalls) {
-      ollamaMessage.tool_calls = message.toolCalls.map((tc) => ({
-        id: tc.id,
-        type: tc.type,
-        function: {
-          name: tc.function.name,
-          arguments:
-            typeof tc.function.arguments === 'string'
-              ? JSON.parse(tc.function.arguments)
-              : tc.function.arguments,
-        },
-      }));
-    }
-
-    return ollamaMessage;
-  }
-
-  /**
-   * Convert tools to Ollama format
-   */
-  private toOllamaTools(
-    tools?: {
-      type: 'function';
-      function: { name: string; description: string; parameters: unknown };
-    }[]
-  ): OllamaTool[] | undefined {
-    if (!tools) return undefined;
-    return tools as OllamaTool[];
   }
 
   /**
@@ -100,10 +62,6 @@ export class OllamaProvider implements ModelProvider {
       messages: ollamaMessages,
       stream: options?.stream ?? false,
     };
-
-    if (options?.tools) {
-      requestBody.tools = this.toOllamaTools(options.tools as never);
-    }
 
     logger.debug(`[Ollama] Sending chat request to ${url}`);
 
@@ -149,7 +107,6 @@ export class OllamaProvider implements ModelProvider {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
-    let toolCalls: ChatResponse['message']['toolCalls'] = [];
 
     try {
       while (true) {
@@ -166,22 +123,6 @@ export class OllamaProvider implements ModelProvider {
               fullContent += data.message.content;
               onChunk(data.message.content);
             }
-            if (data.message?.tool_calls) {
-              toolCalls = data.message.tool_calls.map((tc: never) => ({
-                id: (tc as { id: string }).id,
-                type: 'function',
-                function: {
-                  name: (tc as { function: { name: string } }).function.name,
-                  arguments:
-                    typeof (tc as { function: { arguments: unknown } }).function.arguments ===
-                    'string'
-                      ? (tc as { function: { arguments: string } }).function.arguments
-                      : JSON.stringify(
-                          (tc as { function: { arguments: unknown } }).function.arguments
-                        ),
-                },
-              }));
-            }
           } catch {
             // Skip invalid JSON lines
           }
@@ -195,7 +136,6 @@ export class OllamaProvider implements ModelProvider {
       message: {
         role: 'assistant',
         content: fullContent,
-        toolCalls,
       },
       done: true,
     };
@@ -209,17 +149,6 @@ export class OllamaProvider implements ModelProvider {
       message: {
         role: response.message.role,
         content: response.message.content,
-        toolCalls: response.message.tool_calls?.map((tc) => ({
-          id: tc.id,
-          type: tc.type,
-          function: {
-            name: tc.function.name,
-            arguments:
-              typeof tc.function.arguments === 'string'
-                ? tc.function.arguments
-                : JSON.stringify(tc.function.arguments),
-          },
-        })),
       },
       done: response.done,
     };

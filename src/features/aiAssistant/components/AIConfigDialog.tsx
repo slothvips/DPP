@@ -21,7 +21,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { db } from '@/db';
-import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL, OllamaProvider } from '@/lib/ai/ollama';
+import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
+import type { AIProviderType } from '@/lib/ai/types';
+import { decryptData, encryptData, loadKey } from '@/lib/crypto/encryption';
 import { logger } from '@/utils/logger';
 
 interface AIConfigDialogProps {
@@ -29,14 +31,20 @@ interface AIConfigDialogProps {
   onSaved?: () => void;
 }
 
+const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
+  { value: 'ollama', label: 'Ollama (本地)' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic Claude' },
+  { value: 'custom', label: '自定义 (OpenAI 兼容)' },
+];
+
 export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
   const [open, setOpen] = useState(false);
-  const [baseUrl, setBaseUrl] = useState(DEFAULT_OLLAMA_BASE_URL);
-  const [model, setModel] = useState(DEFAULT_OLLAMA_MODEL);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [provider, setProvider] = useState<AIProviderType>('ollama');
+  const [baseUrl, setBaseUrl] = useState<string>(DEFAULT_CONFIGS.ollama.baseUrl);
+  const [model, setModel] = useState<string>(DEFAULT_CONFIGS.ollama.model);
+  const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
   // Load existing config when dialog opens
   useEffect(() => {
@@ -48,29 +56,41 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
   const loadConfig = async () => {
     setLoading(true);
     try {
-      const baseUrlSetting = await db.settings.where('key').equals('ai_ollama_base_url').first();
-      const modelSetting = await db.settings.where('key').equals('ai_ollama_model').first();
+      // Load provider type
+      const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
+      const savedProvider = (providerSetting?.value as AIProviderType) || 'ollama';
+      setProvider(savedProvider);
 
-      const savedBaseUrl = (baseUrlSetting?.value as string) || DEFAULT_OLLAMA_BASE_URL;
-      const savedModel = (modelSetting?.value as string) || DEFAULT_OLLAMA_MODEL;
-
+      // Load base URL
+      const baseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
+      const savedBaseUrl =
+        (baseUrlSetting?.value as string) || DEFAULT_CONFIGS[savedProvider].baseUrl;
       setBaseUrl(savedBaseUrl);
+
+      // Load model
+      const modelSetting = await db.settings.where('key').equals('ai_model').first();
+      const savedModel = (modelSetting?.value as string) || DEFAULT_CONFIGS[savedProvider].model;
       setModel(savedModel);
 
-      // Fetch available models
-      try {
-        const provider = new OllamaProvider(savedBaseUrl);
-        const models = await provider.listModels();
-        setAvailableModels(models.map((m) => m.name));
-
-        // If current model is not in list, add it
-        if (savedModel && !models.find((m) => m.name === savedModel)) {
-          setAvailableModels((prev) => [savedModel, ...prev]);
+      // Load and decrypt API key
+      const apiKeySetting = await db.settings.where('key').equals('ai_api_key').first();
+      if (apiKeySetting?.value) {
+        try {
+          const encryptionKey = await loadKey();
+          if (encryptionKey) {
+            const decrypted = await decryptData(
+              apiKeySetting.value as { ciphertext: string; iv: string },
+              encryptionKey
+            );
+            setApiKey(decrypted as string);
+          } else {
+            // If no encryption key, try to use the raw value (legacy)
+            setApiKey(apiKeySetting.value as string);
+          }
+        } catch (err) {
+          logger.error('[AIConfig] Failed to decrypt API key:', err);
+          setApiKey('');
         }
-      } catch (err) {
-        logger.error('[AIConfig] Failed to fetch models:', err);
-        // Still allow manual input
-        setAvailableModels([savedModel]);
       }
     } catch (err) {
       logger.error('[AIConfig] Failed to load config:', err);
@@ -79,11 +99,40 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     }
   };
 
+  const handleProviderChange = (newProvider: AIProviderType) => {
+    setProvider(newProvider);
+    setBaseUrl(DEFAULT_CONFIGS[newProvider].baseUrl as string);
+    setModel(DEFAULT_CONFIGS[newProvider].model as string);
+    setApiKey('');
+  };
+
   const handleSave = async () => {
     setLoading(true);
     try {
-      await db.settings.put({ key: 'ai_ollama_base_url', value: baseUrl });
-      await db.settings.put({ key: 'ai_ollama_model', value: model });
+      // Save provider type
+      await db.settings.put({ key: 'ai_provider_type', value: provider });
+
+      // Save base URL
+      await db.settings.put({ key: 'ai_base_url', value: baseUrl });
+
+      // Save model
+      await db.settings.put({ key: 'ai_model', value: model });
+
+      // Encrypt and save API key (if provided)
+      if (apiKey) {
+        const encryptionKey = await loadKey();
+        if (encryptionKey) {
+          const encrypted = await encryptData(apiKey, encryptionKey);
+          await db.settings.put({ key: 'ai_api_key', value: encrypted });
+        } else {
+          // Fallback: store without encryption if no key available
+          await db.settings.put({ key: 'ai_api_key', value: apiKey });
+        }
+      } else {
+        // Clear API key if empty
+        await db.settings.put({ key: 'ai_api_key', value: '' });
+      }
+
       setOpen(false);
       onSaved?.();
     } catch (err) {
@@ -93,19 +142,8 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     }
   };
 
-  const handleTestConnection = async () => {
-    setTestingConnection(true);
-    setConnectionStatus('idle');
-    try {
-      const provider = new OllamaProvider(baseUrl);
-      const connected = await provider.healthCheck();
-      setConnectionStatus(connected ? 'success' : 'error');
-    } catch {
-      setConnectionStatus('error');
-    } finally {
-      setTestingConnection(false);
-    }
-  };
+  const showApiKey = provider !== 'ollama';
+  const showModelField = true;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -119,58 +157,78 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>AI 设置</DialogTitle>
-          <DialogDescription>配置 Ollama 服务连接信息</DialogDescription>
+          <DialogDescription>配置 AI 模型服务连接信息</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          {/* Provider Selection */}
+          <div className="grid gap-2">
+            <Label htmlFor="ai-provider">服务商</Label>
+            <Select
+              value={provider}
+              onValueChange={(v) => handleProviderChange(v as AIProviderType)}
+            >
+              <SelectTrigger id="ai-provider">
+                <SelectValue placeholder="选择服务商" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVIDER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* API Key (for non-Ollama) */}
+          {showApiKey && (
+            <div className="grid gap-2">
+              <Label htmlFor="ai-api-key">API Key</Label>
+              <Input
+                id="ai-api-key"
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
+              />
+            </div>
+          )}
+
+          {/* Base URL */}
           <div className="grid gap-2">
             <Label htmlFor="ai-base-url">服务地址</Label>
             <Input
               id="ai-base-url"
               value={baseUrl}
-              onChange={(e) => {
-                setBaseUrl(e.target.value);
-                setConnectionStatus('idle');
-              }}
-              placeholder="http://localhost:11434"
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder={
+                provider === 'ollama'
+                  ? 'http://localhost:11434'
+                  : provider === 'anthropic'
+                    ? 'https://api.anthropic.com'
+                    : 'https://api.openai.com/v1'
+              }
             />
           </div>
-          <div className="grid gap-2">
-            <Label htmlFor="ai-model">模型</Label>
-            <Select
-              value={model}
-              onValueChange={setModel}
-              disabled={availableModels.length === 0 && !loading}
-            >
-              <SelectTrigger id="ai-model">
-                <SelectValue placeholder="选择模型" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableModels.length > 0 ? (
-                  availableModels.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))
-                ) : (
-                  <SelectItem value={model}>{model}</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestConnection}
-              disabled={testingConnection}
-            >
-              {testingConnection ? '测试中...' : '测试连接'}
-            </Button>
-            {connectionStatus === 'success' && (
-              <span className="text-sm text-green-500">连接成功</span>
-            )}
-            {connectionStatus === 'error' && <span className="text-sm text-red-500">连接失败</span>}
-          </div>
+
+          {/* Model */}
+          {showModelField && (
+            <div className="grid gap-2">
+              <Label htmlFor="ai-model">模型</Label>
+              <Input
+                id="ai-model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={
+                  provider === 'ollama'
+                    ? 'llama3.2'
+                    : provider === 'anthropic'
+                      ? 'claude-3-5-sonnet-20241022'
+                      : 'gpt-4o-mini'
+                }
+              />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
@@ -189,7 +247,8 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
  * Check if AI config is configured (has values in settings)
  */
 export async function isAIConfigConfigured(): Promise<boolean> {
-  const baseUrlSetting = await db.settings.where('key').equals('ai_ollama_base_url').first();
-  const modelSetting = await db.settings.where('key').equals('ai_ollama_model').first();
-  return !!(baseUrlSetting?.value || modelSetting?.value);
+  const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
+  const baseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
+  const modelSetting = await db.settings.where('key').equals('ai_model').first();
+  return !!(providerSetting?.value || baseUrlSetting?.value || modelSetting?.value);
 }

@@ -3,6 +3,7 @@
 ## 背景
 
 为浏览器扩展新增 AI 助手功能，用户可以通过自然语言指令调用工具完成以下任务：
+
 - 管理链接（增删改查、标签管理）
 - 管理 Jenkins Jobs（查看状态、触发构建）
 - 管理录屏（开始/停止录制、查看列表）
@@ -26,18 +27,19 @@
 
 ```typescript
 interface AIToolDefinition {
-  name: string;              // 工具唯一标识
-  description: string;       // 工具描述
-  requiresConfirmation: boolean;  // 是否需要确认
-  confirmationMessage?: (params) => string;  // 确认消息
+  name: string; // 工具唯一标识
+  description: string; // 工具描述
+  requiresConfirmation: boolean; // 是否需要确认
+  confirmationMessage?: (params) => string; // 确认消息
   parameters: ToolParameter; // 参数 Schema
-  execute: (params) => Promise<unknown>;  // 执行函数
+  execute: (params) => Promise<unknown>; // 执行函数
 }
 ```
 
 ### 2. 系统提示词
 
 让 AI 理解：
+
 - 可用工具列表及用途
 - 调用规则（查询直接执行，危险操作需确认）
 - 响应格式
@@ -119,13 +121,13 @@ src/features/aiAssistant/
 
 ## 工具暴露策略
 
-| 工具类型 | 操作 | 是否需要确认 |
-|---------|------|-------------|
-| 查询类 | list、get、search | 否 |
-| 添加类 | add、create | 否 |
-| 修改类 | update、edit | 否 |
-| 删除类 | delete、remove | 是 |
-| 危险操作 | trigger_build | 是 |
+| 工具类型 | 操作              | 是否需要确认 |
+| -------- | ----------------- | ------------ |
+| 查询类   | list、get、search | 否           |
+| 添加类   | add、create       | 否           |
+| 修改类   | update、edit      | 否           |
+| 删除类   | delete、remove    | 是           |
+| 危险操作 | trigger_build     | 是           |
 
 ## 验证方式
 

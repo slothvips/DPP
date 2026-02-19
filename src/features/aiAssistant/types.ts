@@ -1,38 +1,23 @@
 // AI Assistant feature types
-import type { AIToolDefinition } from '@/lib/ai/types';
+import type { AIProviderType } from '@/lib/ai/types';
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
+  role: 'user' | 'assistant' | 'system';
   content: string;
-  toolCalls?: ToolCall[];
-  toolCallId?: string;
+  /** Tool name - used for tool result messages */
   name?: string;
   createdAt: number;
 }
 
-export interface ToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string | Record<string, unknown>;
-  };
-}
-
-export interface ChatResponse {
-  message: ChatMessage;
-  toolCalls?: ToolCall[];
-}
-
 export interface AIConfig {
-  provider: 'ollama';
+  provider: AIProviderType;
   baseUrl: string;
   model: string;
+  apiKey?: string;
 }
 
 export interface ChatRequest {
   messages: ChatMessage[];
-  tools?: AIToolDefinition[];
   systemPrompt?: string;
 }

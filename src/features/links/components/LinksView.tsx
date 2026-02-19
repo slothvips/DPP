@@ -208,8 +208,9 @@ export function LinksView() {
         toast('添加成功', 'success');
       }
       setIsDialogOpen(false);
-    } catch {
-      toast('保存失败', 'error');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '保存失败';
+      toast(message, 'error');
     }
   };
 

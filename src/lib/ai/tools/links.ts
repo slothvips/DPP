@@ -1,114 +1,22 @@
 // Links management AI tools
-import type { Table } from 'dexie';
 import { db } from '@/db';
-import type { LinkTagItem } from '@/db/types';
 import { openLink } from '@/features/links/utils';
+import { addLink, deleteLink, listLinks, updateLink } from '@/lib/db';
 import type { ToolHandler } from '../tools';
 import { createToolParameter, toolRegistry } from '../tools';
-
-// Cast linkTags table for transaction
-const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
 
 /**
  * List all links, optionally filtered by keyword and tags
  */
 async function links_list(args: { keyword?: string; tags?: string[] }) {
-  let links = await db.links.filter((l) => !l.deletedAt).toArray();
-
-  // Filter by keyword
-  if (args.keyword) {
-    const keyword = args.keyword.toLowerCase();
-    links = links.filter(
-      (l) =>
-        l.name.toLowerCase().includes(keyword) ||
-        l.url.toLowerCase().includes(keyword) ||
-        (l.note && l.note.toLowerCase().includes(keyword))
-    );
-  }
-
-  // Filter by tags if provided
-  if (args.tags && args.tags.length > 0) {
-    const linkTags = await db.linkTags
-      .filter((lt) => !lt.deletedAt && args.tags!.includes(lt.tagId))
-      .toArray();
-    const linkIdsWithTags = new Set(linkTags.map((lt) => lt.linkId));
-    links = links.filter((l) => linkIdsWithTags.has(l.id));
-  }
-
-  // Get tags for each link
-  const linksWithTags = await Promise.all(
-    links.map(async (link) => {
-      const linkTagRecords = await db.linkTags
-        .filter((lt) => !lt.deletedAt && lt.linkId === link.id)
-        .toArray();
-      const tagIds = linkTagRecords.map((lt) => lt.tagId);
-      const tags = await db.tags.filter((t) => !t.deletedAt && tagIds.includes(t.id)).toArray();
-
-      // Get usage stats
-      const stat = await db.linkStats.get(link.id);
-
-      return {
-        id: link.id,
-        name: link.name,
-        url: link.url,
-        note: link.note,
-        tags: tags.map((t) => ({ id: t.id, name: t.name, color: t.color })),
-        usageCount: stat?.usageCount || 0,
-        lastUsedAt: stat?.lastUsedAt,
-        createdAt: link.createdAt,
-        updatedAt: link.updatedAt,
-      };
-    })
-  );
-
-  return {
-    total: linksWithTags.length,
-    links: linksWithTags,
-  };
+  return listLinks(args);
 }
 
 /**
  * Add a new link
  */
 async function links_add(args: { name: string; url: string; note?: string; tags?: string[] }) {
-  const now = Date.now();
-  const id = crypto.randomUUID();
-
-  await db.transaction('rw', db.links, linkTagsTable, async () => {
-    // Create link
-    await db.links.add({
-      id,
-      name: args.name,
-      url: args.url,
-      note: args.note,
-      category: '',
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // Add tags if provided
-    if (args.tags && args.tags.length > 0) {
-      const tags = await db.tags.filter((t) => !t.deletedAt).toArray();
-      const tagMap = new Map(tags.map((t) => [t.name.toLowerCase(), t.id]));
-
-      for (const tagName of args.tags) {
-        const tagId = tagMap.get(tagName.toLowerCase());
-        if (tagId) {
-          await db.linkTags.add({
-            linkId: id,
-            tagId,
-            updatedAt: now,
-          });
-        }
-      }
-    }
-  });
-
-  return {
-    success: true,
-    id,
-    message: `Link "${args.name}" added successfully`,
-  };
+  return addLink(args);
 }
 
 /**
@@ -121,72 +29,14 @@ async function links_update(args: {
   note?: string;
   tags?: string[];
 }) {
-  const existingLink = await db.links.get(args.id);
-  if (!existingLink) {
-    throw new Error(`Link with id ${args.id} not found`);
-  }
-
-  const now = Date.now();
-
-  await db.transaction('rw', db.links, linkTagsTable, async () => {
-    // Update link
-    await db.links.update(args.id, {
-      name: args.name ?? existingLink.name,
-      url: args.url ?? existingLink.url,
-      note: args.note ?? existingLink.note,
-      updatedAt: now,
-    });
-
-    // Update tags if provided
-    if (args.tags !== undefined) {
-      // Remove existing tags
-      await db.linkTags.where({ linkId: args.id }).modify({ deletedAt: now });
-
-      // Add new tags
-      if (args.tags.length > 0) {
-        const tags = await db.tags.filter((t) => !t.deletedAt).toArray();
-        const tagMap = new Map(tags.map((t) => [t.name.toLowerCase(), t.id]));
-
-        for (const tagName of args.tags) {
-          const tagId = tagMap.get(tagName.toLowerCase());
-          if (tagId) {
-            await db.linkTags.add({
-              linkId: args.id,
-              tagId,
-              updatedAt: now,
-            });
-          }
-        }
-      }
-    }
-  });
-
-  return {
-    success: true,
-    message: `Link updated successfully`,
-  };
+  return updateLink(args);
 }
 
 /**
- * Delete a link (soft delete)
+ * Delete a link
  */
 async function links_delete(args: { id: string }) {
-  const existingLink = await db.links.get(args.id);
-  if (!existingLink) {
-    throw new Error(`Link with id ${args.id} not found`);
-  }
-
-  const now = Date.now();
-
-  await db.transaction('rw', db.links, linkTagsTable, async () => {
-    await db.links.update(args.id, { deletedAt: now });
-    await db.linkTags.where({ linkId: args.id }).modify({ deletedAt: now });
-  });
-
-  return {
-    success: true,
-    message: `Link "${existingLink.name}" deleted successfully`,
-  };
+  return deleteLink(args);
 }
 
 /**
@@ -242,7 +92,8 @@ export function registerLinksTools() {
         note: { type: 'string', description: 'Optional note for the link' },
         tags: {
           type: 'array',
-          description: 'Tag names to assign to the link',
+          description:
+            'IMPORTANT: Tag names must already exist. The system associates links to tags via tag IDs internally. If the tag does not exist, it will be skipped. Always call tags_add first if the tag does not exist.',
         },
       },
       ['name', 'url']
@@ -262,7 +113,8 @@ export function registerLinksTools() {
         note: { type: 'string', description: 'New note (optional)' },
         tags: {
           type: 'array',
-          description: 'New tag names to assign (optional)',
+          description:
+            'IMPORTANT: Tag names must already exist. If tag does not exist, it will be skipped. To add a new tag, first call tags_add.',
         },
       },
       ['id']

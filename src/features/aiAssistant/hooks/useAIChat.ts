@@ -1,12 +1,28 @@
 // AI Chat hook - Core conversation logic
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '@/db';
-import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL, OllamaProvider } from '@/lib/ai/ollama';
+// Import AI module to trigger tool registration
+import '@/lib/ai';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
+import { DEFAULT_CONFIGS, createProvider } from '@/lib/ai/provider';
+import { containsToolCall, parseResponse } from '@/lib/ai/response-parser';
 import { toolRegistry } from '@/lib/ai/tools';
-import type { AIToolDefinition } from '@/lib/ai/types';
+import type { AIProviderType, ModelProvider } from '@/lib/ai/types';
+import { decryptData, loadKey } from '@/lib/crypto/encryption';
 import { logger } from '@/utils/logger';
-import type { ChatMessage, ToolCall } from '../types';
+import type { ChatMessage } from '../types';
+
+/**
+ * Tool call representation for internal use
+ */
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string | Record<string, unknown>;
+  };
+}
 
 /**
  * AI Chat state
@@ -22,6 +38,14 @@ export interface PendingToolCall {
 }
 
 /**
+ * Multiple pending tool calls that require confirmation
+ */
+export interface PendingToolCalls {
+  toolCalls: ToolCall[];
+  argumentsList: Record<string, unknown>[];
+}
+
+/**
  * useAIChat hook return type
  */
 export interface UseAIChatReturn {
@@ -29,15 +53,15 @@ export interface UseAIChatReturn {
   messages: ChatMessage[];
   status: AIChatStatus;
   error: string | null;
-  isConnected: boolean;
   pendingToolCall: PendingToolCall | null;
+  pendingToolCalls: PendingToolCalls | null;
 
   // Actions
   sendMessage: (content: string) => Promise<void>;
   confirmToolCall: () => Promise<void>;
+  confirmAllToolCalls: () => Promise<void>;
   cancelToolCall: () => void;
   clearMessages: () => void;
-  checkConnection: () => Promise<boolean>;
 }
 
 /**
@@ -55,16 +79,20 @@ export function useAIChat(): UseAIChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<AIChatStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
   const [pendingToolCall, setPendingToolCall] = useState<PendingToolCall | null>(null);
+  const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
 
   // Refs
-  const providerRef = useRef<OllamaProvider | null>(null);
+  const providerRef = useRef<ModelProvider | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const accumulatedContentRef = useRef<string>('');
 
   // Store callbacks in refs to avoid circular dependency warnings
   const executeToolCallRef = useRef<
     ((toolCall: ToolCall, userMessageId: string) => Promise<void>) | null
+  >(null);
+  const executeToolCallsRef = useRef<
+    ((toolCalls: ToolCall[], userMessageId: string) => Promise<void>) | null
   >(null);
   const continueConversationRef = useRef<((allMessages: ChatMessage[]) => Promise<void>) | null>(
     null
@@ -73,37 +101,45 @@ export function useAIChat(): UseAIChatReturn {
   /**
    * Initialize or get the AI provider
    */
-  const getProvider = useCallback(async (): Promise<OllamaProvider> => {
+  const getProvider = useCallback(async (): Promise<ModelProvider> => {
     if (providerRef.current) {
       return providerRef.current;
     }
 
     // Get config from settings
-    const baseUrlSetting = await db.settings.where('key').equals('ai_ollama_base_url').first();
-    const modelSetting = await db.settings.where('key').equals('ai_ollama_model').first();
+    const providerTypeSetting = await db.settings.where('key').equals('ai_provider_type').first();
+    const baseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
+    const modelSetting = await db.settings.where('key').equals('ai_model').first();
+    const apiKeySetting = await db.settings.where('key').equals('ai_api_key').first();
 
-    const baseUrl = (baseUrlSetting?.value as string) || DEFAULT_OLLAMA_BASE_URL;
-    const model = (modelSetting?.value as string) || DEFAULT_OLLAMA_MODEL;
+    const providerType = (providerTypeSetting?.value as AIProviderType) || 'ollama';
+    const defaults = DEFAULT_CONFIGS[providerType];
+    const baseUrl = (baseUrlSetting?.value as string) || (defaults?.baseUrl as string) || '';
+    const model = (modelSetting?.value as string) || (defaults?.model as string) || '';
 
-    providerRef.current = new OllamaProvider(baseUrl, model);
+    // Decrypt API key if present
+    let apiKey = '';
+    if (apiKeySetting?.value) {
+      try {
+        const encryptionKey = await loadKey();
+        if (encryptionKey) {
+          const decrypted = await decryptData(
+            apiKeySetting.value as { ciphertext: string; iv: string },
+            encryptionKey
+          );
+          apiKey = decrypted as string;
+        } else {
+          // Fallback: use raw value
+          apiKey = apiKeySetting.value as string;
+        }
+      } catch (err) {
+        logger.error('[AIChat] Failed to decrypt API key:', err);
+      }
+    }
+
+    providerRef.current = createProvider(providerType, baseUrl, model, apiKey);
     return providerRef.current;
   }, []);
-
-  /**
-   * Check connection status
-   */
-  const checkConnection = useCallback(async (): Promise<boolean> => {
-    try {
-      const provider = await getProvider();
-      const connected = await provider.healthCheck();
-      setIsConnected(connected);
-      return connected;
-    } catch (err) {
-      logger.error('[AIChat] Connection check failed:', err);
-      setIsConnected(false);
-      return false;
-    }
-  }, [getProvider]);
 
   /**
    * Convert feature ChatMessage to lib ChatMessage format
@@ -112,10 +148,67 @@ export function useAIChat(): UseAIChatReturn {
     return {
       role: msg.role,
       content: msg.content,
-      name: msg.name,
-      toolCallId: msg.toolCallId,
-      toolCalls: msg.toolCalls,
     };
+  }, []);
+
+  /**
+   * Process accumulated content to check for tool calls
+   */
+  const processToolCall = useCallback(async (content: string, userMessageId: string) => {
+    // Check if content contains any tool calls
+    if (!containsToolCall(content)) {
+      setStatus('idle');
+      return;
+    }
+
+    const parsed = parseResponse(content);
+
+    if (parsed.toolCalls && parsed.toolCalls.length > 0) {
+      // Separate tool calls into those needing confirmation and those that can execute directly
+      const toolCallsToConfirm: { toolCall: ToolCall; arguments: Record<string, unknown> }[] = [];
+      const toolCallsToExecute: ToolCall[] = [];
+
+      for (const { name, arguments: args } of parsed.toolCalls) {
+        const toolCall: ToolCall = {
+          id: generateId(),
+          type: 'function',
+          function: {
+            name,
+            arguments: args,
+          },
+        };
+
+        // Check if confirmation is required
+        if (toolRegistry.requiresConfirmation(name)) {
+          toolCallsToConfirm.push({ toolCall, arguments: args });
+        } else {
+          toolCallsToExecute.push(toolCall);
+        }
+      }
+
+      // If there are tool calls needing confirmation
+      if (toolCallsToConfirm.length > 0) {
+        if (toolCallsToExecute.length > 0) {
+          // Execute non-confirming tools first (all results sent together), then set pending for confirming tools
+          await executeToolCallsRef.current?.(toolCallsToExecute, userMessageId);
+        }
+
+        setPendingToolCalls({
+          toolCalls: toolCallsToConfirm.map((t) => t.toolCall),
+          argumentsList: toolCallsToConfirm.map((t) => t.arguments),
+        });
+        setPendingToolCall({
+          toolCall: toolCallsToConfirm[0].toolCall,
+          arguments: toolCallsToConfirm[0].arguments,
+        });
+        setStatus('confirming');
+      } else {
+        // No confirmation needed, execute all tool calls and send results together
+        await executeToolCallsRef.current?.(toolCallsToExecute, userMessageId);
+      }
+    } else {
+      setStatus('idle');
+    }
   }, []);
 
   /**
@@ -123,14 +216,6 @@ export function useAIChat(): UseAIChatReturn {
    */
   const sendMessage = useCallback(
     async (content: string) => {
-      // Check connection first
-      const connected = await checkConnection();
-      if (!connected) {
-        setError('Cannot connect to AI service. Please check your settings.');
-        setStatus('error');
-        return;
-      }
-
       // Create user message
       const userMessage: ChatMessage = {
         id: generateId(),
@@ -144,10 +229,13 @@ export function useAIChat(): UseAIChatReturn {
       setStatus('loading');
       setError(null);
 
+      // Reset accumulated content
+      accumulatedContentRef.current = '';
+
       try {
         const provider = await getProvider();
 
-        // Prepare messages for API
+        // Prepare messages for API (tools are now in the system prompt)
         const systemPrompt = generateSystemPrompt();
         const apiMessages: import('@/lib/ai/types').ChatMessage[] = [
           { role: 'system', content: systemPrompt },
@@ -155,17 +243,16 @@ export function useAIChat(): UseAIChatReturn {
           toLibChatMessage(userMessage),
         ];
 
-        // Get tool definitions
-        const tools = toolRegistry.getToolDefinitions() as AIToolDefinition[];
-
         // Create abort controller for potential cancellation
         abortControllerRef.current = new AbortController();
 
-        // For streaming response, we need a different approach
-        const response = await provider.chat(apiMessages, {
-          tools,
+        // For streaming response (tool calls are parsed from content, not API response)
+        await provider.chat(apiMessages, {
           stream: true,
           onChunk: (chunk) => {
+            // Accumulate content for tool call detection
+            accumulatedContentRef.current += chunk;
+
             // Update the last assistant message with streaming content
             setMessages((prev) => {
               const lastMsg = prev[prev.length - 1];
@@ -188,70 +275,26 @@ export function useAIChat(): UseAIChatReturn {
 
         setStatus('streaming');
 
-        // Check if there are tool calls
-        if (response.message.toolCalls && response.message.toolCalls.length > 0) {
-          const toolCall = response.message.toolCalls[0];
-
-          // Check if confirmation is required
-          if (toolRegistry.requiresConfirmation(toolCall.function.name)) {
-            // Set pending tool call for confirmation
-            const args =
-              typeof toolCall.function.arguments === 'string'
-                ? JSON.parse(toolCall.function.arguments)
-                : toolCall.function.arguments;
-
-            setPendingToolCall({
-              toolCall: {
-                id: toolCall.id,
-                type: toolCall.type,
-                function: {
-                  name: toolCall.function.name,
-                  arguments: args,
-                },
-              },
-              arguments: args,
-            });
-            setStatus('confirming');
-
-            // Add tool call to the assistant message
-            setMessages((prev) => {
-              const lastMsg = prev[prev.length - 1];
-              if (lastMsg?.role === 'assistant') {
-                return [
-                  ...prev.slice(0, -1),
-                  {
-                    ...lastMsg,
-                    toolCalls: [toolCall],
-                  },
-                ];
-              }
-              return prev;
-            });
-          } else {
-            // Execute tool directly
-            await executeToolCallRef.current?.(toolCall, userMessage.id);
-          }
-        } else {
-          setStatus('idle');
-        }
+        // Check accumulated content for tool calls
+        await processToolCall(accumulatedContentRef.current, userMessage.id);
       } catch (err) {
         logger.error('[AIChat] Chat error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
         setStatus('error');
       }
     },
-    [messages, checkConnection, getProvider, toLibChatMessage]
+    [messages, getProvider, toLibChatMessage, processToolCall]
   );
 
   /**
-   * Execute a tool call
+   * Execute a single tool call
    */
   const executeToolCall = useCallback(
     async (toolCall: ToolCall, _userMessageId: string) => {
       setStatus('loading');
 
       try {
-        // Parse arguments
+        // Get arguments - already parsed from JSON format
         const args =
           typeof toolCall.function.arguments === 'string'
             ? JSON.parse(toolCall.function.arguments)
@@ -266,12 +309,11 @@ export function useAIChat(): UseAIChatReturn {
         );
 
         // Create tool result message
+        // Note: We use role 'user' and include tool name in content for text-based tool calling
         const toolResultMessage: ChatMessage = {
           id: generateId(),
-          role: 'tool',
-          content: JSON.stringify(result, null, 2),
-          toolCallId: toolCall.id,
-          name: toolCall.function.name,
+          role: 'user',
+          content: `[${toolCall.function.name}] ${JSON.stringify(result, null, 2)}`,
           createdAt: Date.now(),
         };
 
@@ -285,10 +327,8 @@ export function useAIChat(): UseAIChatReturn {
         // Create error tool result message
         const errorMessage: ChatMessage = {
           id: generateId(),
-          role: 'tool',
-          content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          toolCallId: toolCall.id,
-          name: toolCall.function.name,
+          role: 'user',
+          content: `[${toolCall.function.name}] Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
           createdAt: Date.now(),
         };
 
@@ -302,28 +342,91 @@ export function useAIChat(): UseAIChatReturn {
   );
 
   /**
+   * Execute multiple tool calls in sequence and collect all results
+   */
+  const executeToolCalls = useCallback(
+    async (toolCalls: ToolCall[], _userMessageId: string) => {
+      setStatus('loading');
+      const toolResultMessages: ChatMessage[] = [];
+
+      // Execute each tool call in sequence and collect results
+      for (const toolCall of toolCalls) {
+        try {
+          const args =
+            typeof toolCall.function.arguments === 'string'
+              ? JSON.parse(toolCall.function.arguments)
+              : toolCall.function.arguments;
+
+          logger.info(`[AIChat] Executing tool: ${toolCall.function.name}`, args);
+
+          // Execute the tool
+          const result = await toolRegistry.execute(
+            toolCall.function.name,
+            args as Record<string, unknown>
+          );
+
+          // Create tool result message
+          const toolResultMessage: ChatMessage = {
+            id: generateId(),
+            role: 'user',
+            content: `[${toolCall.function.name}] ${JSON.stringify(result, null, 2)}`,
+            createdAt: Date.now(),
+          };
+
+          toolResultMessages.push(toolResultMessage);
+        } catch (err) {
+          logger.error('[AIChat] Tool execution error:', err);
+
+          // Create error tool result message
+          const errorMessage: ChatMessage = {
+            id: generateId(),
+            role: 'user',
+            content: `[${toolCall.function.name}] Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            createdAt: Date.now(),
+          };
+
+          toolResultMessages.push(errorMessage);
+        }
+      }
+
+      // Add all tool result messages to state
+      setMessages((prev) => [...prev, ...toolResultMessages]);
+
+      // Send all results together to the model
+      await continueConversationRef.current?.([...messages, ...toolResultMessages]);
+    },
+    [messages, continueConversationRef]
+  );
+
+  /**
    * Continue conversation after tool execution
    */
   const continueConversation = useCallback(
     async (allMessages: ChatMessage[]) => {
+      // Reset accumulated content for the next response
+      accumulatedContentRef.current = '';
+
       try {
         const provider = await getProvider();
 
-        // Prepare messages
+        // Prepare messages (tools are in system prompt)
         const systemPrompt = generateSystemPrompt();
         const apiMessages: import('@/lib/ai/types').ChatMessage[] = [
           { role: 'system', content: systemPrompt },
           ...allMessages.map(toLibChatMessage),
         ];
 
-        // Get response
-        const response = await provider.chat(apiMessages, {
+        // Get response (tool calls are parsed from content, not API response)
+        await provider.chat(apiMessages, {
           stream: true,
           onChunk: (chunk) => {
+            // Accumulate content
+            accumulatedContentRef.current += chunk;
+
             // Update or create assistant message
             setMessages((prev) => {
               const lastMsg = prev[prev.length - 1];
-              if (lastMsg?.role === 'assistant' && !lastMsg.toolCalls) {
+              if (lastMsg?.role === 'assistant') {
                 return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + chunk }];
               }
               return [
@@ -339,41 +442,15 @@ export function useAIChat(): UseAIChatReturn {
           },
         });
 
-        // Check for more tool calls
-        if (response.message.toolCalls && response.message.toolCalls.length > 0) {
-          const toolCall = response.message.toolCalls[0];
-
-          if (toolRegistry.requiresConfirmation(toolCall.function.name)) {
-            const args =
-              typeof toolCall.function.arguments === 'string'
-                ? JSON.parse(toolCall.function.arguments)
-                : toolCall.function.arguments;
-
-            setPendingToolCall({
-              toolCall: {
-                id: toolCall.id,
-                type: toolCall.type,
-                function: {
-                  name: toolCall.function.name,
-                  arguments: args,
-                },
-              },
-              arguments: args,
-            });
-            setStatus('confirming');
-          } else {
-            await executeToolCallRef.current?.(toolCall, '');
-          }
-        } else {
-          setStatus('idle');
-        }
+        // Check for tool calls in accumulated content
+        await processToolCall(accumulatedContentRef.current, '');
       } catch (err) {
         logger.error('[AIChat] Continue conversation error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
         setStatus('error');
       }
     },
-    [getProvider, toLibChatMessage, executeToolCallRef]
+    [getProvider, toLibChatMessage, processToolCall]
   );
 
   /**
@@ -400,25 +477,52 @@ export function useAIChat(): UseAIChatReturn {
   }, [pendingToolCall, executeToolCall]);
 
   /**
-   * Cancel pending tool call
+   * Confirm and execute all pending tool calls
+   */
+  const confirmAllToolCalls = useCallback(async () => {
+    if (!pendingToolCalls) return;
+
+    const { toolCalls } = pendingToolCalls;
+
+    // Add user confirmation message
+    const confirmMessage: ChatMessage = {
+      id: generateId(),
+      role: 'user',
+      content: `Confirmed: Execute ${toolCalls.length} tool call(s)`,
+      createdAt: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, confirmMessage]);
+
+    // Clear pending tool calls
+    setPendingToolCalls(null);
+    setPendingToolCall(null);
+
+    // Execute all tools in sequence
+    await executeToolCalls(toolCalls, confirmMessage.id);
+  }, [pendingToolCalls, executeToolCalls]);
+
+  /**
+   * Cancel pending tool call(s)
    */
   const cancelToolCall = useCallback(() => {
-    if (!pendingToolCall) return;
+    const toolCall = pendingToolCall?.toolCall || pendingToolCalls?.toolCalls[0];
 
-    const { toolCall } = pendingToolCall;
+    if (!toolCall) return;
 
     // Add cancellation message
     const cancelMessage: ChatMessage = {
       id: generateId(),
       role: 'user',
-      content: `Cancelled: ${toolCall.function.name}`,
+      content: `Cancelled: ${toolCall.function.name}${pendingToolCalls && pendingToolCalls.toolCalls.length > 1 ? ` and ${pendingToolCalls.toolCalls.length - 1} other(s)` : ''}`,
       createdAt: Date.now(),
     };
 
     setMessages((prev) => [...prev, cancelMessage]);
     setPendingToolCall(null);
+    setPendingToolCalls(null);
     setStatus('idle');
-  }, [pendingToolCall]);
+  }, [pendingToolCall, pendingToolCalls]);
 
   /**
    * Clear all messages
@@ -428,11 +532,14 @@ export function useAIChat(): UseAIChatReturn {
     setStatus('idle');
     setError(null);
     setPendingToolCall(null);
+    setPendingToolCalls(null);
+    accumulatedContentRef.current = '';
   }, []);
 
   // Update refs after functions are defined to avoid circular dependencies
   useEffect(() => {
     executeToolCallRef.current = executeToolCall;
+    executeToolCallsRef.current = executeToolCalls;
     continueConversationRef.current = continueConversation;
   });
 
@@ -440,12 +547,12 @@ export function useAIChat(): UseAIChatReturn {
     messages,
     status,
     error,
-    isConnected,
     pendingToolCall,
+    pendingToolCalls,
     sendMessage,
     confirmToolCall,
+    confirmAllToolCalls,
     cancelToolCall,
     clearMessages,
-    checkConnection,
   };
 }

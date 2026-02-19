@@ -36,6 +36,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Synced**: Tags, Links, Link-Job tag associations (all encrypted).
 
 ### Key Directories
+
 - `src/entrypoints/` - Extension entry points (background, popup, options, content scripts).
 - `src/features/` - Feature-based modules (jenkins, links, recorder, etc.).
 - `src/lib/` - Shared utilities, including `sync/` and `crypto/`.
@@ -66,53 +67,58 @@ This extension is designed for automation testing via Chrome DevTools MCP. All i
 ### Test IDs Reference
 
 #### Popup Page
-| testid | Description |
-|--------|-------------|
-| `app-title` | Application title "DPP" |
-| `settings-button` | Settings icon button |
-| `tab-container` | Tab navigation container |
-| `tab-blackboard` | Blackboard tab |
-| `tab-jenkins` | Jenkins tab |
-| `tab-links` | Links tab |
-| `tab-recorder` | Recorder tab |
-| `tab-hotnews` | Hot News tab |
-| `main-content` | Main content area |
+
+| testid            | Description              |
+| ----------------- | ------------------------ |
+| `app-title`       | Application title "DPP"  |
+| `settings-button` | Settings icon button     |
+| `tab-container`   | Tab navigation container |
+| `tab-blackboard`  | Blackboard tab           |
+| `tab-jenkins`     | Jenkins tab              |
+| `tab-links`       | Links tab                |
+| `tab-recorder`    | Recorder tab             |
+| `tab-hotnews`     | Hot News tab             |
+| `main-content`    | Main content area        |
 
 #### Options Page
-| testid | Description |
-|--------|-------------|
-| `options-page` | Entire options page |
-| `options-title` | Page title |
-| `section-appearance` | Appearance section |
-| `theme-toggle` | Theme toggle container |
-| `theme-toggle-light` | Light theme button |
-| `theme-toggle-dark` | Dark theme button |
-| `theme-toggle-system` | System theme button |
-| `checkbox-feature-hotnews` | Hot news feature toggle |
-| `input-server-url` | Server URL input |
-| `input-access-token` | Access token input |
-| `button-save-sync` | Save sync settings button |
-| `button-export` | Export config button |
-| `button-import` | Import config button |
-| `danger-zone` | Danger zone section |
-| `button-clear-data` | Clear all data button |
+
+| testid                     | Description               |
+| -------------------------- | ------------------------- |
+| `options-page`             | Entire options page       |
+| `options-title`            | Page title                |
+| `section-appearance`       | Appearance section        |
+| `theme-toggle`             | Theme toggle container    |
+| `theme-toggle-light`       | Light theme button        |
+| `theme-toggle-dark`        | Dark theme button         |
+| `theme-toggle-system`      | System theme button       |
+| `checkbox-feature-hotnews` | Hot news feature toggle   |
+| `input-server-url`         | Server URL input          |
+| `input-access-token`       | Access token input        |
+| `button-save-sync`         | Save sync settings button |
+| `button-export`            | Export config button      |
+| `button-import`            | Import config button      |
+| `danger-zone`              | Danger zone section       |
+| `button-clear-data`        | Clear all data button     |
 
 #### Loading States
+
 - `[data-testid="loading"]` - Shows during data fetch (e.g., BlackboardView)
 
 ### Testing Tips
 
 1. Wait for loading to finish before assertions:
+
    ```javascript
-   await wait_for('not([data-testid="loading"])')
+   await wait_for('not([data-testid="loading"])');
    ```
 
 2. Click elements by testid:
+
    ```javascript
-   await click('[data-testid="settings-button"]')
+   await click('[data-testid="settings-button"]');
    ```
 
 3. Fill inputs by testid:
    ```javascript
-   await fill('[data-testid="input-server-url"]', 'http://localhost:3000')
+   await fill('[data-testid="input-server-url"]', 'http://localhost:3000');
    ```
