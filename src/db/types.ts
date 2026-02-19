@@ -128,6 +128,22 @@ export interface HotNewsCache {
   updatedAt: number;
 }
 
+export interface AISession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AIMessage {
+  id: string;
+  sessionId: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  name?: string;
+  createdAt: number;
+}
+
 export type DPPDatabase = Dexie & {
   links: EntityTable<LinkItem, 'id'>;
   linkTags: EntityTable<LinkTagItem, never>;
@@ -144,4 +160,6 @@ export type DPPDatabase = Dexie & {
   operations: EntityTable<SyncOperation, 'id'>;
   syncMetadata: EntityTable<SyncMetadata, 'id'>;
   deferred_ops: EntityTable<DeferredOp, 'id'>;
+  aiSessions: EntityTable<AISession, 'id'>;
+  aiMessages: EntityTable<AIMessage, 'id'>;
 };

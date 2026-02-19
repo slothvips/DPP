@@ -9,8 +9,18 @@ import { containsToolCall, parseResponse } from '@/lib/ai/response-parser';
 import { toolRegistry } from '@/lib/ai/tools';
 import type { AIProviderType, ModelProvider } from '@/lib/ai/types';
 import { decryptData, loadKey } from '@/lib/crypto/encryption';
+import {
+  addMessage,
+  clearSessionMessages,
+  createSession,
+  deleteSession as dbDeleteSession,
+  getMessagesBySession,
+  getMostRecentSession,
+  listSessions,
+  updateSessionTitle,
+} from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
-import type { ChatMessage } from '../types';
+import type { AISession, ChatMessage } from '../types';
 
 /**
  * Tool call representation for internal use
@@ -55,6 +65,8 @@ export interface UseAIChatReturn {
   error: string | null;
   pendingToolCall: PendingToolCall | null;
   pendingToolCalls: PendingToolCalls | null;
+  sessionId: string | null;
+  sessions: AISession[];
 
   // Actions
   sendMessage: (content: string) => Promise<void>;
@@ -62,6 +74,9 @@ export interface UseAIChatReturn {
   confirmAllToolCalls: () => Promise<void>;
   cancelToolCall: () => void;
   clearMessages: () => void;
+  createNewSession: () => Promise<void>;
+  switchSession: (id: string) => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
 }
 
 /**
@@ -81,11 +96,14 @@ export function useAIChat(): UseAIChatReturn {
   const [error, setError] = useState<string | null>(null);
   const [pendingToolCall, setPendingToolCall] = useState<PendingToolCall | null>(null);
   const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<AISession[]>([]);
 
   // Refs
   const providerRef = useRef<ModelProvider | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const accumulatedContentRef = useRef<string>('');
+  const isFirstMessageRef = useRef<boolean>(true);
 
   // Store callbacks in refs to avoid circular dependency warnings
   const executeToolCallRef = useRef<
@@ -212,6 +230,23 @@ export function useAIChat(): UseAIChatReturn {
   }, []);
 
   /**
+   * Load session data
+   */
+  const loadSession = useCallback(async (id: string) => {
+    const loadedMessages = await getMessagesBySession(id);
+    setMessages(loadedMessages);
+    setSessionId(id);
+  }, []);
+
+  /**
+   * Load sessions list
+   */
+  const loadSessions = useCallback(async () => {
+    const loadedSessions = await listSessions();
+    setSessions(loadedSessions);
+  }, []);
+
+  /**
    * Send a message and get AI response
    */
   const sendMessage = useCallback(
@@ -231,6 +266,22 @@ export function useAIChat(): UseAIChatReturn {
 
       // Reset accumulated content
       accumulatedContentRef.current = '';
+
+      // Save user message to database
+      if (sessionId) {
+        await addMessage({
+          sessionId,
+          role: 'user',
+          content,
+        });
+
+        // Update session title on first message
+        if (isFirstMessageRef.current) {
+          await updateSessionTitle(sessionId, content);
+          isFirstMessageRef.current = false;
+          await loadSessions();
+        }
+      }
 
       try {
         const provider = await getProvider();
@@ -275,6 +326,16 @@ export function useAIChat(): UseAIChatReturn {
 
         setStatus('streaming');
 
+        // Save assistant message to database after streaming completes
+        // Use accumulatedContentRef which has the complete response
+        if (sessionId && accumulatedContentRef.current) {
+          addMessage({
+            sessionId,
+            role: 'assistant',
+            content: accumulatedContentRef.current,
+          }).catch((err) => logger.error('[AIChat] Failed to save assistant message:', err));
+        }
+
         // Check accumulated content for tool calls
         await processToolCall(accumulatedContentRef.current, userMessage.id);
       } catch (err) {
@@ -283,7 +344,7 @@ export function useAIChat(): UseAIChatReturn {
         setStatus('error');
       }
     },
-    [messages, getProvider, toLibChatMessage, processToolCall]
+    [messages, sessionId, getProvider, toLibChatMessage, processToolCall, loadSessions]
   );
 
   /**
@@ -319,6 +380,15 @@ export function useAIChat(): UseAIChatReturn {
 
         setMessages((prev) => [...prev, toolResultMessage]);
 
+        // Save tool result to database
+        if (sessionId) {
+          addMessage({
+            sessionId,
+            role: 'user',
+            content: toolResultMessage.content,
+          }).catch((err) => logger.error('[AIChat] Failed to save tool result:', err));
+        }
+
         // Send result back to AI for final response
         await continueConversationRef.current?.([...messages, toolResultMessage]);
       } catch (err) {
@@ -334,11 +404,20 @@ export function useAIChat(): UseAIChatReturn {
 
         setMessages((prev) => [...prev, errorMessage]);
 
+        // Save error to database
+        if (sessionId) {
+          addMessage({
+            sessionId,
+            role: 'user',
+            content: errorMessage.content,
+          }).catch((err) => logger.error('[AIChat] Failed to save error:', err));
+        }
+
         // Continue with error
         await continueConversationRef.current?.([...messages, errorMessage]);
       }
     },
-    [messages, continueConversationRef]
+    [messages, sessionId, continueConversationRef]
   );
 
   /**
@@ -392,10 +471,23 @@ export function useAIChat(): UseAIChatReturn {
       // Add all tool result messages to state
       setMessages((prev) => [...prev, ...toolResultMessages]);
 
+      // Save all tool results to database
+      if (sessionId) {
+        await Promise.all(
+          toolResultMessages.map((msg) =>
+            addMessage({
+              sessionId,
+              role: msg.role,
+              content: msg.content,
+            }).catch((err) => logger.error('[AIChat] Failed to save tool result:', err))
+          )
+        );
+      }
+
       // Send all results together to the model
       await continueConversationRef.current?.([...messages, ...toolResultMessages]);
     },
-    [messages, continueConversationRef]
+    [messages, sessionId, continueConversationRef]
   );
 
   /**
@@ -442,6 +534,15 @@ export function useAIChat(): UseAIChatReturn {
           },
         });
 
+        // Save assistant message to database after streaming completes
+        if (sessionId && accumulatedContentRef.current) {
+          addMessage({
+            sessionId,
+            role: 'assistant',
+            content: accumulatedContentRef.current,
+          }).catch((err) => logger.error('[AIChat] Failed to save assistant message:', err));
+        }
+
         // Check for tool calls in accumulated content
         await processToolCall(accumulatedContentRef.current, '');
       } catch (err) {
@@ -450,7 +551,7 @@ export function useAIChat(): UseAIChatReturn {
         setStatus('error');
       }
     },
-    [getProvider, toLibChatMessage, processToolCall]
+    [getProvider, toLibChatMessage, processToolCall, sessionId]
   );
 
   /**
@@ -472,9 +573,18 @@ export function useAIChat(): UseAIChatReturn {
 
     setMessages((prev) => [...prev, confirmMessage]);
 
+    // Save confirmation to database
+    if (sessionId) {
+      addMessage({
+        sessionId,
+        role: 'user',
+        content: confirmMessage.content,
+      }).catch((err) => logger.error('[AIChat] Failed to save confirmation:', err));
+    }
+
     // Execute the tool
     await executeToolCall(toolCall, confirmMessage.id);
-  }, [pendingToolCall, executeToolCall]);
+  }, [pendingToolCall, sessionId, executeToolCall]);
 
   /**
    * Confirm and execute all pending tool calls
@@ -494,13 +604,22 @@ export function useAIChat(): UseAIChatReturn {
 
     setMessages((prev) => [...prev, confirmMessage]);
 
+    // Save confirmation to database
+    if (sessionId) {
+      addMessage({
+        sessionId,
+        role: 'user',
+        content: confirmMessage.content,
+      }).catch((err) => logger.error('[AIChat] Failed to save confirmation:', err));
+    }
+
     // Clear pending tool calls
     setPendingToolCalls(null);
     setPendingToolCall(null);
 
     // Execute all tools in sequence
     await executeToolCalls(toolCalls, confirmMessage.id);
-  }, [pendingToolCalls, executeToolCalls]);
+  }, [pendingToolCalls, sessionId, executeToolCalls]);
 
   /**
    * Cancel pending tool call(s)
@@ -519,21 +638,107 @@ export function useAIChat(): UseAIChatReturn {
     };
 
     setMessages((prev) => [...prev, cancelMessage]);
+
+    // Save cancellation to database
+    if (sessionId) {
+      addMessage({
+        sessionId,
+        role: 'user',
+        content: cancelMessage.content,
+      }).catch((err) => logger.error('[AIChat] Failed to save cancellation:', err));
+    }
+
     setPendingToolCall(null);
     setPendingToolCalls(null);
     setStatus('idle');
-  }, [pendingToolCall, pendingToolCalls]);
+  }, [pendingToolCall, pendingToolCalls, sessionId]);
 
   /**
-   * Clear all messages
+   * Clear all messages in current session
    */
   const clearMessages = useCallback(() => {
+    if (sessionId) {
+      clearSessionMessages(sessionId);
+    }
     setMessages([]);
     setStatus('idle');
     setError(null);
     setPendingToolCall(null);
     setPendingToolCalls(null);
     accumulatedContentRef.current = '';
+    isFirstMessageRef.current = true;
+  }, [sessionId]);
+
+  /**
+   * Create a new session and switch to it
+   */
+  const createNewSession = useCallback(async () => {
+    const session = await createSession('新会话');
+    await loadSessions();
+    await loadSession(session.id);
+    isFirstMessageRef.current = true;
+  }, [loadSession, loadSessions]);
+
+  /**
+   * Switch to an existing session
+   */
+  const switchSession = useCallback(
+    async (id: string) => {
+      await loadSession(id);
+    },
+    [loadSession]
+  );
+
+  /**
+   * Delete a session
+   */
+  const deleteSessionHandler = useCallback(
+    async (id: string) => {
+      await dbDeleteSession(id);
+      await loadSessions();
+
+      // If deleting current session, switch to another or create new
+      if (sessionId === id) {
+        const remainingSessions = await listSessions();
+        if (remainingSessions.length > 0) {
+          await loadSession(remainingSessions[0].id);
+        } else {
+          // Create new session if no sessions remain
+          await createNewSession();
+        }
+      }
+    },
+    [sessionId, loadSession, loadSessions, createNewSession]
+  );
+
+  // Initialize sessions on mount
+  useEffect(() => {
+    let mounted = true;
+    const init = async () => {
+      if (!mounted) return;
+      await loadSessions();
+      const recentSession = await getMostRecentSession();
+      if (!mounted) return;
+      if (recentSession) {
+        // Check if the recent session has messages
+        const messages = await getMessagesBySession(recentSession.id);
+        if (messages.length > 0) {
+          // Has messages, create a new session
+          await createNewSession();
+        } else {
+          // Empty session, continue using it
+          await loadSession(recentSession.id);
+        }
+      } else {
+        // Create initial session if none exists
+        await createNewSession();
+      }
+    };
+    init();
+    return () => {
+      mounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update refs after functions are defined to avoid circular dependencies
@@ -549,10 +754,15 @@ export function useAIChat(): UseAIChatReturn {
     error,
     pendingToolCall,
     pendingToolCalls,
+    sessionId,
+    sessions,
     sendMessage,
     confirmToolCall,
     confirmAllToolCalls,
     cancelToolCall,
     clearMessages,
+    createNewSession,
+    switchSession,
+    deleteSession: deleteSessionHandler,
   };
 }

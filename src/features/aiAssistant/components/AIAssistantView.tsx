@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useAIChat } from '../hooks/useAIChat';
 import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
+import { AISessionList } from './AISessionList';
 import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 export function AIAssistantView() {
@@ -14,11 +15,16 @@ export function AIAssistantView() {
     error,
     pendingToolCall,
     pendingToolCalls,
+    sessions,
+    sessionId,
     sendMessage,
     confirmToolCall,
     confirmAllToolCalls,
     cancelToolCall,
     clearMessages,
+    createNewSession,
+    switchSession,
+    deleteSession,
   } = useAIChat();
 
   const [input, setInput] = useState('');
@@ -91,6 +97,13 @@ export function AIAssistantView() {
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">AI 助手</span>
+          <AISessionList
+            sessions={sessions}
+            currentSessionId={sessionId}
+            onSelectSession={switchSession}
+            onCreateSession={createNewSession}
+            onDeleteSession={deleteSession}
+          />
         </div>
         <div className="flex items-center gap-1">
           <AIConfigDialog onSaved={handleConfigSaved}>
@@ -103,7 +116,7 @@ export function AIAssistantView() {
             size="sm"
             onClick={handleClear}
             disabled={messages.length === 0}
-            title="清空对话"
+            title="清空当前会话对话"
           >
             <Trash2 className="w-4 h-4" />
           </Button>

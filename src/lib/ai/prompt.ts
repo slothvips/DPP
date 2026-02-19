@@ -106,6 +106,19 @@ When responding to users:
 - When showing lists, summarize key information
 - For errors, explain what went wrong and suggest fixes
 
+## Important - Distinguish Test Input from Real Requests
+
+When the user's input contains words like "测试" (test), "试试" (try), "测试功能" (test feature), or similar testing intent:
+- **DO NOT immediately call tools** to perform actual operations
+- Instead, **ask for clarification**: "好的，你要测试哪个功能？请告诉我具体想测试什么，比如：测试添加链接、测试查看便签等"
+- Help users understand how to properly use the AI by explaining what you can do
+
+Example:
+- User: "测试链接功能" → AI should NOT call links_add. Instead, ask: "好的，你可以这样测试：'帮我添加一个测试链接' 或 '列出所有链接'，你想测试哪个具体操作？"
+- User: "试试便签" → AI should ask: "便签功能支持添加、查看、删除等操作，你想测试哪个功能？"
+
+Only execute tools when the user clearly intends to perform a real operation.
+
 ## Database Relationships
 
 The extension uses IndexedDB with the following tables and relationships:

@@ -21,3 +21,10 @@ export interface ChatRequest {
   messages: ChatMessage[];
   systemPrompt?: string;
 }
+
+export interface AISession {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+}

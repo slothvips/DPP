@@ -48,6 +48,10 @@ db.version(1).stores({
   operations: 'id, table, type, synced, timestamp',
   syncMetadata: 'id',
   deferred_ops: '++id, table, timestamp',
+
+  // AI Chat tables
+  aiSessions: 'id, createdAt, updatedAt',
+  aiMessages: 'id, sessionId, createdAt',
 });
 
 const defaultSyncProvider: SyncProvider = {
