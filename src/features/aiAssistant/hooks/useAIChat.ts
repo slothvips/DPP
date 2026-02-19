@@ -711,12 +711,26 @@ export function useAIChat(): UseAIChatReturn {
     [sessionId, loadSession, loadSessions, createNewSession]
   );
 
-  // Initialize sessions on mount
+  // Initialize sessions on mount - only run once per page load
   useEffect(() => {
     let mounted = true;
+
     const init = async () => {
       if (!mounted) return;
+
+      // Check sessionStorage for saved session ID (persists during tab switches)
+      const savedSessionId = sessionStorage.getItem('ai_current_session_id');
+      if (savedSessionId) {
+        // Verify the session still exists
+        const session = await db.aiSessions.get(savedSessionId);
+        if (session && mounted) {
+          await loadSession(savedSessionId);
+          return;
+        }
+      }
+
       await loadSessions();
+
       const recentSession = await getMostRecentSession();
       if (!mounted) return;
       if (recentSession) {
@@ -740,6 +754,13 @@ export function useAIChat(): UseAIChatReturn {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Save current session ID to sessionStorage when it changes
+  useEffect(() => {
+    if (sessionId) {
+      sessionStorage.setItem('ai_current_session_id', sessionId);
+    }
+  }, [sessionId]);
 
   // Update refs after functions are defined to avoid circular dependencies
   useEffect(() => {
