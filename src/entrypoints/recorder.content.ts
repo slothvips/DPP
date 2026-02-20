@@ -23,12 +23,16 @@ export default defineContentScript({
       }
     });
 
-    browser.runtime.onMessage.addListener((message) => {
+    browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.type === 'RECORDER_INJECT') {
         startRecording();
       }
       if (message.type === 'RECORDER_STOP_CAPTURE') {
         stopRecording();
+      }
+      if (message.type === 'RECORDER_PING') {
+        sendResponse({ success: true });
+        return true;
       }
     });
 

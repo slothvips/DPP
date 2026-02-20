@@ -1,20 +1,30 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Settings } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { GlobalSyncButton } from '@/components/GlobalSyncButton';
 import { Tips } from '@/components/Tips';
 import { Button } from '@/components/ui/button';
 import { ToastProvider } from '@/components/ui/toast';
 import { db } from '@/db';
 import type { JenkinsEnvironment } from '@/db';
-import { AIAssistantView } from '@/features/aiAssistant/components/AIAssistantView';
 import { BlackboardView } from '@/features/blackboard/components/BlackboardView';
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
-import { RecordingsView } from '@/features/recorder/components/RecordingsView';
 import { useTheme } from '@/hooks/useTheme';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
+
+// 动态导入大型组件以减少初始体积
+const AIAssistantView = React.lazy(() =>
+  import('@/features/aiAssistant/components/AIAssistantView').then((m) => ({
+    default: m.AIAssistantView,
+  }))
+);
+const RecordingsView = React.lazy(() =>
+  import('@/features/recorder/components/RecordingsView').then((m) => ({
+    default: m.RecordingsView,
+  }))
+);
 
 export function App() {
   useTheme();
@@ -178,12 +188,16 @@ export function App() {
 
           {/* Content */}
           <main className="flex-1 overflow-hidden p-2" data-testid="main-content">
-            {activeTab === 'links' && featureToggles.links && <LinksView />}
-            {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
-            {activeTab === 'recorder' && <RecordingsView />}
-            {activeTab === 'blackboard' && <BlackboardView />}
-            {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
-            {activeTab === 'aiAssistant' && <AIAssistantView />}
+            <Suspense
+              fallback={<div className="flex items-center justify-center h-full">加载中...</div>}
+            >
+              {activeTab === 'links' && featureToggles.links && <LinksView />}
+              {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
+              {activeTab === 'recorder' && <RecordingsView />}
+              {activeTab === 'blackboard' && <BlackboardView />}
+              {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
+              {activeTab === 'aiAssistant' && <AIAssistantView />}
+            </Suspense>
           </main>
         </div>
       </ConfirmDialogProvider>

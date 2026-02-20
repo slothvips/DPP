@@ -44,22 +44,6 @@ export interface RecordingSavedMessage {
   recordingId: string;
 }
 
-export interface RequestStreamMessage {
-  type: 'RECORDER_REQUEST_STREAM';
-}
-
-export interface PreviewSignalMessage {
-  type: 'PREVIEW_SIGNAL';
-  payload: {
-    signal: unknown;
-    target: 'offscreen' | 'preview';
-  };
-}
-
-export interface PreviewOpenMessage {
-  type: 'PREVIEW_OPEN';
-}
-
 export type RecorderMessage =
   | StartRecordingMessage
   | StopRecordingMessage
@@ -70,10 +54,7 @@ export type RecorderMessage =
   | RecordingCompleteMessage
   | RecordingSavedMessage
   | GetAllRecordingsMessage
-  | GetRecordingByIdMessage
-  | RequestStreamMessage
-  | PreviewSignalMessage
-  | PreviewOpenMessage;
+  | GetRecordingByIdMessage;
 
 export interface GetAllRecordingsMessage {
   type: 'RECORDER_GET_ALL_RECORDINGS';
@@ -105,5 +86,10 @@ export interface GetRecordingByIdMessage {
 export interface GetRecordingByIdResponse {
   success: boolean;
   recording?: import('./types').Recording;
+  error?: string;
+}
+
+export interface RecordingStartResponse {
+  success: boolean;
   error?: string;
 }

@@ -4,11 +4,15 @@ import { defineConfig } from 'wxt';
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: 'src',
-  modules: ['@wxt-dev/module-react'],
   vite: () => ({
     plugins: [UnoCSS()],
     esbuild: {
       charset: 'ascii',
+    },
+    build: {
+      // 提高警告阈值，消除 "chunk too large" 警告
+      // Web LLM 动态加载的 chunk 约 6MB，设置阈值为 7000KB
+      chunkSizeWarningLimit: 7000,
     },
   }),
   webExt: {
@@ -23,17 +27,7 @@ export default defineConfig({
     },
   },
   manifest: {
-    id: 'dpp@local',
-    permissions: [
-      'storage',
-      'offscreen',
-      'desktopCapture',
-      'debugger',
-      'scripting',
-      'sidePanel',
-      'contextMenus',
-    ],
-    host_permissions: ['<all_urls>'],
+    permissions: ['storage', 'sidePanel'],
     side_panel: {
       default_path: 'sidepanel.html',
     },

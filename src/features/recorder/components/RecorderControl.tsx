@@ -1,12 +1,23 @@
-import { browser } from 'wxt/browser';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { logger } from '@/utils/logger';
 import { useRecorder } from '../hooks/useRecorder';
 
 export function RecorderControl() {
-  const { isRecording, duration, startRecording } = useRecorder();
+  const { isRecording, duration, startRecording, isPageSupported, refetchPageSupport } =
+    useRecorder();
   const { toast } = useToast();
+
+  const handleStartRecording = async () => {
+    const response = await startRecording();
+    if (!response.success) {
+      toast(response.error || '无法在该页面开始录制，请刷新页面后重试', 'error');
+      // 重新检测页面支持状态
+      refetchPageSupport();
+    }
+  };
+
+  const isSupported = isPageSupported === true;
+  const isChecking = isPageSupported === null;
 
   const formatDuration = (ms: number) => {
     const seconds = Math.floor(ms / 1000);
@@ -18,50 +29,33 @@ export function RecorderControl() {
   };
 
   if (!isRecording) {
-    return (
-      <div className="flex flex-col gap-3 w-full">
-        <div className="flex gap-2 w-full">
-          <Button
-            variant="outline"
-            className="flex-1 flex items-center justify-center gap-2"
-            onClick={async () => {
-              try {
-                const response = await browser.runtime.sendMessage({
-                  type: 'RECORDER_REQUEST_STREAM',
-                });
-                if (!response.success) {
-                  toast(response.error || '未知错误', 'error');
-                }
-              } catch (e) {
-                logger.error('Failed to request recording stream:', e);
-                toast('请求屏幕共享失败', 'error');
-              }
-            }}
-          >
-            共享屏幕 (Beta)
-          </Button>
-          <Button
-            variant="outline"
-            className="flex-1 flex items-center justify-center gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
-            onClick={() => {
-              browser.tabs.create({ url: browser.runtime.getURL('/preview.html?mode=viewer') });
-            }}
-          >
-            观看TA
-          </Button>
-        </div>
-
-        <div className="h-px bg-border w-full my-1" />
-
-        <Button
-          variant="destructive"
-          className="w-full flex items-center gap-2"
-          onClick={startRecording}
-        >
-          <div className="w-3 h-3 rounded-full bg-white" />
-          开始录制
+    if (isChecking) {
+      return (
+        <Button variant="destructive" className="w-full flex items-center gap-2" disabled>
+          <div className="w-3 h-3 rounded-full bg-white/50 animate-pulse" />
+          检测页面...
         </Button>
-      </div>
+      );
+    }
+
+    if (!isSupported) {
+      return (
+        <Button variant="outline" className="w-full flex items-center gap-2" disabled>
+          <div className="w-3 h-3 rounded-full bg-muted-foreground" />
+          页面不支持录制
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        variant="destructive"
+        className="w-full flex items-center gap-2"
+        onClick={handleStartRecording}
+      >
+        <div className="w-3 h-3 rounded-full bg-white" />
+        开始录制
+      </Button>
     );
   }
 

@@ -311,12 +311,17 @@ function runInMainFrame() {
             playBtn.disabled = true;
 
             try {
-              const response = await fetch(jsonUrl, { credentials: 'include' });
-              if (!response.ok) {
-                throw new Error(`下载失败: ${response.status}`);
+              // Use background proxy to fetch the JSON
+              const response = await browser.runtime.sendMessage({
+                type: 'ZEN_FETCH_JSON',
+                payload: { url: jsonUrl },
+              });
+
+              if (!response.success) {
+                throw new Error(response.error || '下载失败');
               }
 
-              const events = await response.json();
+              const events = response.data;
               logger.debug('[DPP Zentao]', 'Fetched events count:', events.length);
 
               const cacheId = `remote_${Date.now()}_${Math.random().toString(36).slice(2)}`;

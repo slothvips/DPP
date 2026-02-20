@@ -1,4 +1,3 @@
-import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
 
 export default defineContentScript({
@@ -22,16 +21,25 @@ async function runHeadlessAuth() {
   try {
     showNotification('🔄 DPP: 正在连接 Jenkins...', false);
 
-    // 1. Get Current User Info
-    const userRes = await http(`${location.origin}/me/api/json?tree=id`, {
-      timeout: 15000,
+    // 1. Get Current User Info (via background proxy)
+    const userRes = await browser.runtime.sendMessage({
+      type: 'JENKINS_API_REQUEST',
+      payload: {
+        url: `${location.origin}/me/api/json?tree=id`,
+        options: { timeout: 15000 },
+      },
     });
+    if (!userRes.success) {
+      throw new Error(userRes.error || '请求失败');
+    }
     if (userRes.status === 403 || userRes.status === 401) {
       throw new Error('请先登录 Jenkins。');
     }
-    if (!userRes.ok) throw new Error('无法识别 Jenkins 用户。');
+    if (userRes.status && userRes.status >= 400) {
+      throw new Error('无法识别 Jenkins 用户。');
+    }
 
-    const userData = (await userRes.json()) as { id?: string };
+    const userData = userRes.data as { id?: string };
     const userId = userData.id;
     if (!userId) throw new Error('无法获取用户 ID。');
 
@@ -68,18 +76,27 @@ async function generateJenkinsToken(userId: string, tokenName: string): Promise<
   const params = new URLSearchParams();
   params.append('newTokenName', tokenName);
 
-  const response = await http(endpoint, {
-    method: 'POST',
-    headers,
-    body: params,
-    timeout: 15000,
+  const response = await browser.runtime.sendMessage({
+    type: 'JENKINS_API_REQUEST',
+    payload: {
+      url: endpoint,
+      options: {
+        method: 'POST',
+        headers,
+        body: params.toString(),
+        timeout: 15000,
+      },
+    },
   });
 
-  if (!response.ok) {
+  if (!response.success) {
+    throw new Error(response.error || '请求失败');
+  }
+  if (response.status && response.status >= 400) {
     throw new Error(`Token 生成失败 (${response.status})`);
   }
 
-  const result = (await response.json()) as {
+  const result = response.data as {
     status?: string;
     data?: { tokenValue?: string };
   };
@@ -114,14 +131,18 @@ async function getCrumb(): Promise<{ header: string; value: string } | null> {
     return { header: headCrumbHeader, value: headCrumbValue };
   }
 
-  // Priority 2: API
+  // Priority 2: API (via background proxy)
   try {
     const jenkinsRoot = document.head.getAttribute('data-rooturl') || '';
-    const res = await http(`${jenkinsRoot}/crumbIssuer/api/json`, {
-      timeout: 10000,
+    const res = await browser.runtime.sendMessage({
+      type: 'JENKINS_API_REQUEST',
+      payload: {
+        url: `${jenkinsRoot}/crumbIssuer/api/json`,
+        options: { timeout: 10000 },
+      },
     });
-    if (res.ok) {
-      const data = (await res.json()) as { crumbRequestField?: string; crumb?: string };
+    if (res.success && res.data) {
+      const data = res.data as { crumbRequestField?: string; crumb?: string };
       return { header: data.crumbRequestField || '', value: data.crumb || '' };
     }
   } catch (e) {
