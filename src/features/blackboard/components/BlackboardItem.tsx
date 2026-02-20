@@ -49,12 +49,9 @@ export function BlackboardItemView({
     }
   }, [isFocused, onFocusHandled]);
 
-  // Generate random transforms once
+  // Generate random transforms once (disabled for better layout)
   const transforms = useMemo(() => {
-    const rotation = Math.random() * 3 - 1.5; // -1.5deg to 1.5deg
-    const xOffset = Math.random() * 10 - 5; // -5px to 5px
-    const yOffset = Math.random() * 10 - 5; // -5px to 5px
-    return { rotation, xOffset, yOffset };
+    return { rotation: 0, xOffset: 0, yOffset: 0 };
   }, []);
 
   const adjustHeight = useCallback(() => {
