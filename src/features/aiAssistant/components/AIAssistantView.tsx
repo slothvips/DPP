@@ -44,6 +44,13 @@ export function AIAssistantView() {
     isAIConfigConfigured().then((configured) => {
       setIsConfigMissing(!configured);
     });
+
+    // Check for preset prompt from other tabs (e.g., smart import)
+    const presetPrompt = localStorage.getItem('dpp_ai_preset_prompt');
+    if (presetPrompt) {
+      setInput(presetPrompt);
+      localStorage.removeItem('dpp_ai_preset_prompt');
+    }
   }, []);
 
   // Re-check config when config is saved
@@ -74,6 +81,13 @@ export function AIAssistantView() {
   const handleSend = async () => {
     const content = input.trim();
     if (!content || status === 'loading' || status === 'streaming') {
+      return;
+    }
+
+    // Check if AI config is configured before sending
+    const configured = await isAIConfigConfigured();
+    if (!configured) {
+      setIsConfigMissing(true);
       return;
     }
 
@@ -244,6 +258,25 @@ export function AIAssistantView() {
 
       {/* Input area */}
       <div className="border-t p-3">
+        {/* Config missing warning */}
+        {isConfigMissing && (
+          <div className="mb-2 p-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                未配置 AI 服务商，请先配置后才能对话
+              </p>
+              <AIConfigDialog onSaved={handleConfigSaved}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100"
+                >
+                  去配置
+                </Button>
+              </AIConfigDialog>
+            </div>
+          </div>
+        )}
         <div className="flex gap-2">
           <Textarea
             ref={textareaRef}

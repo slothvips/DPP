@@ -246,7 +246,14 @@ export function LinksView() {
           </SelectContent>
         </Select>
         <Button
-          onClick={() => setIsImportDialogOpen(true)}
+          onClick={() => {
+            localStorage.setItem('dpp_active_tab', 'aiAssistant');
+            localStorage.setItem(
+              'dpp_ai_preset_prompt',
+              '我想导入一批链接，请你帮我整理成标准的链接格式并导入'
+            );
+            window.location.reload();
+          }}
           variant="ghost"
           size="sm"
           className="shrink-0 h-8 w-8 p-0"
