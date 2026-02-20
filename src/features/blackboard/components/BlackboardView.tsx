@@ -32,7 +32,8 @@ export function BlackboardView() {
   const masonryRef = useRef<Masonry | null>(null);
 
   const items = useLiveQuery(async () => {
-    return await db.blackboard.orderBy('createdAt').reverse().toArray();
+    const result = await db.blackboard.filter((item) => !item.deletedAt).sortBy('createdAt');
+    return result.reverse(); // 降序，最新在前
   });
 
   const handleAdd = async () => {
