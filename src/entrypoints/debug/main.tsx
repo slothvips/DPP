@@ -8,6 +8,7 @@ import { ToastProvider, useToast } from '@/components/ui/toast';
 import { db } from '@/db';
 import { useTheme } from '@/hooks/useTheme';
 import { decryptData, loadKey } from '@/lib/crypto/encryption';
+import { logger } from '@/utils/logger';
 import '@unocss/reset/tailwind.css';
 
 interface EncryptedOp {
@@ -74,7 +75,8 @@ function DebugApp() {
       );
       setDecryptedOps(results);
       toast('Decryption complete', 'success');
-    } catch {
+    } catch (error) {
+      logger.error('Decryption failed:', error);
       toast('Decryption failed', 'error');
     } finally {
       setLoading(false);

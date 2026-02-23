@@ -53,6 +53,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     if (open) {
       loadConfig();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const loadConfig = async () => {

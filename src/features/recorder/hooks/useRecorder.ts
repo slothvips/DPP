@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { logger } from '@/utils/logger';
 import type { RecordingStartResponse, RecordingStatusResponse } from '../messages';
 
 export function useRecorder() {
@@ -21,7 +22,8 @@ export function useRecorder() {
       // 尝试发送一个简单消息来检测 content script 是否存在
       await browser.tabs.sendMessage(tabId, { type: 'RECORDER_PING' });
       setIsPageSupported(true);
-    } catch {
+    } catch (error) {
+      logger.debug('Page support check failed:', error);
       setIsPageSupported(false);
     }
   }, []);
@@ -32,12 +34,12 @@ export function useRecorder() {
 
   // 监听 tab 切换和页面更新，动态检测页面是否支持录制
   useEffect(() => {
-    const handleTabActivated = async (activeInfo: { tabId: number }) => {
+    const handleTabActivated = async (_activeInfo: { tabId: number }) => {
       // 延迟一下等待 content script 加载
       setTimeout(() => checkPageSupport(), 100);
     };
 
-    const handleTabUpdated = async (tabId: number) => {
+    const handleTabUpdated = async (_tabId: number) => {
       // 页面更新（URL 变化），重新检测
       setTimeout(() => checkPageSupport(), 100);
     };
@@ -120,7 +122,8 @@ export function useRecorder() {
       }
 
       return response;
-    } catch {
+    } catch (error) {
+      logger.debug('Start recording failed:', error);
       return { success: false, error: 'Failed to communicate with background' };
     }
   }, []);

@@ -123,8 +123,8 @@ export class OllamaProvider implements ModelProvider {
               fullContent += data.message.content;
               onChunk(data.message.content);
             }
-          } catch {
-            // Skip invalid JSON lines
+          } catch (error) {
+            logger.debug('Failed to parse Ollama response:', error);
           }
         }
       }
@@ -185,7 +185,8 @@ export class OllamaProvider implements ModelProvider {
       const url = `${this.baseUrl}/api/tags`;
       const response = await http(url, { timeout: 5000 });
       return response.ok;
-    } catch {
+    } catch (error) {
+      logger.debug('Ollama health check failed:', error);
       return false;
     }
   }

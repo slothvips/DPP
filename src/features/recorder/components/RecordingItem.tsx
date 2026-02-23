@@ -3,6 +3,7 @@ import { Download, Edit2, Play, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { logger } from '@/utils/logger';
 import type { Recording } from '../types';
 
 interface Props {
@@ -93,7 +94,8 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
                 ? (() => {
                     try {
                       return new URL(recording.url).hostname;
-                    } catch {
+                    } catch (error) {
+                      logger.debug('Invalid URL:', recording.url, error);
                       return recording.url;
                     }
                   })()

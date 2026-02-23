@@ -171,8 +171,8 @@ export class OpenAIProvider implements ModelProvider {
               fullContent += delta.content;
               onChunk(delta.content);
             }
-          } catch {
-            // Skip invalid JSON lines
+          } catch (error) {
+            logger.debug('Failed to parse SSE data:', error);
           }
         }
       }
@@ -371,8 +371,8 @@ export class AnthropicProvider implements ModelProvider {
                 onChunk(parsed.delta.text);
               }
             }
-          } catch {
-            // Skip invalid JSON lines
+          } catch (error) {
+            logger.debug('Failed to parse SSE data:', error);
           }
         }
       }

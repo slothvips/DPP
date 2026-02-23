@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import type { LinkItem, TagItem } from '@/db';
+import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 import { LinkTagSelector } from './LinkTagSelector';
 
@@ -90,7 +91,8 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
       });
       setLoading(false);
       onClose();
-    } catch {
+    } catch (error) {
+      logger.error('Failed to save link:', error);
       setLoading(false);
     }
   };

@@ -305,8 +305,8 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
           crumbHeader = crumbData.crumbRequestField || 'Jenkins-Crumb';
           crumbValue = crumbData.crumb || '';
         }
-      } catch {
-        logger.warn('Could not fetch crumb, trying without...');
+      } catch (error) {
+        logger.warn('Could not fetch crumb, trying without...', error);
       }
 
       // 3. Generate Token

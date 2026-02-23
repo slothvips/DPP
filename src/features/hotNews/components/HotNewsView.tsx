@@ -6,6 +6,7 @@ import { db } from '@/db';
 import { fetchNews, getAvailableDates } from '@/features/hotNews/api';
 import type { DailyNews, NewsSection } from '@/features/hotNews/types';
 import { cn } from '@/utils/cn';
+import { logger } from '@/utils/logger';
 
 export function HotNewsView() {
   const [date, setDate] = useState(getAvailableDates()[0].value);
@@ -15,7 +16,8 @@ export function HotNewsView() {
     try {
       const saved = localStorage.getItem('dpp_hotnews_expanded');
       return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to parse expanded sections:', error);
       return new Set();
     }
   });

@@ -537,8 +537,8 @@ function runInMainFrame() {
           } else {
             setTimeout(tryProcess, 500);
           }
-        } catch {
-          logger.debug('[DPP Zentao]', 'Iframe not ready yet, retrying...');
+        } catch (error) {
+          logger.debug('[DPP Zentao]', 'Iframe not ready yet, retrying...', error);
           setTimeout(tryProcess, 500);
         }
       };

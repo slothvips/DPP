@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { db } from '@/db';
+import { logger } from '@/utils/logger';
 
 const ALGORITHM = 'AES-GCM';
 const KEY_LENGTH = 256;
@@ -131,7 +132,8 @@ export async function verifyKey(base64Key: string): Promise<boolean> {
     const encrypted = await encryptData(verificationData, key);
     const decrypted = await decryptData(encrypted, key);
     return JSON.stringify(decrypted) === JSON.stringify(verificationData);
-  } catch {
+  } catch (error) {
+    logger.error('Failed to verify key:', error);
     return false;
   }
 }

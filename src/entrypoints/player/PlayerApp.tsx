@@ -27,7 +27,6 @@ export function PlayerApp() {
   useEffect(() => {
     let instance: rrwebPlayer | null = null;
     let mounted = true;
-    const events = eventsRef.current;
 
     const init = async () => {
       try {

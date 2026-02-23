@@ -246,7 +246,8 @@ export class WebLLMProvider implements ModelProvider {
       }
 
       return true;
-    } catch {
+    } catch (error) {
+      logger.debug('GPU check failed:', error);
       return false;
     }
   }

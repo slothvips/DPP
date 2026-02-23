@@ -46,6 +46,7 @@ const remoteRecordingCache = new Map<
   string,
   { events: unknown[]; title: string; timestamp: number }
 >();
+const MAX_RECORDING_STATES = 100;
 
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
 
@@ -188,6 +189,13 @@ export default defineBackground(() => {
         try {
           if (recorderMessage.type === 'RECORDER_START') {
             const { tabId } = recorderMessage;
+            // Prevent memory leak by limiting recording states size
+            if (recordingStates.size >= MAX_RECORDING_STATES) {
+              const firstKey = recordingStates.keys().next().value;
+              if (firstKey !== undefined) {
+                recordingStates.delete(firstKey);
+              }
+            }
             recordingStates.set(tabId, { isRecording: true, startTime: Date.now(), tabId });
             try {
               await browser.tabs.sendMessage(tabId, { type: 'RECORDER_INJECT' });

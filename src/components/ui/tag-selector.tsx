@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tag } from '@/components/ui/tag';
 import { useToast } from '@/components/ui/toast';
 import type { TagItem } from '@/db/types';
+import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS } from '@/utils/validation';
 
 interface TagSelectorProps {
@@ -32,7 +33,8 @@ export function TagSelector({
     try {
       await onCreateTag(newTagName.trim());
       setNewTagName('');
-    } catch {
+    } catch (error) {
+      logger.error('Failed to create tag:', error);
       toast('创建标签失败', 'error');
     }
   };

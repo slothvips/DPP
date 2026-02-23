@@ -2,6 +2,7 @@ import { HOT_NEWS } from '@/config/constants';
 import { db } from '@/db';
 import type { DailyNews, NewsSection } from '@/features/hotNews/types';
 import { http } from '@/lib/http';
+import { logger } from '@/utils/logger';
 
 /**
  * Get Beijing date string accounting for timezone differences
@@ -45,8 +46,8 @@ async function cleanupOldNews() {
     if (keysToDelete.length > 0) {
       await db.hotNews.bulkDelete(keysToDelete);
     }
-  } catch {
-    // Cleanup is non-critical, silently ignore errors
+  } catch (error) {
+    logger.debug('Cleanup old news failed:', error);
   }
 }
 
@@ -119,8 +120,8 @@ export async function fetchNews(date: string): Promise<DailyNews | null> {
     if (cached?.data) {
       return cached.data as DailyNews;
     }
-  } catch {
-    // Cache read failure is non-critical, continue to fetch
+  } catch (error) {
+    logger.debug('Cache read failed:', error);
   }
 
   const url = `${HOT_NEWS.API_BASE_URL}/daily_hot_${date}.md`;
@@ -151,8 +152,8 @@ export async function fetchNews(date: string): Promise<DailyNews | null> {
       });
 
       cleanupOldNews();
-    } catch {
-      // Cache write failure is non-critical
+    } catch (error) {
+      logger.debug('Cache write failed:', error);
     }
 
     return data;

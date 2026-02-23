@@ -190,7 +190,8 @@ export function LinksView() {
       try {
         await deleteLink(link.id);
         toast('删除成功', 'success');
-      } catch {
+      } catch (error) {
+        logger.error('Failed to delete link:', error);
         toast('删除失败', 'error');
       }
     }

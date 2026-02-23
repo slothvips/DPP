@@ -73,7 +73,8 @@ export function ImportLinksDialog({ isOpen, onClose, onImportSuccess }: ImportLi
         // Handle potential markdown code blocks from LLM
         const cleanJson = jsonInput.replace(/```json\n?|\n?```/g, '').trim();
         parsed = JSON.parse(cleanJson);
-      } catch {
+      } catch (error) {
+        logger.debug('JSON parse error:', error);
         throw new Error('JSON 格式无效，请检查输入');
       }
 

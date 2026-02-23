@@ -1,4 +1,3 @@
-import { X } from 'lucide-react';
 import React from 'react';
 import { cn } from '@/utils/cn';
 
@@ -11,7 +10,14 @@ interface TagProps {
   onClick?: () => void;
 }
 
-export function Tag({ name, color: _color, size = 'md', onRemove, className, onClick }: TagProps) {
+export function Tag({
+  name,
+  color: _color,
+  size = 'md',
+  onRemove: _onRemove,
+  className,
+  onClick,
+}: TagProps) {
   return (
     <span
       className={cn(

@@ -2,6 +2,7 @@
 import type { Table } from 'dexie';
 import { db } from '@/db';
 import type { LinkTagItem } from '@/db/types';
+import { logger } from '@/utils/logger';
 
 const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
 
@@ -12,7 +13,8 @@ function isValidUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
+  } catch (error) {
+    logger.debug('Invalid URL:', url, error);
     return false;
   }
 }

@@ -1,4 +1,4 @@
-import Dexie from 'dexie';
+import Dexie, { type Transaction } from 'dexie';
 import type { IndexableType } from 'dexie';
 import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
 import { decryptOperation } from '@/lib/sync/crypto-helpers';
@@ -11,6 +11,11 @@ import type {
   SyncProvider,
   SyncStatus,
 } from './types';
+
+// Extend Dexie Transaction type to include custom source property
+interface SyncTransaction extends Transaction {
+  source?: 'sync';
+}
 
 export interface SyncEngineOptions {
   maxRetries?: number;
@@ -179,8 +184,8 @@ export class SyncEngine {
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
       table.hook('creating', function (_primKey, obj, transaction) {
-        // @ts-expect-error - Check for transaction source tag to identify sync operations
-        if (transaction?.source === 'sync') return;
+        const tx = transaction as SyncTransaction | undefined;
+        if (tx?.source === 'sync') return;
         const now = Date.now();
         const objWithTimestamp = { ...obj, updatedAt: now };
         // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
@@ -196,8 +201,8 @@ export class SyncEngine {
       });
 
       table.hook('updating', (modifications, primKey, obj, transaction) => {
-        // @ts-expect-error - Check for transaction source tag to identify sync operations
-        if (transaction?.source === 'sync') return;
+        const tx = transaction as SyncTransaction | undefined;
+        if (tx?.source === 'sync') return;
         const now = Date.now();
         const newObj = { ...obj, ...modifications, updatedAt: now };
         queueMicrotask(() => {
@@ -207,8 +212,8 @@ export class SyncEngine {
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
       table.hook('deleting', function (primKey, obj, transaction) {
-        // @ts-expect-error - Check for transaction source tag to identify sync operations
-        if (transaction?.source === 'sync') return;
+        const tx = transaction as SyncTransaction | undefined;
+        if (tx?.source === 'sync') return;
         const now = Date.now();
 
         queueMicrotask(async () => {
@@ -415,8 +420,7 @@ export class SyncEngine {
             'rw',
             [...this.tables.map((t) => this.db.table(t)), this.db.table('syncMetadata')],
             async (tx) => {
-              // @ts-expect-error - Tag transaction to prevent echoing these ops
-              tx.source = 'sync';
+              (tx as SyncTransaction).source = 'sync';
 
               for (const op of validOps) {
                 await this.applyOperation(op);
@@ -754,8 +758,7 @@ export class SyncEngine {
             'rw',
             [this.db.table('deferred_ops'), this.db.table(tableName as string)],
             async (tx) => {
-              // @ts-expect-error - Tag transaction to prevent echoing these ops
-              tx.source = 'sync';
+              (tx as SyncTransaction).source = 'sync';
 
               // Get ops sorted by timestamp to ensure correct replay order
               const entries = await this.db

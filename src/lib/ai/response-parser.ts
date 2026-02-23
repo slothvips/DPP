@@ -1,4 +1,5 @@
 // Response parser for extracting tool calls from model output
+import { logger } from '@/utils/logger';
 
 export interface ParsedToolCall {
   name: string;
@@ -48,7 +49,8 @@ export function containsToolCall(content: string): boolean {
       // Handle single tool call
       return isValidToolCall(parsed);
     });
-  } catch {
+  } catch (error) {
+    logger.debug('containsToolCall parse error:', error);
     return false;
   }
 }
@@ -92,7 +94,8 @@ export function extractToolCall(content: string): ParsedToolCall | null {
       name: parsed.name,
       arguments: parsed.arguments,
     };
-  } catch {
+  } catch (error) {
+    logger.debug('extractToolCall parse error:', error);
     return null;
   }
 }
@@ -128,7 +131,8 @@ export function extractToolCalls(content: string): ParsedToolCall[] {
           arguments: parsed.arguments,
         });
       }
-    } catch {
+    } catch (error) {
+      logger.debug('extractAllToolCalls parse error:', error);
       continue;
     }
   }
