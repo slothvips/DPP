@@ -103,7 +103,10 @@ export function PlayerApp() {
           // Get container dimensions
           const rect = containerRef.current.getBoundingClientRect();
           const width = rect.width;
-          const height = rect.height;
+          // rrwebPlayer 的 height 参数是 iframe 部分的高度，不包括控制栏
+          // 需要减去控制栏的高度（约 80px）
+          const CONTROLLER_HEIGHT = 80;
+          const height = Math.max(rect.height - CONTROLLER_HEIGHT, 100);
 
           instance = new rrwebPlayer({
             target: containerRef.current,
@@ -129,7 +132,7 @@ export function PlayerApp() {
                   props: {
                     events: eventsRef.current,
                     width: newWidth,
-                    height: newHeight,
+                    height: Math.max(newHeight - CONTROLLER_HEIGHT, 100),
                     autoPlay: true,
                     showController: true,
                   },
