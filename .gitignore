@@ -33,3 +33,4 @@ web-ext.config.ts
 .sisyphus
 .vscode
 .firecrawl
+.worktrees
