@@ -17,14 +17,17 @@ interface RRWebEvent {
 export function PlayerApp() {
   useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recordingTitle, setRecordingTitle] = useState('录制');
   const [hasPlayer, setHasPlayer] = useState(false);
+  const eventsRef = useRef<RRWebEvent[]>([]);
 
   useEffect(() => {
     let instance: rrwebPlayer | null = null;
     let mounted = true;
+    const events = eventsRef.current;
 
     const init = async () => {
       try {
@@ -68,6 +71,9 @@ export function PlayerApp() {
           throw new Error('录制内容为空 (0 个事件)');
         }
 
+        // Store events in ref for resize handler
+        eventsRef.current = events;
+
         // Handle unpacking if events are compressed
         // Check first event to see if it needs unpacking
         const firstEvent = events[0] as unknown;
@@ -94,14 +100,46 @@ export function PlayerApp() {
         if (containerRef.current) {
           containerRef.current.innerHTML = '';
 
+          // Get container dimensions
+          const rect = containerRef.current.getBoundingClientRect();
+          const width = rect.width;
+          const height = rect.height;
+
           instance = new rrwebPlayer({
             target: containerRef.current,
             props: {
               events,
+              width,
+              height,
               autoPlay: true,
               showController: true,
             },
           });
+
+          // Handle resize
+          const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+              const { width: newWidth, height: newHeight } = entry.contentRect;
+              if (instance && newWidth > 0 && newHeight > 0) {
+                // Recreate player with new dimensions
+                (instance as unknown as { $destroy: () => void }).$destroy();
+                containerRef.current!.innerHTML = '';
+                instance = new rrwebPlayer({
+                  target: containerRef.current!,
+                  props: {
+                    events: eventsRef.current,
+                    width: newWidth,
+                    height: newHeight,
+                    autoPlay: true,
+                    showController: true,
+                  },
+                });
+              }
+            }
+          });
+          resizeObserver.observe(containerRef.current);
+          resizeObserverRef.current = resizeObserver;
+
           setHasPlayer(true);
         }
       } catch (e) {
@@ -115,6 +153,9 @@ export function PlayerApp() {
 
     return () => {
       mounted = false;
+      if (resizeObserverRef.current) {
+        resizeObserverRef.current.disconnect();
+      }
       if (instance) {
         (instance as unknown as { $destroy: () => void }).$destroy();
       }
