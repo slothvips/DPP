@@ -41,5 +41,11 @@ export default defineConfig({
       128: '/icon/128.png',
     },
     omnibox: { keyword: 'dpp' },
+    web_accessible_resources: [
+      {
+        resources: ['network-interceptor.js'],
+        matches: ['<all_urls>'],
+      },
+    ],
   },
 });

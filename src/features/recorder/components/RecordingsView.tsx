@@ -83,7 +83,12 @@ export function RecordingsView() {
       <div className="flex-1 overflow-y-auto min-h-0 pr-1">
         <RecordingsList
           recordings={recordings || []}
-          onDelete={deleteRecording}
+          onDelete={async (id) => {
+            const confirmed = await confirm('确定要删除这条录制吗?', '确认删除', 'danger');
+            if (confirmed) {
+              deleteRecording(id);
+            }
+          }}
           onUpdateTitle={updateTitle}
           onExport={exportRecording}
         />

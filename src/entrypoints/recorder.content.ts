@@ -1,7 +1,11 @@
 import { record } from 'rrweb';
+import { NETWORK_PLUGIN_NAME, type NetworkPluginEvent } from '@/lib/rrweb-plugins';
 import { logger } from '@/utils/logger';
 import { pack } from '@rrweb/packer';
 import type { eventWithTime } from '@rrweb/types';
+
+// 网络请求事件名称，与注入脚本保持一致
+const NETWORK_EVENT_NAME = 'dpp-network-request';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -12,6 +16,8 @@ export default defineContentScript({
     let startTime = 0;
     let uiContainer: HTMLDivElement | null = null;
     let timerInterval: number | null = null;
+    let networkEventHandler: ((e: Event) => void) | null = null;
+    let injectedScript: HTMLScriptElement | null = null;
 
     // Check if recording is active when content script loads
     browser.runtime.sendMessage({ type: 'RECORDER_GET_STATUS_FOR_CONTENT' }).then((response) => {
@@ -222,6 +228,7 @@ export default defineContentScript({
       logger.debug('Starting rrweb recording');
 
       createFloatingUI();
+      injectNetworkInterceptor();
 
       stopFn = record({
         packFn: pack,
@@ -242,6 +249,7 @@ export default defineContentScript({
         stopFn();
         stopFn = null;
         removeFloatingUI();
+        removeNetworkInterceptor();
         const duration = Date.now() - startTime;
         logger.debug('Stopped rrweb recording', { duration, events: events.length });
 
@@ -257,6 +265,60 @@ export default defineContentScript({
         });
 
         events = [];
+      }
+    }
+
+    /**
+     * 注入网络拦截脚本到页面主世界
+     */
+    function injectNetworkInterceptor() {
+      // 监听来自页面的网络事件
+      networkEventHandler = (e: Event) => {
+        const customEvent = e as CustomEvent;
+        const networkData = customEvent.detail;
+
+        // 创建 rrweb 插件事件格式
+        const pluginEvent: eventWithTime = {
+          type: 6, // EventType.Plugin
+          data: {
+            plugin: NETWORK_PLUGIN_NAME,
+            payload: {
+              type: 'network',
+              data: networkData,
+              timestamp: Date.now(),
+            } as NetworkPluginEvent,
+          },
+          timestamp: Date.now(),
+        };
+
+        events.push(pluginEvent);
+      };
+
+      window.addEventListener(NETWORK_EVENT_NAME, networkEventHandler);
+
+      // 注入脚本到页面主世界
+      injectedScript = document.createElement('script');
+      injectedScript.src = browser.runtime.getURL('/network-interceptor.js' as '/popup.html');
+      injectedScript.onload = () => {
+        logger.debug('Network interceptor injected');
+      };
+      injectedScript.onerror = (err) => {
+        logger.error('Failed to inject network interceptor', err);
+      };
+      (document.head || document.documentElement).appendChild(injectedScript);
+    }
+
+    /**
+     * 移除网络拦截
+     */
+    function removeNetworkInterceptor() {
+      if (networkEventHandler) {
+        window.removeEventListener(NETWORK_EVENT_NAME, networkEventHandler);
+        networkEventHandler = null;
+      }
+      if (injectedScript) {
+        injectedScript.remove();
+        injectedScript = null;
       }
     }
   },
