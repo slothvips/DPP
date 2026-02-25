@@ -170,17 +170,14 @@ export default defineUnlistedScript(() => {
   }
 
   /**
-   * 安全地读取响应体
+   * 安全地读取响应体 - 完整保留，不截断
    */
   async function safeReadResponseBody(response: Response, contentType: string): Promise<string> {
     try {
       const clonedResponse = response.clone();
       if (contentType.includes('application/json') || contentType.includes('text/')) {
         const text = await clonedResponse.text();
-        // 限制响应体大小
-        if (text.length > 100000) {
-          return text.slice(0, 100000) + `... [truncated, total ${text.length} chars]`;
-        }
+        // 不截断，完整保留
         return text;
       } else if (
         contentType.includes('image/') ||
@@ -474,16 +471,10 @@ export default defineUnlistedScript(() => {
             responseType: contentType,
           };
 
-          // 安全地记录响应体
+          // 安全地记录响应体 - 完整保留，不截断
           try {
             if (this.responseType === '' || this.responseType === 'text') {
-              const text = this.responseText;
-              if (text.length > 100000) {
-                networkData.responseBody =
-                  text.slice(0, 100000) + `... [truncated, total ${text.length} chars]`;
-              } else {
-                networkData.responseBody = text;
-              }
+              networkData.responseBody = this.responseText;
             } else if (this.responseType === 'json') {
               networkData.responseBody = JSON.stringify(this.response, null, 2);
             } else if (this.responseType === 'document' && this.responseXML) {
