@@ -2,9 +2,13 @@ import { Allotment } from 'allotment';
 import { useMemo, useState } from 'react';
 import {
   type NetworkRequest,
+  type NetworkRequestPhase,
+  type StreamChunk,
   extractNetworkRequests,
   formatDuration,
+  formatSize,
   getMethodColor,
+  getRequestPhaseLabel,
   getStatusColor,
 } from '@/lib/rrweb-plugins';
 import { cn } from '@/utils/cn';
@@ -18,6 +22,28 @@ interface NetworkPanelProps {
 }
 
 type RequestStatus = 'past' | 'active' | 'future';
+
+/**
+ * 获取请求阶段的指示符
+ */
+function getPhaseIndicator(phase: NetworkRequestPhase | undefined): string {
+  switch (phase) {
+    case 'start':
+      return '⏳';
+    case 'response-headers':
+      return '📥';
+    case 'response-body':
+      return '📦';
+    case 'complete':
+      return '✓';
+    case 'error':
+      return 'ERR';
+    case 'abort':
+      return '✗';
+    default:
+      return '...';
+  }
+}
 
 export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
   const [selectedRequest, setSelectedRequest] = useState<NetworkRequestWithTimestamp | null>(null);
@@ -143,7 +169,8 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                           isActive && 'bg-blue-500/20 border-l-2 border-l-blue-500',
                           isFuture && 'opacity-40',
                           !isFuture && !isActive && 'hover:bg-muted/50',
-                          req.error && !isFuture && 'bg-red-500/10'
+                          req.error && !isFuture && 'bg-red-500/10',
+                          req.isStreaming && req.phase !== 'complete' && 'bg-purple-500/10'
                         )}
                       >
                         <td
@@ -153,13 +180,27 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                           )}
                           title={req.url}
                         >
-                          {(() => {
-                            try {
-                              return new URL(req.url, 'http://localhost').pathname;
-                            } catch {
-                              return req.url;
-                            }
-                          })()}
+                          <div className="flex items-center gap-1">
+                            {req.isStreaming && (
+                              <span className="text-purple-500 text-xs" title="流式响应">
+                                ⚡
+                              </span>
+                            )}
+                            {req.type === 'sse' && (
+                              <span className="text-orange-500 text-xs" title="SSE">
+                                📡
+                              </span>
+                            )}
+                            <span className="truncate">
+                              {(() => {
+                                try {
+                                  return new URL(req.url, 'http://localhost').pathname;
+                                } catch {
+                                  return req.url;
+                                }
+                              })()}
+                            </span>
+                          </div>
                         </td>
                         <td
                           className={cn(
@@ -175,7 +216,9 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                             isFuture ? 'text-muted-foreground/50' : getStatusColor(req.status)
                           )}
                         >
-                          {isFuture ? '-' : req.status || (req.error ? 'ERR' : '...')}
+                          {isFuture
+                            ? '-'
+                            : req.status || (req.error ? 'ERR' : getPhaseIndicator(req.phase))}
                         </td>
                         <td
                           className={cn(
@@ -191,7 +234,11 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                             isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
                           )}
                         >
-                          {isFuture ? '-' : formatDuration(req.duration)}
+                          {isFuture
+                            ? '-'
+                            : req.isStreaming && req.receivedBytes !== undefined
+                              ? formatSize(req.receivedBytes)
+                              : formatDuration(req.duration)}
                         </td>
                       </tr>
                     );
@@ -226,7 +273,21 @@ interface RequestDetailProps {
 }
 
 function RequestDetail({ request, isFuture }: RequestDetailProps) {
-  const [activeTab, setActiveTab] = useState<'headers' | 'request' | 'response'>('headers');
+  const [activeTab, setActiveTab] = useState<'headers' | 'request' | 'response' | 'stream'>(
+    request.isStreaming ? 'stream' : 'headers'
+  );
+
+  // 当请求是流式时，添加 stream 标签页
+  const tabs = request.isStreaming
+    ? (['headers', 'request', 'response', 'stream'] as const)
+    : (['headers', 'request', 'response'] as const);
+
+  const tabLabels: Record<string, string> = {
+    headers: '头部',
+    request: '请求体',
+    response: '响应体',
+    stream: '流式数据',
+  };
 
   if (isFuture) {
     return (
@@ -260,9 +321,25 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
           <span className={cn('font-mono font-medium', getMethodColor(request.method))}>
             {request.method}
           </span>
-          <span className={cn('font-mono', getStatusColor(request.status))}>
-            {request.status} {request.statusText}
-          </span>
+          {request.status ? (
+            <span className={cn('font-mono', getStatusColor(request.status))}>
+              {request.status} {request.statusText}
+            </span>
+          ) : (
+            <span className="text-muted-foreground text-xs">
+              {getRequestPhaseLabel(request.phase)}
+            </span>
+          )}
+          {request.isStreaming && (
+            <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-600 rounded">
+              流式
+            </span>
+          )}
+          {request.type === 'sse' && (
+            <span className="px-1.5 py-0.5 text-xs bg-orange-500/20 text-orange-600 rounded">
+              SSE
+            </span>
+          )}
         </div>
         <div className="flex items-start gap-2">
           <div className="text-xs text-muted-foreground break-all flex-1">{request.url}</div>
@@ -270,7 +347,11 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
         </div>
         <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
           <span>类型: {request.type.toUpperCase()}</span>
-          <span>耗时: {formatDuration(request.duration)}</span>
+          {request.duration !== undefined && <span>耗时: {formatDuration(request.duration)}</span>}
+          {request.receivedBytes !== undefined && (
+            <span>已接收: {formatSize(request.receivedBytes)}</span>
+          )}
+          {request.streamChunks && <span>数据块: {request.streamChunks.length}</span>}
         </div>
         {request.error && (
           <div className="mt-2 text-xs text-red-600 bg-red-500/10 p-2 rounded">
@@ -281,7 +362,7 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
 
       {/* 标签页 */}
       <div className="flex border-b">
-        {(['headers', 'request', 'response'] as const).map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -292,7 +373,7 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            {tab === 'headers' ? '头部' : tab === 'request' ? '请求体' : '响应体'}
+            {tabLabels[tab]}
           </button>
         ))}
       </div>
@@ -310,6 +391,10 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
 
         {activeTab === 'response' && (
           <BodySection body={request.responseBody} contentType={request.responseType} />
+        )}
+
+        {activeTab === 'stream' && request.streamChunks && (
+          <StreamChunksSection chunks={request.streamChunks} />
         )}
       </div>
     </div>
@@ -463,6 +548,101 @@ function BodySection({ body, contentType }: { body?: string; contentType?: strin
           </span>
         )}
       </pre>
+    </div>
+  );
+}
+
+/**
+ * 流式数据块展示组件
+ */
+function StreamChunksSection({ chunks }: { chunks: StreamChunk[] }) {
+  const [expandedChunks, setExpandedChunks] = useState<Set<number>>(new Set());
+
+  if (chunks.length === 0) {
+    return <p className="text-muted-foreground text-xs">暂无流式数据</p>;
+  }
+
+  const toggleChunk = (index: number) => {
+    const newExpanded = new Set(expandedChunks);
+    if (newExpanded.has(index)) {
+      newExpanded.delete(index);
+    } else {
+      newExpanded.add(index);
+    }
+    setExpandedChunks(newExpanded);
+  };
+
+  const totalSize = chunks.reduce((sum, chunk) => sum + chunk.size, 0);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+        <span>共 {chunks.length} 个数据块</span>
+        <span>总大小: {formatSize(totalSize)}</span>
+      </div>
+
+      <div className="space-y-1">
+        {chunks.map((chunk, idx) => {
+          const isExpanded = expandedChunks.has(idx);
+          const previewData =
+            chunk.data.length > 100 ? chunk.data.slice(0, 100) + '...' : chunk.data;
+
+          // 尝试解析 JSON
+          let displayData = chunk.data;
+          try {
+            const parsed = JSON.parse(chunk.data);
+            displayData = JSON.stringify(parsed, null, 2);
+          } catch {
+            // 保持原样
+          }
+
+          return (
+            <div key={idx} className="border border-border/50 rounded overflow-hidden">
+              <button
+                onClick={() => toggleChunk(idx)}
+                className="w-full flex items-center justify-between p-2 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-muted-foreground">#{idx + 1}</span>
+                  <span className="text-xs text-muted-foreground">{formatSize(chunk.size)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground/70 truncate max-w-[200px]">
+                    {previewData}
+                  </span>
+                  <svg
+                    className={cn(
+                      'w-4 h-4 text-muted-foreground transition-transform',
+                      isExpanded && 'rotate-180'
+                    )}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
+              </button>
+
+              {isExpanded && (
+                <div className="p-2 bg-background relative group">
+                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <CopyButton text={chunk.data} />
+                  </div>
+                  <pre className="text-xs font-mono whitespace-pre-wrap break-all max-h-[300px] overflow-auto">
+                    {displayData}
+                  </pre>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
