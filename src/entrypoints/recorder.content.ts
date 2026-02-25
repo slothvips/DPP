@@ -13,6 +13,9 @@ import type { eventWithTime } from '@rrweb/types';
 const NETWORK_EVENT_NAME = 'dpp-network-request';
 // 控制台日志事件名称，与注入脚本保持一致
 const CONSOLE_EVENT_NAME = 'dpp-console-log';
+// 恢复事件名称，与注入脚本保持一致
+const NETWORK_RESTORE_EVENT = 'dpp-network-restore';
+const CONSOLE_RESTORE_EVENT = 'dpp-console-restore';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -323,6 +326,13 @@ export default defineContentScript({
      * 移除网络拦截
      */
     function removeNetworkInterceptor() {
+      // 先触发恢复事件，让注入脚本恢复原始的 fetch/XHR
+      try {
+        window.dispatchEvent(new CustomEvent(NETWORK_RESTORE_EVENT));
+      } catch {
+        // ignore
+      }
+
       if (networkEventHandler) {
         window.removeEventListener(NETWORK_EVENT_NAME, networkEventHandler);
         networkEventHandler = null;
@@ -379,6 +389,13 @@ export default defineContentScript({
      * 移除控制台拦截
      */
     function removeConsoleInterceptor() {
+      // 先触发恢复事件，让注入脚本恢复原始的 console 方法
+      try {
+        window.dispatchEvent(new CustomEvent(CONSOLE_RESTORE_EVENT));
+      } catch {
+        // ignore
+      }
+
       if (consoleEventHandler) {
         window.removeEventListener(CONSOLE_EVENT_NAME, consoleEventHandler);
         consoleEventHandler = null;

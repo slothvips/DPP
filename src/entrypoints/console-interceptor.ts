@@ -6,11 +6,25 @@
  * 1. 保证现场信息不丢失 - 完整深度克隆，无任何截断或限制
  * 2. 对主世界完全无感知 - 任何异常都不能影响原始 console 行为
  * 3. 不产生副作用 - 序列化过程不触发 getter、不修改对象
+ * 4. 可完全恢复 - 停止录制时能还原所有被修改的 console 方法
  */
 
 export default defineUnlistedScript(() => {
+  // 防止重复注入
+  if (
+    (window as unknown as { __dppConsoleInterceptorInstalled?: boolean })
+      .__dppConsoleInterceptorInstalled
+  ) {
+    return;
+  }
+  (
+    window as unknown as { __dppConsoleInterceptorInstalled?: boolean }
+  ).__dppConsoleInterceptorInstalled = true;
+
   // 控制台事件名称
   const CONSOLE_EVENT_NAME = 'dpp-console-log';
+  // 恢复事件名称
+  const CONSOLE_RESTORE_EVENT = 'dpp-console-restore';
 
   let logIdCounter = 0;
 
@@ -451,4 +465,34 @@ export default defineUnlistedScript(() => {
       return result;
     };
   }
+
+  // ==================== 恢复机制 ====================
+
+  /**
+   * 恢复所有被修改的 console 方法到原始状态
+   * 通过监听自定义事件触发，确保主世界可以完全恢复
+   */
+  function restore() {
+    try {
+      for (const method of CONSOLE_METHODS) {
+        if (originalMethods[method]) {
+          console[method] = originalMethods[method];
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 清除安装标记
+    try {
+      (
+        window as unknown as { __dppConsoleInterceptorInstalled?: boolean }
+      ).__dppConsoleInterceptorInstalled = false;
+    } catch {
+      // ignore
+    }
+  }
+
+  // 监听恢复事件
+  window.addEventListener(CONSOLE_RESTORE_EVENT, restore, { once: true });
 });
