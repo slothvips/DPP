@@ -30,24 +30,13 @@ export interface NetworkPluginEvent {
 }
 
 // Console 插件类型定义
-export type SerializedValue =
-  | { type: 'string'; value: string }
-  | { type: 'number'; value: number }
-  | { type: 'boolean'; value: boolean }
-  | { type: 'null' }
-  | { type: 'undefined' }
-  | { type: 'object'; preview: string }
-  | { type: 'array'; length: number; preview: string }
-  | { type: 'function'; name: string }
-  | { type: 'symbol'; description: string }
-  | { type: 'error'; name: string; message: string; stack?: string }
-  | { type: 'circular' }
-  | { type: 'dom'; tagName: string; id?: string; className?: string };
+// 深度克隆的值，保留完整现场信息
+export type ClonedValue = unknown;
 
 export interface ConsoleLog {
   id: string;
   level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'trace';
-  args: SerializedValue[];
+  args: ClonedValue[];
   timestamp: number;
   stack?: string;
 }
@@ -72,7 +61,7 @@ export {
 
 export {
   extractConsoleLogs,
-  formatConsoleArgs,
+  formatClonedValue,
   getLevelColor,
   getLevelIcon,
   getReplayConsolePlugin,

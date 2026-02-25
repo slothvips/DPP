@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import {
+  type ClonedValue,
   type ConsoleLog,
-  type SerializedValue,
   extractConsoleLogs,
-  formatConsoleArgs,
+  formatClonedValue,
   getLevelColor,
   getLevelIcon,
 } from '@/lib/rrweb-plugins';
@@ -52,7 +52,10 @@ export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
     // 文本过滤
     if (!filter) return true;
     const lowerFilter = filter.toLowerCase();
-    const content = formatConsoleArgs(log.args).toLowerCase();
+    const content = log.args
+      .map((arg) => formatClonedValue(arg))
+      .join(' ')
+      .toLowerCase();
     return content.includes(lowerFilter) || log.level.includes(lowerFilter);
   });
 
@@ -206,10 +209,19 @@ interface ConsoleLogItemProps {
 
 function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
   const [showStack, setShowStack] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const isFuture = status === 'future';
   const isActive = status === 'active';
   const hasStack = log.stack && (log.level === 'error' || log.level === 'trace');
+
+  // 格式化参数显示
+  const formattedContent = useMemo(() => {
+    return log.args.map((arg) => formatClonedValue(arg)).join(' ');
+  }, [log.args]);
+
+  // 判断是否需要展开按钮（内容较长或包含换行）
+  const needsExpand = formattedContent.length > 200 || formattedContent.includes('\n');
 
   return (
     <div
@@ -246,12 +258,23 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
         <div className="flex-1 min-w-0">
           <div
             className={cn(
-              'font-mono text-xs break-all whitespace-pre-wrap',
-              isFuture && 'text-muted-foreground/50'
+              'font-mono text-xs break-all',
+              isFuture && 'text-muted-foreground/50',
+              !expanded && needsExpand && 'line-clamp-3'
             )}
           >
-            <FormattedArgs args={log.args} isFuture={isFuture} />
+            <FormattedArgs args={log.args} isFuture={isFuture} expanded={expanded} />
           </div>
+
+          {/* 展开/收起按钮 */}
+          {needsExpand && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-xs text-blue-500 hover:text-blue-600 mt-1"
+            >
+              {expanded ? '收起' : '展开全部'}
+            </button>
+          )}
 
           {/* 调用栈 */}
           {hasStack && (
@@ -289,17 +312,18 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
 }
 
 interface FormattedArgsProps {
-  args: SerializedValue[];
+  args: ClonedValue[];
   isFuture?: boolean;
+  expanded?: boolean;
 }
 
-function FormattedArgs({ args, isFuture }: FormattedArgsProps) {
+function FormattedArgs({ args, isFuture, expanded }: FormattedArgsProps) {
   return (
     <>
       {args.map((arg, index) => (
         <span key={index}>
           {index > 0 && ' '}
-          <FormattedValue value={arg} isFuture={isFuture} />
+          <FormattedValue value={arg} isFuture={isFuture} expanded={expanded} />
         </span>
       ))}
     </>
@@ -307,57 +331,228 @@ function FormattedArgs({ args, isFuture }: FormattedArgsProps) {
 }
 
 interface FormattedValueProps {
-  value: SerializedValue;
+  value: ClonedValue;
   isFuture?: boolean;
+  expanded?: boolean;
 }
 
-function FormattedValue({ value, isFuture }: FormattedValueProps) {
+function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
   const baseClass = isFuture ? 'text-muted-foreground/50' : '';
 
-  switch (value.type) {
-    case 'string':
-      return <span className={cn(baseClass, !isFuture && 'text-green-600')}>"{value.value}"</span>;
-    case 'number':
-      return <span className={cn(baseClass, !isFuture && 'text-blue-600')}>{value.value}</span>;
-    case 'boolean':
+  // null
+  if (value === null) {
+    return <span className={cn(baseClass, !isFuture && 'text-gray-500 italic')}>null</span>;
+  }
+
+  // 基本类型
+  if (typeof value === 'string') {
+    return <span className={cn(baseClass, !isFuture && 'text-green-600')}>"{value}"</span>;
+  }
+
+  if (typeof value === 'number') {
+    return <span className={cn(baseClass, !isFuture && 'text-blue-600')}>{value}</span>;
+  }
+
+  if (typeof value === 'boolean') {
+    return <span className={cn(baseClass, !isFuture && 'text-purple-600')}>{String(value)}</span>;
+  }
+
+  // 数组
+  if (Array.isArray(value)) {
+    if (expanded) {
       return (
-        <span className={cn(baseClass, !isFuture && 'text-purple-600')}>{String(value.value)}</span>
-      );
-    case 'null':
-      return <span className={cn(baseClass, !isFuture && 'text-gray-500 italic')}>null</span>;
-    case 'undefined':
-      return <span className={cn(baseClass, !isFuture && 'text-gray-500 italic')}>undefined</span>;
-    case 'object':
-      return <span className={cn(baseClass, !isFuture && 'text-foreground')}>{value.preview}</span>;
-    case 'array':
-      return <span className={cn(baseClass, !isFuture && 'text-foreground')}>{value.preview}</span>;
-    case 'function':
-      return <span className={cn(baseClass, !isFuture && 'text-cyan-600')}>ƒ {value.name}()</span>;
-    case 'symbol':
-      return (
-        <span className={cn(baseClass, !isFuture && 'text-yellow-600')}>
-          Symbol({value.description})
+        <span className={baseClass}>
+          <span className="text-muted-foreground">[</span>
+          {value.map((item, i) => (
+            <span key={i}>
+              {i > 0 && <span className="text-muted-foreground">, </span>}
+              <FormattedValue value={item} isFuture={isFuture} expanded={expanded} />
+            </span>
+          ))}
+          <span className="text-muted-foreground">]</span>
         </span>
       );
-    case 'error':
+    }
+    return (
+      <span className={cn(baseClass, !isFuture && 'text-foreground')}>Array({value.length})</span>
+    );
+  }
+
+  // 对象
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+
+    // 特殊类型
+    if ('__type__' in obj) {
+      const type = obj.__type__ as string;
+
+      switch (type) {
+        case 'undefined':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-gray-500 italic')}>undefined</span>
+          );
+
+        case 'number':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-blue-600')}>{String(obj.value)}</span>
+          );
+
+        case 'symbol':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-yellow-600')}>
+              Symbol({(obj.description as string) || ''})
+            </span>
+          );
+
+        case 'function':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-cyan-600')}>
+              ƒ {(obj.name as string) || 'anonymous'}()
+            </span>
+          );
+
+        case 'bigint':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-blue-600')}>
+              {String(obj.value)}n
+            </span>
+          );
+
+        case 'Element':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-purple-600')}>
+              &lt;{((obj.tagName as string) || 'unknown').toLowerCase()}
+              {obj.id ? `#${String(obj.id)}` : ''}
+              {obj.className
+                ? `.${(obj.className as string).split(' ').filter(Boolean).join('.')}`
+                : ''}
+              &gt;
+            </span>
+          );
+
+        case 'Error':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-red-600')}>
+              {String(obj.name)}: {String(obj.message)}
+            </span>
+          );
+
+        case 'Date':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-foreground')}>
+              Date({String(obj.iso)})
+            </span>
+          );
+
+        case 'RegExp':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-red-500')}>
+              /{String(obj.source)}/{String(obj.flags)}
+            </span>
+          );
+
+        case 'Map':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-foreground')}>
+              Map({String(obj.size)})
+            </span>
+          );
+
+        case 'Set':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-foreground')}>
+              Set({String(obj.size)})
+            </span>
+          );
+
+        case 'WeakMap':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-foreground')}>WeakMap {'{}'}</span>
+          );
+
+        case 'WeakSet':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-foreground')}>WeakSet {'{}'}</span>
+          );
+
+        case 'Promise':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-foreground')}>
+              Promise {'{ <pending> }'}
+            </span>
+          );
+
+        case 'ArrayBuffer':
+          return (
+            <span className={cn(baseClass, !isFuture && 'text-foreground')}>
+              ArrayBuffer({String(obj.byteLength)})
+            </span>
+          );
+
+        default:
+          if (type.endsWith('Array') && 'length' in obj) {
+            return (
+              <span className={cn(baseClass, !isFuture && 'text-foreground')}>
+                {type}({String(obj.length)})
+              </span>
+            );
+          }
+          return <span className={cn(baseClass, !isFuture && 'text-foreground')}>[{type}]</span>;
+      }
+    }
+
+    // 循环引用
+    if ('__circular__' in obj) {
+      return (
+        <span className={cn(baseClass, !isFuture && 'text-orange-600')}>
+          [Circular: {String(obj.__circular__)}]
+        </span>
+      );
+    }
+
+    // 错误
+    if ('__error__' in obj) {
       return (
         <span className={cn(baseClass, !isFuture && 'text-red-600')}>
-          {value.name}: {value.message}
+          [Error: {String(obj.message)}]
         </span>
       );
-    case 'circular':
-      return <span className={cn(baseClass, !isFuture && 'text-orange-600')}>[Circular]</span>;
-    case 'dom':
+    }
+
+    // getter
+    if ('__getter__' in obj) {
+      return <span className={cn(baseClass, !isFuture && 'text-gray-500')}>[Getter]</span>;
+    }
+
+    // 普通对象
+    const keys = Object.keys(obj).filter((k) => !k.startsWith('__'));
+    if (expanded) {
       return (
-        <span className={cn(baseClass, !isFuture && 'text-purple-600')}>
-          &lt;{value.tagName.toLowerCase()}
-          {value.id && `#${value.id}`}
-          {value.className && `.${value.className.split(' ').join('.')}`}&gt;
+        <span className={baseClass}>
+          <span className="text-muted-foreground">{'{'}</span>
+          {keys.map((key, i) => (
+            <span key={key}>
+              {i > 0 && <span className="text-muted-foreground">, </span>}
+              <span className="text-purple-500">{key}</span>
+              <span className="text-muted-foreground">: </span>
+              <FormattedValue value={obj[key]} isFuture={isFuture} expanded={expanded} />
+            </span>
+          ))}
+          <span className="text-muted-foreground">{'}'}</span>
         </span>
       );
-    default:
-      return <span className={baseClass}>[Unknown]</span>;
+    }
+
+    const protoName = obj.__proto_name__ as string | undefined;
+    return (
+      <span className={cn(baseClass, !isFuture && 'text-foreground')}>
+        {protoName ? `${protoName} ` : ''}
+        {'{'}...{'}'}
+      </span>
+    );
   }
+
+  return <span className={baseClass}>{String(value)}</span>;
 }
 
 /**

@@ -3,20 +3,14 @@
  * 此脚本会被打包为独立文件，通过 script 标签注入到页面
  *
  * 设计原则：
- * 1. 对主世界完全无感知 - 任何异常都不能影响原始 console 行为
- * 2. 不产生副作用 - 序列化过程不触发 getter、不修改对象
- * 3. 性能优先 - 快速序列化，避免阻塞主线程
+ * 1. 保证现场信息不丢失 - 完整深度克隆，无任何截断或限制
+ * 2. 对主世界完全无感知 - 任何异常都不能影响原始 console 行为
+ * 3. 不产生副作用 - 序列化过程不触发 getter、不修改对象
  */
 
 export default defineUnlistedScript(() => {
   // 控制台事件名称
   const CONSOLE_EVENT_NAME = 'dpp-console-log';
-
-  // 序列化配置
-  const MAX_DEPTH = 3;
-  const MAX_STRING_LENGTH = 1000;
-  const MAX_ARRAY_LENGTH = 100;
-  const MAX_OBJECT_KEYS = 50;
 
   let logIdCounter = 0;
 
@@ -24,141 +18,88 @@ export default defineUnlistedScript(() => {
     return `console-${Date.now()}-${++logIdCounter}`;
   }
 
-  // 序列化值类型（与 lib/rrweb-plugins/index.ts 保持一致，因注入主世界无法导入）
-  type SerializedValue =
-    | { type: 'string'; value: string }
-    | { type: 'number'; value: number }
-    | { type: 'boolean'; value: boolean }
-    | { type: 'null' }
-    | { type: 'undefined' }
-    | { type: 'object'; preview: string }
-    | { type: 'array'; length: number; preview: string }
-    | { type: 'function'; name: string }
-    | { type: 'symbol'; description: string }
-    | { type: 'error'; name: string; message: string; stack?: string }
-    | { type: 'circular' }
-    | { type: 'dom'; tagName: string; id?: string; className?: string };
-
-  interface ConsoleLogData {
-    id: string;
-    level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'trace';
-    args: SerializedValue[];
-    timestamp: number;
-    stack?: string;
-  }
-
   /**
-   * 截断字符串
+   * 深度克隆值 - 完整保留现场信息
+   *
+   * 返回一个可 JSON 序列化的深度克隆对象，包含类型信息
+   * 循环引用会被标记为 { __circular__: path }
    */
-  function truncateString(str: string, maxLength: number = MAX_STRING_LENGTH): string {
-    if (str.length <= maxLength) return str;
-    return str.slice(0, maxLength) + '...';
-  }
-
-  /**
-   * 安全地获取对象属性，不触发 getter 副作用
-   */
-  function safeGetOwnPropertyNames(obj: object): string[] {
-    try {
-      return Object.getOwnPropertyNames(obj).slice(0, MAX_OBJECT_KEYS);
-    } catch {
-      return [];
-    }
-  }
-
-  /**
-   * 安全地获取属性值
-   */
-  function safeGetProperty(obj: object, key: string): unknown {
-    try {
-      // 使用 Object.getOwnPropertyDescriptor 检查是否有 getter
-      const descriptor = Object.getOwnPropertyDescriptor(obj, key);
-      if (descriptor && typeof descriptor.get === 'function') {
-        // 有 getter，返回占位符避免触发副作用
-        return '[Getter]';
-      }
-      return (obj as Record<string, unknown>)[key];
-    } catch {
-      return '[Error accessing property]';
-    }
-  }
-
-  /**
-   * 序列化单个值 - 完全安全，不会抛出异常
-   */
-  function serializeValue(
+  function deepClone(
     value: unknown,
-    depth: number = 0,
-    seen: WeakSet<object> = new WeakSet()
-  ): SerializedValue {
+    path: string = '$',
+    seen: Map<object, string> = new Map()
+  ): unknown {
     try {
-      return serializeValueUnsafe(value, depth, seen);
-    } catch {
-      // 任何异常都返回安全的占位符
-      return { type: 'object', preview: '[Serialization Error]' };
+      return deepCloneUnsafe(value, path, seen);
+    } catch (e) {
+      // 任何异常都返回错误信息，但不丢失上下文
+      return {
+        __error__: true,
+        message: e instanceof Error ? e.message : String(e),
+        path,
+      };
     }
   }
 
   /**
-   * 序列化单个值的内部实现
+   * 深度克隆的内部实现
    */
-  function serializeValueUnsafe(
-    value: unknown,
-    depth: number,
-    seen: WeakSet<object>
-  ): SerializedValue {
+  function deepCloneUnsafe(value: unknown, path: string, seen: Map<object, string>): unknown {
     // 处理 null
     if (value === null) {
-      return { type: 'null' };
+      return null;
     }
 
     // 处理 undefined
     if (value === undefined) {
-      return { type: 'undefined' };
+      return { __type__: 'undefined' };
     }
 
-    // 处理基本类型
     const type = typeof value;
 
+    // 处理基本类型
     if (type === 'string') {
-      return { type: 'string', value: truncateString(value as string) };
+      return value;
     }
 
     if (type === 'number') {
       const num = value as number;
-      // 处理特殊数字值
       if (Number.isNaN(num)) {
-        return { type: 'number', value: 'NaN' as unknown as number };
+        return { __type__: 'number', value: 'NaN' };
       }
       if (!Number.isFinite(num)) {
-        return { type: 'number', value: (num > 0 ? 'Infinity' : '-Infinity') as unknown as number };
+        return { __type__: 'number', value: num > 0 ? 'Infinity' : '-Infinity' };
       }
-      return { type: 'number', value: num };
+      return num;
     }
 
     if (type === 'boolean') {
-      return { type: 'boolean', value: value as boolean };
+      return value;
     }
 
     if (type === 'symbol') {
       try {
-        return { type: 'symbol', description: (value as symbol).description || '' };
+        return { __type__: 'symbol', description: (value as symbol).description || '' };
       } catch {
-        return { type: 'symbol', description: '' };
+        return { __type__: 'symbol', description: '' };
       }
     }
 
     if (type === 'function') {
       try {
-        return { type: 'function', name: (value as () => void).name || 'anonymous' };
+        const fn = value as (...args: unknown[]) => unknown;
+        return {
+          __type__: 'function',
+          name: fn.name || 'anonymous',
+          source: fn.toString().slice(0, 500), // 保留函数源码前500字符
+        };
       } catch {
-        return { type: 'function', name: 'anonymous' };
+        return { __type__: 'function', name: 'anonymous' };
       }
     }
 
-    // 处理 BigInt
     if (type === 'bigint') {
-      return { type: 'string', value: `${value}n` };
+      return { __type__: 'bigint', value: String(value) };
     }
 
     // 处理对象类型
@@ -167,226 +108,265 @@ export default defineUnlistedScript(() => {
 
       // 检查循环引用
       if (seen.has(obj)) {
-        return { type: 'circular' };
+        return { __circular__: seen.get(obj) };
       }
 
-      // 先添加到 seen，防止循环引用
-      seen.add(obj);
+      // 记录当前路径
+      seen.set(obj, path);
 
-      // 处理 DOM 元素
+      // 处理 DOM 元素 - 提取关键信息
       try {
         if (obj instanceof Element) {
-          return {
-            type: 'dom',
-            tagName: obj.tagName || 'UNKNOWN',
-            id: obj.id || undefined,
-            className: (typeof obj.className === 'string' ? obj.className : '') || undefined,
+          const element = obj;
+          const result: Record<string, unknown> = {
+            __type__: 'Element',
+            tagName: element.tagName,
+            id: element.id || undefined,
+            className: typeof element.className === 'string' ? element.className : undefined,
+            attributes: {},
           };
+
+          // 克隆所有属性
+          for (let i = 0; i < element.attributes.length; i++) {
+            const attr = element.attributes[i];
+            (result.attributes as Record<string, string>)[attr.name] = attr.value;
+          }
+
+          // 保留 innerHTML 摘要（可能很大，限制一下）
+          try {
+            const html = element.innerHTML;
+            result.innerHTML = html.length > 10000 ? html.slice(0, 10000) + '...[truncated]' : html;
+          } catch {
+            result.innerHTML = '[Unable to read innerHTML]';
+          }
+
+          // 保留文本内容
+          try {
+            const text = element.textContent;
+            result.textContent =
+              text && text.length > 1000 ? text.slice(0, 1000) + '...[truncated]' : text;
+          } catch {
+            result.textContent = '[Unable to read textContent]';
+          }
+
+          return result;
         }
       } catch {
-        return { type: 'dom', tagName: 'UNKNOWN' };
+        return { __type__: 'Element', error: 'Unable to serialize' };
       }
 
-      // 处理 Error
+      // 处理 Error - 完整保留
       try {
         if (obj instanceof Error) {
           return {
-            type: 'error',
-            name: obj.name || 'Error',
-            message: obj.message || '',
+            __type__: 'Error',
+            name: obj.name,
+            message: obj.message,
             stack: obj.stack,
-          };
-        }
-      } catch {
-        return { type: 'error', name: 'Error', message: '[Unable to read error]' };
-      }
-
-      // 处理 Promise
-      try {
-        if (obj instanceof Promise) {
-          return { type: 'object', preview: 'Promise { <pending> }' };
-        }
-      } catch {
-        // ignore
-      }
-
-      // 处理 WeakMap/WeakSet
-      try {
-        if (obj instanceof WeakMap) {
-          return { type: 'object', preview: 'WeakMap { }' };
-        }
-        if (obj instanceof WeakSet) {
-          return { type: 'object', preview: 'WeakSet { }' };
-        }
-      } catch {
-        // ignore
-      }
-
-      // 处理 Map
-      try {
-        if (obj instanceof Map) {
-          if (depth >= MAX_DEPTH) {
-            return { type: 'object', preview: `Map(${obj.size})` };
-          }
-          const entries: string[] = [];
-          let count = 0;
-          for (const [k, v] of obj) {
-            if (count >= MAX_OBJECT_KEYS) break;
-            const keyStr = formatValueForPreview(serializeValue(k, depth + 1, seen));
-            const valStr = formatValueForPreview(serializeValue(v, depth + 1, seen));
-            entries.push(`${keyStr} => ${valStr}`);
-            count++;
-          }
-          const hasMore = obj.size > MAX_OBJECT_KEYS;
-          return {
-            type: 'object',
-            preview: truncateString(
-              `Map(${obj.size}) {${entries.join(', ')}${hasMore ? ', ...' : ''}}`
+            cause:
+              obj.cause !== undefined ? deepClone(obj.cause, `${path}.cause`, seen) : undefined,
+            // 克隆 Error 上的自定义属性
+            ...Object.fromEntries(
+              Object.keys(obj)
+                .filter((k) => !['name', 'message', 'stack', 'cause'].includes(k))
+                .map((k) => [
+                  k,
+                  deepClone((obj as unknown as Record<string, unknown>)[k], `${path}.${k}`, seen),
+                ])
             ),
           };
         }
       } catch {
-        return { type: 'object', preview: 'Map { }' };
-      }
-
-      // 处理 Set
-      try {
-        if (obj instanceof Set) {
-          if (depth >= MAX_DEPTH) {
-            return { type: 'object', preview: `Set(${obj.size})` };
-          }
-          const items: string[] = [];
-          let count = 0;
-          for (const v of obj) {
-            if (count >= MAX_ARRAY_LENGTH) break;
-            items.push(formatValueForPreview(serializeValue(v, depth + 1, seen)));
-            count++;
-          }
-          const hasMore = obj.size > MAX_ARRAY_LENGTH;
-          return {
-            type: 'object',
-            preview: truncateString(
-              `Set(${obj.size}) {${items.join(', ')}${hasMore ? ', ...' : ''}}`
-            ),
-          };
-        }
-      } catch {
-        return { type: 'object', preview: 'Set { }' };
+        return { __type__: 'Error', error: 'Unable to serialize' };
       }
 
       // 处理 Date
       try {
         if (obj instanceof Date) {
-          return { type: 'object', preview: obj.toISOString() };
+          return {
+            __type__: 'Date',
+            iso: obj.toISOString(),
+            timestamp: obj.getTime(),
+          };
         }
       } catch {
-        return { type: 'object', preview: 'Invalid Date' };
+        return { __type__: 'Date', error: 'Invalid Date' };
       }
 
       // 处理 RegExp
       try {
         if (obj instanceof RegExp) {
-          return { type: 'object', preview: obj.toString() };
+          return {
+            __type__: 'RegExp',
+            source: obj.source,
+            flags: obj.flags,
+          };
         }
       } catch {
-        return { type: 'object', preview: '/.../' };
+        return { __type__: 'RegExp', error: 'Unable to serialize' };
       }
 
-      // 深度限制
-      if (depth >= MAX_DEPTH) {
-        if (Array.isArray(obj)) {
-          return { type: 'array', length: obj.length, preview: `Array(${obj.length})` };
-        }
-        return { type: 'object', preview: '[Object]' };
-      }
-
-      // 处理数组
-      if (Array.isArray(obj)) {
-        const items = obj.slice(0, MAX_ARRAY_LENGTH).map((item) => {
-          // 传递同一个 seen，确保跨层循环引用检测
-          const serialized = serializeValue(item, depth + 1, seen);
-          return formatValueForPreview(serialized);
-        });
-        const preview =
-          obj.length > MAX_ARRAY_LENGTH
-            ? `[${items.join(', ')}, ... +${obj.length - MAX_ARRAY_LENGTH} more]`
-            : `[${items.join(', ')}]`;
-        return {
-          type: 'array',
-          length: obj.length,
-          preview: truncateString(preview),
-        };
-      }
-
-      // 处理 TypedArray
+      // 处理 Map - 完整克隆
       try {
-        if (ArrayBuffer.isView(obj) && !(obj instanceof DataView)) {
-          const typedArray = obj as unknown as { length: number; constructor: { name: string } };
+        if (obj instanceof Map) {
+          const entries: Array<{ key: unknown; value: unknown }> = [];
+          let index = 0;
+          for (const [k, v] of obj) {
+            entries.push({
+              key: deepClone(k, `${path}[Map.key.${index}]`, seen),
+              value: deepClone(v, `${path}[Map.value.${index}]`, seen),
+            });
+            index++;
+          }
           return {
-            type: 'object',
-            preview: `${typedArray.constructor.name}(${typedArray.length})`,
+            __type__: 'Map',
+            size: obj.size,
+            entries,
           };
+        }
+      } catch {
+        return { __type__: 'Map', error: 'Unable to serialize' };
+      }
+
+      // 处理 Set - 完整克隆
+      try {
+        if (obj instanceof Set) {
+          const values: unknown[] = [];
+          let index = 0;
+          for (const v of obj) {
+            values.push(deepClone(v, `${path}[Set.${index}]`, seen));
+            index++;
+          }
+          return {
+            __type__: 'Set',
+            size: obj.size,
+            values,
+          };
+        }
+      } catch {
+        return { __type__: 'Set', error: 'Unable to serialize' };
+      }
+
+      // 处理 WeakMap/WeakSet - 无法枚举
+      try {
+        if (obj instanceof WeakMap) {
+          return { __type__: 'WeakMap', note: 'Cannot enumerate WeakMap entries' };
+        }
+        if (obj instanceof WeakSet) {
+          return { __type__: 'WeakSet', note: 'Cannot enumerate WeakSet values' };
         }
       } catch {
         // ignore
       }
 
-      // 处理普通对象
+      // 处理 Promise
       try {
-        const keys = safeGetOwnPropertyNames(obj);
-        const entries = keys.map((key) => {
-          const val = safeGetProperty(obj, key);
-          // 传递同一个 seen，确保跨层循环引用检测
-          const serialized = serializeValue(val, depth + 1, seen);
-          return `${key}: ${formatValueForPreview(serialized)}`;
-        });
-        const totalKeys = Object.keys(obj).length;
-        const hasMore = totalKeys > MAX_OBJECT_KEYS;
-        const preview = hasMore ? `{${entries.join(', ')}, ...}` : `{${entries.join(', ')}}`;
-        return {
-          type: 'object',
-          preview: truncateString(preview),
-        };
+        if (obj instanceof Promise) {
+          return { __type__: 'Promise', state: 'pending' };
+        }
       } catch {
-        return { type: 'object', preview: '[Object]' };
+        // ignore
+      }
+
+      // 处理 ArrayBuffer
+      try {
+        if (obj instanceof ArrayBuffer) {
+          return {
+            __type__: 'ArrayBuffer',
+            byteLength: obj.byteLength,
+            // 转换为数组以便查看内容
+            data: Array.from(new Uint8Array(obj)),
+          };
+        }
+      } catch {
+        return { __type__: 'ArrayBuffer', error: 'Unable to serialize' };
+      }
+
+      // 处理 TypedArray
+      try {
+        if (ArrayBuffer.isView(obj) && !(obj instanceof DataView)) {
+          const typedArray = obj as unknown as {
+            length: number;
+            constructor: { name: string };
+            buffer: ArrayBuffer;
+            byteOffset: number;
+            byteLength: number;
+          };
+          return {
+            __type__: typedArray.constructor.name,
+            length: typedArray.length,
+            byteOffset: typedArray.byteOffset,
+            byteLength: typedArray.byteLength,
+            // 转换为普通数组
+            data: Array.from(obj as unknown as ArrayLike<number>),
+          };
+        }
+      } catch {
+        return { __type__: 'TypedArray', error: 'Unable to serialize' };
+      }
+
+      // 处理 DataView
+      try {
+        if (obj instanceof DataView) {
+          return {
+            __type__: 'DataView',
+            byteLength: obj.byteLength,
+            byteOffset: obj.byteOffset,
+          };
+        }
+      } catch {
+        return { __type__: 'DataView', error: 'Unable to serialize' };
+      }
+
+      // 处理数组 - 完整克隆，无长度限制
+      if (Array.isArray(obj)) {
+        return obj.map((item, index) => deepClone(item, `${path}[${index}]`, seen));
+      }
+
+      // 处理普通对象 - 完整克隆，无键数限制
+      try {
+        const result: Record<string, unknown> = {};
+
+        // 获取所有自有属性（包括不可枚举的）
+        const keys = Object.getOwnPropertyNames(obj);
+
+        for (const key of keys) {
+          try {
+            const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+
+            if (descriptor) {
+              if (typeof descriptor.get === 'function') {
+                // 有 getter，标记但不触发
+                result[key] = { __getter__: true };
+              } else if ('value' in descriptor) {
+                result[key] = deepClone(descriptor.value, `${path}.${key}`, seen);
+              }
+            }
+          } catch (e) {
+            result[key] = {
+              __error__: true,
+              message: e instanceof Error ? e.message : String(e),
+            };
+          }
+        }
+
+        // 保留原型链信息
+        try {
+          const proto = Object.getPrototypeOf(obj);
+          if (proto && proto !== Object.prototype) {
+            result.__proto_name__ = proto.constructor?.name || 'Unknown';
+          }
+        } catch {
+          // ignore
+        }
+
+        return result;
+      } catch {
+        return { __type__: 'Object', error: 'Unable to serialize' };
       }
     }
 
-    return { type: 'object', preview: '[Unknown]' };
-  }
-
-  /**
-   * 格式化值用于预览
-   */
-  function formatValueForPreview(value: SerializedValue): string {
-    switch (value.type) {
-      case 'string':
-        return `"${value.value}"`;
-      case 'number':
-        return String(value.value);
-      case 'boolean':
-        return String(value.value);
-      case 'null':
-        return 'null';
-      case 'undefined':
-        return 'undefined';
-      case 'object':
-        return value.preview;
-      case 'array':
-        return value.preview;
-      case 'function':
-        return `ƒ ${value.name}()`;
-      case 'symbol':
-        return `Symbol(${value.description})`;
-      case 'error':
-        return `${value.name}: ${value.message}`;
-      case 'circular':
-        return '[Circular]';
-      case 'dom':
-        return `<${value.tagName.toLowerCase()}>`;
-      default:
-        return '[Unknown]';
-    }
+    return { __type__: 'unknown', value: String(value) };
   }
 
   /**
@@ -403,6 +383,14 @@ export default defineUnlistedScript(() => {
     } catch {
       return undefined;
     }
+  }
+
+  interface ConsoleLogData {
+    id: string;
+    level: 'log' | 'info' | 'warn' | 'error' | 'debug' | 'trace';
+    args: unknown[];
+    timestamp: number;
+    stack?: string;
   }
 
   /**
@@ -436,19 +424,17 @@ export default defineUnlistedScript(() => {
 
     console[method] = function (...args: unknown[]) {
       // 先调用原始方法，确保主世界行为不受影响
-      // 即使后续序列化失败，原始日志也已经输出
       const result = originalMethods[method](...args);
 
-      // 异步处理序列化和事件发送，避免阻塞
+      // 深度克隆并发送事件
       try {
-        // 序列化参数
-        const serializedArgs = args.map((arg) => serializeValue(arg));
+        // 深度克隆所有参数
+        const clonedArgs = args.map((arg, index) => deepClone(arg, `$[${index}]`));
 
-        // 构建日志数据
         const logData: ConsoleLogData = {
           id: generateLogId(),
           level: method,
-          args: serializedArgs,
+          args: clonedArgs,
           timestamp: Date.now(),
         };
 
@@ -457,7 +443,6 @@ export default defineUnlistedScript(() => {
           logData.stack = getStack();
         }
 
-        // 发送事件
         emitConsoleEvent(logData);
       } catch {
         // 静默失败，不影响主世界
