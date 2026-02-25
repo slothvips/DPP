@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/utils/cn';
 import type { eventWithTime } from '@rrweb/types';
+import { ConsolePanel } from './ConsolePanel';
 import { NetworkPanel } from './NetworkPanel';
 
 export type PanelTab = 'network' | 'console' | 'actions';
@@ -44,7 +45,6 @@ export function PlayerSidePanel({
       label: '控制台',
       icon: <ConsoleIcon />,
       badge: consoleCount,
-      disabled: true,
     },
     {
       id: 'actions',
@@ -103,9 +103,7 @@ export function PlayerSidePanel({
       {/* 面板内容 */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab === 'network' && <NetworkPanel events={events} currentTime={currentTime} />}
-        {activeTab === 'console' && (
-          <ComingSoonPanel title="控制台录制" description="即将支持录制和回放控制台日志" />
-        )}
+        {activeTab === 'console' && <ConsolePanel events={events} currentTime={currentTime} />}
         {activeTab === 'actions' && (
           <ComingSoonPanel title="用户行为录制" description="即将支持录制和回放用户操作序列" />
         )}

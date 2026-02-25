@@ -43,7 +43,7 @@ export default defineConfig({
     omnibox: { keyword: 'dpp' },
     web_accessible_resources: [
       {
-        resources: ['network-interceptor.js'],
+        resources: ['network-interceptor.js', 'console-interceptor.js'],
         matches: ['<all_urls>'],
       },
     ],

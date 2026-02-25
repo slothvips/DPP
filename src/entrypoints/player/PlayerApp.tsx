@@ -6,7 +6,7 @@ import { db } from '@/db';
 import { PlayerSidePanel } from '@/features/recorder/components/PlayerSidePanel';
 import { usePanelResize } from '@/hooks/usePanelResize';
 import { useTheme } from '@/hooks/useTheme';
-import { extractNetworkRequests } from '@/lib/rrweb-plugins';
+import { extractConsoleLogs, extractNetworkRequests } from '@/lib/rrweb-plugins';
 import { logger } from '@/utils/logger';
 import { unpack } from '@rrweb/packer';
 import type { eventWithTime } from '@rrweb/types';
@@ -29,6 +29,7 @@ export function PlayerApp() {
   const [hasPlayer, setHasPlayer] = useState(false);
   const [showSidePanel, setShowSidePanel] = useState(false);
   const [networkRequestCount, setNetworkRequestCount] = useState(0);
+  const [consoleLogCount, setConsoleLogCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const eventsRef = useRef<eventWithTime[]>([]);
 
@@ -116,6 +117,10 @@ export function PlayerApp() {
         // Count network requests (after unpacking)
         const networkRequests = extractNetworkRequests(events as eventWithTime[]);
         setNetworkRequestCount(networkRequests.length);
+
+        // Count console logs (after unpacking)
+        const consoleLogs = extractConsoleLogs(events as eventWithTime[]);
+        setConsoleLogCount(consoleLogs.length);
 
         if (containerRef.current) {
           containerRef.current.innerHTML = '';
@@ -257,6 +262,7 @@ export function PlayerApp() {
               <PlayerSidePanel
                 events={eventsRef.current}
                 networkCount={networkRequestCount}
+                consoleCount={consoleLogCount}
                 currentTime={currentTime}
                 onClose={() => setShowSidePanel(false)}
               />

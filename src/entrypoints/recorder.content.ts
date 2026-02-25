@@ -1,11 +1,18 @@
 import { record } from 'rrweb';
-import { NETWORK_PLUGIN_NAME, type NetworkPluginEvent } from '@/lib/rrweb-plugins';
+import {
+  CONSOLE_PLUGIN_NAME,
+  type ConsolePluginEvent,
+  NETWORK_PLUGIN_NAME,
+  type NetworkPluginEvent,
+} from '@/lib/rrweb-plugins';
 import { logger } from '@/utils/logger';
 import { pack } from '@rrweb/packer';
 import type { eventWithTime } from '@rrweb/types';
 
 // 网络请求事件名称，与注入脚本保持一致
 const NETWORK_EVENT_NAME = 'dpp-network-request';
+// 控制台日志事件名称，与注入脚本保持一致
+const CONSOLE_EVENT_NAME = 'dpp-console-log';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -17,7 +24,9 @@ export default defineContentScript({
     let uiContainer: HTMLDivElement | null = null;
     let timerInterval: number | null = null;
     let networkEventHandler: ((e: Event) => void) | null = null;
+    let consoleEventHandler: ((e: Event) => void) | null = null;
     let injectedScript: HTMLScriptElement | null = null;
+    let injectedConsoleScript: HTMLScriptElement | null = null;
 
     // Check if recording is active when content script loads
     browser.runtime.sendMessage({ type: 'RECORDER_GET_STATUS_FOR_CONTENT' }).then((response) => {
@@ -229,6 +238,7 @@ export default defineContentScript({
 
       createFloatingUI();
       injectNetworkInterceptor();
+      injectConsoleInterceptor();
 
       stopFn = record({
         packFn: pack,
@@ -250,6 +260,7 @@ export default defineContentScript({
         stopFn = null;
         removeFloatingUI();
         removeNetworkInterceptor();
+        removeConsoleInterceptor();
         const duration = Date.now() - startTime;
         logger.debug('Stopped rrweb recording', { duration, events: events.length });
 
@@ -319,6 +330,62 @@ export default defineContentScript({
       if (injectedScript) {
         injectedScript.remove();
         injectedScript = null;
+      }
+    }
+
+    /**
+     * 注入控制台拦截脚本到页面主世界
+     */
+    function injectConsoleInterceptor() {
+      // 监听来自页面的控制台事件
+      consoleEventHandler = (e: Event) => {
+        const customEvent = e as CustomEvent;
+        const consoleData = customEvent.detail;
+
+        // 创建 rrweb 插件事件格式
+        const pluginEvent: eventWithTime = {
+          type: 6, // EventType.Plugin
+          data: {
+            plugin: CONSOLE_PLUGIN_NAME,
+            payload: {
+              type: 'console',
+              data: consoleData,
+              timestamp: Date.now(),
+            } as ConsolePluginEvent,
+          },
+          timestamp: Date.now(),
+        };
+
+        events.push(pluginEvent);
+      };
+
+      window.addEventListener(CONSOLE_EVENT_NAME, consoleEventHandler);
+
+      // 注入脚本到页面主世界
+      injectedConsoleScript = document.createElement('script');
+      injectedConsoleScript.src = browser.runtime.getURL(
+        '/console-interceptor.js' as '/popup.html'
+      );
+      injectedConsoleScript.onload = () => {
+        logger.debug('Console interceptor injected');
+      };
+      injectedConsoleScript.onerror = (err) => {
+        logger.error('Failed to inject console interceptor', err);
+      };
+      (document.head || document.documentElement).appendChild(injectedConsoleScript);
+    }
+
+    /**
+     * 移除控制台拦截
+     */
+    function removeConsoleInterceptor() {
+      if (consoleEventHandler) {
+        window.removeEventListener(CONSOLE_EVENT_NAME, consoleEventHandler);
+        consoleEventHandler = null;
+      }
+      if (injectedConsoleScript) {
+        injectedConsoleScript.remove();
+        injectedConsoleScript = null;
       }
     }
   },
