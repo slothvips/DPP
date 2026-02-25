@@ -1,10 +1,11 @@
+import { Allotment, type AllotmentHandle } from 'allotment';
+import 'allotment/dist/style.css';
 import rrwebPlayer from 'rrweb-player';
 import 'rrweb-player/dist/style.css';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/db';
 import { PlayerSidePanel } from '@/features/recorder/components/PlayerSidePanel';
-import { usePanelResize } from '@/hooks/usePanelResize';
 import { useTheme } from '@/hooks/useTheme';
 import { extractConsoleLogs, extractNetworkRequests } from '@/lib/rrweb-plugins';
 import { logger } from '@/utils/logger';
@@ -32,14 +33,20 @@ export function PlayerApp() {
   const [consoleLogCount, setConsoleLogCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const eventsRef = useRef<eventWithTime[]>([]);
+  const allotmentRef = useRef<AllotmentHandle>(null);
 
-  const { value: sidePanelWidth, handleProps } = usePanelResize({
-    initialValue: 500,
-    min: 300,
-    max: 800,
-    unit: 'px',
-    direction: 'left',
-  });
+  // 从 localStorage 读取侧边栏宽度
+  const getSavedPanelSize = () => {
+    const saved = localStorage.getItem('player-side-panel-size');
+    return saved ? Number(saved) : 500;
+  };
+
+  // 保存侧边栏宽度到 localStorage
+  const savePanelSize = (sizes: number[]) => {
+    if (sizes.length === 2 && sizes[1] > 0) {
+      localStorage.setItem('player-side-panel-size', String(Math.round(sizes[1])));
+    }
+  };
 
   useEffect(() => {
     let instance: rrwebPlayer | null = null;
@@ -234,41 +241,53 @@ export function PlayerApp() {
         </div>
       </header>
       <main className="flex-1 flex overflow-hidden p-0">
-        <div className="flex-1 flex flex-col min-w-0">
-          {loading && <div className="text-muted-foreground text-lg p-4">正在加载录制...</div>}
+        <Allotment
+          ref={allotmentRef}
+          onDragEnd={savePanelSize}
+          onVisibleChange={(_index, visible) => {
+            // 当侧边栏可见性变化时同步状态
+            if (!visible && showSidePanel) {
+              setShowSidePanel(false);
+            }
+          }}
+        >
+          <Allotment.Pane>
+            <div className="h-full flex flex-col min-w-0">
+              {loading && <div className="text-muted-foreground text-lg p-4">正在加载录制...</div>}
 
-          {error && (
-            <div className="text-destructive bg-destructive/10 p-4 rounded-md border border-destructive/20 m-4">
-              错误: {error}
+              {error && (
+                <div className="text-destructive bg-destructive/10 p-4 rounded-md border border-destructive/20 m-4">
+                  错误: {error}
+                </div>
+              )}
+
+              {!loading && !error && !hasPlayer && (
+                <div className="text-muted-foreground border-2 border-dashed border-border rounded-lg p-12 text-center m-4">
+                  <p>未加载录制。</p>
+                  <p className="text-sm mt-2">请从扩展程序弹窗中打开录制。</p>
+                </div>
+              )}
+
+              <div ref={containerRef} className="rrweb-player-container flex-1 min-h-0" />
             </div>
-          )}
+          </Allotment.Pane>
 
-          {!loading && !error && !hasPlayer && (
-            <div className="text-muted-foreground border-2 border-dashed border-border rounded-lg p-12 text-center m-4">
-              <p>未加载录制。</p>
-              <p className="text-sm mt-2">请从扩展程序弹窗中打开录制。</p>
-            </div>
-          )}
-
-          <div ref={containerRef} className="rrweb-player-container flex-1 min-h-0" />
-        </div>
-
-        {/* 右侧开发者工具面板 */}
-        {showSidePanel && hasPlayer && (
-          <div className="flex shrink-0" style={{ width: sidePanelWidth }}>
-            {/* 拖拽手柄 */}
-            <div {...handleProps} />
-            <div className="flex-1 min-w-0">
-              <PlayerSidePanel
-                events={eventsRef.current}
-                networkCount={networkRequestCount}
-                consoleCount={consoleLogCount}
-                currentTime={currentTime}
-                onClose={() => setShowSidePanel(false)}
-              />
-            </div>
-          </div>
-        )}
+          {/* 右侧开发者工具面板 */}
+          <Allotment.Pane
+            preferredSize={getSavedPanelSize()}
+            minSize={300}
+            maxSize={800}
+            visible={showSidePanel && hasPlayer}
+          >
+            <PlayerSidePanel
+              events={eventsRef.current}
+              networkCount={networkRequestCount}
+              consoleCount={consoleLogCount}
+              currentTime={currentTime}
+              onClose={() => setShowSidePanel(false)}
+            />
+          </Allotment.Pane>
+        </Allotment>
       </main>
     </div>
   );

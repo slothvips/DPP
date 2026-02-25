@@ -1,5 +1,5 @@
+import { Allotment } from 'allotment';
 import { useMemo, useState } from 'react';
-import { usePanelResize } from '@/hooks/usePanelResize';
 import {
   type NetworkRequest,
   extractNetworkRequests,
@@ -22,17 +22,6 @@ type RequestStatus = 'past' | 'active' | 'future';
 export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
   const [selectedRequest, setSelectedRequest] = useState<NetworkRequestWithTimestamp | null>(null);
   const [filter, setFilter] = useState('');
-
-  const {
-    value: leftPanelWidth,
-    containerRef,
-    handleProps,
-  } = usePanelResize({
-    initialValue: 50,
-    min: 20,
-    max: 80,
-    unit: 'percent',
-  });
 
   const requests = extractNetworkRequests(events);
 
@@ -119,113 +108,114 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
         </div>
       </div>
 
-      <div ref={containerRef} className="flex flex-1 min-h-0">
+      <Allotment className="flex-1 min-h-0">
         {/* 请求列表 */}
-        <div className="overflow-auto" style={{ width: `${leftPanelWidth}%` }}>
-          {filteredRequests.length === 0 ? (
-            <div className="p-4 text-center text-muted-foreground">
-              {requests.length === 0 ? '没有录制到网络请求' : '没有匹配的请求'}
-            </div>
-          ) : (
-            <table className="w-full">
-              <thead className="sticky top-0 bg-muted/50 text-xs z-10">
-                <tr>
-                  <th className="text-left p-2 font-medium">URL</th>
-                  <th className="text-left p-2 font-medium w-[50px]">方法</th>
-                  <th className="text-left p-2 font-medium w-[45px]">状态</th>
-                  <th className="text-left p-2 font-medium w-[70px]">时间</th>
-                  <th className="text-right p-2 font-medium w-[60px]">耗时</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRequests.map((req) => {
-                  const status = getRequestStatus(req);
-                  const isFuture = status === 'future';
-                  const isActive = status === 'active';
+        <Allotment.Pane preferredSize="50%" minSize={100}>
+          <div className="overflow-auto h-full">
+            {filteredRequests.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground">
+                {requests.length === 0 ? '没有录制到网络请求' : '没有匹配的请求'}
+              </div>
+            ) : (
+              <table className="w-full">
+                <thead className="sticky top-0 bg-muted/50 text-xs z-10">
+                  <tr>
+                    <th className="text-left p-2 font-medium">URL</th>
+                    <th className="text-left p-2 font-medium w-[50px]">方法</th>
+                    <th className="text-left p-2 font-medium w-[45px]">状态</th>
+                    <th className="text-left p-2 font-medium w-[70px]">时间</th>
+                    <th className="text-right p-2 font-medium w-[60px]">耗时</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((req) => {
+                    const status = getRequestStatus(req);
+                    const isFuture = status === 'future';
+                    const isActive = status === 'active';
 
-                  return (
-                    <tr
-                      key={req.id}
-                      onClick={() => setSelectedRequest(req)}
-                      className={cn(
-                        'cursor-pointer border-b border-border/50 transition-colors',
-                        selectedRequest?.id === req.id && 'bg-muted',
-                        isActive && 'bg-blue-500/20 border-l-2 border-l-blue-500',
-                        isFuture && 'opacity-40',
-                        !isFuture && !isActive && 'hover:bg-muted/50',
-                        req.error && !isFuture && 'bg-red-500/10'
-                      )}
-                    >
-                      <td
+                    return (
+                      <tr
+                        key={req.id}
+                        onClick={() => setSelectedRequest(req)}
                         className={cn(
-                          'p-2 truncate max-w-[180px]',
-                          isFuture && 'text-muted-foreground/50'
-                        )}
-                        title={req.url}
-                      >
-                        {(() => {
-                          try {
-                            return new URL(req.url, 'http://localhost').pathname;
-                          } catch {
-                            return req.url;
-                          }
-                        })()}
-                      </td>
-                      <td
-                        className={cn(
-                          'p-2 font-mono text-xs',
-                          isFuture ? 'text-muted-foreground/50' : getMethodColor(req.method)
+                          'cursor-pointer border-b border-border/50 transition-colors',
+                          selectedRequest?.id === req.id && 'bg-muted',
+                          isActive && 'bg-blue-500/20 border-l-2 border-l-blue-500',
+                          isFuture && 'opacity-40',
+                          !isFuture && !isActive && 'hover:bg-muted/50',
+                          req.error && !isFuture && 'bg-red-500/10'
                         )}
                       >
-                        {req.method}
-                      </td>
-                      <td
-                        className={cn(
-                          'p-2 font-mono text-xs',
-                          isFuture ? 'text-muted-foreground/50' : getStatusColor(req.status)
-                        )}
-                      >
-                        {isFuture ? '-' : req.status || (req.error ? 'ERR' : '...')}
-                      </td>
-                      <td
-                        className={cn(
-                          'p-2 font-mono text-xs',
-                          isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
-                        )}
-                      >
-                        {formatTimePoint(req.eventTimestamp)}
-                      </td>
-                      <td
-                        className={cn(
-                          'p-2 text-right text-xs',
-                          isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
-                        )}
-                      >
-                        {isFuture ? '-' : formatDuration(req.duration)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* 拖拽分隔条 */}
-        <div {...handleProps} />
+                        <td
+                          className={cn(
+                            'p-2 truncate max-w-[180px]',
+                            isFuture && 'text-muted-foreground/50'
+                          )}
+                          title={req.url}
+                        >
+                          {(() => {
+                            try {
+                              return new URL(req.url, 'http://localhost').pathname;
+                            } catch {
+                              return req.url;
+                            }
+                          })()}
+                        </td>
+                        <td
+                          className={cn(
+                            'p-2 font-mono text-xs',
+                            isFuture ? 'text-muted-foreground/50' : getMethodColor(req.method)
+                          )}
+                        >
+                          {req.method}
+                        </td>
+                        <td
+                          className={cn(
+                            'p-2 font-mono text-xs',
+                            isFuture ? 'text-muted-foreground/50' : getStatusColor(req.status)
+                          )}
+                        >
+                          {isFuture ? '-' : req.status || (req.error ? 'ERR' : '...')}
+                        </td>
+                        <td
+                          className={cn(
+                            'p-2 font-mono text-xs',
+                            isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                          )}
+                        >
+                          {formatTimePoint(req.eventTimestamp)}
+                        </td>
+                        <td
+                          className={cn(
+                            'p-2 text-right text-xs',
+                            isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                          )}
+                        >
+                          {isFuture ? '-' : formatDuration(req.duration)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </Allotment.Pane>
 
         {/* 请求详情 */}
-        <div className="overflow-auto flex-1 min-w-0">
-          {selectedRequest ? (
-            <RequestDetail
-              request={selectedRequest}
-              isFuture={getRequestStatus(selectedRequest) === 'future'}
-            />
-          ) : (
-            <div className="p-4 text-center text-muted-foreground">选择一个请求查看详情</div>
-          )}
-        </div>
-      </div>
+        <Allotment.Pane minSize={100}>
+          <div className="overflow-auto h-full">
+            {selectedRequest ? (
+              <RequestDetail
+                request={selectedRequest}
+                isFuture={getRequestStatus(selectedRequest) === 'future'}
+              />
+            ) : (
+              <div className="p-4 text-center text-muted-foreground">选择一个请求查看详情</div>
+            )}
+          </div>
+        </Allotment.Pane>
+      </Allotment>
     </div>
   );
 }
