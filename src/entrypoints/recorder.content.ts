@@ -1,4 +1,3 @@
-import { record } from 'rrweb';
 import {
   CONSOLE_PLUGIN_NAME,
   type ConsolePluginEvent,
@@ -6,6 +5,7 @@ import {
   type NetworkPluginEvent,
 } from '@/lib/rrweb-plugins';
 import { logger } from '@/utils/logger';
+import { record } from '@/vendor/rrweb/rrweb.js';
 import { pack } from '@rrweb/packer';
 import type { eventWithTime } from '@rrweb/types';
 

@@ -1,14 +1,14 @@
 import { Allotment, type AllotmentHandle } from 'allotment';
 import 'allotment/dist/style.css';
-import rrwebPlayer from 'rrweb-player';
-import 'rrweb-player/dist/style.css';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/db';
 import { PlayerSidePanel } from '@/features/recorder/components/PlayerSidePanel';
 import { useTheme } from '@/hooks/useTheme';
 import { extractConsoleLogs, extractNetworkRequests } from '@/lib/rrweb-plugins';
 import { logger } from '@/utils/logger';
+import { Replayer } from '@/vendor/rrweb/rrweb.js';
+import '@/vendor/rrweb/style.css';
 import { unpack } from '@rrweb/packer';
 import type { eventWithTime } from '@rrweb/types';
 import './rrweb-player-theme.css';
@@ -22,8 +22,7 @@ interface RRWebEvent {
 export function PlayerApp() {
   useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
-  const playerRef = useRef<rrwebPlayer | null>(null);
+  const replayerRef = useRef<Replayer | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recordingTitle, setRecordingTitle] = useState('录制');
@@ -32,6 +31,10 @@ export function PlayerApp() {
   const [networkRequestCount, setNetworkRequestCount] = useState(0);
   const [consoleLogCount, setConsoleLogCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [skipInactive, setSkipInactive] = useState(true);
   const eventsRef = useRef<eventWithTime[]>([]);
   const allotmentRef = useRef<AllotmentHandle>(null);
 
@@ -48,8 +51,44 @@ export function PlayerApp() {
     }
   };
 
+  const formatTime = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const handlePlayPause = useCallback(() => {
+    if (!replayerRef.current) return;
+    if (isPlaying) {
+      replayerRef.current.pause();
+    } else {
+      replayerRef.current.play();
+    }
+  }, [isPlaying]);
+
+  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!replayerRef.current) return;
+    const time = Number(e.target.value);
+    replayerRef.current.pause(time);
+    setCurrentTime(time);
+  }, []);
+
+  const handleSpeedChange = useCallback((newSpeed: number) => {
+    if (!replayerRef.current) return;
+    replayerRef.current.setConfig({ speed: newSpeed });
+    setSpeed(newSpeed);
+  }, []);
+
+  const handleSkipInactiveToggle = useCallback(() => {
+    if (!replayerRef.current) return;
+    const newValue = !skipInactive;
+    replayerRef.current.setConfig({ skipInactive: newValue });
+    setSkipInactive(newValue);
+  }, [skipInactive]);
+
   useEffect(() => {
-    let instance: rrwebPlayer | null = null;
+    let replayer: Replayer | null = null;
     let mounted = true;
     let timeUpdateInterval: number | null = null;
 
@@ -96,26 +135,23 @@ export function PlayerApp() {
         }
 
         // Handle unpacking if events are compressed
-        // Check first event to see if it needs unpacking
         const firstEvent = events[0] as unknown;
-        const looksLikePacked =
-          events.length > 0 &&
-          typeof firstEvent !== 'string' &&
-          !('type' in (firstEvent as object));
 
-        if (looksLikePacked) {
+        // 检测是否需要解包：
+        // 1. 如果是字符串，说明是压缩数据
+        // 2. 如果是数组，说明是 packer 格式
+        // 3. 如果是对象但没有 type 字段，也需要解包
+        const needsUnpack =
+          typeof firstEvent === 'string' ||
+          Array.isArray(firstEvent) ||
+          (typeof firstEvent === 'object' && firstEvent !== null && !('type' in firstEvent));
+
+        if (needsUnpack) {
           try {
             events = events.map((e) => unpack(e as unknown as string)) as unknown as RRWebEvent[];
           } catch (e) {
             logger.warn('Failed to unpack events, assuming raw:', e);
           }
-        } else {
-          events = events.map((e) => {
-            if (Array.isArray(e)) {
-              return unpack(e as unknown as string);
-            }
-            return e;
-          }) as unknown as RRWebEvent[];
         }
 
         // Store events in ref for resize handler (after unpacking)
@@ -132,67 +168,44 @@ export function PlayerApp() {
         if (containerRef.current) {
           containerRef.current.innerHTML = '';
 
-          // Get container dimensions
-          const rect = containerRef.current.getBoundingClientRect();
-          const width = rect.width;
-          // rrwebPlayer 的 height 参数是 iframe 部分的高度，不包括控制栏
-          // 需要减去控制栏的高度（约 80px）
-          const CONTROLLER_HEIGHT = 80;
-          const height = Math.max(rect.height - CONTROLLER_HEIGHT, 100);
-
-          instance = new rrwebPlayer({
-            target: containerRef.current,
-            props: {
-              events,
-              width,
-              height,
-              autoPlay: true,
-              showController: true,
-            },
+          replayer = new Replayer(events as eventWithTime[], {
+            root: containerRef.current,
+            skipInactive: true,
+            showWarning: false,
+            mouseTail: true,
           });
 
-          playerRef.current = instance;
+          replayerRef.current = replayer;
+
+          // Get metadata
+          const metadata = replayer.getMetaData();
+          setDuration(metadata.totalTime);
+
+          // Listen to events
+          replayer.on('start', () => {
+            if (mounted) setIsPlaying(true);
+          });
+          replayer.on('pause', () => {
+            if (mounted) setIsPlaying(false);
+          });
+          replayer.on('finish', () => {
+            if (mounted) setIsPlaying(false);
+          });
 
           // 定时更新当前播放时间
           timeUpdateInterval = window.setInterval(() => {
-            if (instance && mounted) {
+            if (replayer && mounted) {
               try {
-                const replayer = instance.getReplayer();
-                if (replayer) {
-                  const time = replayer.getCurrentTime();
-                  setCurrentTime(time);
-                }
+                const time = replayer.getCurrentTime();
+                setCurrentTime(time);
               } catch {
                 // ignore
               }
             }
           }, 100);
 
-          // Handle resize
-          const resizeObserver = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-              const { width: newWidth, height: newHeight } = entry.contentRect;
-              if (instance && newWidth > 0 && newHeight > 0) {
-                // Recreate player with new dimensions
-                (instance as unknown as { $destroy: () => void }).$destroy();
-                containerRef.current!.innerHTML = '';
-                instance = new rrwebPlayer({
-                  target: containerRef.current!,
-                  props: {
-                    events: eventsRef.current,
-                    width: newWidth,
-                    height: Math.max(newHeight - CONTROLLER_HEIGHT, 100),
-                    autoPlay: true,
-                    showController: true,
-                  },
-                });
-                playerRef.current = instance;
-              }
-            }
-          });
-          resizeObserver.observe(containerRef.current);
-          resizeObserverRef.current = resizeObserver;
-
+          // Auto play
+          replayer.play();
           setHasPlayer(true);
         }
       } catch (e) {
@@ -209,11 +222,8 @@ export function PlayerApp() {
       if (timeUpdateInterval) {
         clearInterval(timeUpdateInterval);
       }
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-      }
-      if (instance) {
-        (instance as unknown as { $destroy: () => void }).$destroy();
+      if (replayer) {
+        replayer.destroy();
       }
     };
   }, []);
@@ -245,7 +255,6 @@ export function PlayerApp() {
           ref={allotmentRef}
           onDragEnd={savePanelSize}
           onVisibleChange={(_index, visible) => {
-            // 当侧边栏可见性变化时同步状态
             if (!visible && showSidePanel) {
               setShowSidePanel(false);
             }
@@ -268,7 +277,56 @@ export function PlayerApp() {
                 </div>
               )}
 
-              <div ref={containerRef} className="rrweb-player-container flex-1 min-h-0" />
+              <div className="rrweb-player-container flex-1 min-h-0 overflow-auto">
+                <div ref={containerRef} className="replayer-wrapper" />
+              </div>
+
+              {/* 播放控制栏 */}
+              {hasPlayer && (
+                <div className="bg-card border-t px-4 py-3 flex items-center gap-4 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handlePlayPause}
+                    className="w-10 h-10 p-0"
+                  >
+                    {isPlaying ? <PauseIcon /> : <PlayIcon />}
+                  </Button>
+                  <span className="text-sm text-muted-foreground w-24 tabular-nums">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={duration}
+                    value={currentTime}
+                    onChange={handleSeek}
+                    className="flex-1 h-2 accent-primary cursor-pointer"
+                  />
+                  <div className="flex items-center gap-1">
+                    {[0.5, 1, 2, 4].map((s) => (
+                      <Button
+                        key={s}
+                        variant={speed === s ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => handleSpeedChange(s)}
+                        className="px-2 text-xs"
+                      >
+                        {s}x
+                      </Button>
+                    ))}
+                    <span className="w-px h-4 bg-border mx-1" />
+                    <Button
+                      variant={skipInactive ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={handleSkipInactiveToggle}
+                      className="px-2 text-xs"
+                    >
+                      跳过空闲
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </Allotment.Pane>
 
@@ -302,6 +360,22 @@ function PanelIcon() {
         strokeWidth={2}
         d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
       />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
     </svg>
   );
 }
