@@ -27,6 +27,10 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
   const handlePlay = () => {
     const url = browser.runtime.getURL(`/player.html?id=${recording.id}`);
     browser.tabs.create({ url });
+    // 如果在侧边栏中则关闭
+    if (window.location.pathname.includes('sidepanel')) {
+      window.close();
+    }
   };
 
   const formatSize = (bytes: number) => {

@@ -22,7 +22,9 @@ interface RRWebEvent {
 export function PlayerApp() {
   useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
+  const playerAreaRef = useRef<HTMLDivElement>(null);
   const replayerRef = useRef<Replayer | null>(null);
+  const allotmentRef = useRef<AllotmentHandle>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [recordingTitle, setRecordingTitle] = useState('录制');
@@ -36,18 +38,15 @@ export function PlayerApp() {
   const [speed, setSpeed] = useState(1);
   const [skipInactive, setSkipInactive] = useState(true);
   const eventsRef = useRef<eventWithTime[]>([]);
-  const allotmentRef = useRef<AllotmentHandle>(null);
 
-  // 从 localStorage 读取侧边栏宽度
   const getSavedPanelSize = () => {
-    const saved = localStorage.getItem('player-side-panel-size');
-    return saved ? Number(saved) : 500;
+    const saved = localStorage.getItem('player-side-panel-width');
+    return saved ? Number(saved) : 400;
   };
 
-  // 保存侧边栏宽度到 localStorage
   const savePanelSize = (sizes: number[]) => {
     if (sizes.length === 2 && sizes[1] > 0) {
-      localStorage.setItem('player-side-panel-size', String(Math.round(sizes[1])));
+      localStorage.setItem('player-side-panel-width', String(Math.round(sizes[1])));
     }
   };
 
@@ -87,6 +86,42 @@ export function PlayerApp() {
     setSkipInactive(newValue);
   }, [skipInactive]);
 
+  // 自适应缩放播放器
+  const updateScale = useCallback(() => {
+    const playerArea = playerAreaRef.current;
+    if (!playerArea || !replayerRef.current) return;
+
+    const iframe = replayerRef.current.iframe;
+    if (!iframe) return;
+
+    const recWidth = parseInt(iframe.width, 10) || iframe.offsetWidth;
+    const recHeight = parseInt(iframe.height, 10) || iframe.offsetHeight;
+    if (!recWidth || !recHeight) return;
+
+    const areaWidth = playerArea.clientWidth;
+    const areaHeight = playerArea.clientHeight;
+
+    // 计算缩放比例，保持宽高比，只缩小不放大
+    const scaleX = areaWidth / recWidth;
+    const scaleY = areaHeight / recHeight;
+    const scale = Math.min(scaleX, scaleY, 1);
+
+    // 计算居中偏移
+    const scaledWidth = recWidth * scale;
+    const scaledHeight = recHeight * scale;
+    const offsetX = (areaWidth - scaledWidth) / 2;
+    const offsetY = (areaHeight - scaledHeight) / 2;
+
+    const wrapper = containerRef.current;
+    if (wrapper) {
+      wrapper.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+      wrapper.style.transformOrigin = 'top left';
+      wrapper.style.width = `${recWidth}px`;
+      wrapper.style.height = `${recHeight}px`;
+    }
+  }, []);
+
+  // 初始化播放器
   useEffect(() => {
     let replayer: Replayer | null = null;
     let mounted = true;
@@ -134,13 +169,7 @@ export function PlayerApp() {
           throw new Error('录制内容为空 (0 个事件)');
         }
 
-        // Handle unpacking if events are compressed
         const firstEvent = events[0] as unknown;
-
-        // 检测是否需要解包：
-        // 1. 如果是字符串，说明是压缩数据
-        // 2. 如果是数组，说明是 packer 格式
-        // 3. 如果是对象但没有 type 字段，也需要解包
         const needsUnpack =
           typeof firstEvent === 'string' ||
           Array.isArray(firstEvent) ||
@@ -154,14 +183,11 @@ export function PlayerApp() {
           }
         }
 
-        // Store events in ref for resize handler (after unpacking)
         eventsRef.current = events as eventWithTime[];
 
-        // Count network requests (after unpacking)
         const networkRequests = extractNetworkRequests(events as eventWithTime[]);
         setNetworkRequestCount(networkRequests.length);
 
-        // Count console logs (after unpacking)
         const consoleLogs = extractConsoleLogs(events as eventWithTime[]);
         setConsoleLogCount(consoleLogs.length);
 
@@ -177,11 +203,9 @@ export function PlayerApp() {
 
           replayerRef.current = replayer;
 
-          // Get metadata
           const metadata = replayer.getMetaData();
           setDuration(metadata.totalTime);
 
-          // Listen to events
           replayer.on('start', () => {
             if (mounted) setIsPlaying(true);
           });
@@ -192,19 +216,16 @@ export function PlayerApp() {
             if (mounted) setIsPlaying(false);
           });
 
-          // 定时更新当前播放时间
           timeUpdateInterval = window.setInterval(() => {
             if (replayer && mounted) {
               try {
-                const time = replayer.getCurrentTime();
-                setCurrentTime(time);
+                setCurrentTime(replayer.getCurrentTime());
               } catch {
                 // ignore
               }
             }
           }, 100);
 
-          // Auto play
           replayer.play();
           setHasPlayer(true);
         }
@@ -219,19 +240,33 @@ export function PlayerApp() {
 
     return () => {
       mounted = false;
-      if (timeUpdateInterval) {
-        clearInterval(timeUpdateInterval);
-      }
-      if (replayer) {
-        replayer.destroy();
-      }
+      if (timeUpdateInterval) clearInterval(timeUpdateInterval);
+      if (replayer) replayer.destroy();
     };
   }, []);
 
+  // 监听容器大小变化，更新缩放
+  useEffect(() => {
+    if (!hasPlayer || !replayerRef.current) return;
+
+    const timers = [100, 300, 500, 1000].map((delay) => setTimeout(updateScale, delay));
+
+    const resizeObserver = new ResizeObserver(updateScale);
+    if (playerAreaRef.current) {
+      resizeObserver.observe(playerAreaRef.current);
+    }
+
+    return () => {
+      timers.forEach(clearTimeout);
+      resizeObserver.disconnect();
+    };
+  }, [hasPlayer, updateScale]);
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground font-sans">
+      {/* 顶部标题栏 */}
       <header className="bg-card border-b px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
-        <h1 className="font-semibold text-lg">{recordingTitle}</h1>
+        <h1 className="font-semibold text-lg truncate">{recordingTitle}</h1>
         <div className="flex items-center gap-2">
           {!loading && !error && hasPlayer && (
             <Button
@@ -250,35 +285,42 @@ export function PlayerApp() {
           )}
         </div>
       </header>
-      <main className="flex-1 flex overflow-hidden p-0">
-        <Allotment
-          ref={allotmentRef}
-          onDragEnd={savePanelSize}
-          onVisibleChange={(_index, visible) => {
-            if (!visible && showSidePanel) {
-              setShowSidePanel(false);
-            }
-          }}
-        >
+
+      {/* 主内容区 */}
+      <main className="flex-1 flex overflow-hidden">
+        <Allotment ref={allotmentRef} onDragEnd={savePanelSize} onChange={updateScale}>
+          {/* 播放器区域 */}
           <Allotment.Pane>
             <div className="h-full flex flex-col min-w-0">
-              {loading && <div className="text-muted-foreground text-lg p-4">正在加载录制...</div>}
+              {loading && (
+                <div className="flex-1 flex items-center justify-center text-muted-foreground text-lg">
+                  正在加载录制...
+                </div>
+              )}
 
               {error && (
-                <div className="text-destructive bg-destructive/10 p-4 rounded-md border border-destructive/20 m-4">
-                  错误: {error}
+                <div className="flex-1 flex items-center justify-center p-4">
+                  <div className="text-destructive bg-destructive/10 p-4 rounded-md border border-destructive/20">
+                    错误: {error}
+                  </div>
                 </div>
               )}
 
               {!loading && !error && !hasPlayer && (
-                <div className="text-muted-foreground border-2 border-dashed border-border rounded-lg p-12 text-center m-4">
-                  <p>未加载录制。</p>
-                  <p className="text-sm mt-2">请从扩展程序弹窗中打开录制。</p>
+                <div className="flex-1 flex items-center justify-center p-4">
+                  <div className="text-muted-foreground border-2 border-dashed border-border rounded-lg p-12 text-center">
+                    <p>未加载录制。</p>
+                    <p className="text-sm mt-2">请从扩展程序弹窗中打开录制。</p>
+                  </div>
                 </div>
               )}
 
-              <div className="rrweb-player-container flex-1 min-h-0 overflow-auto">
-                <div ref={containerRef} className="replayer-wrapper" />
+              {/* 播放器容器 */}
+              <div
+                ref={playerAreaRef}
+                className="flex-1 min-h-0 overflow-hidden bg-neutral-900 relative"
+              >
+                <div ref={containerRef} className="absolute" />
               </div>
 
               {/* 播放控制栏 */}

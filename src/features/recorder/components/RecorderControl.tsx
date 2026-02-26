@@ -13,6 +13,12 @@ export function RecorderControl() {
       toast(response.error || '无法在该页面开始录制，请刷新页面后重试', 'error');
       // 重新检测页面支持状态
       refetchPageSupport();
+    } else {
+      // 录制开始成功，如果在侧边栏中则关闭
+      // sidepanel 的 URL 包含 sidepanel.html
+      if (window.location.pathname.includes('sidepanel')) {
+        window.close();
+      }
     }
   };
 

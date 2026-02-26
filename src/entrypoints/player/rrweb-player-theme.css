@@ -7,6 +7,25 @@
    基础容器
    ============================================================================ */
 
+.rrweb-player-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.rrweb-player-container .replayer-wrapper {
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.rrweb-player-container .replayer-wrapper iframe {
+  display: block;
+  border: none;
+  transform-origin: top left;
+}
+
 .rrweb-player-container .rr-player {
   background-color: hsl(var(--card)) !important;
   font-family: inherit !important;
