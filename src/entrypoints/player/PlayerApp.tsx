@@ -29,7 +29,7 @@ export function PlayerApp() {
   const [error, setError] = useState<string | null>(null);
   const [recordingTitle, setRecordingTitle] = useState('录制');
   const [hasPlayer, setHasPlayer] = useState(false);
-  const [showSidePanel, setShowSidePanel] = useState(false);
+  const [showSidePanel, setShowSidePanel] = useState(true);
   const [networkRequestCount, setNetworkRequestCount] = useState(0);
   const [consoleLogCount, setConsoleLogCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
