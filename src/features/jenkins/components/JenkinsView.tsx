@@ -173,7 +173,6 @@ export function JenkinsView() {
         await JenkinsService.fetchMyBuilds();
         setMyBuildsLoading(false);
         setRefreshKey((prev) => prev + 1);
-        setRefreshKey((prev) => prev + 1);
         setNextRefreshTime(Date.now() + JENKINS.POLL_INTERVAL_MS);
       } catch (e) {
         logger.error('Auto-refresh My Builds failed', e);
