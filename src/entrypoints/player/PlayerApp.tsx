@@ -262,6 +262,15 @@ export function PlayerApp() {
     };
   }, [hasPlayer, updateScale]);
 
+  // 侧边栏显示状态变化时更新缩放
+  useEffect(() => {
+    if (hasPlayer) {
+      // 延迟执行以等待 Allotment 布局更新
+      const timer = setTimeout(updateScale, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showSidePanel, hasPlayer, updateScale]);
+
   return (
     <div className="flex flex-col h-screen bg-background text-foreground font-sans">
       {/* 顶部标题栏 */}
