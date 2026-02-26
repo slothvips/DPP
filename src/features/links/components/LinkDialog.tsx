@@ -19,6 +19,17 @@ import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 import { LinkTagSelector } from './LinkTagSelector';
 
+// URL 合法性校验
+function isValidUrl(url: string): boolean {
+  if (!url.trim()) return true; // 空值不校验，由 required 处理
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:', 'ftp:', 'file:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
 interface LinkDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,6 +48,7 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
     note: '',
   });
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  const [urlError, setUrlError] = useState('');
 
   useEffect(() => {
     if (isOpen) {
@@ -55,12 +67,29 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
         });
         setSelectedTagIds(new Set());
       }
+      setUrlError('');
     }
   }, [isOpen, initialData]);
+
+  // URL 实时校验
+  const handleUrlChange = (value: string) => {
+    setFormData({ ...formData, url: value });
+    if (value && !isValidUrl(value)) {
+      setUrlError('请输入有效的 URL（以 http:// 或 https:// 开头）');
+    } else {
+      setUrlError('');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.url) return;
+
+    // URL 合法性校验
+    if (!isValidUrl(formData.url)) {
+      setUrlError('请输入有效的 URL（以 http:// 或 https:// 开头）');
+      return;
+    }
 
     // 验证字段长度
     const nameValidation = validateLength(formData.name, VALIDATION_LIMITS.LINK_NAME_MAX, '名称');
@@ -97,6 +126,8 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
     }
   };
 
+  const hasError = !!urlError;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px]">
@@ -126,14 +157,19 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
             <Input
               id="url"
               value={formData.url}
-              onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+              onChange={(e) => handleUrlChange(e.target.value)}
               placeholder="https://..."
               maxLength={VALIDATION_LIMITS.LINK_URL_MAX}
+              className={urlError ? 'border-destructive' : ''}
               required
             />
-            <p className="text-xs text-muted-foreground">
-              {formData.url.length} / {VALIDATION_LIMITS.LINK_URL_MAX}
-            </p>
+            {urlError ? (
+              <p className="text-xs text-destructive">{urlError}</p>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                {formData.url.length} / {VALIDATION_LIMITS.LINK_URL_MAX}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label>标签</Label>
@@ -168,7 +204,7 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
             <Button type="button" variant="outline" onClick={onClose}>
               取消
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || hasError}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               保存
             </Button>

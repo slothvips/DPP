@@ -3,14 +3,12 @@ import { useEffect, useState } from 'react';
 import { cn } from '@/utils/cn';
 
 const TIPS = [
-  { icon: Lightbulb, text: '链接单击打开,双击是复制', color: 'text-green-500' },
-  { icon: Sparkles, text: '更改需要手动推送,他人才能享用你的贡献', color: 'text-indigo-500' },
-  { icon: Sparkles, text: '可使用[空格键]隔开多个关键词进行搜索', color: 'text-indigo-500' },
-  {
-    icon: Sparkles,
-    text: '可直接在浏览器地址栏键入 dpp+空格 开启搜索之旅',
-    color: 'text-indigo-500',
-  },
+  { icon: Lightbulb, text: '链接单击打开，双击复制地址', color: 'text-green-500' },
+  { icon: Sparkles, text: '搜索支持空格分隔多关键词', color: 'text-indigo-500' },
+  { icon: Sparkles, text: '地址栏输入 dpp + 空格，全局快速搜索', color: 'text-indigo-500' },
+  { icon: Lightbulb, text: 'Jenkins 支持多环境切换，在设置中配置', color: 'text-green-500' },
+  { icon: Lightbulb, text: 'AI 助手支持自然语言管理链接、Job、便签', color: 'text-green-500' },
+  { icon: Lightbulb, text: '便签支持 Markdown 格式', color: 'text-green-500' },
 ];
 
 export function Tips() {

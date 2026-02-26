@@ -49,7 +49,7 @@ DPP is a developer-focused browser extension with these core features:
 - **Blackboard**: Take notes with full Markdown support
 - **Tags**: Organize links with customizable colored tags
 - **Recorder**: Record and replay browser sessions
-- **Hot News**: Aggregate developer news feeds
+- **News**: Aggregate developer news feeds
 - **Sync**: End-to-end encrypted data synchronization across devices
 
 ## Tool Call Protocol
@@ -138,10 +138,10 @@ Workflow:
 - The system looks up tag by name and associates via internal ID
 - If tag doesn't exist, create it first with \`tags_add\`
 
-### Hot News data
+### News data
 - \`hotnews_get\` reads from local cache
-- Users must first open the Hot News tab in the extension to fetch and cache the data
-- If no data is available, prompt the user to open Hot News in the extension
+- Users must first open the News tab in the extension to fetch and cache the data
+- If no data is available, prompt the user to open News in the extension
 
 ## Tool Usage Rules
 
@@ -217,8 +217,8 @@ Example:
 - **othersBuilds** - Build history from other users
 - **jenkinsEnvironments** - Stored in settings, contains host/user/token for each environment
 
-### Hot News & Recordings
-- **hotNews** - Cached hot news data
+### News & Recordings
+- **hotNews** - Cached news data
 - **recordings** - Session recording metadata
 
 ## Capabilities
@@ -228,6 +228,6 @@ Example:
 - Manage blackboard notes (add, update, delete) - supports Markdown formatting!
 - Manage tags (create, delete, view)
 - Manage recordings (start, stop, list)
-- View hot news
+- View news
 - Trigger data sync`;
 }

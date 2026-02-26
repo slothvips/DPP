@@ -46,7 +46,7 @@ const SETTINGS_CATEGORIES = [
   {
     key: 'feature_toggles',
     label: '功能开关',
-    description: '热点、链接等功能开关',
+    description: '资讯、链接等功能开关',
     keys: ['feature_hotnews_enabled', 'feature_links_enabled'],
   },
   {
@@ -60,6 +60,31 @@ const SETTINGS_CATEGORIES = [
     label: '同步设置',
     description: '服务器地址、访问令牌、加密密钥',
     keys: ['custom_server_url', 'sync_access_token', 'sync_encryption_key'],
+  },
+  {
+    key: 'ai_settings',
+    label: 'AI 设置',
+    description: 'AI 助手服务商、模型配置',
+    keys: [
+      'ai_provider_type',
+      // Ollama
+      'ai_ollama_base_url',
+      'ai_ollama_model',
+      // WebLLM
+      'ai_webllm_model',
+      // OpenAI
+      'ai_openai_base_url',
+      'ai_openai_model',
+      'ai_openai_api_key',
+      // Anthropic
+      'ai_anthropic_base_url',
+      'ai_anthropic_model',
+      'ai_anthropic_api_key',
+      // Custom
+      'ai_custom_base_url',
+      'ai_custom_model',
+      'ai_custom_api_key',
+    ],
   },
   {
     key: 'display_prefs',
@@ -189,7 +214,11 @@ function OptionsApp() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `dpp-config-${new Date().toISOString().split('T')[0]}.json`;
+      // 生成包含分类信息的文件名
+      const categoryLabels = SETTINGS_CATEGORIES.filter((c) => selectedCategories.includes(c.key))
+        .map((c) => c.label.replace(/\s+/g, ''))
+        .join('+');
+      a.download = `dpp-config-${categoryLabels}-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -302,7 +331,7 @@ function OptionsApp() {
     await db.settings.put({ key, value: enabled });
     setFeatureToggles((prev) => ({ ...prev, [feature]: enabled }));
     toast(
-      `${feature === 'hotNews' ? '热点' : '链接'}功能已${enabled ? '启用' : '禁用'}`,
+      `${feature === 'hotNews' ? '资讯' : '链接'}功能已${enabled ? '启用' : '禁用'}`,
       'success'
     );
   };
@@ -335,7 +364,7 @@ function OptionsApp() {
                   onCheckedChange={(checked) => toggleFeature('hotNews', !!checked)}
                 />
                 <Label htmlFor="feature-hotnews" className="text-sm font-medium cursor-pointer">
-                  热点
+                  资讯
                 </Label>
               </div>
             </div>

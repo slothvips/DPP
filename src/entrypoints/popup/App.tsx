@@ -172,7 +172,7 @@ export function App() {
                   className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('hotNews')}
                 >
-                  热点
+                  资讯
                 </button>
               )}
               <button
