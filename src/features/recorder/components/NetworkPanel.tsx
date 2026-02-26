@@ -314,90 +314,115 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <Allotment vertical className="h-full">
       {/* 基本信息 */}
-      <div className="p-3 border-b bg-muted/30">
-        <div className="flex items-center gap-2 mb-1">
-          <span className={cn('font-mono font-medium', getMethodColor(request.method))}>
-            {request.method}
-          </span>
-          {request.status ? (
-            <span className={cn('font-mono', getStatusColor(request.status))}>
-              {request.status} {request.statusText}
+      <Allotment.Pane preferredSize={120} minSize={80}>
+        <div className="h-full overflow-auto p-3 bg-muted/30">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={cn('font-mono font-medium', getMethodColor(request.method))}>
+              {request.method}
             </span>
-          ) : (
-            <span className="text-muted-foreground text-xs">
-              {getRequestPhaseLabel(request.phase)}
-            </span>
-          )}
-          {request.isStreaming && (
-            <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-600 rounded">
-              流式
-            </span>
-          )}
-          {request.type === 'sse' && (
-            <span className="px-1.5 py-0.5 text-xs bg-orange-500/20 text-orange-600 rounded">
-              SSE
-            </span>
-          )}
-        </div>
-        <div className="flex items-start gap-2">
-          <div className="text-xs text-muted-foreground break-all flex-1">{request.url}</div>
-          <CopyButton text={request.url} label="复制 URL" />
-        </div>
-        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-          <span>类型: {request.type.toUpperCase()}</span>
-          {request.duration !== undefined && <span>耗时: {formatDuration(request.duration)}</span>}
-          {request.receivedBytes !== undefined && (
-            <span>已接收: {formatSize(request.receivedBytes)}</span>
-          )}
-          {request.streamChunks && <span>数据块: {request.streamChunks.length}</span>}
-        </div>
-        {request.error && (
-          <div className="mt-2 text-xs text-red-600 bg-red-500/10 p-2 rounded">
-            错误: {request.error}
-          </div>
-        )}
-      </div>
-
-      {/* 标签页 */}
-      <div className="flex border-b">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={cn(
-              'px-4 py-2 text-sm',
-              activeTab === tab
-                ? 'border-b-2 border-primary text-primary'
-                : 'text-muted-foreground hover:text-foreground'
+            {request.status ? (
+              <span className={cn('font-mono', getStatusColor(request.status))}>
+                {request.status} {request.statusText}
+              </span>
+            ) : (
+              <span className="text-muted-foreground text-xs">
+                {getRequestPhaseLabel(request.phase)}
+              </span>
             )}
-          >
-            {tabLabels[tab]}
-          </button>
-        ))}
-      </div>
-
-      {/* 内容 */}
-      <div className="flex-1 overflow-auto p-3">
-        {activeTab === 'headers' && (
-          <div className="space-y-4">
-            <HeadersSection title="请求头" headers={request.requestHeaders} />
-            <HeadersSection title="响应头" headers={request.responseHeaders} />
+            {request.isStreaming && (
+              <span className="px-1.5 py-0.5 text-xs bg-purple-500/20 text-purple-600 rounded">
+                流式
+              </span>
+            )}
+            {request.type === 'sse' && (
+              <span className="px-1.5 py-0.5 text-xs bg-orange-500/20 text-orange-600 rounded">
+                SSE
+              </span>
+            )}
           </div>
-        )}
+          <div className="flex items-start gap-2">
+            <div className="text-xs text-muted-foreground break-all flex-1">{request.url}</div>
+            <CopyButton text={request.url} label="复制 URL" />
+          </div>
+          <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+            <span>类型: {request.type.toUpperCase()}</span>
+            {request.duration !== undefined && (
+              <span>耗时: {formatDuration(request.duration)}</span>
+            )}
+            {request.receivedBytes !== undefined && (
+              <span>已接收: {formatSize(request.receivedBytes)}</span>
+            )}
+            {request.streamChunks && <span>数据块: {request.streamChunks.length}</span>}
+          </div>
+          {request.error && (
+            <div className="mt-2 text-xs text-red-600 bg-red-500/10 p-2 rounded">
+              错误: {request.error}
+            </div>
+          )}
+        </div>
+      </Allotment.Pane>
 
-        {activeTab === 'request' && <BodySection body={request.requestBody} />}
+      {/* 标签页和内容 */}
+      <Allotment.Pane minSize={100}>
+        <div className="flex flex-col h-full">
+          {/* 标签页 */}
+          <div className="flex border-b">
+            {tabs.map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={cn(
+                  'px-4 py-2 text-sm',
+                  activeTab === tab
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {tabLabels[tab]}
+              </button>
+            ))}
+          </div>
 
-        {activeTab === 'response' && (
-          <BodySection body={request.responseBody} contentType={request.responseType} />
-        )}
+          {/* 内容 */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'headers' && (
+              <Allotment vertical className="h-full">
+                <Allotment.Pane preferredSize="50%" minSize={50}>
+                  <div className="h-full overflow-auto p-3">
+                    <HeadersSection title="请求头" headers={request.requestHeaders} />
+                  </div>
+                </Allotment.Pane>
+                <Allotment.Pane minSize={50}>
+                  <div className="h-full overflow-auto p-3">
+                    <HeadersSection title="响应头" headers={request.responseHeaders} />
+                  </div>
+                </Allotment.Pane>
+              </Allotment>
+            )}
 
-        {activeTab === 'stream' && request.streamChunks && (
-          <StreamChunksSection chunks={request.streamChunks} />
-        )}
-      </div>
-    </div>
+            {activeTab === 'request' && (
+              <div className="h-full overflow-auto p-3">
+                <BodySection body={request.requestBody} />
+              </div>
+            )}
+
+            {activeTab === 'response' && (
+              <div className="h-full overflow-auto p-3">
+                <BodySection body={request.responseBody} contentType={request.responseType} />
+              </div>
+            )}
+
+            {activeTab === 'stream' && request.streamChunks && (
+              <div className="h-full overflow-auto p-3">
+                <StreamChunksSection chunks={request.streamChunks} />
+              </div>
+            )}
+          </div>
+        </div>
+      </Allotment.Pane>
+    </Allotment>
   );
 }
 

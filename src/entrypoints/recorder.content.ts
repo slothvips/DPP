@@ -290,40 +290,7 @@ export default defineContentScript({
       networkEventHandler = (e: Event) => {
         const customEvent = e as CustomEvent;
         const networkData = customEvent.detail;
-
-        // 只在请求完成阶段获取完整 headers
-        const phase = networkData.phase;
-        const isComplete = phase === 'complete' || phase === 'error' || phase === 'abort';
-
-        if (isComplete) {
-          // 从 background 获取 webRequest 收集的完整 headers
-          browser.runtime
-            .sendMessage({
-              type: 'QUERY_HEADERS_BY_URL',
-              payload: { url: networkData.url },
-            })
-            .then((response) => {
-              if (response?.success && response.headers?.length > 0) {
-                const webRequestHeaders = response.headers[0];
-                // 完全使用 webRequest 的 headers（更完整）
-                if (webRequestHeaders.requestHeaders) {
-                  networkData.requestHeaders = webRequestHeaders.requestHeaders;
-                }
-                if (webRequestHeaders.responseHeaders) {
-                  networkData.responseHeaders = webRequestHeaders.responseHeaders;
-                }
-              }
-
-              pushNetworkEvent(networkData);
-            })
-            .catch(() => {
-              // 获取失败时使用 JS 拦截器收集的数据
-              pushNetworkEvent(networkData);
-            });
-        } else {
-          // 非完成阶段直接记录
-          pushNetworkEvent(networkData);
-        }
+        pushNetworkEvent(networkData);
       };
 
       // 辅助函数：推送网络事件

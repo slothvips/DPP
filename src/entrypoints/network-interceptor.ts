@@ -27,15 +27,15 @@ export default defineUnlistedScript(() => {
   // 恢复事件名称
   const NETWORK_RESTORE_EVENT = 'dpp-network-restore';
 
-  // 敏感头部字段
-  const SENSITIVE_HEADERS = new Set([
-    'authorization',
-    'cookie',
-    'set-cookie',
-    'x-api-key',
-    'x-auth-token',
-    'x-access-token',
-  ]);
+  // 敏感头部字段 - 不再脱敏，保留完整信息用于调试
+  // const SENSITIVE_HEADERS = new Set([
+  //   'authorization',
+  //   'cookie',
+  //   'set-cookie',
+  //   'x-api-key',
+  //   'x-auth-token',
+  //   'x-access-token',
+  // ]);
 
   // 流式响应的 Content-Type
   const STREAMING_CONTENT_TYPES = [
@@ -100,15 +100,11 @@ export default defineUnlistedScript(() => {
   }
 
   /**
-   * 安全地脱敏头部 - 不会抛出异常
+   * 安全地处理头部 - 不再脱敏，保留完整信息
    */
-  function maskSensitiveHeaders(headers: Record<string, string>): Record<string, string> {
+  function processHeaders(headers: Record<string, string>): Record<string, string> {
     try {
-      const masked: Record<string, string> = {};
-      for (const [key, value] of Object.entries(headers)) {
-        masked[key] = SENSITIVE_HEADERS.has(key.toLowerCase()) ? '[REDACTED]' : value;
-      }
-      return masked;
+      return { ...headers };
     } catch {
       return {};
     }
@@ -377,7 +373,7 @@ export default defineUnlistedScript(() => {
       } else if (input instanceof Request) {
         headers = headersToObject(input.headers);
       }
-      networkData.requestHeaders = maskSensitiveHeaders(headers);
+      networkData.requestHeaders = processHeaders(headers);
     } catch {
       // ignore
     }
@@ -404,7 +400,7 @@ export default defineUnlistedScript(() => {
       try {
         networkData.status = response.status;
         networkData.statusText = response.statusText;
-        networkData.responseHeaders = maskSensitiveHeaders(headersToObject(response.headers));
+        networkData.responseHeaders = processHeaders(headersToObject(response.headers));
 
         const contentType = response.headers.get('content-type') || '';
         networkData.responseType = contentType;
@@ -601,7 +597,7 @@ export default defineUnlistedScript(() => {
         method: data.method,
         url: data.url,
         startTime: data.startTime,
-        requestHeaders: maskSensitiveHeaders(data.requestHeaders),
+        requestHeaders: processHeaders(data.requestHeaders),
         requestBody: data.requestBody,
         phase: 'start',
       });
@@ -622,8 +618,8 @@ export default defineUnlistedScript(() => {
               status: this.status,
               statusText: this.statusText,
               startTime: data.startTime,
-              requestHeaders: maskSensitiveHeaders(data.requestHeaders),
-              responseHeaders: maskSensitiveHeaders(parseXHRHeaders(this.getAllResponseHeaders())),
+              requestHeaders: processHeaders(data.requestHeaders),
+              responseHeaders: processHeaders(parseXHRHeaders(this.getAllResponseHeaders())),
               requestBody: data.requestBody,
               responseType: contentType,
               phase: 'response-headers',
@@ -650,8 +646,8 @@ export default defineUnlistedScript(() => {
             startTime: data.startTime,
             endTime: Date.now(),
             duration: Date.now() - data.startTime,
-            requestHeaders: maskSensitiveHeaders(data.requestHeaders),
-            responseHeaders: maskSensitiveHeaders(parseXHRHeaders(this.getAllResponseHeaders())),
+            requestHeaders: processHeaders(data.requestHeaders),
+            responseHeaders: processHeaders(parseXHRHeaders(this.getAllResponseHeaders())),
             requestBody: data.requestBody,
             responseType: contentType,
             phase: 'complete',
