@@ -23,6 +23,7 @@ export function PlayerApp() {
   useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const playerAreaRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
   const replayerRef = useRef<Replayer | null>(null);
   const allotmentRef = useRef<AllotmentHandle>(null);
   const [loading, setLoading] = useState(true);
@@ -38,6 +39,7 @@ export function PlayerApp() {
   const [speed, setSpeed] = useState(1);
   const [skipInactive, setSkipInactive] = useState(true);
   const eventsRef = useRef<eventWithTime[]>([]);
+  const lastAreaWidthRef = useRef<number>(0);
 
   const getSavedPanelSize = () => {
     const saved = localStorage.getItem('player-side-panel-width');
@@ -88,37 +90,49 @@ export function PlayerApp() {
 
   // 自适应缩放播放器
   const updateScale = useCallback(() => {
-    const playerArea = playerAreaRef.current;
-    if (!playerArea || !replayerRef.current) return;
+    const doUpdate = () => {
+      const playerArea = playerAreaRef.current;
+      if (!playerArea || !replayerRef.current) return false;
 
-    const iframe = replayerRef.current.iframe;
-    if (!iframe) return;
+      const iframe = replayerRef.current.iframe;
+      if (!iframe) return false;
 
-    const recWidth = parseInt(iframe.width, 10) || iframe.offsetWidth;
-    const recHeight = parseInt(iframe.height, 10) || iframe.offsetHeight;
-    if (!recWidth || !recHeight) return;
+      const recWidth = parseInt(iframe.width, 10) || iframe.offsetWidth;
+      const recHeight = parseInt(iframe.height, 10) || iframe.offsetHeight;
+      if (!recWidth || !recHeight) return false;
 
-    const areaWidth = playerArea.clientWidth;
-    const areaHeight = playerArea.clientHeight;
+      const areaWidth = playerArea.clientWidth;
+      const areaHeight = playerArea.clientHeight;
+      if (!areaWidth || !areaHeight) return false;
 
-    // 计算缩放比例，保持宽高比，只缩小不放大
-    const scaleX = areaWidth / recWidth;
-    const scaleY = areaHeight / recHeight;
-    const scale = Math.min(scaleX, scaleY, 1);
+      // 计算缩放比例，保持宽高比，只缩小不放大
+      const scaleX = areaWidth / recWidth;
+      const scaleY = areaHeight / recHeight;
+      const scale = Math.min(scaleX, scaleY, 1);
 
-    // 计算居中偏移
-    const scaledWidth = recWidth * scale;
-    const scaledHeight = recHeight * scale;
-    const offsetX = (areaWidth - scaledWidth) / 2;
-    const offsetY = (areaHeight - scaledHeight) / 2;
+      // 计算居中偏移
+      const scaledWidth = recWidth * scale;
+      const scaledHeight = recHeight * scale;
+      const offsetX = (areaWidth - scaledWidth) / 2;
+      const offsetY = (areaHeight - scaledHeight) / 2;
 
-    const wrapper = containerRef.current;
-    if (wrapper) {
-      wrapper.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
-      wrapper.style.transformOrigin = 'top left';
-      wrapper.style.width = `${recWidth}px`;
-      wrapper.style.height = `${recHeight}px`;
-    }
+      const wrapper = containerRef.current;
+      if (wrapper) {
+        wrapper.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+        wrapper.style.transformOrigin = 'top left';
+        wrapper.style.width = `${recWidth}px`;
+        wrapper.style.height = `${recHeight}px`;
+      }
+      return true;
+    };
+
+    // 使用 requestAnimationFrame 确保在浏览器完成布局后执行
+    requestAnimationFrame(() => {
+      if (!doUpdate()) {
+        // 如果更新失败（尺寸为0），延迟重试
+        setTimeout(() => requestAnimationFrame(doUpdate), 100);
+      }
+    });
   }, []);
 
   // 初始化播放器
@@ -249,11 +263,26 @@ export function PlayerApp() {
   useEffect(() => {
     if (!hasPlayer || !replayerRef.current) return;
 
-    const timers = [100, 300, 500, 1000].map((delay) => setTimeout(updateScale, delay));
+    // 初始加载时多次延迟更新，确保布局完成
+    const timers = [50, 100, 200, 300, 500, 800, 1000, 1500].map((delay) =>
+      setTimeout(updateScale, delay)
+    );
 
-    const resizeObserver = new ResizeObserver(updateScale);
+    // 监听 playerArea 和 main 容器的尺寸变化
+    const resizeObserver = new ResizeObserver(() => {
+      // 检测 playerArea 宽度是否变化
+      const currentWidth = playerAreaRef.current?.clientWidth || 0;
+      if (currentWidth !== lastAreaWidthRef.current) {
+        lastAreaWidthRef.current = currentWidth;
+        updateScale();
+      }
+    });
+
     if (playerAreaRef.current) {
       resizeObserver.observe(playerAreaRef.current);
+    }
+    if (mainRef.current) {
+      resizeObserver.observe(mainRef.current);
     }
 
     return () => {
@@ -265,9 +294,9 @@ export function PlayerApp() {
   // 侧边栏显示状态变化时更新缩放
   useEffect(() => {
     if (hasPlayer) {
-      // 延迟执行以等待 Allotment 布局更新
-      const timer = setTimeout(updateScale, 50);
-      return () => clearTimeout(timer);
+      // 多次延迟执行以等待 Allotment 布局完全更新
+      const timers = [0, 50, 100, 200, 300].map((delay) => setTimeout(updateScale, delay));
+      return () => timers.forEach(clearTimeout);
     }
   }, [showSidePanel, hasPlayer, updateScale]);
 
@@ -296,7 +325,7 @@ export function PlayerApp() {
       </header>
 
       {/* 主内容区 */}
-      <main className="flex-1 flex overflow-hidden">
+      <main ref={mainRef} className="flex-1 flex overflow-hidden">
         <Allotment ref={allotmentRef} onDragEnd={savePanelSize} onChange={updateScale}>
           {/* 播放器区域 */}
           <Allotment.Pane>
@@ -381,21 +410,18 @@ export function PlayerApp() {
             </div>
           </Allotment.Pane>
 
-          {/* 右侧开发者工具面板 */}
-          <Allotment.Pane
-            preferredSize={getSavedPanelSize()}
-            minSize={300}
-            maxSize={800}
-            visible={showSidePanel && hasPlayer}
-          >
-            <PlayerSidePanel
-              events={eventsRef.current}
-              networkCount={networkRequestCount}
-              consoleCount={consoleLogCount}
-              currentTime={currentTime}
-              onClose={() => setShowSidePanel(false)}
-            />
-          </Allotment.Pane>
+          {/* 右侧开发者工具面板 - 使用条件渲染 */}
+          {showSidePanel && hasPlayer && (
+            <Allotment.Pane preferredSize={getSavedPanelSize()} minSize={300} maxSize={800}>
+              <PlayerSidePanel
+                events={eventsRef.current}
+                networkCount={networkRequestCount}
+                consoleCount={consoleLogCount}
+                currentTime={currentTime}
+                onClose={() => setShowSidePanel(false)}
+              />
+            </Allotment.Pane>
+          )}
         </Allotment>
       </main>
     </div>
