@@ -116,6 +116,7 @@ export function useAIChat(): UseAIChatReturn {
   const [pendingToolCall, setPendingToolCall] = useState<PendingToolCall | null>(null);
   const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
   const [pendingBuild, setPendingBuild] = useState<PendingBuild | null>(null);
+  const buildCompletedRef = useRef(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AISession[]>([]);
   // WebLLM loading state
@@ -848,6 +849,9 @@ export function useAIChat(): UseAIChatReturn {
   const completeBuild = useCallback(() => {
     if (!pendingBuild) return;
 
+    // Mark build as completed to prevent cancelBuild from running
+    buildCompletedRef.current = true;
+
     // Add success message
     const successMessage: ChatMessage = {
       id: generateId(),
@@ -878,6 +882,12 @@ export function useAIChat(): UseAIChatReturn {
    * Cancel build - called when BuildDialog is closed
    */
   const cancelBuild = useCallback(() => {
+    // Skip if build was already completed
+    if (buildCompletedRef.current) {
+      buildCompletedRef.current = false;
+      return;
+    }
+
     if (!pendingBuild) return;
 
     // Add cancellation message
