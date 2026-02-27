@@ -1,4 +1,4 @@
-name = "dpp-sync-worker-dev"
+name = "dpp-sync-worker"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
@@ -9,6 +9,6 @@ compatibility_flags = ["nodejs_compat"]
 # SYNC_ACCESS_TOKEN = "..."
 
 [[kv_namespaces]]
-binding = "SYNC_KV"
-id = "f125d48544f74a2a902167be60f4d4da"
+binding = "KV"
+id = "cc525887234547eb8e5fc647d69bdb7e"
 preview_id = "yyyy"

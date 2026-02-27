@@ -1,6 +1,5 @@
 // Jenkins management AI tools
 import { db } from '@/db';
-import { JenkinsService } from '@/features/jenkins/service';
 import { switchJenkinsEnv, syncJenkins } from '@/lib/db/jenkins';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
