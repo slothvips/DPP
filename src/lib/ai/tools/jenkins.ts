@@ -79,7 +79,7 @@ async function jenkins_list_builds(args: { jobUrl: string; limit?: number }) {
 }
 
 /**
- * Trigger a Jenkins build
+ * Trigger a Jenkins build - returns build info for UI to open BuildDialog
  */
 async function jenkins_trigger_build(args: {
   jobUrl: string;
@@ -91,17 +91,15 @@ async function jenkins_trigger_build(args: {
     throw new Error(`Job not found: ${args.jobUrl}`);
   }
 
-  const result = await JenkinsService.triggerBuild(args.jobUrl, args.parameters);
-
-  if (result) {
-    return {
-      success: true,
-      message: `Build triggered successfully for ${job.name}`,
-      jobUrl: args.jobUrl,
-    };
-  } else {
-    throw new Error(`Failed to trigger build for ${job.name}`);
-  }
+  // Return build info for UI to open BuildDialog
+  // The actual build will be triggered by BuildDialog
+  return {
+    success: true,
+    action: 'open_build_dialog',
+    jobUrl: args.jobUrl,
+    jobName: job.fullName || job.name,
+    message: `请在弹出的构建对话框中配置参数并确认构建 ${job.fullName || job.name}`,
+  };
 }
 
 /**
@@ -165,7 +163,7 @@ export function registerJenkinsTools() {
     handler: jenkins_list_builds as ToolHandler,
   });
 
-  // jenkins_trigger_build (requires confirmation)
+  // jenkins_trigger_build (opens BuildDialog for user confirmation)
   toolRegistry.register({
     name: 'jenkins_trigger_build',
     description: 'Trigger a Jenkins build',
@@ -180,7 +178,6 @@ export function registerJenkinsTools() {
       ['jobUrl']
     ),
     handler: jenkins_trigger_build as ToolHandler,
-    requiresConfirmation: true,
   });
 
   // jenkins_sync

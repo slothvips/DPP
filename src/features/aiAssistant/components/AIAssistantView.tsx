@@ -3,6 +3,7 @@ import { Send, Settings, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { useAIChat } from '../hooks/useAIChat';
 import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
 import { AISessionList } from './AISessionList';
@@ -15,6 +16,7 @@ export function AIAssistantView() {
     error,
     pendingToolCall,
     pendingToolCalls,
+    pendingBuild,
     sessions,
     sessionId,
     isLoadingModel,
@@ -30,6 +32,8 @@ export function AIAssistantView() {
     switchSession,
     deleteSession,
     resetProvider,
+    completeBuild,
+    cancelBuild,
   } = useAIChat();
 
   const [input, setInput] = useState('');
@@ -315,6 +319,17 @@ export function AIAssistantView() {
         onConfirmAll={confirmAllToolCalls}
         onCancel={cancelToolCall}
       />
+
+      {/* Build Dialog - triggered by AI */}
+      {pendingBuild && (
+        <BuildDialog
+          jobUrl={pendingBuild.jobUrl}
+          jobName={pendingBuild.jobName}
+          isOpen={true}
+          onClose={cancelBuild}
+          onBuildSuccess={completeBuild}
+        />
+      )}
     </div>
   );
 }

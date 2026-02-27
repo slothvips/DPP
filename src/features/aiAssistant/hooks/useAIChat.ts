@@ -57,6 +57,14 @@ export interface PendingToolCalls {
 }
 
 /**
+ * Pending build that requires BuildDialog
+ */
+export interface PendingBuild {
+  jobUrl: string;
+  jobName: string;
+}
+
+/**
  * useAIChat hook return type
  */
 export interface UseAIChatReturn {
@@ -66,6 +74,7 @@ export interface UseAIChatReturn {
   error: string | null;
   pendingToolCall: PendingToolCall | null;
   pendingToolCalls: PendingToolCalls | null;
+  pendingBuild: PendingBuild | null;
   sessionId: string | null;
   sessions: AISession[];
   // WebLLM loading state
@@ -85,6 +94,8 @@ export interface UseAIChatReturn {
   switchSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   resetProvider: () => void;
+  completeBuild: () => void;
+  cancelBuild: () => void;
 }
 
 /**
@@ -104,6 +115,7 @@ export function useAIChat(): UseAIChatReturn {
   const [error, setError] = useState<string | null>(null);
   const [pendingToolCall, setPendingToolCall] = useState<PendingToolCall | null>(null);
   const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
+  const [pendingBuild, setPendingBuild] = useState<PendingBuild | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AISession[]>([]);
   // WebLLM loading state
@@ -435,6 +447,18 @@ export function useAIChat(): UseAIChatReturn {
           args as Record<string, unknown>
         );
 
+        // Check if this is a build dialog action
+        const resultObj = result as { action?: string; jobUrl?: string; jobName?: string };
+        if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
+          // Set pending build to open BuildDialog
+          setPendingBuild({
+            jobUrl: resultObj.jobUrl,
+            jobName: resultObj.jobName,
+          });
+          setStatus('confirming');
+          return;
+        }
+
         // Create tool result message
         // Note: We use role 'user' and include tool name in content for text-based tool calling
         const toolResultMessage: ChatMessage = {
@@ -509,6 +533,33 @@ export function useAIChat(): UseAIChatReturn {
             toolCall.function.name,
             args as Record<string, unknown>
           );
+
+          // Check if this is a build dialog action
+          const resultObj = result as { action?: string; jobUrl?: string; jobName?: string };
+          if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
+            // Set pending build to open BuildDialog
+            // First add any collected messages
+            if (toolResultMessages.length > 0) {
+              setMessages((prev) => [...prev, ...toolResultMessages]);
+              if (sessionId) {
+                await Promise.all(
+                  toolResultMessages.map((msg) =>
+                    addMessage({
+                      sessionId,
+                      role: msg.role,
+                      content: msg.content,
+                    }).catch((err) => logger.error('[AIChat] Failed to save tool result:', err))
+                  )
+                );
+              }
+            }
+            setPendingBuild({
+              jobUrl: resultObj.jobUrl,
+              jobName: resultObj.jobName,
+            });
+            setStatus('confirming');
+            return;
+          }
 
           // Create tool result message
           const toolResultMessage: ChatMessage = {
@@ -791,6 +842,67 @@ export function useAIChat(): UseAIChatReturn {
     logger.info('[AIChat] Provider cache reset');
   }, []);
 
+  /**
+   * Complete build - called when BuildDialog succeeds
+   */
+  const completeBuild = useCallback(() => {
+    if (!pendingBuild) return;
+
+    // Add success message
+    const successMessage: ChatMessage = {
+      id: generateId(),
+      role: 'user',
+      content: `[jenkins_trigger_build] 构建已成功触发: ${pendingBuild.jobName}`,
+      createdAt: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, successMessage]);
+
+    // Save to database
+    if (sessionId) {
+      addMessage({
+        sessionId,
+        role: 'user',
+        content: successMessage.content,
+      }).catch((err) => logger.error('[AIChat] Failed to save build success:', err));
+    }
+
+    setPendingBuild(null);
+    setStatus('idle');
+
+    // Continue conversation with success result
+    continueConversationRef.current?.([...messages, successMessage]);
+  }, [pendingBuild, sessionId, messages]);
+
+  /**
+   * Cancel build - called when BuildDialog is closed
+   */
+  const cancelBuild = useCallback(() => {
+    if (!pendingBuild) return;
+
+    // Add cancellation message
+    const cancelMessage: ChatMessage = {
+      id: generateId(),
+      role: 'user',
+      content: `[jenkins_trigger_build] 用户取消了构建: ${pendingBuild.jobName}`,
+      createdAt: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, cancelMessage]);
+
+    // Save to database
+    if (sessionId) {
+      addMessage({
+        sessionId,
+        role: 'user',
+        content: cancelMessage.content,
+      }).catch((err) => logger.error('[AIChat] Failed to save build cancellation:', err));
+    }
+
+    setPendingBuild(null);
+    setStatus('idle');
+  }, [pendingBuild, sessionId]);
+
   // Initialize sessions on mount - only run once per page load
   useEffect(() => {
     let mounted = true;
@@ -855,6 +967,7 @@ export function useAIChat(): UseAIChatReturn {
     error,
     pendingToolCall,
     pendingToolCalls,
+    pendingBuild,
     sessionId,
     sessions,
     isLoadingModel,
@@ -870,5 +983,7 @@ export function useAIChat(): UseAIChatReturn {
     switchSession,
     deleteSession: deleteSessionHandler,
     resetProvider,
+    completeBuild,
+    cancelBuild,
   };
 }
