@@ -1,96 +1,81 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { z } from 'zod';
 import { serve } from '@hono/node-server';
 import { OperationSchema, dbOps } from './db.js';
 
+const SYNC_ACCESS_TOKEN = process.env.SYNC_ACCESS_TOKEN || 'dev-token';
+
 const app = new Hono();
 
-app.use('/*', cors());
-
+// 认证中间件 - 与 CF Worker 一致
 app.use('*', async (c, next) => {
-  console.log(`\n[${new Date().toISOString()}] ${c.req.method} ${c.req.url}`);
-
-  const query = c.req.query();
-  if (Object.keys(query).length > 0) {
-    console.log('Query:', JSON.stringify(query, null, 2));
+  // 跳过根路径和健康检查
+  if (c.req.path === '/' || c.req.path === '/health') {
+    return next();
   }
 
-  if (['POST', 'PUT', 'PATCH'].includes(c.req.method)) {
-    try {
-      const body = await c.req.raw.clone().json();
-      console.log('Request Body:', JSON.stringify(body, null, 2));
-    } catch {
-      // Body is not JSON or empty, skip logging
-    }
+  const token = c.req.header('X-Access-Token');
+  if (token !== SYNC_ACCESS_TOKEN) {
+    return c.json({ error: 'Unauthorized' }, 401);
   }
-
   await next();
-
-  try {
-    const resClone = c.res.clone();
-    const text = await resClone.text();
-    try {
-      const json = JSON.parse(text);
-      console.log('Response Body:', JSON.stringify(json, null, 2));
-    } catch {
-      console.log('Response Body:', text);
-    }
-  } catch (e) {
-    console.log('Error logging response:', e);
-  }
 });
 
-app.get('/', (c) => {
-  return c.text('DPP Sync Server Running');
-});
+app.get('/', (c) => c.text('DPP Sync Server'));
 
 // 健康检查接口
-app.get('/health', (c) => {
-  return c.json({ status: 'ok' });
-});
-
-const PushSchema = z.object({
-  ops: z.array(OperationSchema),
-  clientId: z.string().optional(),
-});
+app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.post('/api/sync/push', async (c) => {
   try {
-    const body = await c.req.json();
-    const { ops, clientId } = PushSchema.parse(body);
-    const headerClientId = c.req.header('X-Client-ID');
+    const { ops } = await c.req.json<{ ops: unknown[] }>();
+    if (!ops || !Array.isArray(ops)) {
+      return c.json({ error: 'Invalid payload' }, 400);
+    }
 
-    dbOps.push(ops, clientId || headerClientId);
+    const validatedOps = ops.map((op) => OperationSchema.parse(op));
+    const serverTimestamp = Date.now();
+    const opsWithServerTimestamp = validatedOps.map((op) => ({
+      ...op,
+      serverTimestamp,
+    }));
 
-    return c.json({ success: true, count: ops.length });
+    const newCursor = dbOps.push(opsWithServerTimestamp);
+
+    return c.json({ success: true, cursor: newCursor });
   } catch (e) {
-    console.error(e);
-    return c.json({ success: false, error: 'Invalid request' }, 400);
+    const error = e as Error;
+    return c.json({ error: error.message, stack: error.stack }, 500);
   }
 });
 
 app.get('/api/sync/pull', (c) => {
-  const cursor = Number(c.req.query('cursor')) || 0;
-  const clientId = c.req.query('clientId');
+  try {
+    const cursorStr = c.req.query('cursor');
+    const cursor = Number.parseInt(cursorStr || '0', 10) || 0;
+    const limitStr = c.req.query('limit');
+    const limit = limitStr ? Number.parseInt(limitStr, 10) : 100;
 
-  const ops = dbOps.pull(cursor, clientId);
+    const { ops, nextCursor } = dbOps.pull(cursor, limit);
 
-  const nextCursor = ops.length > 0 ? ops[ops.length - 1].server_seq : cursor;
-
-  return c.json({
-    ops: ops.map(({ server_seq: _seq, ...op }) => op),
-    cursor: nextCursor,
-  });
+    return c.json({ ops, cursor: nextCursor });
+  } catch (e) {
+    const error = e as Error;
+    return c.json({ error: error.message, stack: error.stack }, 500);
+  }
 });
 
 app.get('/api/sync/pending', (c) => {
-  const cursor = Number(c.req.query('cursor')) || 0;
-  const clientId = c.req.query('clientId');
+  try {
+    const cursorStr = c.req.query('cursor');
+    const cursor = Number.parseInt(cursorStr || '0', 10) || 0;
 
-  const count = dbOps.countPending(cursor, clientId);
+    const count = dbOps.countPending(cursor);
 
-  return c.json({ count });
+    return c.json({ count });
+  } catch (e) {
+    const error = e as Error;
+    return c.json({ error: error.message, stack: error.stack }, 500);
+  }
 });
 
 const port = 8889;
