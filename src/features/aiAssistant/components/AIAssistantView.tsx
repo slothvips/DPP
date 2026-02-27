@@ -326,7 +326,11 @@ export function AIAssistantView() {
           jobUrl={pendingBuild.jobUrl}
           jobName={pendingBuild.jobName}
           isOpen={true}
-          onClose={cancelBuild}
+          onClose={() => {
+            // onClose is called before onBuildSuccess in BuildDialog
+            // Use setTimeout to let onBuildSuccess run first if it's a success case
+            setTimeout(() => cancelBuild(), 0);
+          }}
           onBuildSuccess={completeBuild}
         />
       )}
