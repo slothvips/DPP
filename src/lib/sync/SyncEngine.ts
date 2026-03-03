@@ -269,11 +269,12 @@ export class SyncEngine {
 
       const clientId = await this.ensureClientId();
 
+      // Sort by timestamp to ensure operations are pushed in chronological order
       const ops = (await this.db
         .table('operations')
         .where('synced')
         .equals(0)
-        .toArray()) as SyncOperation[];
+        .sortBy('timestamp')) as SyncOperation[];
 
       if (ops.length === 0) {
         this.setStatus('idle');
@@ -413,8 +414,10 @@ export class SyncEngine {
             })
           );
 
-          // Filter out nulls
-          const validOps = decryptedOps.filter((op): op is SyncOperation => op !== null);
+          // Filter out nulls and sort by timestamp to apply in chronological order
+          const validOps = decryptedOps
+            .filter((op): op is SyncOperation => op !== null)
+            .sort((a, b) => a.timestamp - b.timestamp);
 
           await this.db.transaction(
             'rw',

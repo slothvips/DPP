@@ -936,15 +936,8 @@ export function useAIChat(): UseAIChatReturn {
       const recentSession = await getMostRecentSession();
       if (!mounted) return;
       if (recentSession) {
-        // Check if the recent session has messages
-        const messages = await getMessagesBySession(recentSession.id);
-        if (messages.length > 0) {
-          // Has messages, create a new session
-          await createNewSession();
-        } else {
-          // Empty session, continue using it
-          await loadSession(recentSession.id);
-        }
+        // Load the most recent session (regardless of whether it has messages)
+        await loadSession(recentSession.id);
       } else {
         // Create initial session if none exists
         await createNewSession();

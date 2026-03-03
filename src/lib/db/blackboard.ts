@@ -85,7 +85,7 @@ export async function updateBlackboard(args: {
 }
 
 /**
- * Delete a blackboard item (physical delete - matching user tool behavior)
+ * Delete a blackboard item (soft delete)
  */
 export async function deleteBlackboard(args: {
   id: string;
@@ -95,8 +95,12 @@ export async function deleteBlackboard(args: {
     throw new Error(`便签不存在或已被删除`);
   }
 
-  // Physical delete (matching user tool behavior)
-  await db.blackboard.delete(args.id);
+  // Soft delete: set deletedAt timestamp
+  const now = Date.now();
+  await db.blackboard.update(args.id, {
+    deletedAt: now,
+    updatedAt: now,
+  });
 
   return {
     success: true,
