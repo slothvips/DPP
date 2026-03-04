@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { db, syncEngine } from '@/db';
+import { updateSetting } from '@/lib/db/settings';
 import type { SyncPendingCounts } from '@/lib/sync/types';
 import { logger } from '@/utils/logger';
 
@@ -57,11 +58,8 @@ export function useGlobalSync(): GlobalSyncState {
       const startTime = (startSetting?.value as number) || 0;
       if (startTime > 0 && Date.now() - startTime > 5 * 60 * 1000) {
         logger.warn('[useGlobalSync] Sync appears stuck (timeout). Resetting to error.');
-        await db.settings.put({ key: 'global_sync_status', value: 'error' });
-        await db.settings.put({
-          key: 'global_sync_error',
-          value: 'Sync timeout (client-side safety reset)',
-        });
+        await updateSetting('global_sync_status', 'error');
+        await updateSetting('global_sync_error', 'Sync timeout (client-side safety reset)');
       }
     };
 

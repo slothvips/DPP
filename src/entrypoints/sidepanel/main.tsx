@@ -2,8 +2,8 @@ import 'virtual:uno.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { App } from '@/entrypoints/popup/App';
 import '@unocss/reset/tailwind.css';
+import { App } from './App';
 
 function SidePanelApp() {
   return (

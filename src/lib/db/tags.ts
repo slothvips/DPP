@@ -1,24 +1,50 @@
 // Unified tags database operations
 import type { Table } from 'dexie';
 import { db } from '@/db';
-import type { JobTagItem, LinkTagItem } from '@/db/types';
+import type { JobTagItem, LinkTagItem, TagItem, TagWithCounts } from '@/db/types';
 
 const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
 const jobTagsTable = db.jobTags as unknown as Table<JobTagItem, [string, string]>;
+
+/**
+ * List all active tags
+ */
+export async function getAllActiveTags(): Promise<TagItem[]> {
+  return db.tags.filter((t) => !t.deletedAt).toArray();
+}
+
+/**
+ * Get active tag IDs for an entity
+ */
+export async function getActiveEntityTagIds(
+  entityId: string,
+  entityType: 'link' | 'job'
+): Promise<string[]> {
+  if (!entityId) return [];
+
+  if (entityType === 'link') {
+    const linkTags = await db.linkTags
+      .where('linkId')
+      .equals(entityId)
+      .filter((item) => !item.deletedAt)
+      .toArray();
+    return linkTags.map((lt) => lt.tagId);
+  }
+
+  const jobTags = await db.jobTags
+    .where('jobUrl')
+    .equals(entityId)
+    .filter((item) => !item.deletedAt)
+    .toArray();
+  return jobTags.map((jt) => jt.tagId);
+}
 
 /**
  * List all tags
  */
 export async function listTags(): Promise<{
   total: number;
-  tags: Array<{
-    id: string;
-    name: string;
-    color: string;
-    linkCount: number;
-    jobCount: number;
-    createdAt: number;
-  }>;
+  tags: TagWithCounts[];
 }> {
   const tags = await db.tags.filter((t) => !t.deletedAt).toArray();
 
@@ -39,6 +65,7 @@ export async function listTags(): Promise<{
         linkCount: linkTags.length,
         jobCount: jobTags.length,
         createdAt: tag.updatedAt,
+        updatedAt: tag.updatedAt,
       };
     })
   );
@@ -85,6 +112,83 @@ export async function addTag(args: {
     success: true,
     id,
     message: `Tag "${args.name}" created successfully`,
+  };
+}
+
+/**
+ * Ensure tags exist (create if missing, reactivate if deleted)
+ */
+export async function ensureTagsExist(names: string[]): Promise<Map<string, string>> {
+  if (names.length === 0) return new Map();
+
+  const tagMap = new Map<string, string>();
+  const now = Date.now();
+
+  await db.transaction('rw', db.tags, async () => {
+    for (const name of names) {
+      if (!name || name.trim() === '') continue;
+      const trimmedName = name.trim();
+
+      const existing = await db.tags.where('name').equals(trimmedName).first();
+
+      if (existing) {
+        if (existing.deletedAt) {
+          await db.tags.update(existing.id, { deletedAt: undefined, updatedAt: now });
+        }
+        tagMap.set(trimmedName, existing.id);
+      } else {
+        const newId = crypto.randomUUID();
+        await db.tags.add({
+          id: newId,
+          name: trimmedName,
+          color: 'blue',
+          updatedAt: now,
+        });
+        tagMap.set(trimmedName, newId);
+      }
+    }
+  });
+
+  return tagMap;
+}
+
+/**
+ * Create a new tag or reactivate an existing one by name
+ */
+export async function createOrReactivateTag(args: {
+  name: string;
+}): Promise<{ success: boolean; id: string; message: string; isExisting: boolean }> {
+  const trimmedName = args.name.trim();
+  const existing = await db.tags.where('name').equals(trimmedName).first();
+  const now = Date.now();
+
+  if (existing) {
+    if (existing.deletedAt) {
+      await db.tags.update(existing.id, { deletedAt: undefined, updatedAt: now });
+    }
+    return {
+      success: true,
+      id: existing.id,
+      message: existing.deletedAt
+        ? `Tag "${trimmedName}" reactivated`
+        : `Tag "${trimmedName}" already exists`,
+      isExisting: true,
+    };
+  }
+
+  const newId = crypto.randomUUID();
+  await db.tags.add({
+    id: newId,
+    name: trimmedName,
+    color: 'blue',
+    updatedAt: now,
+  });
+
+  return {
+    success: true,
+    id: newId,
+    message: `Tag "${trimmedName}" created successfully`,
+    isExisting: false,
   };
 }
 
@@ -151,6 +255,25 @@ export async function deleteTag(args: {
     success: true,
     message: `Tag "${existing.name}" deleted successfully`,
   };
+}
+
+/**
+ * Check if a tag is in use
+ */
+export async function getTagUsageCount(tagId: string): Promise<number> {
+  const jobCount = await db.jobTags
+    .where('tagId')
+    .equals(tagId)
+    .filter((jt) => !jt.deletedAt)
+    .count();
+
+  const linkCount = await db.linkTags
+    .where('tagId')
+    .equals(tagId)
+    .filter((lt) => !lt.deletedAt)
+    .count();
+
+  return jobCount + linkCount;
 }
 
 /**

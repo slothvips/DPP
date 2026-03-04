@@ -314,7 +314,7 @@ export default defineContentScript({
 
       // 注入脚本到页面主世界
       injectedScript = document.createElement('script');
-      injectedScript.src = browser.runtime.getURL('/network-interceptor.js' as '/popup.html');
+      injectedScript.src = browser.runtime.getURL('/network-interceptor.js' as '/sidepanel.html');
       injectedScript.onload = () => {
         logger.debug('Network interceptor injected');
       };
@@ -376,7 +376,7 @@ export default defineContentScript({
       // 注入脚本到页面主世界
       injectedConsoleScript = document.createElement('script');
       injectedConsoleScript.src = browser.runtime.getURL(
-        '/console-interceptor.js' as '/popup.html'
+        '/console-interceptor.js' as '/sidepanel.html'
       );
       injectedConsoleScript.onload = () => {
         logger.debug('Console interceptor injected');

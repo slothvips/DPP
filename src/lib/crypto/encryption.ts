@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { db } from '@/db';
+import { updateSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 
 const ALGORITHM = 'AES-GCM';
@@ -93,7 +94,7 @@ export async function decryptData(encrypted: EncryptedData, key: CryptoKey): Pro
 
 export async function storeKey(key: CryptoKey): Promise<void> {
   const base64Key = await exportKey(key);
-  await db.settings.put({ key: 'sync_encryption_key', value: base64Key });
+  await updateSetting('sync_encryption_key', base64Key);
 }
 
 export async function loadKey(): Promise<CryptoKey | null> {
@@ -105,7 +106,7 @@ export async function loadKey(): Promise<CryptoKey | null> {
     base64Key = legacyResult.sync_encryption_key as string | undefined;
 
     if (base64Key) {
-      await db.settings.put({ key: 'sync_encryption_key', value: base64Key });
+      await updateSetting('sync_encryption_key', base64Key);
       await browser.storage.local.remove('sync_encryption_key');
     }
   }

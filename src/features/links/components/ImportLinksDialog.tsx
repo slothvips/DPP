@@ -13,8 +13,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
-import { db } from '@/db';
 import { useLinks } from '@/features/links/hooks/useLinks';
+import { ensureTagsExist } from '@/lib/db/tags';
 import { logger } from '@/utils/logger';
 
 interface ImportLinksDialogProps {
@@ -146,38 +146,7 @@ export function ImportLinksDialog({ isOpen, onClose, onImportSuccess }: ImportLi
       }
 
       // 2. Resolve Tags (Name -> ID)
-      const tagMap = new Map<string, string>(); // Name -> ID
-
-      // Get existing tags
-      const existingTags = await db.tags.toArray();
-      for (const t of existingTags) {
-        tagMap.set(t.name, t.id);
-      }
-
-      // Create missing tags
-      const newTagsToCreate = Array.from(allTagNames).filter((name) => !tagMap.has(name));
-
-      if (newTagsToCreate.length > 0) {
-        const now = Date.now();
-        await db.transaction('rw', db.tags, async () => {
-          for (const name of newTagsToCreate) {
-            // Double check inside transaction
-            const existing = await db.tags.where('name').equals(name).first();
-            if (existing) {
-              tagMap.set(name, existing.id);
-            } else {
-              const id = crypto.randomUUID();
-              await db.tags.add({
-                id,
-                name,
-                color: 'blue', // Default color
-                updatedAt: now,
-              });
-              tagMap.set(name, id);
-            }
-          }
-        });
-      }
+      const tagMap = await ensureTagsExist(Array.from(allTagNames));
 
       // 3. Transform items with Tag IDs
       const finalItems = validItems.map((item) => ({
