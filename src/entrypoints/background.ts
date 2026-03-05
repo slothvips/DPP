@@ -86,8 +86,14 @@ export default defineBackground(() => {
 
   // Listen for alarm
   if (browser.alarms) {
-    browser.alarms.onAlarm.addListener((alarm) => {
+    browser.alarms.onAlarm.addListener(async (alarm) => {
       if (alarm.name === AUTO_SYNC_ALARM) {
+        // Check if auto sync is enabled before triggering
+        const enabledSetting = await getSetting('auto_sync_enabled');
+        if (enabledSetting === false) {
+          logger.info('Auto sync alarm triggered but auto sync is disabled, skipping');
+          return;
+        }
         logger.info('Auto sync alarm triggered');
         performGlobalSync().catch((e) => logger.error('Auto sync failed:', e));
       }
