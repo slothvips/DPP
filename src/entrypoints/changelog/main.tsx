@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useTheme } from '@/hooks/useTheme';
 import '@unocss/reset/tailwind.css';
 
-const CHANGELOG_URL = 'https://raw.githubusercontent.com/slothvips/DPP/blob/main/CHANGELOG.md';
+const CHANGELOG_URL = 'https://raw.githubusercontent.com/slothvips/DPP/main/CHANGELOG.md';
 
 function ChangelogApp() {
   useTheme();
