@@ -8,3 +8,4 @@ export * from './blackboard';
 export * from './recorder';
 export * from './jenkins';
 export * from './ai';
+export * from './settings';

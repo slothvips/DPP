@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Settings } from 'lucide-react';
 import React, { Suspense, useEffect, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { GlobalSyncButton } from '@/components/GlobalSyncButton';
 import { Tips } from '@/components/Tips';
 import { Button } from '@/components/ui/button';
@@ -83,11 +84,35 @@ export function App() {
   });
 
   useEffect(() => {
+    // Trigger auto pull when mounted and whenever the side panel becomes visible
+    const triggerAutoPull = () => {
+      if (typeof browser !== 'undefined' && browser.runtime) {
+        console.log('[SidePanel] Sending AUTO_SYNC_TRIGGER_PULL');
+        browser.runtime
+          .sendMessage({ type: 'AUTO_SYNC_TRIGGER_PULL' })
+          .catch((e) => console.error(e));
+      }
+    };
+
+    triggerAutoPull();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        triggerAutoPull();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     // Only set default if no saved state
     const saved = localStorage.getItem('dpp_active_tab');
     if (!saved) {
       setActiveTab('blackboard');
     }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const handleTabChange = (

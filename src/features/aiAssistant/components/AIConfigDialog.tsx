@@ -25,6 +25,7 @@ import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import type { AIProviderType } from '@/lib/ai/types';
 import { WEBLLM_MODELS } from '@/lib/ai/webllm';
 import { decryptData, encryptData, loadKey } from '@/lib/crypto/encryption';
+import { updateSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 
 interface AIConfigDialogProps {
@@ -118,29 +119,29 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     setLoading(true);
     try {
       // Save provider type
-      await db.settings.put({ key: 'ai_provider_type', value: provider });
+      await updateSetting('ai_provider_type', provider);
 
       // Save provider-specific config
       const baseUrlKey = `ai_${provider}_base_url` as const;
       const modelKey = `ai_${provider}_model` as const;
       const apiKeyKey = `ai_${provider}_api_key` as const;
 
-      await db.settings.put({ key: baseUrlKey, value: baseUrl });
-      await db.settings.put({ key: modelKey, value: model });
+      await updateSetting(baseUrlKey, baseUrl);
+      await updateSetting(modelKey, model);
 
       // Encrypt and save API key (if provided)
       if (apiKey) {
         const encryptionKey = await loadKey();
         if (encryptionKey) {
           const encrypted = await encryptData(apiKey, encryptionKey);
-          await db.settings.put({ key: apiKeyKey, value: encrypted });
+          await updateSetting(apiKeyKey, encrypted);
         } else {
           // Fallback: store without encryption if no key available
-          await db.settings.put({ key: apiKeyKey, value: apiKey });
+          await updateSetting(apiKeyKey, apiKey);
         }
       } else {
         // Clear API key if empty
-        await db.settings.put({ key: apiKeyKey, value: '' });
+        await updateSetting(apiKeyKey, '');
       }
 
       setOpen(false);

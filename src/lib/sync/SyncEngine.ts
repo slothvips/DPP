@@ -1,5 +1,6 @@
 import Dexie, { type Transaction } from 'dexie';
 import type { IndexableType } from 'dexie';
+import { browser } from 'wxt/browser';
 import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
 import { decryptOperation } from '@/lib/sync/crypto-helpers';
 import { logger } from '@/utils/logger';
@@ -242,6 +243,9 @@ export class SyncEngine {
 
     try {
       await this.db.table('operations').add(op);
+      if (typeof browser !== 'undefined' && browser.runtime) {
+        browser.runtime.sendMessage({ type: 'AUTO_SYNC_TRIGGER_PUSH' }).catch(() => {});
+      }
     } catch (e) {
       logger.error(`[Sync] Failed to record operation for ${table}:`, e);
     }

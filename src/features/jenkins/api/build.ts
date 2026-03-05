@@ -1,5 +1,6 @@
 import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
+import { createJenkinsClient } from './client';
 
 export async function triggerBuild(
   jobUrl: string,
@@ -8,9 +9,11 @@ export async function triggerBuild(
   jenkinsHost: string,
   parameters?: Record<string, string | boolean | number>
 ): Promise<boolean> {
+  const client = createJenkinsClient({ baseUrl: jenkinsHost, user, token });
   const rootUrl = jobUrl.replace(/\/$/, '');
-  const headers = new Headers();
-  headers.set('Authorization', `Basic ${btoa(`${user}:${token}`)}`);
+
+  // Clone headers to avoid mutating the client's base headers
+  const headers = new Headers(client.headers);
   headers.set('Content-Type', 'application/x-www-form-urlencoded');
 
   try {
@@ -66,14 +69,11 @@ export interface BuildParameter {
 }
 
 export async function getJobDetails(jobUrl: string, user: string, token: string) {
-  const headers = new Headers();
-  headers.set('Authorization', `Basic ${btoa(`${user}:${token}`)}`);
+  const client = createJenkinsClient({ baseUrl: jobUrl, user, token });
+  const apiUrl = `${client.rootUrl}/api/json`;
 
-  // Fetch job details to get parameters
-  // property[parameterDefinitions[name,type,description,defaultParameterValue[value],choices]]
-  const apiUrl = `${jobUrl.replace(/\/$/, '')}/api/json`;
   const res = await http(apiUrl, {
-    headers,
+    headers: client.headers,
     timeout: 30000,
   });
   if (!res.ok) throw new Error(`Failed to fetch job details: ${res.status}`);
@@ -82,10 +82,9 @@ export async function getJobDetails(jobUrl: string, user: string, token: string)
 
 async function getCrumb(baseUrl: string, user: string, token: string) {
   try {
-    const headers = new Headers();
-    headers.set('Authorization', `Basic ${btoa(`${user}:${token}`)}`);
-    const res = await http(`${baseUrl.replace(/\/$/, '')}/crumbIssuer/api/json`, {
-      headers,
+    const client = createJenkinsClient({ baseUrl, user, token });
+    const res = await http(`${client.rootUrl}/crumbIssuer/api/json`, {
+      headers: client.headers,
       timeout: 30000,
     });
     if (res.ok) {

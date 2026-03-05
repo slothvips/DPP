@@ -7,14 +7,13 @@ import type { JenkinsMessage, JenkinsResponse } from '@/features/jenkins/message
 import { openLink } from '@/features/links/utils';
 import type { RecorderMessage, RecordingSavedMessage } from '@/features/recorder/messages';
 import type { RecordingState } from '@/features/recorder/types';
+import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
 
 async function getJenkinsCredentials(targetEnvId?: string) {
-  const settings = await db.settings.toArray();
-  const currentEnvId = settings.find((s) => s.key === 'jenkins_current_env')?.value as string;
-  const environments =
-    (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+  const currentEnvId = await getSetting<string>('jenkins_current_env');
+  const environments = (await getSetting<JenkinsEnvironment[]>('jenkins_environments')) || [];
 
   if (targetEnvId) {
     const env = environments.find((e) => e.id === targetEnvId);
@@ -32,9 +31,9 @@ async function getJenkinsCredentials(targetEnvId?: string) {
   }
 
   // Fallback to legacy settings
-  const host = settings.find((s) => s.key === 'jenkins_host')?.value as string;
-  const user = settings.find((s) => s.key === 'jenkins_user')?.value as string;
-  const token = settings.find((s) => s.key === 'jenkins_token')?.value as string;
+  const host = await getSetting<string>('jenkins_host');
+  const user = await getSetting<string>('jenkins_user');
+  const token = await getSetting<string>('jenkins_token');
 
   if (!host || !user || !token) throw new Error('Jenkins credentials not configured');
 
@@ -58,15 +57,141 @@ export default defineBackground(() => {
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error) => logger.error('Failed to set side panel behavior:', error));
 
+  const AUTO_SYNC_ALARM = 'auto-sync-alarm';
+
+  // Manage auto sync alarm based on settings
+  const setupAutoSync = async () => {
+    try {
+      const enabledSetting = await getSetting('auto_sync_enabled');
+      const intervalSetting = await getSetting('auto_sync_interval');
+
+      const enabled = enabledSetting !== undefined ? Boolean(enabledSetting) : true;
+      const interval = typeof intervalSetting === 'number' ? intervalSetting : 30;
+
+      if (enabled) {
+        logger.info(`Setting up auto sync alarm for every ${interval} minutes`);
+        if (browser.alarms)
+          await browser.alarms.create(AUTO_SYNC_ALARM, { periodInMinutes: interval });
+      } else {
+        logger.info('Auto sync is disabled, clearing alarm');
+        if (browser.alarms) await browser.alarms.clear(AUTO_SYNC_ALARM);
+      }
+    } catch (e) {
+      logger.error('Failed to setup auto sync:', e);
+    }
+  };
+
+  // Run initial setup
+  setupAutoSync();
+
+  // Listen for alarm
+  if (browser.alarms) {
+    browser.alarms.onAlarm.addListener(async (alarm) => {
+      if (alarm.name === AUTO_SYNC_ALARM) {
+        // Check if auto sync is enabled before triggering
+        const enabledSetting = await getSetting('auto_sync_enabled');
+        if (enabledSetting === false) {
+          logger.info('Auto sync alarm triggered but auto sync is disabled, skipping');
+          return;
+        }
+        logger.info('Auto sync alarm triggered');
+        performGlobalSync().catch((e) => logger.error('Auto sync failed:', e));
+      }
+    });
+  }
+
+  // Listen for setting changes
+  browser.runtime.onMessage.addListener((message) => {
+    if (message.type === 'AUTO_SYNC_SETTINGS_CHANGED') {
+      setupAutoSync();
+    }
+    // Return false here so other listeners can also handle messages
+    return false;
+  });
+
   // Check for stuck sync status on startup
-  db.settings.get('global_sync_status').then(async (status) => {
-    if (status?.value === 'syncing') {
+  getSetting('global_sync_status').then(async (status) => {
+    if (status === 'syncing') {
       logger.warn('Detected stuck sync status on startup. Resetting to idle.');
-      await db.settings.put({ key: 'global_sync_status', value: 'idle' });
+      await updateSetting('global_sync_status', 'idle');
     }
   });
 
+  let lastPushTriggerTime = 0;
+  let lastPullTriggerTime = 0;
+
+  if (typeof self !== 'undefined') {
+    self.addEventListener('online', () => {
+      logger.info('Network online, triggering global auto sync');
+      getSetting('auto_sync_enabled').then((enabledSetting) => {
+        if (enabledSetting !== undefined ? Boolean(enabledSetting) : true) {
+          performGlobalSync().catch((e) => logger.error('Online auto sync failed:', e));
+        }
+      });
+    });
+  }
+
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.type === 'AUTO_SYNC_TRIGGER_PUSH') {
+      const now = Date.now();
+      if (now - lastPushTriggerTime < 3000) return false;
+      lastPushTriggerTime = now;
+
+      (async () => {
+        const enabledSetting = await getSetting('auto_sync_enabled');
+        if (enabledSetting !== undefined ? Boolean(enabledSetting) : true) {
+          logger.info('Auto sync (push) triggered by data change');
+          try {
+            // First check if already syncing to avoid conflicts
+            const status = await getSetting('global_sync_status');
+            if (status === 'syncing') {
+              logger.info('Skipping auto sync push: global sync is already in progress');
+              return;
+            }
+            await updateSetting('global_sync_status', 'syncing');
+            await syncEngine.push();
+            await updateSetting('global_sync_status', 'idle');
+          } catch (err) {
+            logger.error('Auto sync push failed:', err);
+            await updateSetting('global_sync_status', 'error');
+            await updateSetting(
+              'global_sync_error',
+              err instanceof Error ? err.message : String(err)
+            );
+          }
+        }
+      })();
+      return false;
+    }
+
+    if (message.type === 'AUTO_SYNC_TRIGGER_PULL') {
+      const now = Date.now();
+      if (now - lastPullTriggerTime < 500) {
+        logger.debug('Throttled pull trigger');
+        return false;
+      }
+      lastPullTriggerTime = now;
+
+      (async () => {
+        const enabledSetting = await getSetting('auto_sync_enabled');
+        if (enabledSetting !== undefined ? Boolean(enabledSetting) : true) {
+          logger.info('Auto sync (pull/global) triggered by UI open');
+          try {
+            // First check if already syncing to avoid conflicts
+            const status = await getSetting('global_sync_status');
+            if (status === 'syncing') {
+              logger.info('Skipping auto sync on open: already syncing');
+              return;
+            }
+            await performGlobalSync();
+          } catch (err) {
+            logger.error('Auto sync pull failed:', err);
+          }
+        }
+      })();
+      return false;
+    }
+
     // Open side panel request from popup
     if (message.type === 'OPEN_SIDE_PANEL') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -90,19 +215,19 @@ export default defineBackground(() => {
     if (message.type === 'GLOBAL_SYNC_PUSH') {
       (async () => {
         try {
-          await db.settings.put({ key: 'global_sync_status', value: 'syncing' });
+          await updateSetting('global_sync_status', 'syncing');
           await syncEngine.push();
           // Only reset to idle if we are managing the full sync lifecycle here.
           // But since these are called sequentially, it's safer to reset here to avoid stuck 'syncing' state if the chain breaks.
-          await db.settings.put({ key: 'global_sync_status', value: 'idle' });
+          await updateSetting('global_sync_status', 'idle');
           sendResponse({ success: true });
         } catch (err) {
           logger.error('Global sync push failed:', err);
-          await db.settings.put({ key: 'global_sync_status', value: 'error' });
-          await db.settings.put({
-            key: 'global_sync_error',
-            value: err instanceof Error ? err.message : String(err),
-          });
+          await updateSetting('global_sync_status', 'error');
+          await updateSetting(
+            'global_sync_error',
+            err instanceof Error ? err.message : String(err)
+          );
           sendResponse({ success: false, error: String(err) });
         }
       })();
@@ -112,17 +237,17 @@ export default defineBackground(() => {
     if (message.type === 'GLOBAL_SYNC_PULL') {
       (async () => {
         try {
-          await db.settings.put({ key: 'global_sync_status', value: 'syncing' });
+          await updateSetting('global_sync_status', 'syncing');
           await syncEngine.pull();
-          await db.settings.put({ key: 'global_sync_status', value: 'idle' });
+          await updateSetting('global_sync_status', 'idle');
           sendResponse({ success: true });
         } catch (err) {
           logger.error('Global sync pull failed:', err);
-          await db.settings.put({ key: 'global_sync_status', value: 'error' });
-          await db.settings.put({
-            key: 'global_sync_error',
-            value: err instanceof Error ? err.message : String(err),
-          });
+          await updateSetting('global_sync_status', 'error');
+          await updateSetting(
+            'global_sync_error',
+            err instanceof Error ? err.message : String(err)
+          );
           sendResponse({ success: false, error: String(err) });
         }
       })();
@@ -169,9 +294,9 @@ export default defineBackground(() => {
 
       (async () => {
         try {
-          await db.settings.put({ key: 'jenkins_host', value: host });
-          await db.settings.put({ key: 'jenkins_user', value: user });
-          await db.settings.put({ key: 'jenkins_token', value: token });
+          await updateSetting('jenkins_host', host);
+          await updateSetting('jenkins_user', user);
+          await updateSetting('jenkins_token', token);
           logger.debug('Jenkins settings saved');
           sendResponse({ success: true });
         } catch (e) {
@@ -387,21 +512,20 @@ export default defineBackground(() => {
   const searchOmnibox = async (text: string) => {
     try {
       // Fetch all links with their tags, jobs, and settings
-      const [allLinks, allLinkTags, allJobTags, allTags, allJobs, settings] = await Promise.all([
-        db.links.filter((l) => !l.deletedAt).toArray(),
-        db.linkTags.filter((lt) => !lt.deletedAt).toArray(),
-        db.jobTags.toArray(),
-        db.tags.filter((t) => !t.deletedAt).toArray(),
-        db.jobs.toArray(),
-        db.settings.toArray(),
-      ]);
+      const [allLinks, allLinkTags, allJobTags, allTags, allJobs, environments] = await Promise.all(
+        [
+          db.links.filter((l) => !l.deletedAt).toArray(),
+          db.linkTags.filter((lt) => !lt.deletedAt).toArray(),
+          db.jobTags.toArray(),
+          db.tags.filter((t) => !t.deletedAt).toArray(),
+          db.jobs.toArray(),
+          getSetting<JenkinsEnvironment[]>('jenkins_environments').then((envs) => envs || []),
+        ]
+      );
 
       // Build tags map
       const tagsMap = new Map(allTags.map((t) => [t.id, t]));
 
-      const environments =
-        (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) ||
-        [];
       const envMap = new Map(environments.map((e) => [e.id, e.name]));
 
       const linkTagsMap = new Map<string, { id: string; name: string }[]>();
@@ -569,7 +693,7 @@ export default defineBackground(() => {
       if (job) {
         // It's a job, open the extension popup page with parameters to trigger build
         const popupUrl = browser.runtime.getURL(
-          `/popup.html?tab=jenkins&buildJobUrl=${encodeURIComponent(job.url)}&envId=${job.env || ''}`
+          `/sidepanel.html?tab=jenkins&buildJobUrl=${encodeURIComponent(job.url)}&envId=${job.env || ''}`
         );
 
         // Open as a small popup window instead of a full tab

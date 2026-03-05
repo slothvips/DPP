@@ -27,7 +27,7 @@ export default defineConfig({
     },
   },
   manifest: {
-    permissions: ['storage', 'sidePanel'],
+    permissions: ['storage', 'sidePanel', 'alarms'],
     side_panel: {
       default_path: 'sidepanel.html',
     },

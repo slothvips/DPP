@@ -22,6 +22,7 @@ import { MyBuildRow } from '@/features/jenkins/components/MyBuildRow';
 import { RefreshCountdown } from '@/features/jenkins/components/RefreshCountdown';
 import { JenkinsService } from '@/features/jenkins/service';
 import { buildJobTree } from '@/features/jenkins/utils';
+import { updateSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 
 export function JenkinsView() {
@@ -140,7 +141,7 @@ export function JenkinsView() {
       const targetEnvId = params.get('envId');
 
       if (targetEnvId && targetEnvId !== currentEnvId) {
-        await db.settings.put({ key: 'jenkins_current_env', value: targetEnvId });
+        await updateSetting('jenkins_current_env', targetEnvId);
         // toast('已自动切换到目标环境', 'success'); // Silent switch for better UX
       }
 
@@ -211,13 +212,23 @@ export function JenkinsView() {
   };
 
   const handleEnvChange = async (envId: string) => {
-    await db.settings.put({ key: 'jenkins_current_env', value: envId });
-    setRefreshKey((prev) => prev + 1);
-    toast('已切换环境', 'success');
+    try {
+      await updateSetting('jenkins_current_env', envId);
+      setRefreshKey((prev) => prev + 1);
+      toast('已切换环境', 'success');
+    } catch (e) {
+      logger.error('Failed to switch env:', e);
+      toast('切换环境失败', 'error');
+    }
   };
 
   const toggleShowOthers = async (checked: boolean) => {
-    await db.settings.put({ key: 'show_others_builds', value: checked });
+    try {
+      await updateSetting('show_others_builds', checked);
+    } catch (e) {
+      logger.error('Failed to toggle show others builds:', e);
+      toast('设置保存失败', 'error');
+    }
   };
 
   const toggleExpand = (url: string) => {

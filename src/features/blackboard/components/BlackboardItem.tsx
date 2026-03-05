@@ -197,8 +197,7 @@ export function BlackboardItemView({
                       {...props}
                     />
                   ),
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  code: ({ node: _node, className, children, ...props }: any) => {
+                  code: ({ node: _node, className, children, ...props }) => {
                     const match = /language-(\w+)/.exec(className || '');
                     const isInline = !match && !String(children).includes('\n');
                     return (

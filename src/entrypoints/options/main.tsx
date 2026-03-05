@@ -1,4 +1,4 @@
-import { Download, Github, Upload } from 'lucide-react';
+import { Download, FileText, Github, Upload } from 'lucide-react';
 import 'virtual:uno.css';
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
@@ -15,11 +15,19 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { ToastProvider, useToast } from '@/components/ui/toast';
 import { db } from '@/db';
 import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 import { SyncKeyManager } from '@/features/settings/components/SyncKeyManager';
 import { useTheme } from '@/hooks/useTheme';
+import { updateSetting } from '@/lib/db/settings';
 import { ConfirmDialogProvider, useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
@@ -101,6 +109,7 @@ function OptionsApp() {
   const [customConfig, setCustomConfig] = useState({ serverUrl: '' });
   const [accessToken, setAccessToken] = useState('');
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const [autoSync, setAutoSync] = useState({ enabled: true, interval: 30 });
   const [featureToggles, setFeatureToggles] = useState({
     hotNews: true,
     links: true,
@@ -126,6 +135,13 @@ function OptionsApp() {
       });
 
       setAccessToken((settings.find((s) => s.key === 'sync_access_token')?.value as string) || '');
+
+      const autoSyncEnabled = settings.find((s) => s.key === 'auto_sync_enabled');
+      const autoSyncInterval = settings.find((s) => s.key === 'auto_sync_interval');
+      setAutoSync({
+        enabled: autoSyncEnabled ? Boolean(autoSyncEnabled.value) : true,
+        interval: autoSyncInterval ? Number(autoSyncInterval.value) : 30,
+      });
 
       // Feature toggles (default to true if not set)
       const hotNewsEnabled = settings.find((s) => s.key === 'feature_hotnews_enabled');
@@ -161,8 +177,13 @@ function OptionsApp() {
     }
 
     try {
-      await db.settings.put({ key: 'custom_server_url', value: customConfig.serverUrl });
-      await db.settings.put({ key: 'sync_access_token', value: accessToken });
+      await updateSetting('custom_server_url', customConfig.serverUrl);
+      await updateSetting('sync_access_token', accessToken);
+      await updateSetting('auto_sync_enabled', autoSync.enabled);
+      await updateSetting('auto_sync_interval', autoSync.interval);
+      await browser.runtime
+        .sendMessage({ type: 'AUTO_SYNC_SETTINGS_CHANGED' })
+        .catch((e) => logger.error('Failed to send settings change:', e));
 
       toast('配置已保存', 'success');
     } catch (e) {
@@ -328,7 +349,7 @@ function OptionsApp() {
 
   const toggleFeature = async (feature: 'hotNews' | 'links', enabled: boolean) => {
     const key = feature === 'hotNews' ? 'feature_hotnews_enabled' : 'feature_links_enabled';
-    await db.settings.put({ key, value: enabled });
+    await updateSetting(key, enabled);
     setFeatureToggles((prev) => ({ ...prev, [feature]: enabled }));
     toast(
       `${feature === 'hotNews' ? '资讯' : '链接'}功能已${enabled ? '启用' : '禁用'}`,
@@ -419,6 +440,42 @@ function OptionsApp() {
               </div>
 
               <SyncKeyManager />
+
+              <div className="space-y-4 pt-4 border-t border-border">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="auto-sync"
+                    checked={autoSync.enabled}
+                    onCheckedChange={(checked) =>
+                      setAutoSync({ ...autoSync, enabled: checked as boolean })
+                    }
+                  />
+                  <Label htmlFor="auto-sync">开启自动同步</Label>
+                </div>
+                {autoSync.enabled && (
+                  <div className="space-y-2 pl-6">
+                    <Label htmlFor="auto-sync-interval">同步间隔</Label>
+                    <Select
+                      value={autoSync.interval.toString()}
+                      onValueChange={(value) =>
+                        setAutoSync({ ...autoSync, interval: Number(value) })
+                      }
+                    >
+                      <SelectTrigger id="auto-sync-interval" className="w-[180px]">
+                        <SelectValue placeholder="选择间隔时间" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">每 5 分钟</SelectItem>
+                        <SelectItem value="15">每 15 分钟</SelectItem>
+                        <SelectItem value="30">每 30 分钟</SelectItem>
+                        <SelectItem value="60">每 1 小时</SelectItem>
+                        <SelectItem value="120">每 2 小时</SelectItem>
+                        <SelectItem value="240">每 4 小时</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
 
               <Button
                 onClick={saveDataSourceConfig}
@@ -515,7 +572,7 @@ function OptionsApp() {
             </DialogContent>
           </Dialog>
 
-          <div className="flex flex-col items-center justify-center pt-8 pb-4 opacity-50 hover:opacity-100 transition-opacity">
+          <div className="flex flex-col items-center justify-center pt-8 pb-4 opacity-50 hover:opacity-100 transition-opacity gap-2">
             <a
               href="https://github.com/slothvips/DPP"
               target="_blank"
@@ -524,6 +581,18 @@ function OptionsApp() {
             >
               <Github className="w-3 h-3" />
               Open Source on GitHub
+            </a>
+            <a
+              href={
+                (browser.runtime?.getURL as (path: string) => string)?.('/changelog.html') ||
+                '/changelog.html'
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <FileText className="w-3 h-3" />
+              更新日志
             </a>
             <br />
             <a

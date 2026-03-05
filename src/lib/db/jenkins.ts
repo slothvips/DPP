@@ -1,6 +1,43 @@
-import { type JenkinsEnvironment, db } from '@/db';
+import {
+  type JenkinsEnvironment,
+  type JobItem,
+  type MyBuildItem,
+  type OthersBuildItem,
+  db,
+} from '@/db';
 import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
+import { getSetting, updateSetting } from '@/lib/db/settings';
+
+/**
+ * 保存 Jenkins 任务
+ * @param jobs - 任务列表
+ */
+export async function saveJobs(jobs: JobItem[]): Promise<void> {
+  if (jobs.length > 0) {
+    await db.jobs.bulkPut(jobs);
+  }
+}
+
+/**
+ * 保存 Jenkins 构建
+ * @param envId - 环境 ID
+ * @param myBuilds - 我的构建列表
+ * @param othersBuilds - 其他人的构建列表
+ */
+export async function saveBuilds(
+  envId: string,
+  myBuilds: MyBuildItem[],
+  othersBuilds: OthersBuildItem[]
+): Promise<void> {
+  await db.transaction('rw', db.myBuilds, db.othersBuilds, async () => {
+    await db.myBuilds.where('env').equals(envId).delete();
+    await db.myBuilds.bulkPut(myBuilds);
+
+    await db.othersBuilds.where('env').equals(envId).delete();
+    await db.othersBuilds.bulkPut(othersBuilds);
+  });
+}
 
 /**
  * 同步 Jenkins 数据
@@ -13,13 +50,13 @@ export async function syncJenkins(args: { envId?: string }): Promise<{
   syncedCount?: number;
 }> {
   try {
-    const settings = await db.settings.toArray();
-    const environments =
-      (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+    const [environments = [], currentEnvId] = await Promise.all([
+      getSetting<JenkinsEnvironment[]>('jenkins_environments'),
+      getSetting<string>('jenkins_current_env'),
+    ]);
 
     // 确定要使用的环境 ID
-    const targetEnvId =
-      args.envId || (settings.find((s) => s.key === 'jenkins_current_env')?.value as string);
+    const targetEnvId = args.envId || currentEnvId;
 
     if (!targetEnvId) {
       return {
@@ -88,9 +125,7 @@ export async function switchJenkinsEnv(args: { envId: string }): Promise<{
       };
     }
 
-    const settings = await db.settings.toArray();
-    const environments =
-      (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+    const environments = (await getSetting<JenkinsEnvironment[]>('jenkins_environments')) || [];
 
     // 验证环境是否存在
     const env = environments.find((e) => e.id === envId);
@@ -103,7 +138,7 @@ export async function switchJenkinsEnv(args: { envId: string }): Promise<{
     }
 
     // 更新当前环境
-    await db.settings.put({ key: 'jenkins_current_env', value: envId });
+    await updateSetting('jenkins_current_env', envId);
 
     return {
       success: true,
@@ -116,4 +151,18 @@ export async function switchJenkinsEnv(args: { envId: string }): Promise<{
       message: `切换环境失败: ${errorMessage}`,
     };
   }
+}
+
+/**
+ * 删除 Jenkins 环境及其关联的构建历史和任务
+ * @param envId - 要删除的环境 ID
+ */
+export async function deleteJenkinsEnv(envId: string): Promise<void> {
+  await db.transaction('rw', db.jobs, db.myBuilds, db.othersBuilds, async () => {
+    await Promise.all([
+      db.jobs.where('env').equals(envId).delete(),
+      db.myBuilds.where('env').equals(envId).delete(),
+      db.othersBuilds.where('env').equals(envId).delete(),
+    ]);
+  });
 }

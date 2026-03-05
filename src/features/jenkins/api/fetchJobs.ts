@@ -1,4 +1,5 @@
-import { type JobItem, db } from '@/db';
+import { type JobItem } from '@/db';
+import { saveJobs } from '@/lib/db/jenkins';
 import { logger } from '@/utils/logger';
 import { createJenkinsClient } from './client';
 
@@ -104,9 +105,7 @@ export async function fetchAllJobs(
 
   await traverse(client.rootUrl);
 
-  if (jobs.length > 0) {
-    await db.jobs.bulkPut(jobs);
-  }
+  await saveJobs(jobs);
 
   return jobs.length;
 }

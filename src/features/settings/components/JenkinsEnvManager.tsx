@@ -13,7 +13,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
-import { type JenkinsEnvironment, db } from '@/db';
+import type { JenkinsEnvironment } from '@/db';
+import { deleteJenkinsEnv } from '@/lib/db/jenkins';
+import { getSetting, updateSetting } from '@/lib/db/settings';
 import { http } from '@/lib/http';
 import { cn } from '@/utils/cn';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
@@ -27,13 +29,11 @@ export function JenkinsEnvManager() {
   const [editingEnv, setEditingEnv] = useState<JenkinsEnvironment | null>(null);
 
   const environments = useLiveQuery(async () => {
-    const setting = await db.settings.get('jenkins_environments');
-    return (setting?.value as JenkinsEnvironment[]) || [];
+    return (await getSetting<JenkinsEnvironment[]>('jenkins_environments')) || [];
   }, []);
 
   const currentEnvId = useLiveQuery(async () => {
-    const setting = await db.settings.get('jenkins_current_env');
-    return (setting?.value as string) || '';
+    return (await getSetting<string>('jenkins_current_env')) || '';
   });
 
   const handleDelete = async (id: string) => {
@@ -42,21 +42,14 @@ export function JenkinsEnvManager() {
 
     try {
       const newEnvs = environments?.filter((e) => e.id !== id) || [];
-      await db.settings.put({ key: 'jenkins_environments', value: newEnvs });
+      await updateSetting('jenkins_environments', newEnvs);
 
-      await Promise.all([
-        db.jobs.where('env').equals(id).delete(),
-        db.myBuilds.where('env').equals(id).delete(),
-        db.othersBuilds.where('env').equals(id).delete(),
-      ]);
+      await deleteJenkinsEnv(id);
 
       // If we deleted the current env, switch to another one or clear it
       if (currentEnvId === id) {
         const nextEnv = newEnvs[0];
-        await db.settings.put({
-          key: 'jenkins_current_env',
-          value: nextEnv ? nextEnv.id : '',
-        });
+        await updateSetting('jenkins_current_env', nextEnv ? nextEnv.id : '');
       }
 
       toast('环境已删除', 'success');
@@ -78,7 +71,7 @@ export function JenkinsEnvManager() {
 
   const handleSetCurrent = async (id: string) => {
     try {
-      await db.settings.put({ key: 'jenkins_current_env', value: id });
+      await updateSetting('jenkins_current_env', id);
       toast('已切换当前环境', 'success');
     } catch (e) {
       logger.error(e);
@@ -241,11 +234,11 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
         newEnvs = [...existingEnvs, newEnv];
       }
 
-      await db.settings.put({ key: 'jenkins_environments', value: newEnvs });
+      await updateSetting('jenkins_environments', newEnvs);
 
       // If this is the first environment, make it active
       if (existingEnvs.length === 0) {
-        await db.settings.put({ key: 'jenkins_current_env', value: newEnv.id });
+        await updateSetting('jenkins_current_env', newEnv.id);
       }
 
       toast(initialData ? '环境已更新' : '环境已添加', 'success');

@@ -61,6 +61,16 @@ export interface TagItem {
   deletedAt?: number;
 }
 
+export interface TagWithCounts {
+  id: string;
+  name: string;
+  color: string;
+  linkCount: number;
+  jobCount: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface JobTagItem {
   jobUrl: string;
   tagId: string;
@@ -88,6 +98,8 @@ export type SettingKey =
   | 'sync_client_id'
   | 'global_sync_start_time'
   | 'show_others_builds'
+  | 'auto_sync_enabled'
+  | 'auto_sync_interval'
   | 'ai_provider_type'
   | 'ai_base_url'
   | 'ai_model'

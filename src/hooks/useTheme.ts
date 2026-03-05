@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect } from 'react';
 import { db } from '@/db';
+import { updateSetting } from '@/lib/db/settings';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -41,7 +42,7 @@ export function useTheme() {
   }, [theme]);
 
   const setTheme = async (newTheme: Theme) => {
-    await db.settings.put({ key: 'theme', value: newTheme });
+    await updateSetting('theme', newTheme);
   };
 
   return { theme, setTheme };

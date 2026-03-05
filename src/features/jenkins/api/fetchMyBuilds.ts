@@ -1,4 +1,5 @@
-import { type MyBuildItem, type OthersBuildItem, db } from '@/db';
+import { type MyBuildItem, type OthersBuildItem } from '@/db';
+import { saveBuilds } from '@/lib/db/jenkins';
 import { logger } from '@/utils/logger';
 import { createJenkinsClient } from './client';
 
@@ -143,13 +144,7 @@ export async function fetchMyBuilds(
   // Keep only top 50 recent builds for others
   const recentOthersBuilds = uniqueOthersBuilds.slice(0, 50);
 
-  await db.transaction('rw', db.myBuilds, db.othersBuilds, async () => {
-    await db.myBuilds.where('env').equals(envId).delete();
-    await db.myBuilds.bulkPut(uniqueMyBuilds);
-
-    await db.othersBuilds.where('env').equals(envId).delete();
-    await db.othersBuilds.bulkPut(recentOthersBuilds);
-  });
+  await saveBuilds(envId, uniqueMyBuilds, recentOthersBuilds);
 
   return uniqueMyBuilds.length;
 }
