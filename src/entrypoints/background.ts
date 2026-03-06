@@ -50,6 +50,20 @@ const remoteRecordingCache = new Map<
   { events: unknown[]; title: string; timestamp: number }
 >();
 const MAX_RECORDING_STATES = 100;
+const RECORDING_STATE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+
+/**
+ * 清理过期的录音状态，防止内存泄漏
+ */
+function cleanupExpiredRecordingStates() {
+  const now = Date.now();
+  for (const [tabId, state] of recordingStates.entries()) {
+    if (state.startTime && now - state.startTime > RECORDING_STATE_EXPIRY_MS) {
+      logger.debug(`Cleaning up expired recording state for tab ${tabId}`);
+      recordingStates.delete(tabId);
+    }
+  }
+}
 
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
 
@@ -322,7 +336,8 @@ export default defineBackground(() => {
         try {
           if (recorderMessage.type === 'RECORDER_START') {
             const { tabId } = recorderMessage;
-            // Prevent memory leak by limiting recording states size
+            // Prevent memory leak: cleanup expired states first, then enforce size limit
+            cleanupExpiredRecordingStates();
             if (recordingStates.size >= MAX_RECORDING_STATES) {
               const firstKey = recordingStates.keys().next().value;
               if (firstKey !== undefined) {
