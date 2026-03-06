@@ -1,9 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { type LinkItem, type TagItem, db } from '@/db';
+import { type LinkItem, type TagItem } from '@/db';
 import {
   addLink,
   bulkAddLinks as bulkAddLinksDB,
   deleteLink,
+  getAllActiveLinkTags,
+  getAllActiveLinks,
+  getAllActiveTags,
+  getAllLinkStats,
   recordLinkVisit,
   toggleLinkPin,
   updateLink,
@@ -19,10 +23,10 @@ export interface LinkWithStats extends LinkItem {
 export function useLinks() {
   const links = useLiveQuery(async () => {
     const [allLinks, allStats, allLinkTags, allTags] = await Promise.all([
-      db.links.filter((l) => !l.deletedAt).toArray(),
-      db.linkStats.toArray(),
-      db.linkTags.filter((lt) => !lt.deletedAt).toArray(),
-      db.tags.filter((t) => !t.deletedAt).toArray(),
+      getAllActiveLinks(),
+      getAllLinkStats(),
+      getAllActiveLinkTags(),
+      getAllActiveTags(),
     ]);
 
     const statsMap = new Map(allStats.map((s) => [s.id, s]));

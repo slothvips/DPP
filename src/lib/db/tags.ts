@@ -20,6 +20,13 @@ export async function getAllActiveTags(): Promise<TagItem[]> {
 }
 
 /**
+ * Get all job tags
+ */
+export async function getAllJobTags(): Promise<JobTagItem[]> {
+  return db.jobTags.toArray();
+}
+
+/**
  * Get active tag IDs for an entity
  */
 export async function getActiveEntityTagIds(

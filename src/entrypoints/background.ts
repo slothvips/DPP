@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { type JenkinsEnvironment, db, syncEngine } from '@/db';
+import { type JenkinsEnvironment, syncEngine } from '@/db';
 import { getJobDetails, triggerBuild } from '@/features/jenkins/api/build';
 import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
@@ -7,9 +7,11 @@ import type { JenkinsMessage, JenkinsResponse } from '@/features/jenkins/message
 import { openLink } from '@/features/links/utils';
 import type { RecorderMessage, RecordingSavedMessage } from '@/features/recorder/messages';
 import type { RecordingState } from '@/features/recorder/types';
-import { getJob } from '@/lib/db/jenkins';
+import { getAllJobs, getJob } from '@/lib/db/jenkins';
+import { getAllActiveLinkTags, getAllActiveLinks } from '@/lib/db/links';
 import { addRecording, getAllRecordings, getRecordingById } from '@/lib/db/recorder';
 import { getSetting, updateSetting } from '@/lib/db/settings';
+import { getAllActiveTags, getAllJobTags } from '@/lib/db/tags';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
 
@@ -520,11 +522,11 @@ export default defineBackground(() => {
       // Fetch all links with their tags, jobs, and settings
       const [allLinks, allLinkTags, allJobTags, allTags, allJobs, environments] = await Promise.all(
         [
-          db.links.filter((l) => !l.deletedAt).toArray(),
-          db.linkTags.filter((lt) => !lt.deletedAt).toArray(),
-          db.jobTags.toArray(),
-          db.tags.filter((t) => !t.deletedAt).toArray(),
-          db.jobs.toArray(),
+          getAllActiveLinks(),
+          getAllActiveLinkTags(),
+          getAllJobTags(),
+          getAllActiveTags(),
+          getAllJobs(),
           getSetting<JenkinsEnvironment[]>('jenkins_environments').then((envs) => envs || []),
         ]
       );

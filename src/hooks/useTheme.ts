@@ -1,12 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect } from 'react';
-import { db } from '@/db';
-import { updateSetting } from '@/lib/db/settings';
+import { getSettingByKey, updateSetting } from '@/lib/db/settings';
 
 export type Theme = 'light' | 'dark' | 'system';
 
 export function useTheme() {
-  const settings = useLiveQuery(() => db.settings.where('key').equals('theme').first());
+  const settings = useLiveQuery(() => getSettingByKey('theme'));
 
   const theme = (settings?.value as Theme) || 'system';
 

@@ -1,5 +1,4 @@
-import { db } from '@/db';
-import { recordLinkVisit } from '@/lib/db';
+import { getLinkByUrl, recordLinkVisit } from '@/lib/db';
 import { logger } from '@/utils/logger';
 
 export async function openLink(url: string) {
@@ -43,7 +42,7 @@ export async function openLink(url: string) {
 
   // Record usage
   try {
-    const link = await db.links.filter((l) => l.url === finalUrl && !l.deletedAt).first();
+    const link = await getLinkByUrl(finalUrl);
 
     if (link) {
       await recordLinkVisit({ id: link.id });

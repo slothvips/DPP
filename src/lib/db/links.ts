@@ -1,7 +1,7 @@
 // Unified links database operations
 import type { Table } from 'dexie';
 import { db } from '@/db';
-import type { LinkTagItem } from '@/db/types';
+import type { LinkItem, LinkStatItem, LinkTagItem } from '@/db/types';
 import { logger } from '@/utils/logger';
 
 // Lazy getter to avoid "Cannot access 'db' before initialization" error
@@ -441,4 +441,33 @@ export async function getLink(args: {
     url: link.url,
     note: link.note,
   };
+}
+
+/**
+ * Get a link by URL (used for recording link visits)
+ */
+export async function getLinkByUrl(url: string): Promise<LinkItem | null> {
+  const link = await db.links.filter((l) => l.url === url && !l.deletedAt).first();
+  return link || null;
+}
+
+/**
+ * Get all active links (without soft deleted)
+ */
+export async function getAllActiveLinks(): Promise<LinkItem[]> {
+  return db.links.filter((l) => !l.deletedAt).toArray();
+}
+
+/**
+ * Get all active link tags
+ */
+export async function getAllActiveLinkTags(): Promise<LinkTagItem[]> {
+  return db.linkTags.filter((lt) => !lt.deletedAt).toArray();
+}
+
+/**
+ * Get all link stats
+ */
+export async function getAllLinkStats(): Promise<LinkStatItem[]> {
+  return db.linkStats.toArray();
 }

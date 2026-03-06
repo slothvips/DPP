@@ -1,6 +1,5 @@
 // AI Chat hook - Core conversation logic
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { db } from '@/db';
 // Import AI module to trigger tool registration
 import '@/lib/ai';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
@@ -17,9 +16,11 @@ import {
   deleteSession as dbDeleteSession,
   getMessagesBySession,
   getMostRecentSession,
+  getSession,
   listSessions,
   updateSessionTitle,
 } from '@/lib/db/ai';
+import { getSettingByKey } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 import type { AISession, ChatMessage } from '../types';
 
@@ -161,7 +162,7 @@ export function useAIChat(): UseAIChatReturn {
     }
 
     // Get config from settings
-    const providerTypeSetting = await db.settings.where('key').equals('ai_provider_type').first();
+    const providerTypeSetting = await getSettingByKey('ai_provider_type');
     const providerType = (providerTypeSetting?.value as AIProviderType) || 'ollama';
 
     // Update current provider for UI warnings
@@ -173,12 +174,12 @@ export function useAIChat(): UseAIChatReturn {
     const apiKeyKey = `ai_${providerType}_api_key`;
 
     // Fallback to legacy keys for backwards compatibility
-    const baseUrlSetting = await db.settings.where('key').equals(baseUrlKey).first();
-    const legacyBaseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
-    const modelSetting = await db.settings.where('key').equals(modelKey).first();
-    const legacyModelSetting = await db.settings.where('key').equals('ai_model').first();
-    const apiKeySetting = await db.settings.where('key').equals(apiKeyKey).first();
-    const legacyApiKeySetting = await db.settings.where('key').equals('ai_api_key').first();
+    const baseUrlSetting = await getSettingByKey(baseUrlKey);
+    const legacyBaseUrlSetting = await getSettingByKey('ai_base_url');
+    const modelSetting = await getSettingByKey(modelKey);
+    const legacyModelSetting = await getSettingByKey('ai_model');
+    const apiKeySetting = await getSettingByKey(apiKeyKey);
+    const legacyApiKeySetting = await getSettingByKey('ai_api_key');
 
     const defaults = DEFAULT_CONFIGS[providerType];
     const baseUrl =
@@ -924,7 +925,7 @@ export function useAIChat(): UseAIChatReturn {
       const savedSessionId = sessionStorage.getItem('ai_current_session_id');
       if (savedSessionId) {
         // Verify the session still exists
-        const session = await db.aiSessions.get(savedSessionId);
+        const session = await getSession(savedSessionId);
         if (session && mounted) {
           await loadSession(savedSessionId);
           return;

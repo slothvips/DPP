@@ -213,6 +213,13 @@ export async function listJobs(args: { keyword?: string }): Promise<{
 }
 
 /**
+ * Get all jobs
+ */
+export async function getAllJobs(): Promise<JobItem[]> {
+  return db.jobs.toArray();
+}
+
+/**
  * Get a job by URL
  */
 export async function getJob(args: { jobUrl: string }): Promise<JobItem | undefined> {

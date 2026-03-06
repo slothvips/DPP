@@ -1,15 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '@/db';
 import {
   addRecording,
   clearRecordings as dbClearRecordings,
   deleteRecording as dbDeleteRecording,
   updateRecordingTitle as dbUpdateRecordingTitle,
+  getAllRecordings,
 } from '@/lib/db/recorder';
 import type { Recording } from '../types';
 
 export function useRecordings() {
-  const recordings = useLiveQuery(() => db.recordings.orderBy('createdAt').reverse().toArray(), []);
+  const recordings = useLiveQuery(() => getAllRecordings(), []);
 
   const deleteRecording = async (id: string) => {
     const result = await dbDeleteRecording({ id });

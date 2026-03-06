@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { db, syncEngine } from '@/db';
-import { updateSetting } from '@/lib/db/settings';
+import { getSetting, updateSetting } from '@/lib/db/settings';
 import type { SyncPendingCounts } from '@/lib/sync/types';
 import { logger } from '@/utils/logger';
 
@@ -21,20 +21,20 @@ export function useGlobalSync(): GlobalSyncState {
 
   const isSyncing =
     useLiveQuery(async () => {
-      const status = await db.settings.get('global_sync_status');
-      return status?.value === 'syncing';
+      const status = await getSetting<string>('global_sync_status');
+      return status === 'syncing';
     }) ?? false;
 
   const error =
     useLiveQuery(async () => {
-      const err = await db.settings.get('global_sync_error');
-      return (err?.value as string) || null;
+      const err = await getSetting<string>('global_sync_error');
+      return err || null;
     }) ?? null;
 
   const lastSyncTime =
     useLiveQuery(async () => {
-      const setting = await db.settings.get('last_global_sync');
-      return (setting?.value as number) || null;
+      const setting = await getSetting<number>('last_global_sync');
+      return setting || null;
     }) ?? null;
 
   const localPushCount =
@@ -54,8 +54,7 @@ export function useGlobalSync(): GlobalSyncState {
     if (!isSyncing) return;
 
     const checkStuck = async () => {
-      const startSetting = await db.settings.get('global_sync_start_time');
-      const startTime = (startSetting?.value as number) || 0;
+      const startTime = (await getSetting<number>('global_sync_start_time')) || 0;
       if (startTime > 0 && Date.now() - startTime > 5 * 60 * 1000) {
         logger.warn('[useGlobalSync] Sync appears stuck (timeout). Resetting to error.');
         await updateSetting('global_sync_status', 'error');
