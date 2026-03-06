@@ -114,6 +114,7 @@ export default defineBackground(() => {
     if (status === 'syncing') {
       logger.warn('Detected stuck sync status on startup. Resetting to idle.');
       await updateSetting('global_sync_status', 'idle');
+      await updateSetting('global_sync_error', '');
     }
   });
 
@@ -151,6 +152,7 @@ export default defineBackground(() => {
             await updateSetting('global_sync_status', 'syncing');
             await syncEngine.push();
             await updateSetting('global_sync_status', 'idle');
+            await updateSetting('global_sync_error', '');
           } catch (err) {
             logger.error('Auto sync push failed:', err);
             await updateSetting('global_sync_status', 'error');
@@ -220,6 +222,7 @@ export default defineBackground(() => {
           // Only reset to idle if we are managing the full sync lifecycle here.
           // But since these are called sequentially, it's safer to reset here to avoid stuck 'syncing' state if the chain breaks.
           await updateSetting('global_sync_status', 'idle');
+          await updateSetting('global_sync_error', '');
           sendResponse({ success: true });
         } catch (err) {
           logger.error('Global sync push failed:', err);
@@ -240,6 +243,7 @@ export default defineBackground(() => {
           await updateSetting('global_sync_status', 'syncing');
           await syncEngine.pull();
           await updateSetting('global_sync_status', 'idle');
+          await updateSetting('global_sync_error', '');
           sendResponse({ success: true });
         } catch (err) {
           logger.error('Global sync pull failed:', err);

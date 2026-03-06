@@ -5,7 +5,7 @@ import { useGlobalSync } from '@/hooks/useGlobalSync';
 import { cn } from '@/utils/cn';
 
 export function GlobalSyncButton() {
-  const { isSyncing, error, pendingCounts, push, pull } = useGlobalSync();
+  const { isSyncing, pendingCounts, push, pull } = useGlobalSync();
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
 
@@ -31,12 +31,6 @@ export function GlobalSyncButton() {
 
   return (
     <div className="flex items-center gap-1">
-      {error && (
-        <span className="text-xs text-destructive hidden sm:inline-block" title={error}>
-          同步失败
-        </span>
-      )}
-
       <Button
         variant="ghost"
         size="sm"

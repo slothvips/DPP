@@ -664,7 +664,8 @@ export class SyncEngine {
       await this.db.transaction(
         'rw',
         tablesToClear.map((t) => this.db.table(t)),
-        async () => {
+        async (tx) => {
+          (tx as SyncTransaction).source = 'sync';
           for (const table of tablesToClear) {
             await this.db.table(table).clear();
           }

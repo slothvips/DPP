@@ -113,6 +113,7 @@ export async function performGlobalSync() {
       logger.warn(`[GlobalSync] Partial success. Failed modules: ${failedModules}`);
     } else {
       await updateSetting('global_sync_status', 'idle');
+      await updateSetting('global_sync_error', '');
       logger.info('[GlobalSync] All modules synced successfully');
     }
 

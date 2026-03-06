@@ -1,4 +1,4 @@
-import { Download, FileText, Github, Upload } from 'lucide-react';
+import { AlertTriangle, Download, FileText, Github, Upload } from 'lucide-react';
 import 'virtual:uno.css';
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ToastProvider, useToast } from '@/components/ui/toast';
-import { db } from '@/db';
+import { db, getSyncEngine } from '@/db';
 import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 import { SyncKeyManager } from '@/features/settings/components/SyncKeyManager';
 import { useTheme } from '@/hooks/useTheme';
@@ -347,6 +347,33 @@ function OptionsApp() {
     }
   };
 
+  const rebuildLocalData = async () => {
+    const confirmed = await confirm(
+      '此操作将清空本地所有同步数据（标签、链接等），并从服务器重新拉取。\n\n⚠️ 注意：未同步到服务器的本地数据将会丢失。为避免服务器压力，请仅在数据异常时使用。',
+      '确认重建本地数据',
+      'danger'
+    );
+
+    if (confirmed) {
+      try {
+        toast('正在重建数据...', 'info');
+
+        const engine = await getSyncEngine();
+        if (!engine) {
+          throw new Error('同步引擎初始化失败');
+        }
+        await engine.clearAllData();
+        await engine.pull();
+
+        toast('数据重建成功', 'success');
+        setTimeout(() => window.location.reload(), 1500);
+      } catch (error) {
+        logger.error('[DataRebuild] Failed:', error);
+        toast('数据重建失败: ' + (error as Error).message, 'error');
+      }
+    }
+  };
+
   const toggleFeature = async (feature: 'hotNews' | 'links', enabled: boolean) => {
     const key = feature === 'hotNews' ? 'feature_hotnews_enabled' : 'feature_links_enabled';
     await updateSetting(key, enabled);
@@ -512,6 +539,15 @@ function OptionsApp() {
                 >
                   <Upload className="w-4 h-4" />
                   导入配置
+                </Button>
+                <Button
+                  onClick={rebuildLocalData}
+                  variant="outline"
+                  className="gap-2 text-orange-600 border-orange-600 hover:bg-orange-50"
+                  data-testid="button-rebuild"
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  重建本地数据
                 </Button>
               </div>
             </div>

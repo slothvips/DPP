@@ -80,7 +80,9 @@ export function ConfirmDialogProvider({ children }: ConfirmDialogProviderProps) 
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{state.title}</DialogTitle>
-            <DialogDescription>{state.message}</DialogDescription>
+            <DialogDescription style={{ whiteSpace: 'pre-line' }}>
+              {state.message}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={handleCancel}>
