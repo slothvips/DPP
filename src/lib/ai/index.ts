@@ -3,6 +3,7 @@ import { registerBlackboardTools } from './tools/blackboard';
 import { registerHotNewsTools } from './tools/hotnews';
 import { registerJenkinsTools } from './tools/jenkins';
 import { registerLinksTools } from './tools/links';
+import { registerRecentActivitiesTools } from './tools/recentActivities';
 import { registerRecorderTools } from './tools/recorder';
 import { registerTagsTools } from './tools/tags';
 
@@ -19,6 +20,7 @@ export * from './tools/hotnews';
 export * from './tools/jenkins';
 export * from './tools/recorder';
 export * from './tools/blackboard';
+export * from './tools/recentActivities';
 
 registerLinksTools();
 registerTagsTools();
@@ -26,3 +28,4 @@ registerHotNewsTools();
 registerJenkinsTools();
 registerRecorderTools();
 registerBlackboardTools();
+registerRecentActivitiesTools();

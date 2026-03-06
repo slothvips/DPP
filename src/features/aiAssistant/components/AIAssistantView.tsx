@@ -1,6 +1,8 @@
 // AI Assistant View - Main conversation interface
 import { Send, Settings, Trash2 } from 'lucide-react';
+import remarkGfm from 'remark-gfm';
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
@@ -231,7 +233,9 @@ export function AIAssistantView() {
                   {message.name} 结果:
                 </div>
               )}
-              <div className="text-sm whitespace-pre-wrap break-words">{message.content}</div>
+              <div className="text-sm prose prose-sm dark:prose-invert">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+              </div>
             </div>
           </div>
         ))}

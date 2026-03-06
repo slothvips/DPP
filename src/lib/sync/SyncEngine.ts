@@ -2,6 +2,7 @@ import Dexie, { type Transaction } from 'dexie';
 import type { IndexableType } from 'dexie';
 import { browser } from 'wxt/browser';
 import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
+import { addRemoteActivities } from '@/lib/db';
 import { decryptOperation } from '@/lib/sync/crypto-helpers';
 import { logger } from '@/utils/logger';
 import type {
@@ -425,7 +426,11 @@ export class SyncEngine {
 
           await this.db.transaction(
             'rw',
-            [...this.tables.map((t) => this.db.table(t)), this.db.table('syncMetadata')],
+            [
+              ...this.tables.map((t) => this.db.table(t)),
+              this.db.table('syncMetadata'),
+              this.db.table('remoteActivityLog'),
+            ],
             async (tx) => {
               (tx as SyncTransaction).source = 'sync';
 
@@ -438,6 +443,11 @@ export class SyncEngine {
                 lastServerCursor: nextCursor,
                 lastSyncTimestamp: Date.now(),
               });
+
+              // Archive remote operations for activity tracking (lowest priority)
+              if (validOps.length > 0) {
+                await addRemoteActivities(validOps);
+              }
             }
           );
           totalPulled += validOps.length;

@@ -6,3 +6,4 @@ export * from './blackboard';
 export * from './tags';
 export * from './recorder';
 export * from './hotnews';
+export * from './recentActivities';

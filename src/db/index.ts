@@ -52,6 +52,9 @@ db.version(1).stores({
   // AI Chat tables
   aiSessions: 'id, createdAt, updatedAt',
   aiMessages: 'id, sessionId, createdAt',
+
+  // Remote activity log
+  remoteActivityLog: 'id, clientId, table, type, timestamp, receivedAt',
 });
 
 const defaultSyncProvider: SyncProvider = {

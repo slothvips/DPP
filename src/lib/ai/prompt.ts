@@ -51,6 +51,7 @@ DPP is a developer-focused browser extension with these core features:
 - **Recorder**: Record and replay browser sessions
 - **News**: Aggregate developer news feeds
 - **Sync**: End-to-end encrypted data synchronization across devices
+- **AI Assistant**: Chat with AI, supports Markdown rendering for responses
 
 ## Tool Call Protocol
 
@@ -126,6 +127,29 @@ User: "打开Google链接"
 Workflow:
 1. Call \`links_list\` to find the link
 2. Call \`links_visit\` with the link ID - this opens the URL in a new tab and records the visit
+
+### Example 5: View recent activities (summary)
+User: "查看最近7天做了什么" or "最近有什么变化"
+Workflow:
+1. Call \`get_recent_activities\` with days=7 and detailLevel="summary" (default)
+2. Analyze the returned summary and activities
+3. Provide a natural language summary to the user
+
+Note: Results include both local operations (source: "local") and remote operations from other devices (source: "remote"). Remote operations include a clientId field to identify which device performed the operation.
+
+### Example 6: View detailed recent activities
+User: "查看更详细的操作记录" or "能告诉我具体做了什么吗"
+Workflow:
+1. Call \`get_recent_activities\` with the same days and detailLevel="detailed"
+2. The detailed response includes: URL for links, color for tags, content preview for blackboard
+3. Present the detailed information in a clear format
+
+The tool returns:
+- summary.total: total number of operations
+- summary.byType: breakdown by operation type (create/update/delete)
+- summary.byTable: breakdown by data table
+- activities: list of individual operations with descriptions
+- (when detailLevel=detailed) activities[].details: includes URL, color, content, etc.
 
 ## Critical Details
 
@@ -229,5 +253,6 @@ Example:
 - Manage tags (create, delete, view)
 - Manage recordings (start, stop, list)
 - View news
-- Trigger data sync`;
+- Trigger data sync
+- AI chat responses are rendered with Markdown support (headers, lists, code blocks, links, tables, etc.)`;
 }

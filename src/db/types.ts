@@ -169,6 +169,16 @@ export interface AIMessage {
   createdAt: number;
 }
 
+export interface RemoteActivityLog {
+  id: string;
+  clientId: string;
+  table: string;
+  type: 'create' | 'update' | 'delete';
+  timestamp: number;
+  payload?: unknown;
+  receivedAt: number;
+}
+
 export type DPPDatabase = Dexie & {
   links: EntityTable<LinkItem, 'id'>;
   linkTags: EntityTable<LinkTagItem, never>;
@@ -187,4 +197,5 @@ export type DPPDatabase = Dexie & {
   deferred_ops: EntityTable<DeferredOp, 'id'>;
   aiSessions: EntityTable<AISession, 'id'>;
   aiMessages: EntityTable<AIMessage, 'id'>;
+  remoteActivityLog: EntityTable<RemoteActivityLog, 'id'>;
 };
