@@ -263,10 +263,13 @@ export async function deleteLink(args: {
     // Soft delete the link
     await db.links.update(args.id, { deletedAt: Date.now(), updatedAt: Date.now() });
 
-    // Physically delete link tag associations
+    // Soft delete link tag associations
     const linkTags = await db.linkTags.where('linkId').equals(args.id).toArray();
     for (const lt of linkTags) {
-      await linkTagsTable.delete([lt.linkId, lt.tagId]);
+      await linkTagsTable.update([lt.linkId, lt.tagId], {
+        deletedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
     }
 
     // Physically delete link stats
