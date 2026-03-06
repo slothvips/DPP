@@ -1,10 +1,10 @@
 // Links management AI tools
-import { db } from '@/db';
 import { openLink } from '@/features/links/utils';
 import {
   addLink,
   bulkAddLinks,
   deleteLink,
+  getLink,
   listLinks,
   recordLinkVisit,
   toggleLinkPin,
@@ -51,7 +51,7 @@ async function links_delete(args: { id: string }) {
  * Visit a link and record statistics
  */
 async function links_visit(args: { id: string }) {
-  const link = await db.links.get(args.id);
+  const link = await getLink(args);
   if (!link) {
     throw new Error(`Link with id ${args.id} not found`);
   }

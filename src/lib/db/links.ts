@@ -4,7 +4,10 @@ import { db } from '@/db';
 import type { LinkTagItem } from '@/db/types';
 import { logger } from '@/utils/logger';
 
-const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
+// Lazy getter to avoid "Cannot access 'db' before initialization" error
+function getLinkTagsTable(): Table<LinkTagItem, [string, string]> {
+  return db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
+}
 
 /**
  * Validate URL format
@@ -83,7 +86,7 @@ export async function listLinks(args: { keyword?: string; tags?: string[] }): Pr
       )
     );
 
-    const linkTags = await db.linkTags
+    const linkTags = await getLinkTagsTable()
       .filter((lt) => !lt.deletedAt && tagIdSet.has(lt.tagId))
       .toArray();
     const linkIdsWithTags = new Set(linkTags.map((lt) => lt.linkId));
@@ -93,7 +96,7 @@ export async function listLinks(args: { keyword?: string; tags?: string[] }): Pr
   // Get tags for each link
   const linksWithTags = await Promise.all(
     links.map(async (link) => {
-      const linkTagRecords = await db.linkTags
+      const linkTagRecords = await getLinkTagsTable()
         .filter((lt) => !lt.deletedAt && lt.linkId === link.id)
         .toArray();
       const tagIds = linkTagRecords.map((lt) => lt.tagId);
@@ -143,7 +146,7 @@ export async function addLink(args: {
   // Resolve tag names to IDs if needed
   const tagIds = args.tags ? await resolveTagNamesToIds(args.tags) : [];
 
-  await db.transaction('rw', db.links, linkTagsTable, async () => {
+  await db.transaction('rw', db.links, getLinkTagsTable(), async () => {
     // Create link
     await db.links.add({
       id,
@@ -158,7 +161,7 @@ export async function addLink(args: {
     // Add tags if provided
     if (tagIds.length > 0) {
       for (const tagId of tagIds) {
-        await linkTagsTable.add({
+        await getLinkTagsTable().add({
           linkId: id,
           tagId,
           updatedAt: now,
@@ -200,7 +203,7 @@ export async function updateLink(args: {
   // Resolve tag names to IDs if needed
   const newTagIds = args.tags ? await resolveTagNamesToIds(args.tags) : undefined;
 
-  await db.transaction('rw', db.links, linkTagsTable, async () => {
+  await db.transaction('rw', db.links, getLinkTagsTable(), async () => {
     // Update link
     await db.links.update(args.id, {
       name: args.name ?? existingLink.name,
@@ -211,7 +214,7 @@ export async function updateLink(args: {
 
     // Update tags if provided - use smart update logic (restore deleted tags)
     if (newTagIds !== undefined) {
-      const existingLinkTags = await db.linkTags.where('linkId').equals(args.id).toArray();
+      const existingLinkTags = await getLinkTagsTable().where('linkId').equals(args.id).toArray();
       const existingTagIds = new Set(
         existingLinkTags.filter((lt) => !lt.deletedAt).map((lt) => lt.tagId)
       );
@@ -223,10 +226,10 @@ export async function updateLink(args: {
           const deletedTag = existingLinkTags.find((lt) => lt.tagId === tagId && lt.deletedAt);
           if (deletedTag) {
             // Restore deleted tag association
-            await linkTagsTable.put({ ...deletedTag, deletedAt: undefined, updatedAt: now });
+            await getLinkTagsTable().put({ ...deletedTag, deletedAt: undefined, updatedAt: now });
           } else {
             // Add new tag association
-            await linkTagsTable.add({ linkId: args.id, tagId, updatedAt: now });
+            await getLinkTagsTable().add({ linkId: args.id, tagId, updatedAt: now });
           }
         }
       }
@@ -234,7 +237,7 @@ export async function updateLink(args: {
       // Remove tags that are no longer associated
       for (const existingId of existingTagIds) {
         if (!tagIdSet.has(existingId)) {
-          await db.linkTags
+          await getLinkTagsTable()
             .where({ linkId: args.id, tagId: existingId })
             .modify({ deletedAt: now, updatedAt: now });
         }
@@ -259,14 +262,14 @@ export async function deleteLink(args: {
     throw new Error(`链接不存在或已被删除`);
   }
 
-  await db.transaction('rw', db.links, db.linkStats, linkTagsTable, async () => {
+  await db.transaction('rw', db.links, db.linkStats, getLinkTagsTable(), async () => {
     // Soft delete the link
     await db.links.update(args.id, { deletedAt: Date.now(), updatedAt: Date.now() });
 
     // Soft delete link tag associations
-    const linkTags = await db.linkTags.where('linkId').equals(args.id).toArray();
+    const linkTags = await getLinkTagsTable().where('linkId').equals(args.id).toArray();
     for (const lt of linkTags) {
-      await linkTagsTable.update([lt.linkId, lt.tagId], {
+      await getLinkTagsTable().update([lt.linkId, lt.tagId], {
         deletedAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -387,7 +390,7 @@ export async function bulkAddLinks(args: {
     });
   }
 
-  await db.transaction('rw', db.links, linkTagsTable, async () => {
+  await db.transaction('rw', db.links, getLinkTagsTable(), async () => {
     for (const link of results) {
       const id = crypto.randomUUID();
 
@@ -405,7 +408,7 @@ export async function bulkAddLinks(args: {
       // Add tags if provided
       if (link.tags && link.tags.length > 0) {
         for (const tagId of link.tags) {
-          await linkTagsTable.add({
+          await getLinkTagsTable().add({
             linkId: id,
             tagId,
             updatedAt: now,
@@ -419,5 +422,23 @@ export async function bulkAddLinks(args: {
     success: true,
     count: results.length,
     message: `Successfully added ${results.length} links`,
+  };
+}
+
+/**
+ * Get a single link by ID
+ */
+export async function getLink(args: {
+  id: string;
+}): Promise<{ id: string; name: string; url: string; note?: string } | null> {
+  const link = await db.links.get(args.id);
+  if (!link || link.deletedAt !== undefined) {
+    return null;
+  }
+  return {
+    id: link.id,
+    name: link.name,
+    url: link.url,
+    note: link.note,
   };
 }

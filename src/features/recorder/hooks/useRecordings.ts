@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db';
 import {
+  addRecording,
   clearRecordings as dbClearRecordings,
   deleteRecording as dbDeleteRecording,
   updateRecordingTitle as dbUpdateRecordingTitle,
@@ -61,7 +62,7 @@ export function useRecordings() {
       events,
     };
 
-    await db.recordings.add(recording);
+    await addRecording(recording);
     return recording.id;
   };
 

@@ -1,6 +1,5 @@
 // Jenkins management AI tools
-import { db } from '@/db';
-import { switchJenkinsEnv, syncJenkins } from '@/lib/db/jenkins';
+import { getJob, listBuilds, listJobs, switchJenkinsEnv, syncJenkins } from '@/lib/db/jenkins';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
 
@@ -8,73 +7,14 @@ import type { ToolHandler } from '../tools';
  * List all Jenkins jobs, optionally filtered by keyword
  */
 async function jenkins_list_jobs(args: { keyword?: string }) {
-  let jobs = await db.jobs.toArray();
-
-  // Filter by keyword
-  if (args.keyword) {
-    const keyword = args.keyword.toLowerCase();
-    jobs = jobs.filter(
-      (j) =>
-        j.name.toLowerCase().includes(keyword) ||
-        (j.fullName && j.fullName.toLowerCase().includes(keyword)) ||
-        (j.url && j.url.toLowerCase().includes(keyword))
-    );
-  }
-
-  return {
-    total: jobs.length,
-    jobs: jobs.map((j) => ({
-      name: j.name,
-      url: j.url,
-      color: j.color,
-      type: j.type,
-      fullName: j.fullName,
-      lastStatus: j.lastStatus,
-      lastBuildTime: j.lastBuildTime,
-      lastBuildUrl: j.lastBuildUrl,
-      env: j.env,
-    })),
-  };
+  return listJobs(args);
 }
 
 /**
  * List build history for a job
  */
 async function jenkins_list_builds(args: { jobUrl: string; limit?: number }) {
-  // Get the job first
-  const job = await db.jobs.get(args.jobUrl);
-  if (!job) {
-    throw new Error(`Job not found: ${args.jobUrl}`);
-  }
-
-  // Get builds from myBuilds table
-  let builds = await db.myBuilds
-    .filter((b) => b.jobUrl === args.jobUrl)
-    .reverse()
-    .sortBy('timestamp');
-
-  // Apply limit
-  if (args.limit) {
-    builds = builds.slice(0, args.limit);
-  }
-
-  return {
-    job: {
-      name: job.name,
-      url: job.url,
-      lastStatus: job.lastStatus,
-    },
-    builds: builds.map((b) => ({
-      id: b.id,
-      number: b.number,
-      result: b.result,
-      timestamp: b.timestamp,
-      duration: b.duration,
-      building: b.building,
-      userName: b.userName,
-    })),
-    total: builds.length,
-  };
+  return listBuilds(args);
 }
 
 /**
@@ -85,7 +25,7 @@ async function jenkins_trigger_build(args: {
   parameters?: Record<string, string>;
 }) {
   // Verify job exists
-  const job = await db.jobs.get(args.jobUrl);
+  const job = await getJob(args);
   if (!job) {
     throw new Error(`Job not found: ${args.jobUrl}`);
   }

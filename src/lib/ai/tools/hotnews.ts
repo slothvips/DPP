@@ -1,5 +1,6 @@
 // Hot News and Sync AI tools
-import { db, syncEngine } from '@/db';
+import { syncEngine } from '@/db';
+import { getHotNews } from '@/lib/db/hotnews';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
 
@@ -23,7 +24,7 @@ async function hotnews_get(args: { date?: string }) {
   const date = args.date || getBejingDate(0);
 
   // Try to get from cache
-  const cached = await db.hotNews.get(date);
+  const cached = await getHotNews({ date });
   if (!cached) {
     return {
       date,

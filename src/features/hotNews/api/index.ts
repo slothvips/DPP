@@ -1,6 +1,6 @@
 import { HOT_NEWS } from '@/config/constants';
-import { db } from '@/db';
 import type { DailyNews, NewsSection } from '@/features/hotNews/types';
+import { cleanupOldHotNews, getHotNews, saveHotNews } from '@/lib/db/hotnews';
 import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
 
@@ -40,15 +40,7 @@ export function getAvailableDates(): { label: string; value: string }[] {
 
 async function cleanupOldNews() {
   const validDates = new Set(getAvailableDates().map((d) => d.value));
-  try {
-    const allKeys = await db.hotNews.toCollection().keys();
-    const keysToDelete = (allKeys as string[]).filter((key) => !validDates.has(key));
-    if (keysToDelete.length > 0) {
-      await db.hotNews.bulkDelete(keysToDelete);
-    }
-  } catch (error) {
-    logger.debug('Cleanup old news failed:', error);
-  }
+  await cleanupOldHotNews(validDates);
 }
 
 function extractIconAndText(header: string): { icon: string; text: string } {
@@ -116,7 +108,7 @@ function parseMarkdown(markdown: string, date: string): DailyNews {
 export async function fetchNews(date: string): Promise<DailyNews | null> {
   // Try cache first
   try {
-    const cached = await db.hotNews.get(date);
+    const cached = await getHotNews({ date });
     if (cached?.data) {
       return cached.data as DailyNews;
     }
@@ -143,14 +135,7 @@ export async function fetchNews(date: string): Promise<DailyNews | null> {
 
     // Save to cache and cleanup
     try {
-      await db.transaction('rw', db.hotNews, async () => {
-        await db.hotNews.put({
-          date,
-          data,
-          updatedAt: Date.now(),
-        });
-      });
-
+      await saveHotNews({ date, data });
       cleanupOldNews();
     } catch (error) {
       logger.debug('Cache write failed:', error);

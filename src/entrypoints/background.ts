@@ -7,6 +7,8 @@ import type { JenkinsMessage, JenkinsResponse } from '@/features/jenkins/message
 import { openLink } from '@/features/links/utils';
 import type { RecorderMessage, RecordingSavedMessage } from '@/features/recorder/messages';
 import type { RecordingState } from '@/features/recorder/types';
+import { getJob } from '@/lib/db/jenkins';
+import { addRecording, getAllRecordings, getRecordingById } from '@/lib/db/recorder';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
@@ -359,7 +361,7 @@ export default defineBackground(() => {
             }
           } else if (recorderMessage.type === 'RECORDER_GET_ALL_RECORDINGS') {
             try {
-              const recordings = await db.recordings.orderBy('createdAt').reverse().toArray();
+              const recordings = await getAllRecordings();
               const metas = recordings.map(({ events: _events, ...meta }) => meta);
               sendResponse({ success: true, recordings: metas });
             } catch (e) {
@@ -367,7 +369,7 @@ export default defineBackground(() => {
             }
           } else if (recorderMessage.type === 'RECORDER_GET_RECORDING_BY_ID') {
             try {
-              const recording = await db.recordings.get(recorderMessage.id);
+              const recording = await getRecordingById(recorderMessage.id);
               if (recording) {
                 sendResponse({ success: true, recording });
               } else {
@@ -396,7 +398,7 @@ export default defineBackground(() => {
                 events,
               };
 
-              await db.recordings.add(recording);
+              await addRecording(recording);
 
               const savedMessage: RecordingSavedMessage = {
                 type: 'RECORDER_SAVED',
@@ -693,7 +695,7 @@ export default defineBackground(() => {
 
     // Check if the URL corresponds to a known Job
     try {
-      const job = await db.jobs.get(url);
+      const job = await getJob({ jobUrl: url });
       if (job) {
         // It's a job, open the extension popup page with parameters to trigger build
         const popupUrl = browser.runtime.getURL(

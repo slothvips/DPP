@@ -1,19 +1,6 @@
 import { db } from '@/db';
+import { recordLinkVisit } from '@/lib/db';
 import { logger } from '@/utils/logger';
-
-export async function recordLinkVisit(id: string) {
-  await db.transaction('rw', db.linkStats, async () => {
-    const stat = await db.linkStats.get(id);
-    const newStat = {
-      id,
-      usageCount: (stat?.usageCount || 0) + 1,
-      lastUsedAt: Date.now(),
-      pinnedAt: stat?.pinnedAt,
-    };
-    await db.linkStats.put(newStat);
-  });
-  logger.info(`Recorded visit for link ${id}`);
-}
 
 export async function openLink(url: string) {
   if (!url) return;
@@ -59,7 +46,7 @@ export async function openLink(url: string) {
     const link = await db.links.filter((l) => l.url === finalUrl && !l.deletedAt).first();
 
     if (link) {
-      await recordLinkVisit(link.id);
+      await recordLinkVisit({ id: link.id });
     }
   } catch (err) {
     logger.error('Failed to record link usage:', err);

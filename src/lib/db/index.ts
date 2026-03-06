@@ -11,3 +11,4 @@ export * from './jenkins';
 export * from './ai';
 export * from './settings';
 export * from './remoteActivityLog';
+export * from './hotnews';

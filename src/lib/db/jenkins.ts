@@ -166,3 +166,104 @@ export async function deleteJenkinsEnv(envId: string): Promise<void> {
     ]);
   });
 }
+
+/**
+ * List all Jenkins jobs, optionally filtered by keyword
+ */
+export async function listJobs(args: { keyword?: string }): Promise<{
+  total: number;
+  jobs: Array<{
+    name: string;
+    url: string;
+    color: string;
+    type: string;
+    fullName?: string;
+    lastStatus?: string;
+    lastBuildTime?: number;
+    lastBuildUrl?: string;
+    env: string;
+  }>;
+}> {
+  let jobs = await db.jobs.toArray();
+
+  if (args.keyword) {
+    const keyword = args.keyword.toLowerCase();
+    jobs = jobs.filter(
+      (j) =>
+        j.name.toLowerCase().includes(keyword) ||
+        (j.fullName && j.fullName.toLowerCase().includes(keyword)) ||
+        (j.url && j.url.toLowerCase().includes(keyword))
+    );
+  }
+
+  return {
+    total: jobs.length,
+    jobs: jobs.map((j) => ({
+      name: j.name,
+      url: j.url,
+      color: j.color || '',
+      type: j.type || '',
+      fullName: j.fullName,
+      lastStatus: j.lastStatus,
+      lastBuildTime: j.lastBuildTime,
+      lastBuildUrl: j.lastBuildUrl,
+      env: j.env || '',
+    })),
+  };
+}
+
+/**
+ * Get a job by URL
+ */
+export async function getJob(args: { jobUrl: string }): Promise<JobItem | undefined> {
+  return db.jobs.get(args.jobUrl);
+}
+
+/**
+ * List build history for a job
+ */
+export async function listBuilds(args: { jobUrl: string; limit?: number }): Promise<{
+  job: { name: string; url: string; lastStatus?: string };
+  builds: Array<{
+    id: string;
+    number: number;
+    result?: string;
+    timestamp: number;
+    duration: number;
+    building: boolean;
+    userName?: string;
+  }>;
+  total: number;
+}> {
+  const job = await db.jobs.get(args.jobUrl);
+  if (!job) {
+    throw new Error(`Job not found: ${args.jobUrl}`);
+  }
+
+  let builds = await db.myBuilds
+    .filter((b) => b.jobUrl === args.jobUrl)
+    .reverse()
+    .sortBy('timestamp');
+
+  if (args.limit) {
+    builds = builds.slice(0, args.limit);
+  }
+
+  return {
+    job: {
+      name: job.name,
+      url: job.url,
+      lastStatus: job.lastStatus,
+    },
+    builds: builds.map((b) => ({
+      id: b.id,
+      number: b.number,
+      result: b.result,
+      timestamp: b.timestamp,
+      duration: b.duration || 0,
+      building: b.building,
+      userName: b.userName,
+    })),
+    total: builds.length,
+  };
+}

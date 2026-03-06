@@ -32,3 +32,13 @@ export async function getRemoteActivities(
 ): Promise<RemoteActivityLog[]> {
   return db.remoteActivityLog.where('timestamp').between(startTime, endTime).toArray();
 }
+
+/**
+ * Get local sync operations within a time range
+ */
+export async function getLocalOperations(
+  startTime: number,
+  endTime: number
+): Promise<SyncOperation[]> {
+  return db.operations.where('timestamp').between(startTime, endTime).toArray();
+}

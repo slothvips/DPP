@@ -30,6 +30,28 @@ export interface ExportRecordingResult {
 }
 
 /**
+ * Get all recordings ordered by createdAt descending
+ */
+export async function getAllRecordings(): Promise<Recording[]> {
+  return db.recordings.orderBy('createdAt').reverse().toArray();
+}
+
+/**
+ * Get a recording by ID
+ */
+export async function getRecordingById(id: string): Promise<Recording | undefined> {
+  return db.recordings.get(id);
+}
+
+/**
+ * Add a new recording
+ */
+export async function addRecording(recording: Recording): Promise<string> {
+  await db.recordings.add(recording);
+  return recording.id;
+}
+
+/**
  * Delete a single recording by ID
  */
 export async function deleteRecording(args: { id: string }): Promise<DeleteRecordingResult> {

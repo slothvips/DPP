@@ -1,6 +1,6 @@
 // Recent activities AI tool - query user operations from sync operations table
 import type { RemoteActivityLog } from '@/db/types';
-import { db, getRemoteActivities } from '@/lib/db';
+import { getLocalOperations, getRemoteActivities } from '@/lib/db';
 
 type DetailLevel = 'summary' | 'detailed';
 
@@ -124,7 +124,7 @@ export async function getRecentActivities({
   const startTime = now - days * 24 * 60 * 60 * 1000;
 
   // 查询本地操作记录
-  const localOps = await db.operations.where('timestamp').between(startTime, now).toArray();
+  const localOps = await getLocalOperations(startTime, now);
 
   // 查询远程操作记录
   const remoteOps = (await getRemoteActivities(startTime, now)) as RemoteActivityLog[];
@@ -147,8 +147,9 @@ export async function getRecentActivities({
   // 处理本地操作
   for (const op of localOps) {
     // 统计
-    if (op.type === 'create' || op.type === 'update' || op.type === 'delete') {
-      summary.byType[op.type]++;
+    const opType = op.type as 'create' | 'update' | 'delete';
+    if (opType === 'create' || opType === 'update' || opType === 'delete') {
+      summary.byType[opType]++;
     }
     const opTable = op.table as keyof typeof summary.byTable;
     if (opTable in summary.byTable) {
@@ -174,8 +175,9 @@ export async function getRecentActivities({
   // 处理远程操作
   for (const op of remoteOps) {
     // 统计
-    if (op.type === 'create' || op.type === 'update' || op.type === 'delete') {
-      summary.byType[op.type]++;
+    const opType = op.type as 'create' | 'update' | 'delete';
+    if (opType === 'create' || opType === 'update' || opType === 'delete') {
+      summary.byType[opType]++;
     }
     const opTable = op.table as keyof typeof summary.byTable;
     if (opTable in summary.byTable) {

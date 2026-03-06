@@ -3,8 +3,14 @@ import type { Table } from 'dexie';
 import { db } from '@/db';
 import type { JobTagItem, LinkTagItem, TagItem, TagWithCounts } from '@/db/types';
 
-const linkTagsTable = db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
-const jobTagsTable = db.jobTags as unknown as Table<JobTagItem, [string, string]>;
+// Lazy getters to avoid "Cannot access 'db' before initialization" error
+function getLinkTagsTable(): Table<LinkTagItem, [string, string]> {
+  return db.linkTags as unknown as Table<LinkTagItem, [string, string]>;
+}
+
+function getJobTagsTable(): Table<JobTagItem, [string, string]> {
+  return db.jobTags as unknown as Table<JobTagItem, [string, string]>;
+}
 
 /**
  * List all active tags
@@ -240,7 +246,7 @@ export async function deleteTag(args: {
 
   const now = Date.now();
 
-  await db.transaction('rw', db.tags, linkTagsTable, jobTagsTable, async () => {
+  await db.transaction('rw', db.tags, getLinkTagsTable(), getJobTagsTable(), async () => {
     // Soft delete the tag
     await db.tags.update(args.id, { deletedAt: now });
 

@@ -2,8 +2,14 @@
 import { db } from '@/db';
 import type { AIMessage, AISession } from '@/db/types';
 
-const sessionsTable = db.aiSessions;
-const messagesTable = db.aiMessages;
+// Lazy getters to avoid "Cannot access 'db' before initialization" error
+function getSessionsTable() {
+  return db.aiSessions;
+}
+
+function getMessagesTable() {
+  return db.aiMessages;
+}
 
 /**
  * Generate a unique ID
@@ -24,7 +30,7 @@ export async function createSession(title: string): Promise<AISession> {
     updatedAt: now,
   };
 
-  await sessionsTable.add(session);
+  await getSessionsTable().add(session);
   return session;
 }
 
@@ -32,14 +38,14 @@ export async function createSession(title: string): Promise<AISession> {
  * Get a session by ID
  */
 export async function getSession(id: string): Promise<AISession | undefined> {
-  return sessionsTable.get(id);
+  return getSessionsTable().get(id);
 }
 
 /**
  * List all sessions, sorted by updatedAt descending
  */
 export async function listSessions(): Promise<AISession[]> {
-  return sessionsTable.orderBy('updatedAt').reverse().toArray();
+  return getSessionsTable().orderBy('updatedAt').reverse().toArray();
 }
 
 /**
@@ -49,7 +55,7 @@ export async function updateSession(
   id: string,
   updates: Partial<Pick<AISession, 'title'>>
 ): Promise<void> {
-  await sessionsTable.update(id, {
+  await getSessionsTable().update(id, {
     ...updates,
     updatedAt: Date.now(),
   });
@@ -59,11 +65,11 @@ export async function updateSession(
  * Delete a session and all its messages
  */
 export async function deleteSession(id: string): Promise<void> {
-  await db.transaction('rw', sessionsTable, messagesTable, async () => {
+  await db.transaction('rw', getSessionsTable(), getMessagesTable(), async () => {
     // Delete all messages in the session
-    await messagesTable.where('sessionId').equals(id).delete();
+    await getMessagesTable().where('sessionId').equals(id).delete();
     // Delete the session
-    await sessionsTable.delete(id);
+    await getSessionsTable().delete(id);
   });
 }
 
@@ -77,10 +83,10 @@ export async function addMessage(message: Omit<AIMessage, 'id' | 'createdAt'>): 
     createdAt: Date.now(),
   };
 
-  await messagesTable.add(newMessage);
+  await getMessagesTable().add(newMessage);
 
   // Update session's updatedAt timestamp
-  await sessionsTable.update(message.sessionId, { updatedAt: Date.now() });
+  await getSessionsTable().update(message.sessionId, { updatedAt: Date.now() });
 
   return newMessage;
 }
@@ -89,21 +95,21 @@ export async function addMessage(message: Omit<AIMessage, 'id' | 'createdAt'>): 
  * Get all messages for a session, sorted by createdAt ascending
  */
 export async function getMessagesBySession(sessionId: string): Promise<AIMessage[]> {
-  return messagesTable.where('sessionId').equals(sessionId).sortBy('createdAt');
+  return getMessagesTable().where('sessionId').equals(sessionId).sortBy('createdAt');
 }
 
 /**
  * Clear all messages in a session (but keep the session)
  */
 export async function clearSessionMessages(sessionId: string): Promise<void> {
-  await messagesTable.where('sessionId').equals(sessionId).delete();
+  await getMessagesTable().where('sessionId').equals(sessionId).delete();
 }
 
 /**
  * Get the most recent session (for initializing chat)
  */
 export async function getMostRecentSession(): Promise<AISession | undefined> {
-  const sessions = await sessionsTable.orderBy('updatedAt').reverse().limit(1).toArray();
+  const sessions = await getSessionsTable().orderBy('updatedAt').reverse().limit(1).toArray();
   return sessions[0];
 }
 
@@ -116,5 +122,5 @@ export async function updateSessionTitle(
 ): Promise<void> {
   // Use first 30 chars of message as title, or "新会话" if empty
   const title = firstUserMessage.trim().slice(0, 30) || '新会话';
-  await sessionsTable.update(sessionId, { title, updatedAt: Date.now() });
+  await getSessionsTable().update(sessionId, { title, updatedAt: Date.now() });
 }
