@@ -29,6 +29,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Sync**: Custom `SyncEngine` implementing E2EE via Web Crypto API.
 - **Recording**: Uses `rrweb` for session recording and replay.
 
+### Sync LWW Strategy
+
+The sync engine uses **Last Write Wins (LWW)** strategy for conflict resolution. When modifying sync-related code, always update ALL of the following locations to maintain consistency:
+
+1. **Type definition**: `src/lib/sync/types.ts` - field comments
+2. **Conflict resolution logic**: `src/lib/sync/SyncEngine.ts`
+   - Line ~509: `op.timestamp` for comparing incoming operations
+   - Line ~574: `getRecordTimestamp()` returns local `updatedAt`
+
+**Principle**: Always use local client timestamp for LWW conflict resolution. Do NOT use `serverTimestamp` for conflict resolution.
+
 ### Security & Sync Model
 
 - **E2EE**: All sync data is encrypted locally with user's key before upload. Server stores only encrypted blobs (blind storage).
@@ -46,6 +57,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `src/components/` - UI components (contains `ui/` for Shadcn).
 - `src/hooks/` - Global React hooks.
 - `src/config/` - Configuration constants.
+
+## Change Principle
+
+When making any code change, always check for **related modifications** that need to be done together to ensure completeness:
+
+- **Comments**: Update outdated comments that describe the changed code
+- **Type definitions**: Update field comments when logic changes
+- **Documentation**: Update related docs if they exist
+- **Tests**: Check if test expectations need updates
+- **Related files**: Check files that depend on or reference the changed code
+
+This ensures changes are complete and prevents future misunderstandings.
 
 ## Code Style & Patterns
 

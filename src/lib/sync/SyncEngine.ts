@@ -506,7 +506,7 @@ export class SyncEngine {
 
       if (existing) {
         const existingTimestamp = this.getRecordTimestamp(existing);
-        const opTimestamp = op.serverTimestamp ?? op.timestamp;
+        const opTimestamp = op.timestamp;
         if (existingTimestamp && existingTimestamp > opTimestamp) {
           return;
         }
@@ -571,7 +571,7 @@ export class SyncEngine {
   private getRecordTimestamp(record: unknown): number | null {
     if (typeof record === 'object' && record !== null) {
       const r = record as Record<string, unknown>;
-      if (typeof r.serverTimestamp === 'number') return r.serverTimestamp;
+      // 根据 LWW 策略，始终使用本地客户端时间戳
       if (typeof r.updatedAt === 'number') return r.updatedAt;
     }
     return null;

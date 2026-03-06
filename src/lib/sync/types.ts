@@ -9,7 +9,7 @@ export interface SyncOperation {
   key: unknown;
   payload?: unknown;
   timestamp: number; // 客户端时间戳（用于本地排序）
-  serverTimestamp?: number; // 服务端时间戳（用于冲突解决）
+  serverTimestamp?: number; // 服务端存储时间戳（仅用于元数据，冲突解决使用本地 timestamp）
   synced: number;
   keyHash?: string; // SHA-256 hash of the key used for encryption (first 8 bytes hex)
 }
