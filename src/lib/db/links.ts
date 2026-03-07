@@ -47,6 +47,7 @@ async function resolveTagNamesToIds(tagsInput: string[]): Promise<string[]> {
 
 /**
  * List all links, optionally filtered by keyword and tags
+ * Optimized to avoid N+1 queries by batch loading all related data
  */
 export async function listLinks(args: { keyword?: string; tags?: string[] }): Promise<{
   total: number;
@@ -62,12 +63,36 @@ export async function listLinks(args: { keyword?: string; tags?: string[] }): Pr
     updatedAt: number;
   }>;
 }> {
-  let links = await db.links.filter((l) => !l.deletedAt).toArray();
+  // Batch load all data in parallel to avoid N+1 queries
+  const [allLinks, allLinkTags, allTags, allStats] = await Promise.all([
+    db.links.filter((l) => !l.deletedAt).toArray(),
+    getLinkTagsTable()
+      .filter((lt) => !lt.deletedAt)
+      .toArray(),
+    db.tags.filter((t) => !t.deletedAt).toArray(),
+    db.linkStats.toArray(),
+  ]);
 
-  // Filter by keyword
+  // Build lookup maps for O(1) access
+  const tagsMap = new Map(allTags.map((t) => [t.id, t]));
+  const statsMap = new Map(allStats.map((s) => [s.id, s]));
+
+  // Build linkId -> tags map
+  const linkTagsMap = new Map<string, typeof allTags>();
+  for (const lt of allLinkTags) {
+    const tag = tagsMap.get(lt.tagId);
+    if (tag) {
+      const current = linkTagsMap.get(lt.linkId) || [];
+      current.push(tag);
+      linkTagsMap.set(lt.linkId, current);
+    }
+  }
+
+  // Filter links by keyword if provided
+  let filteredLinks = allLinks;
   if (args.keyword) {
     const keyword = args.keyword.toLowerCase();
-    links = links.filter(
+    filteredLinks = filteredLinks.filter(
       (l) =>
         l.name.toLowerCase().includes(keyword) ||
         l.url.toLowerCase().includes(keyword) ||
@@ -77,8 +102,6 @@ export async function listLinks(args: { keyword?: string; tags?: string[] }): Pr
 
   // Filter by tags if provided (supports both tag names and tag IDs)
   if (args.tags && args.tags.length > 0) {
-    // Check if tags are IDs or names
-    const allTags = await db.tags.filter((t) => !t.deletedAt).toArray();
     const tagNameToId = new Map(allTags.map((t) => [t.name.toLowerCase(), t.id]));
     const tagIdSet = new Set(
       args.tags.map((t) =>
@@ -86,38 +109,33 @@ export async function listLinks(args: { keyword?: string; tags?: string[] }): Pr
       )
     );
 
-    const linkTags = await getLinkTagsTable()
-      .filter((lt) => !lt.deletedAt && tagIdSet.has(lt.tagId))
-      .toArray();
-    const linkIdsWithTags = new Set(linkTags.map((lt) => lt.linkId));
-    links = links.filter((l) => linkIdsWithTags.has(l.id));
+    // Build linkIds that have all the specified tags
+    const linkIdsWithTags = new Set<string>();
+    for (const lt of allLinkTags) {
+      if (tagIdSet.has(lt.tagId)) {
+        linkIdsWithTags.add(lt.linkId);
+      }
+    }
+    filteredLinks = filteredLinks.filter((l) => linkIdsWithTags.has(l.id));
   }
 
-  // Get tags for each link
-  const linksWithTags = await Promise.all(
-    links.map(async (link) => {
-      const linkTagRecords = await getLinkTagsTable()
-        .filter((lt) => !lt.deletedAt && lt.linkId === link.id)
-        .toArray();
-      const tagIds = linkTagRecords.map((lt) => lt.tagId);
-      const tags = await db.tags.filter((t) => !t.deletedAt && tagIds.includes(t.id)).toArray();
+  // Build result using pre-loaded maps
+  const linksWithTags = filteredLinks.map((link) => {
+    const linkTags = linkTagsMap.get(link.id) || [];
+    const stat = statsMap.get(link.id);
 
-      // Get usage stats
-      const stat = await db.linkStats.get(link.id);
-
-      return {
-        id: link.id,
-        name: link.name,
-        url: link.url,
-        note: link.note,
-        tags: tags.map((t) => ({ id: t.id, name: t.name, color: t.color })),
-        usageCount: stat?.usageCount || 0,
-        lastUsedAt: stat?.lastUsedAt,
-        createdAt: link.createdAt,
-        updatedAt: link.updatedAt,
-      };
-    })
-  );
+    return {
+      id: link.id,
+      name: link.name,
+      url: link.url,
+      note: link.note,
+      tags: linkTags.map((t) => ({ id: t.id, name: t.name, color: t.color })),
+      usageCount: stat?.usageCount || 0,
+      lastUsedAt: stat?.lastUsedAt,
+      createdAt: link.createdAt,
+      updatedAt: link.updatedAt,
+    };
+  });
 
   return {
     total: linksWithTags.length,

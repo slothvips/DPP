@@ -50,34 +50,32 @@ export function JenkinsView() {
   const showOthersBuilds =
     (settings.find((s) => s.key === 'show_others_builds')?.value as boolean) ?? false;
 
-  const { jobs, jobTags, tags } = useLiveQuery(
+  // Combine all queries into a single useLiveQuery to avoid multiple re-renders
+  const { jobs, jobTags, tags, myBuilds, othersBuilds } = useLiveQuery(
     async () => {
-      if (!currentEnvId) return { jobs: [], jobTags: [], tags: [] };
+      if (!currentEnvId) {
+        return { jobs: [], jobTags: [], tags: [], myBuilds: [], othersBuilds: [] };
+      }
 
-      const [allJobs, allJobTags, allTags] = await Promise.all([
+      const [allJobs, allJobTags, allTags, allMyBuilds, allOthersBuilds] = await Promise.all([
         db.jobs.where('env').equals(currentEnvId).toArray(),
         db.jobTags.filter((jt) => !jt.deletedAt).toArray(),
         db.tags.filter((t) => !t.deletedAt).toArray(),
+        db.myBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp'),
+        db.othersBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp'),
       ]);
+
       return {
         jobs: allJobs.sort((a, b) => a.name.localeCompare(b.name)),
         jobTags: allJobTags,
         tags: allTags,
+        myBuilds: allMyBuilds,
+        othersBuilds: allOthersBuilds,
       };
     },
     [refreshKey, currentEnvId],
-    { jobs: [], jobTags: [], tags: [] }
+    { jobs: [], jobTags: [], tags: [], myBuilds: [], othersBuilds: [] }
   );
-
-  const myBuilds = useLiveQuery(async () => {
-    if (!currentEnvId) return [];
-    return db.myBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp');
-  }, [refreshKey, currentEnvId]);
-
-  const othersBuilds = useLiveQuery(async () => {
-    if (!currentEnvId) return [];
-    return db.othersBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp');
-  }, [refreshKey, currentEnvId]);
 
   const displayedBuilds = useMemo(() => {
     let builds = [...(myBuilds || [])];
@@ -167,8 +165,16 @@ export function JenkinsView() {
 
     let mounted = true;
     let timeoutId: NodeJS.Timeout;
+    let visibilityHandler: (() => void) | null = null;
 
     const poll = async () => {
+      // Skip polling if document is not visible (page is in background)
+      if (document.visibilityState === 'hidden') {
+        // Schedule next poll with longer interval when hidden
+        timeoutId = setTimeout(poll, JENKINS.POLL_INTERVAL_MS * 3);
+        return;
+      }
+
       try {
         setMyBuildsLoading(true);
         await JenkinsService.fetchMyBuilds();
@@ -185,11 +191,23 @@ export function JenkinsView() {
       }
     };
 
+    // Handle visibility change to pause/resume polling
+    visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        // Immediately poll when page becomes visible
+        poll();
+      }
+    };
+    document.addEventListener('visibilitychange', visibilityHandler);
+
     poll();
 
     return () => {
       mounted = false;
       clearTimeout(timeoutId);
+      if (visibilityHandler) {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+      }
     };
   }, [jenkinsHost, jenkinsUser, jenkinsToken]);
 

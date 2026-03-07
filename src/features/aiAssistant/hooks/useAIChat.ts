@@ -959,11 +959,12 @@ export function useAIChat(): UseAIChatReturn {
   }, [sessionId]);
 
   // Update refs after functions are defined to avoid circular dependencies
+  // Using dependencies to ensure refs stay in sync with latest function versions
   useEffect(() => {
     executeToolCallRef.current = executeToolCall;
     executeToolCallsRef.current = executeToolCalls;
     continueConversationRef.current = continueConversation;
-  });
+  }, [executeToolCall, executeToolCalls, continueConversation]);
 
   return {
     messages,

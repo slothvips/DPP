@@ -1,8 +1,9 @@
 import Dexie, { type Transaction } from 'dexie';
 import type { IndexableType } from 'dexie';
 import { browser } from 'wxt/browser';
+import { db } from '@/db';
+import type { RemoteActivityLog } from '@/db/types';
 import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
-import { addRemoteActivities } from '@/lib/db';
 import { decryptOperation } from '@/lib/sync/crypto-helpers';
 import { logger } from '@/utils/logger';
 import type {
@@ -446,7 +447,17 @@ export class SyncEngine {
 
               // Archive remote operations for activity tracking (lowest priority)
               if (validOps.length > 0) {
-                await addRemoteActivities(validOps);
+                const receivedAt = Date.now();
+                const logs: RemoteActivityLog[] = validOps.map((op) => ({
+                  id: op.id,
+                  clientId: op.clientId || 'unknown',
+                  table: op.table,
+                  type: op.type,
+                  timestamp: op.timestamp,
+                  payload: op.payload,
+                  receivedAt,
+                }));
+                await db.remoteActivityLog.bulkAdd(logs);
               }
             }
           );
