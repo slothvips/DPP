@@ -16,7 +16,7 @@ AI agents working on this codebase MUST follow these guidelines strictly.
 
 ## 2. Critical Rules
 
-- **No `any`**: Use `unknown` or specific types. `eslint` is configured to error on `any`.
+- **No `any`**: Use `unknown` or specific types. ESLint is configured to error on `any`.
 - **No Suppressions**: Do not use `@ts-ignore` or `@ts-expect-error`. Fix the underlying issue.
 - **Unused Vars**: Prefix unused variables with `_` (e.g., `_req`) to satisfy linter.
 - **No Relative Parent Imports**: Always use `@/` alias (e.g., `@/components/...`) instead of `../../`.
@@ -34,6 +34,7 @@ Execute from project root. NEVER `cd` into subdirectories.
 pnpm dev              # Chrome dev server
 pnpm dev:firefox      # Firefox dev server
 pnpm build            # Production build → .output/
+pnpm build:firefox    # Firefox production build
 
 # Quality Control (Run Before Committing)
 pnpm compile          # Type check (tsc --noEmit) - MUST PASS
@@ -41,6 +42,8 @@ pnpm lint             # ESLint check
 pnpm lint:fix         # Auto-fix lint issues
 pnpm format           # Prettier format
 ```
+
+**Note:** This project currently has no test suite. Do not create test files without explicit user request.
 
 ## 4. Directory Structure
 
@@ -68,7 +71,7 @@ src/
 
 ### 5.1 Imports & Naming
 
-- **Absolute Imports:** ALWAYS use `@/` alias.
+- **Absolute Imports:** ALWAYS use `@/` alias. Configure in `tsconfig.json` paths.
 - **Order:** `react` → `wxt` → `@/...` → `./...` (Prettier will sort this).
 - **Naming:**
   - Components: `PascalCase.tsx`, `export function ComponentName`.
@@ -96,29 +99,67 @@ export function Badge({ variant = 'default', className, ...props }: BadgeProps) 
 }
 ```
 
-### 5.3 Patterns
+### 5.3 Error Handling
+
+Always wrap async operations in try-catch. Use `logger` for logging and `toast` for user feedback.
+
+```tsx
+async function fetchData() {
+  try {
+    const result = await api.getData();
+    return result;
+  } catch (err) {
+    logger.error('Failed to fetch data', err);
+    toast({ title: 'Error', description: 'Failed to fetch data' });
+    throw err;
+  }
+}
+```
+
+### 5.4 Patterns
 
 - **API Clients:** Factory pattern `createClient(credentials)`.
-- **Sync:** Use `SyncEngine` class. Ensure E2EE with `crypto` lib.
-- **Styling:** `UnoCSS` utility classes.
-- **Logging:** `logger.info/warn/error` from `@/utils/logger`.
+- **Sync:** Use `SyncEngine` class. Sensitive data MUST be encrypted before sync.
+- **Styling:** `UnoCSS` utility classes with Shadcn theme colors.
+- **Logging:** Use `logger.info/warn/error` from `@/utils/logger`.
+- **Classes:** Use `cn()` from `@/utils/cn` for conditional class merging.
 
-## 6. Data & Synchronization
+## 6. Available Utilities
+
+| Utility        | Location                | Purpose                       |
+| -------------- | ----------------------- | ----------------------------- |
+| `logger`       | `@/utils/logger`        | Debug/info/warn/error logging |
+| `cn`           | `@/utils/cn`            | Merge Tailwind classes        |
+| `useToast`     | `@/components/ui/toast` | User notifications            |
+| `useLiveQuery` | `dexie-react-hooks`     | Reactive DB queries           |
+
+## 7. Data & Synchronization
 
 - **Dexie:** Define schema in `src/db/index.ts`. Handle versions carefully.
-- **SyncEngine:** Handles data replication. Sensitive data MUST be encrypted before sync.
+- **SyncEngine:** Handles data replication with E2EE via Web Crypto API.
+- **Sensitive data** MUST be encrypted before being stored or synced.
 
-## 7. Agent Workflow
+## 8. Pre-commit Hooks
+
+This project uses `simple-git-hooks` with `lint-staged`. Before committing:
+
+- ESLint auto-fixes will be applied
+- Prettier will format changed files
+
+Run `pnpm lint:fix` and `pnpm format` before committing to avoid hook failures.
+
+## 9. Agent Workflow
 
 1.  **Analyze:**
-    - Read related files first (Schema, API, UI).
-    - Check `src/components/ui` for primitives.
+    - Read related files (Schema, API, UI components).
+    - Check `src/components/ui` for reusable primitives.
 2.  **Plan:**
     - Create a TODO list for complex tasks.
-    - Map out new files/schema changes.
+    - Map out new files and schema changes.
 3.  **Implement:**
     - Use `pnpm`. Use `cn()`. Follow types strictly.
-    - Handle errors (try-catch + toast + logger).
+    - Handle errors with try-catch + logger + toast.
 4.  **Verify:**
     - `pnpm compile` (MUST PASS).
     - `pnpm lint:fix`.
+    - `pnpm build` to ensure production build works.

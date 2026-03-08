@@ -1,7 +1,6 @@
 import Dexie, { type Transaction } from 'dexie';
 import type { IndexableType } from 'dexie';
 import { browser } from 'wxt/browser';
-import { db } from '@/db';
 import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
 // Import directly from the module file to avoid circular dependency with lib/db/index.ts
 // while still using the封装层

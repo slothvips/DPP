@@ -2,7 +2,6 @@
 import { browser } from 'wxt/browser';
 import type { RecordingState } from '@/features/recorder/types';
 import { addRecording, getAllRecordings, getRecordingById } from '@/lib/db/recorder';
-import { getSetting, updateSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 
 export type { RecordingState };

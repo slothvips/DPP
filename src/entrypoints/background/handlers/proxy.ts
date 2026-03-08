@@ -1,5 +1,4 @@
 // Zen and API proxy handlers for background script
-import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
 
 export type ProxyMessage =
