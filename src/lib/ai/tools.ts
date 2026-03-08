@@ -1,4 +1,5 @@
 // AI Tools - Tool registry and conversion utilities
+import { logger } from '@/utils/logger';
 import type { ToolParameter } from './types';
 
 /**
@@ -29,7 +30,7 @@ class ToolRegistry {
    */
   register(tool: AIToolMetadata): void {
     if (this.tools.has(tool.name)) {
-      console.warn(`Tool ${tool.name} is already registered, overwriting...`);
+      logger.warn(`Tool ${tool.name} is already registered, overwriting...`);
     }
     this.tools.set(tool.name, tool);
   }

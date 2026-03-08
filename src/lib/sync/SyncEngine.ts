@@ -222,9 +222,13 @@ export class SyncEngine {
         const now = Date.now();
 
         queueMicrotask(async () => {
-          const updated = { ...obj, deletedAt: now, updatedAt: now };
-          await table.put(updated);
-          self.recordOperation(tableName, 'delete', primKey, updated);
+          try {
+            const updated = { ...obj, deletedAt: now, updatedAt: now };
+            await table.put(updated);
+            self.recordOperation(tableName, 'delete', primKey, updated);
+          } catch (err) {
+            logger.error('[SyncEngine] Failed to record delete operation:', err);
+          }
         });
 
         return false;

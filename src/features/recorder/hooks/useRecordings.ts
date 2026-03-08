@@ -6,6 +6,7 @@ import {
   updateRecordingTitle as dbUpdateRecordingTitle,
   getAllRecordings,
 } from '@/lib/db/recorder';
+import { logger } from '@/utils/logger';
 import type { Recording } from '../types';
 
 export function useRecordings() {
@@ -14,7 +15,7 @@ export function useRecordings() {
   const deleteRecording = async (id: string) => {
     const result = await dbDeleteRecording({ id });
     if (!result.success) {
-      console.error(result.message);
+      logger.error(result.message);
     }
     return result;
   };
@@ -22,7 +23,7 @@ export function useRecordings() {
   const clearRecordings = async () => {
     const result = await dbClearRecordings();
     if (!result.success) {
-      console.error(result.message);
+      logger.error(result.message);
     }
     return result;
   };
@@ -30,7 +31,7 @@ export function useRecordings() {
   const updateTitle = async (id: string, title: string) => {
     const result = await dbUpdateRecordingTitle({ id, title });
     if (!result.success) {
-      console.error(result.message);
+      logger.error(result.message);
     }
     return result;
   };

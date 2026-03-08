@@ -12,6 +12,7 @@ import {
   getStatusColor,
 } from '@/lib/rrweb-plugins';
 import { cn } from '@/utils/cn';
+import { logger } from '@/utils/logger';
 import type { eventWithTime } from '@rrweb/types';
 
 type NetworkRequestWithTimestamp = NetworkRequest & { eventTimestamp: number };
@@ -436,7 +437,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
       setTimeout(() => setCopied(false), 1500);
     } catch {
       // clipboard API 失败时静默处理
-      console.warn('Clipboard API not available');
+      logger.warn('Clipboard API not available');
     }
   };
 

@@ -14,6 +14,7 @@ import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
 import { useTheme } from '@/hooks/useTheme';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
+import { logger } from '@/utils/logger';
 
 // 动态导入大型组件以减少初始体积
 const AIAssistantView = React.lazy(() =>
@@ -87,10 +88,10 @@ export function App() {
     // Trigger auto pull when mounted and whenever the side panel becomes visible
     const triggerAutoPull = () => {
       if (typeof browser !== 'undefined' && browser.runtime) {
-        console.log('[SidePanel] Sending AUTO_SYNC_TRIGGER_PULL');
+        logger.debug('[SidePanel] Sending AUTO_SYNC_TRIGGER_PULL');
         browser.runtime
           .sendMessage({ type: 'AUTO_SYNC_TRIGGER_PULL' })
-          .catch((e) => console.error(e));
+          .catch((e) => logger.error(e));
       }
     };
 
