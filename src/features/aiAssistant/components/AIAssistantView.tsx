@@ -1,14 +1,13 @@
 // AI Assistant View - Main conversation interface
-import { Send, Settings, Trash2 } from 'lucide-react';
-import remarkGfm from 'remark-gfm';
-import { useEffect, useRef, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { Settings, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { useAIChat } from '../hooks/useAIChat';
 import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
 import { AISessionList } from './AISessionList';
+import { ChatInput } from './ChatInput';
+import { MessageItem } from './MessageItem';
 import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 export function AIAssistantView() {
@@ -38,12 +37,11 @@ export function AIAssistantView() {
     cancelBuild,
   } = useAIChat();
 
-  const [input, setInput] = useState('');
   const [isConfigMissing, setIsConfigMissing] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
+  const [presetPrompt, setPresetPrompt] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Check if config is configured on mount
   useEffect(() => {
@@ -52,9 +50,9 @@ export function AIAssistantView() {
     });
 
     // Check for preset prompt from other tabs (e.g., smart import)
-    const presetPrompt = localStorage.getItem('dpp_ai_preset_prompt');
-    if (presetPrompt) {
-      setInput(presetPrompt);
+    const preset = localStorage.getItem('dpp_ai_preset_prompt');
+    if (preset) {
+      setPresetPrompt(preset);
       localStorage.removeItem('dpp_ai_preset_prompt');
     }
   }, []);
@@ -84,38 +82,21 @@ export function AIAssistantView() {
     }
   }, [messages, isNearBottom]);
 
-  const handleSend = async () => {
-    const content = input.trim();
-    if (!content || status === 'loading' || status === 'streaming') {
-      return;
-    }
-
-    // Check if AI config is configured before sending
-    const configured = await isAIConfigConfigured();
-    if (!configured) {
-      setIsConfigMissing(true);
-      return;
-    }
-
-    setInput('');
-    await sendMessage(content);
-
-    // Focus back on textarea after sending
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 0);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+  const handleSend = useCallback(
+    async (content: string) => {
+      // Check if AI config is configured before sending
+      const configured = await isAIConfigConfigured();
+      if (!configured) {
+        setIsConfigMissing(true);
+        return;
+      }
+      await sendMessage(content);
+    },
+    [sendMessage]
+  );
 
   const handleClear = () => {
     clearMessages();
-    setInput('');
   };
 
   return (
@@ -215,29 +196,7 @@ export function AIAssistantView() {
 
         {/* Message list */}
         {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div
-              className={`max-w-[85%] rounded-lg px-3 py-2 ${
-                message.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : message.name
-                    ? 'bg-muted text-xs font-mono'
-                    : 'bg-muted'
-              }`}
-            >
-              {message.name && (
-                <div className="text-xs font-medium text-muted-foreground mb-1">
-                  {message.name} 结果:
-                </div>
-              )}
-              <div className="text-sm prose prose-sm dark:prose-invert">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-              </div>
-            </div>
-          </div>
+          <MessageItem key={message.id} message={message} />
         ))}
 
         {/* Loading/Streaming indicator */}
@@ -285,34 +244,17 @@ export function AIAssistantView() {
             </div>
           </div>
         )}
-        <div className="flex gap-2">
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={isLoadingModel ? '模型加载中...' : '发送消息... (Shift+Enter 换行)'}
-            disabled={
-              status === 'loading' ||
-              status === 'streaming' ||
-              status === 'confirming' ||
-              isLoadingModel
-            }
-            className="min-h-[44px] max-h-32 resize-none"
-            rows={1}
-            data-testid="ai-chat-input"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={
-              !input.trim() || status === 'loading' || status === 'streaming' || isLoadingModel
-            }
-            size="icon"
-            data-testid="ai-chat-send"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
-        </div>
+        <ChatInput
+          onSend={handleSend}
+          disabled={
+            status === 'loading' ||
+            status === 'streaming' ||
+            status === 'confirming' ||
+            isLoadingModel
+          }
+          placeholder={isLoadingModel ? '模型加载中...' : '发送消息... (Shift+Enter 换行)'}
+          initialInput={presetPrompt}
+        />
       </div>
 
       {/* Tool Confirmation Dialog */}

@@ -132,6 +132,13 @@ export function useAIChat(): UseAIChatReturn {
   const abortControllerRef = useRef<AbortController | null>(null);
   const accumulatedContentRef = useRef<string>('');
   const isFirstMessageRef = useRef<boolean>(true);
+  // Store messages in ref to avoid sendMessage depending on messages state
+  const messagesRef = useRef<ChatMessage[]>(messages);
+
+  // Keep messagesRef in sync with messages state
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   // Store callbacks in refs to avoid circular dependency warnings
   const executeToolCallRef = useRef<
@@ -370,7 +377,7 @@ export function useAIChat(): UseAIChatReturn {
         const systemPrompt = generateSystemPrompt();
         const apiMessages: import('@/lib/ai/types').ChatMessage[] = [
           { role: 'system', content: systemPrompt },
-          ...messages.map(toLibChatMessage),
+          ...messagesRef.current.map(toLibChatMessage),
           toLibChatMessage(userMessage),
         ];
 
@@ -424,7 +431,7 @@ export function useAIChat(): UseAIChatReturn {
         setStatus('error');
       }
     },
-    [messages, sessionId, getProvider, toLibChatMessage, processToolCall, loadSessions]
+    [sessionId, getProvider, toLibChatMessage, processToolCall, loadSessions]
   );
 
   /**
@@ -482,7 +489,7 @@ export function useAIChat(): UseAIChatReturn {
         }
 
         // Send result back to AI for final response
-        await continueConversationRef.current?.([...messages, toolResultMessage]);
+        await continueConversationRef.current?.([...messagesRef.current, toolResultMessage]);
       } catch (err) {
         logger.error('[AIChat] Tool execution error:', err);
 
@@ -506,10 +513,10 @@ export function useAIChat(): UseAIChatReturn {
         }
 
         // Continue with error
-        await continueConversationRef.current?.([...messages, errorMessage]);
+        await continueConversationRef.current?.([...messagesRef.current, errorMessage]);
       }
     },
-    [messages, sessionId, continueConversationRef]
+    [sessionId, continueConversationRef]
   );
 
   /**
@@ -604,9 +611,9 @@ export function useAIChat(): UseAIChatReturn {
       }
 
       // Send all results together to the model
-      await continueConversationRef.current?.([...messages, ...toolResultMessages]);
+      await continueConversationRef.current?.([...messagesRef.current, ...toolResultMessages]);
     },
-    [messages, sessionId, continueConversationRef]
+    [sessionId, continueConversationRef]
   );
 
   /**
@@ -876,8 +883,8 @@ export function useAIChat(): UseAIChatReturn {
     setStatus('idle');
 
     // Continue conversation with success result
-    continueConversationRef.current?.([...messages, successMessage]);
-  }, [pendingBuild, sessionId, messages]);
+    continueConversationRef.current?.([...messagesRef.current, successMessage]);
+  }, [pendingBuild, sessionId]);
 
   /**
    * Cancel build - called when BuildDialog is closed
