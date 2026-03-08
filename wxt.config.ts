@@ -1,11 +1,21 @@
 import UnoCSS from 'unocss/vite';
+import babel from 'vite-plugin-babel';
 import { defineConfig } from 'wxt';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: 'src',
   vite: () => ({
-    plugins: [UnoCSS()],
+    plugins: [
+      UnoCSS(),
+      babel({
+        babelConfig: {
+          presets: ['@babel/preset-typescript'],
+          plugins: [['babel-plugin-react-compiler', { target: '19' }]],
+        },
+        filter: /\.[jt]sx?$/,
+      }),
+    ],
     esbuild: {
       charset: 'ascii',
     },

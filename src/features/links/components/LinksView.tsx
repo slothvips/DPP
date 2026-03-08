@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { VirtualList } from '@/components/ui/virtual-list';
 import { type LinkItem, type TagItem, db } from '@/db';
 import { ImportLinksDialog } from '@/features/links/components/ImportLinksDialog';
 import { LinkDialog } from '@/features/links/components/LinkDialog';
@@ -267,13 +268,12 @@ export function LinksView() {
         </Button>
       </div>
 
-      <div
-        className={cn(
-          'grid gap-2 overflow-y-auto pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] flex-1 min-h-0',
-          'grid-cols-1 auto-rows-min'
-        )}
-      >
-        {filteredAndSortedLinks?.map((link) => (
+      <VirtualList
+        items={filteredAndSortedLinks ?? []}
+        estimateSize={80}
+        overscan={5}
+        containerClassName="pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] flex-1 min-h-0"
+        renderItem={(link) => (
           <div
             key={link.id}
             className={cn(
@@ -305,7 +305,7 @@ export function LinksView() {
                   {import.meta.env.DEV && link.usageCount >= 0 && (
                     <div
                       className="flex items-center gap-0.5 text-xs text-muted-foreground/50 bg-muted/30 px-1 rounded"
-                      title={`使用次数: ${link.usageCount}`}
+                      title={`使用次数：${link.usageCount}`}
                     >
                       <Eye className="h-3 w-3" />
                       <span>{link.usageCount}</span>
@@ -389,13 +389,13 @@ export function LinksView() {
               </div>
             )}
           </div>
-        ))}
-        {filteredAndSortedLinks?.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground col-span-full">
-            {search ? '未找到匹配的链接' : '暂无链接'}
-          </div>
         )}
-      </div>
+      />
+      {filteredAndSortedLinks?.length === 0 && (
+        <div className="text-center py-8 text-muted-foreground">
+          {search ? '未找到匹配的链接' : '暂无链接'}
+        </div>
+      )}
 
       <LinkDialog
         isOpen={isDialogOpen}

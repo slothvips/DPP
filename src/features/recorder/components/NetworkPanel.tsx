@@ -1,5 +1,6 @@
 import { Allotment } from 'allotment';
 import { useMemo, useState } from 'react';
+import { VirtualTable } from '@/components/ui/virtual-table';
 import {
   type NetworkRequest,
   type NetworkRequestPhase,
@@ -138,114 +139,104 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
       <Allotment className="flex-1 min-h-0">
         {/* 请求列表 */}
         <Allotment.Pane preferredSize="50%" minSize={100}>
-          <div className="overflow-auto h-full">
+          <div className="h-full">
             {filteredRequests.length === 0 ? (
               <div className="p-4 text-center text-muted-foreground">
                 {requests.length === 0 ? '没有录制到网络请求' : '没有匹配的请求'}
               </div>
             ) : (
-              <table className="w-full">
-                <thead className="sticky top-0 bg-muted/50 text-xs z-10">
-                  <tr>
-                    <th className="text-left p-2 font-medium">URL</th>
-                    <th className="text-left p-2 font-medium w-[50px]">方法</th>
-                    <th className="text-left p-2 font-medium w-[45px]">状态</th>
-                    <th className="text-left p-2 font-medium w-[70px]">时间</th>
-                    <th className="text-right p-2 font-medium w-[60px]">耗时</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRequests.map((req) => {
-                    const status = getRequestStatus(req);
-                    const isFuture = status === 'future';
-                    const isActive = status === 'active';
+              <VirtualTable
+                items={filteredRequests}
+                estimateSize={40}
+                overscan={10}
+                containerClassName="h-full"
+                rowClassName="border-b border-border/50"
+                renderRow={(req) => {
+                  const status = getRequestStatus(req);
+                  const isFuture = status === 'future';
+                  const isActive = status === 'active';
 
-                    return (
-                      <tr
-                        key={req.id}
-                        onClick={() => setSelectedRequest(req)}
+                  return (
+                    <div
+                      onClick={() => setSelectedRequest(req)}
+                      className={cn(
+                        'grid grid-cols-[1fr_50px_45px_70px_60px] items-center cursor-pointer transition-colors px-2 py-2',
+                        selectedRequest?.id === req.id && 'bg-muted',
+                        isActive && 'bg-blue-500/20 border-l-2 border-l-blue-500',
+                        isFuture && 'opacity-40',
+                        !isFuture && !isActive && 'hover:bg-muted/50',
+                        req.error && !isFuture && 'bg-red-500/10',
+                        req.isStreaming && req.phase !== 'complete' && 'bg-purple-500/10'
+                      )}
+                    >
+                      <div
+                        className={cn('truncate text-xs', isFuture && 'text-muted-foreground/50')}
+                        title={req.url}
+                      >
+                        <div className="flex items-center gap-1">
+                          {req.isStreaming && (
+                            <span className="text-purple-500 text-xs" title="流式响应">
+                              ⚡
+                            </span>
+                          )}
+                          {req.type === 'sse' && (
+                            <span className="text-orange-500 text-xs" title="SSE">
+                              📡
+                            </span>
+                          )}
+                          <span className="truncate">
+                            {(() => {
+                              try {
+                                return new URL(req.url, 'http://localhost').pathname;
+                              } catch {
+                                return req.url;
+                              }
+                            })()}
+                          </span>
+                        </div>
+                      </div>
+                      <div
                         className={cn(
-                          'cursor-pointer border-b border-border/50 transition-colors',
-                          selectedRequest?.id === req.id && 'bg-muted',
-                          isActive && 'bg-blue-500/20 border-l-2 border-l-blue-500',
-                          isFuture && 'opacity-40',
-                          !isFuture && !isActive && 'hover:bg-muted/50',
-                          req.error && !isFuture && 'bg-red-500/10',
-                          req.isStreaming && req.phase !== 'complete' && 'bg-purple-500/10'
+                          'font-mono text-xs',
+                          isFuture ? 'text-muted-foreground/50' : getMethodColor(req.method)
                         )}
                       >
-                        <td
-                          className={cn(
-                            'p-2 truncate max-w-[180px]',
-                            isFuture && 'text-muted-foreground/50'
-                          )}
-                          title={req.url}
-                        >
-                          <div className="flex items-center gap-1">
-                            {req.isStreaming && (
-                              <span className="text-purple-500 text-xs" title="流式响应">
-                                ⚡
-                              </span>
-                            )}
-                            {req.type === 'sse' && (
-                              <span className="text-orange-500 text-xs" title="SSE">
-                                📡
-                              </span>
-                            )}
-                            <span className="truncate">
-                              {(() => {
-                                try {
-                                  return new URL(req.url, 'http://localhost').pathname;
-                                } catch {
-                                  return req.url;
-                                }
-                              })()}
-                            </span>
-                          </div>
-                        </td>
-                        <td
-                          className={cn(
-                            'p-2 font-mono text-xs',
-                            isFuture ? 'text-muted-foreground/50' : getMethodColor(req.method)
-                          )}
-                        >
-                          {req.method}
-                        </td>
-                        <td
-                          className={cn(
-                            'p-2 font-mono text-xs',
-                            isFuture ? 'text-muted-foreground/50' : getStatusColor(req.status)
-                          )}
-                        >
-                          {isFuture
-                            ? '-'
-                            : req.status || (req.error ? 'ERR' : getPhaseIndicator(req.phase))}
-                        </td>
-                        <td
-                          className={cn(
-                            'p-2 font-mono text-xs',
-                            isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
-                          )}
-                        >
-                          {formatTimePoint(req.eventTimestamp)}
-                        </td>
-                        <td
-                          className={cn(
-                            'p-2 text-right text-xs',
-                            isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
-                          )}
-                        >
-                          {isFuture
-                            ? '-'
-                            : req.isStreaming && req.receivedBytes !== undefined
-                              ? formatSize(req.receivedBytes)
-                              : formatDuration(req.duration)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        {req.method}
+                      </div>
+                      <div
+                        className={cn(
+                          'font-mono text-xs',
+                          isFuture ? 'text-muted-foreground/50' : getStatusColor(req.status)
+                        )}
+                      >
+                        {isFuture
+                          ? '-'
+                          : req.status || (req.error ? 'ERR' : getPhaseIndicator(req.phase))}
+                      </div>
+                      <div
+                        className={cn(
+                          'font-mono text-xs',
+                          isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                        )}
+                      >
+                        {formatTimePoint(req.eventTimestamp)}
+                      </div>
+                      <div
+                        className={cn(
+                          'text-right text-xs',
+                          isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                        )}
+                      >
+                        {isFuture
+                          ? '-'
+                          : req.isStreaming && req.receivedBytes !== undefined
+                            ? formatSize(req.receivedBytes)
+                            : formatDuration(req.duration)}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
             )}
           </div>
         </Allotment.Pane>

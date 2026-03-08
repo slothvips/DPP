@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { VirtualList } from '@/components/ui/virtual-list';
 import {
   type ClonedValue,
   type ConsoleLog,
@@ -179,24 +180,26 @@ export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
       </div>
 
       {/* 日志列表 */}
-      <div className="flex-1 overflow-auto">
-        {filteredLogs.length === 0 ? (
-          <div className="p-4 text-center text-muted-foreground">
-            {logs.length === 0 ? '没有录制到控制台日志' : '没有匹配的日志'}
-          </div>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {filteredLogs.map((log) => (
-              <ConsoleLogItem
-                key={log.id}
-                log={log}
-                status={getLogStatus(log)}
-                timeLabel={formatTimePoint(log.eventTimestamp)}
-              />
-            ))}
-          </div>
+      <VirtualList
+        items={filteredLogs}
+        estimateSize={60}
+        overscan={10}
+        containerClassName="flex-1"
+        itemClassName="divide-y divide-border/50"
+        renderItem={(log) => (
+          <ConsoleLogItem
+            key={log.id}
+            log={log}
+            status={getLogStatus(log)}
+            timeLabel={formatTimePoint(log.eventTimestamp)}
+          />
         )}
-      </div>
+      />
+      {filteredLogs.length === 0 && (
+        <div className="p-4 text-center text-muted-foreground">
+          {logs.length === 0 ? '没有录制到控制台日志' : '没有匹配的日志'}
+        </div>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { VirtualList } from '@/components/ui/virtual-list';
 import { JENKINS } from '@/config/constants';
 import { type JenkinsEnvironment, db } from '@/db';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
@@ -317,16 +318,20 @@ export function JenkinsView() {
             {loading ? '正在从 Jenkins 获取数据...' : '暂无数据，请点击采集'}
           </div>
         ) : filter ? (
-          <div className="divide-y">
-            {filteredJobs?.map((job) => (
+          <VirtualList
+            items={filteredJobs ?? []}
+            estimateSize={50}
+            overscan={5}
+            containerClassName="divide-y"
+            renderItem={(job) => (
               <JobRow
                 key={job.url}
                 job={job}
                 onBuild={() => setBuildJob({ url: job.url, name: job.name, envId: job.env })}
                 availableTags={tags}
               />
-            ))}
-          </div>
+            )}
+          />
         ) : (
           <div className="p-2">
             {/* Build History Section */}
@@ -381,20 +386,30 @@ export function JenkinsView() {
                 )}
               </button>
               {expandedUrls.has('__build_history__') && (
-                <div className="pl-6 space-y-1">
+                <div className="pl-6">
                   {displayedBuilds.length === 0 ? (
                     <div className="p-2 text-xs text-muted-foreground">暂无构建记录</div>
                   ) : (
-                    displayedBuilds.map((build) => (
-                      <MyBuildRow
-                        key={build.id}
-                        build={build}
-                        onBuild={() =>
-                          setBuildJob({ url: build.jobUrl, name: build.jobName, envId: build.env })
-                        }
-                        tags={jobTagsMap.get(build.jobUrl)}
-                      />
-                    ))
+                    <VirtualList
+                      items={displayedBuilds}
+                      estimateSize={50}
+                      overscan={5}
+                      containerClassName="space-y-1"
+                      renderItem={(build) => (
+                        <MyBuildRow
+                          key={build.id}
+                          build={build}
+                          onBuild={() =>
+                            setBuildJob({
+                              url: build.jobUrl,
+                              name: build.jobName,
+                              envId: build.env,
+                            })
+                          }
+                          tags={jobTagsMap.get(build.jobUrl)}
+                        />
+                      )}
+                    />
                   )}
                 </div>
               )}
