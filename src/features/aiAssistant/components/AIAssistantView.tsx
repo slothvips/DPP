@@ -1,5 +1,5 @@
 // AI Assistant View - Main conversation interface
-import { Settings, Trash2 } from 'lucide-react';
+import { ArrowDown, Settings, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
@@ -75,6 +75,14 @@ export function AIAssistantView() {
     setIsNearBottom(nearBottom);
   };
 
+  // Scroll to bottom when button is clicked
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      setIsNearBottom(true);
+    }
+  };
+
   // Auto-scroll to bottom only when user is near bottom
   useEffect(() => {
     if (isNearBottom && messagesEndRef.current) {
@@ -147,80 +155,93 @@ export function AIAssistantView() {
       )}
 
       {/* Messages area */}
-      <div
-        ref={messagesContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar"
-      >
-        {/* Config not configured prompt */}
-        {isConfigMissing && messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-4">⚙️</div>
-            <p className="text-sm font-medium">需要配置 AI 服务</p>
-            <p className="text-xs mt-1 text-muted-foreground">请先配置 AI 服务商和模型</p>
-            <AIConfigDialog onSaved={handleConfigSaved}>
-              <Button className="mt-4" size="sm">
-                去配置
-              </Button>
-            </AIConfigDialog>
-          </div>
-        )}
-
-        {/* WebLLM Model Loading Progress */}
-        {isLoadingModel && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-4">📥</div>
-            <p className="text-sm font-medium">正在加载模型...</p>
-            <div className="w-48 h-2 bg-muted rounded-full mt-3 overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${modelLoadProgress}%` }}
-              />
+      <div className="relative flex-1 overflow-hidden">
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          className="absolute inset-0 overflow-y-auto p-3 space-y-3 custom-scrollbar"
+        >
+          {/* Config not configured prompt */}
+          {isConfigMissing && messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="text-4xl mb-4">⚙️</div>
+              <p className="text-sm font-medium">需要配置 AI 服务</p>
+              <p className="text-xs mt-1 text-muted-foreground">请先配置 AI 服务商和模型</p>
+              <AIConfigDialog onSaved={handleConfigSaved}>
+                <Button className="mt-4" size="sm">
+                  去配置
+                </Button>
+              </AIConfigDialog>
             </div>
-            <p className="text-xs mt-2 text-muted-foreground">
-              {modelLoadProgress}% - {modelLoadStatus}
-            </p>
-            <p className="text-xs mt-1 text-muted-foreground">首次加载需要下载模型，请耐心等待</p>
-          </div>
-        )}
+          )}
 
-        {/* Welcome message when empty and configured */}
-        {!isConfigMissing && !isLoadingModel && messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-            <div className="text-4xl mb-4">🤖</div>
-            <p className="text-sm font-medium">你好！我是 AI 助手</p>
-            <p className="text-xs mt-1">我可以帮助你管理链接、便签、Jenkins 任务等</p>
-            <p className="text-xs mt-2">直接发送消息开始对话</p>
-          </div>
-        )}
+          {/* WebLLM Model Loading Progress */}
+          {isLoadingModel && (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="text-4xl mb-4">📥</div>
+              <p className="text-sm font-medium">正在加载模型...</p>
+              <div className="w-48 h-2 bg-muted rounded-full mt-3 overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-300"
+                  style={{ width: `${modelLoadProgress}%` }}
+                />
+              </div>
+              <p className="text-xs mt-2 text-muted-foreground">
+                {modelLoadProgress}% - {modelLoadStatus}
+              </p>
+              <p className="text-xs mt-1 text-muted-foreground">首次加载需要下载模型，请耐心等待</p>
+            </div>
+          )}
 
-        {/* Message list */}
-        {messages.map((message) => (
-          <MessageItem key={message.id} message={message} />
-        ))}
+          {/* Welcome message when empty and configured */}
+          {!isConfigMissing && !isLoadingModel && messages.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+              <div className="text-4xl mb-4">🤖</div>
+              <p className="text-sm font-medium">你好！我是 AI 助手</p>
+              <p className="text-xs mt-1">我可以帮助你管理链接、便签、Jenkins 任务等</p>
+              <p className="text-xs mt-2">直接发送消息开始对话</p>
+            </div>
+          )}
 
-        {/* Loading/Streaming indicator */}
-        {(status === 'loading' || status === 'streaming') && (
-          <div className="flex justify-start">
-            <div className="bg-muted rounded-lg px-3 py-2">
-              <div className="flex items-center gap-1">
-                <span className="text-sm text-muted-foreground">思考中</span>
-                <span className="animate-pulse">...</span>
+          {/* Message list */}
+          {messages.map((message) => (
+            <MessageItem key={message.id} message={message} />
+          ))}
+
+          {/* Loading/Streaming indicator */}
+          {(status === 'loading' || status === 'streaming') && (
+            <div className="flex justify-start">
+              <div className="bg-muted rounded-lg px-3 py-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-sm text-muted-foreground">思考中</span>
+                  <span className="animate-pulse">...</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Error message */}
-        {error && (
-          <div className="flex justify-center">
-            <div className="bg-destructive/10 text-destructive rounded-lg px-3 py-2 text-sm">
-              {error}
+          {/* Error message */}
+          {error && (
+            <div className="flex justify-center">
+              <div className="bg-destructive/10 text-destructive rounded-lg px-3 py-2 text-sm">
+                {error}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Scroll to bottom button - show when user scrolls up */}
+        {!isNearBottom && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-4 right-4 p-2 bg-primary text-primary-foreground rounded-full shadow-lg hover:opacity-90 transition-opacity"
+            title="直达底部"
+          >
+            <ArrowDown className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Input area */}
