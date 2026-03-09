@@ -97,6 +97,7 @@ export interface UseAIChatReturn {
   resetProvider: () => void;
   completeBuild: () => void;
   cancelBuild: () => void;
+  summarizeSession: () => Promise<string | null>;
 }
 
 /**
@@ -930,6 +931,74 @@ export function useAIChat(): UseAIChatReturn {
     setStatus('idle');
   }, [pendingBuild, sessionId]);
 
+  /**
+   * Summarize current session and create a new session with the summary
+   * Returns the new session ID if successful, null otherwise
+   */
+  const summarizeSession = useCallback(async (): Promise<string | null> => {
+    if (!sessionId) {
+      logger.warn('[AIChat] Cannot compress: no session ID');
+      return null;
+    }
+
+    const allMessages = await getMessagesBySession(sessionId);
+    if (allMessages.length === 0) {
+      logger.warn('[AIChat] Cannot compress: no messages in session');
+      return null;
+    }
+
+    const compressedMessages = allMessages
+      .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+      .map((msg) => {
+        const roleLabel = msg.role === 'user' ? '用户' : '助手';
+        return `${roleLabel}: ${msg.content}`;
+      })
+      .join('\n\n');
+
+    const toolCallCount = allMessages.filter((msg) => msg.role === 'tool').length;
+
+    try {
+      const currentSession = await getSession(sessionId);
+      const oldTitle = currentSession?.title || '会话';
+
+      const newSession = await createSession(`${oldTitle}(已压缩)`);
+
+      await addMessage({
+        sessionId: newSession.id,
+        role: 'assistant',
+        content: `【压缩说明】
+本会话已对原始对话进行压缩处理：
+- 跳过了 ${toolCallCount} 条工具调用结果（AI 的反馈中已包含关键信息）
+- 保留了用户问题和 AI 的最终回应
+
+【对话概要】
+${compressedMessages.slice(0, 2000)}${compressedMessages.length > 2000 ? '\n\n(对话过长，已截断)' : ''}`,
+      });
+
+      if (compressedMessages.length <= 4000) {
+        await addMessage({
+          sessionId: newSession.id,
+          role: 'assistant',
+          content: `【完整对话（压缩后）】\n\n${compressedMessages}`,
+        });
+      }
+
+      await loadSessions();
+
+      logger.info('[AIChat] Session compressed successfully', {
+        oldSessionId: sessionId,
+        newSessionId: newSession.id,
+        originalMessageCount: allMessages.length,
+        toolCallCount,
+      });
+
+      return newSession.id;
+    } catch (err) {
+      logger.error('[AIChat] Failed to compress session:', err);
+      return null;
+    }
+  }, [sessionId, loadSessions]);
+
   // Initialize sessions on mount - only run once per page load
   useEffect(() => {
     let mounted = true;
@@ -1006,5 +1075,6 @@ export function useAIChat(): UseAIChatReturn {
     resetProvider,
     completeBuild,
     cancelBuild,
+    summarizeSession,
   };
 }

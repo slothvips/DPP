@@ -1,7 +1,8 @@
 // AI Assistant View - Main conversation interface
-import { ArrowDown, Settings, Trash2 } from 'lucide-react';
+import { ArrowDown, Scissors, Settings, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { useAIChat } from '../hooks/useAIChat';
 import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
@@ -35,11 +36,15 @@ export function AIAssistantView() {
     resetProvider,
     completeBuild,
     cancelBuild,
+    summarizeSession,
   } = useAIChat();
+
+  const { toast } = useToast();
 
   const [isConfigMissing, setIsConfigMissing] = useState(false);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [presetPrompt, setPresetPrompt] = useState<string>('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -107,6 +112,36 @@ export function AIAssistantView() {
     clearMessages();
   };
 
+  const handleSummarize = useCallback(async () => {
+    if (isSummarizing) return;
+
+    if (messages.length === 0) {
+      toast('无法压缩', 'error');
+      return;
+    }
+
+    if (status === 'loading' || status === 'streaming') {
+      toast('请稍候', 'info');
+      return;
+    }
+
+    setIsSummarizing(true);
+    toast('正在压缩会话，请稍候...', 'info');
+
+    try {
+      const newSessionId = await summarizeSession();
+
+      if (newSessionId) {
+        await switchSession(newSessionId);
+        toast('压缩完成，已创建新的压缩会话', 'success');
+      } else {
+        toast('压缩失败，请重试', 'error');
+      }
+    } finally {
+      setIsSummarizing(false);
+    }
+  }, [isSummarizing, messages, status, summarizeSession, switchSession, toast]);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -127,6 +162,20 @@ export function AIAssistantView() {
               <Settings className="w-4 h-4" />
             </Button>
           </AIConfigDialog>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleSummarize}
+            disabled={
+              messages.length === 0 ||
+              status === 'loading' ||
+              status === 'streaming' ||
+              isSummarizing
+            }
+            title="压缩当前会话到新会话"
+          >
+            <Scissors className="w-4 h-4" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
