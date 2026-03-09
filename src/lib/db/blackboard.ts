@@ -10,6 +10,7 @@ export async function listBlackboard(): Promise<{
     id: string;
     content: string;
     pinned: boolean;
+    locked: boolean;
     createdAt: number;
     updatedAt: number;
   }>;
@@ -28,6 +29,7 @@ export async function listBlackboard(): Promise<{
       id: item.id,
       content: item.content,
       pinned: item.pinned || false,
+      locked: item.locked || false,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     })),
@@ -50,6 +52,7 @@ export async function addBlackboard(args: {
     createdAt: now,
     updatedAt: now,
     pinned: args.pinned || false,
+    locked: false,
   });
 
   return {
@@ -66,6 +69,7 @@ export async function updateBlackboard(args: {
   id: string;
   content?: string;
   pinned?: boolean;
+  locked?: boolean;
 }): Promise<{ success: boolean; message: string }> {
   const existing = await db.blackboard.get(args.id);
   if (!existing) {
@@ -75,6 +79,7 @@ export async function updateBlackboard(args: {
   await db.blackboard.update(args.id, {
     content: args.content ?? existing.content,
     pinned: args.pinned ?? existing.pinned,
+    locked: args.locked ?? existing.locked,
     updatedAt: Date.now(),
   });
 
@@ -128,5 +133,28 @@ export async function toggleBlackboardPin(args: {
   return {
     success: true,
     message: newPinnedStatus ? '便签已置顶' : '便签已取消置顶',
+  };
+}
+
+/**
+ * Toggle blackboard item locked status
+ */
+export async function toggleBlackboardLock(args: {
+  id: string;
+}): Promise<{ success: boolean; message: string }> {
+  const existing = await db.blackboard.get(args.id);
+  if (!existing) {
+    throw new Error(`便签不存在或已被删除`);
+  }
+
+  const newLockedStatus = !existing.locked;
+  await db.blackboard.update(args.id, {
+    locked: newLockedStatus,
+    updatedAt: Date.now(),
+  });
+
+  return {
+    success: true,
+    message: newLockedStatus ? '便签已锁定' : '便签已解锁',
   };
 }

@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { Pin, Trash2 } from 'lucide-react';
+import { Lock, Pin, Trash2, Unlock } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -11,6 +11,7 @@ interface BlackboardItemProps {
   onUpdate: (id: string, content: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onPin: (id: string, pinned: boolean) => Promise<void>;
+  onLock: (id: string, locked: boolean) => Promise<void>;
   onResize?: () => void;
   color: string;
   readOnly?: boolean;
@@ -23,6 +24,7 @@ export function BlackboardItemView({
   onUpdate,
   onDelete,
   onPin,
+  onLock,
   onResize,
   color,
   readOnly,
@@ -141,7 +143,7 @@ export function BlackboardItemView({
         ) : (
           <div
             onClick={() => {
-              if (!readOnly) {
+              if (!readOnly && !item.locked) {
                 // Capture current height before switching to edit mode
                 // This prevents the card from shrinking (source is usually smaller than preview)
                 if (containerRef.current) {
@@ -155,7 +157,7 @@ export function BlackboardItemView({
                 setIsEditing(true);
               }
             }}
-            className={`markdown-preview w-full h-full min-h-[140px] text-base text-slate-800 ${!readOnly ? 'cursor-text' : 'cursor-default'}`}
+            className={`markdown-preview w-full h-full min-h-[140px] text-base text-slate-800 ${!readOnly && !item.locked ? 'cursor-text' : 'cursor-default'}`}
             style={commonStyle}
           >
             {content ? (
@@ -255,6 +257,22 @@ export function BlackboardItemView({
               <Pin
                 className={`w-3.5 h-3.5 ${item.pinned ? 'fill-slate-700 text-slate-700' : 'text-slate-500'}`}
               />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 hover:bg-black/5 rounded-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                onLock(item.id, !item.locked);
+              }}
+              title={item.locked ? '解锁' : '锁定'}
+            >
+              {item.locked ? (
+                <Unlock className="w-3.5 h-3.5 text-amber-600" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-slate-500" />
+              )}
             </Button>
             <Button
               variant="ghost"

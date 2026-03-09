@@ -3,6 +3,7 @@ import {
   addBlackboard,
   deleteBlackboard,
   listBlackboard,
+  toggleBlackboardLock,
   toggleBlackboardPin,
   updateBlackboard,
 } from '@/lib/db';
@@ -26,7 +27,12 @@ async function blackboard_add(args: { content: string; pinned?: boolean }) {
 /**
  * Update a blackboard item
  */
-async function blackboard_update(args: { id: string; content?: string; pinned?: boolean }) {
+async function blackboard_update(args: {
+  id: string;
+  content?: string;
+  pinned?: boolean;
+  locked?: boolean;
+}) {
   return updateBlackboard(args);
 }
 
@@ -42,6 +48,13 @@ async function blackboard_delete(args: { id: string }) {
  */
 async function blackboard_togglePin(args: { id: string }) {
   return toggleBlackboardPin(args);
+}
+
+/**
+ * Toggle lock status of a blackboard item
+ */
+async function blackboard_toggleLock(args: { id: string }) {
+  return toggleBlackboardLock(args);
 }
 
 /**
@@ -82,6 +95,7 @@ export function registerBlackboardTools() {
         id: { type: 'string', description: 'The item ID to update' },
         content: { type: 'string', description: 'New content (optional, supports markdown)' },
         pinned: { type: 'boolean', description: 'Whether to pin to top (optional)' },
+        locked: { type: 'boolean', description: 'Whether to lock this item (optional)' },
       },
       ['id']
     ),
@@ -113,5 +127,18 @@ export function registerBlackboardTools() {
       ['id']
     ),
     handler: blackboard_togglePin as ToolHandler,
+  });
+
+  // blackboard_toggleLock
+  toolRegistry.register({
+    name: 'blackboard_toggleLock',
+    description: 'Toggle lock status of a blackboard item (便签)',
+    parameters: createToolParameter(
+      {
+        id: { type: 'string', description: 'The item ID to toggle lock status' },
+      },
+      ['id']
+    ),
+    handler: blackboard_toggleLock as ToolHandler,
   });
 }

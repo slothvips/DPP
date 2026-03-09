@@ -65,6 +65,13 @@ export function BlackboardView() {
     });
   };
 
+  const handleLock = async (id: string, locked: boolean) => {
+    await updateBlackboard({
+      id,
+      locked,
+    });
+  };
+
   // Sort: pinned first, then by createdAt desc
   const sortedItems = [...SYSTEM_NOTES, ...(items || [])].sort((a, b) => {
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
@@ -145,6 +152,7 @@ export function BlackboardView() {
                 onUpdate={handleUpdate}
                 onDelete={async (id) => setDeleteId(id)}
                 onPin={handlePin}
+                onLock={handleLock}
                 onResize={handleResize}
                 color={getItemColor(item.id)}
                 readOnly={item.id.startsWith('system-')}
