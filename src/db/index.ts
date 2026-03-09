@@ -92,8 +92,16 @@ const defaultSyncProvider: SyncProvider = {
   },
   pull: async (cursor, clientId) => {
     const setting = await db.settings.get('custom_server_url');
-    const apiUrl = (setting?.value as string)?.replace(/\/$/, '');
-    if (!apiUrl) throw new Error('Sync server URL not configured');
+    const rawUrl = (setting?.value as string)?.trim();
+    if (!rawUrl) throw new Error('Sync server URL not configured');
+
+    try {
+      new URL(rawUrl);
+    } catch {
+      throw new Error('Invalid sync server URL format');
+    }
+
+    const apiUrl = rawUrl.replace(/\/$/, '');
     const endpoint = `${apiUrl}/api/sync`;
 
     const tokenSetting = await db.settings.get('sync_access_token');
@@ -121,8 +129,16 @@ const defaultSyncProvider: SyncProvider = {
   },
   getPendingCount: async (cursor, clientId) => {
     const setting = await db.settings.get('custom_server_url');
-    const apiUrl = (setting?.value as string)?.replace(/\/$/, '');
-    if (!apiUrl) throw new Error('Sync server URL not configured');
+    const rawUrl = (setting?.value as string)?.trim();
+    if (!rawUrl) throw new Error('Sync server URL not configured');
+
+    try {
+      new URL(rawUrl);
+    } catch {
+      throw new Error('Invalid sync server URL format');
+    }
+
+    const apiUrl = rawUrl.replace(/\/$/, '');
     const endpoint = `${apiUrl}/api/sync`;
 
     const tokenSetting = await db.settings.get('sync_access_token');

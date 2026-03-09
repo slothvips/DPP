@@ -270,7 +270,7 @@ export function LinksView() {
 
       <VirtualList
         items={filteredAndSortedLinks ?? []}
-        estimateSize={80}
+        estimateSize={108}
         overscan={5}
         containerClassName="pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] flex-1 min-h-0"
         renderItem={(link) => (
@@ -278,7 +278,7 @@ export function LinksView() {
             key={link.id}
             className={cn(
               'flex items-start gap-2 rounded-lg border transition-colors group relative overflow-hidden',
-              'p-3 h-auto min-h-[60px]',
+              'p-3 mb-2 min-h-[60px]',
               link.pinnedAt ? 'bg-secondary/30 border-primary/20' : 'hover:bg-accent'
             )}
           >

@@ -1,5 +1,5 @@
 import remarkGfm from 'remark-gfm';
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import type { ChatMessage } from '../types';
 
@@ -13,16 +13,6 @@ interface MessageItemProps {
  */
 export const MessageItem = memo(
   function MessageItem({ message }: MessageItemProps) {
-    // Cache ReactMarkdown rendering result
-    const markdownContent = useMemo(
-      () => (
-        <div className="text-sm prose prose-sm dark:prose-invert">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-        </div>
-      ),
-      [message.content]
-    );
-
     return (
       <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
         <div
@@ -39,7 +29,15 @@ export const MessageItem = memo(
               {message.name} 结果:
             </div>
           )}
-          {markdownContent}
+          <div
+            className={
+              message.role === 'user'
+                ? 'prose prose-sm prose-invert'
+                : 'text-sm prose prose-sm dark:prose-invert'
+            }
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+          </div>
         </div>
       </div>
     );

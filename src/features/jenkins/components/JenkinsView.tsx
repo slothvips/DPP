@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
-import { VirtualList } from '@/components/ui/virtual-list';
 import { JENKINS } from '@/config/constants';
 import { type JenkinsEnvironment, db } from '@/db';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
@@ -83,7 +82,7 @@ export function JenkinsView() {
     if (showOthersBuilds) {
       builds = [...builds, ...(othersBuilds || [])];
     }
-    return builds.sort((a, b) => b.timestamp - a.timestamp).slice(0, 50); // Limit total display
+    return builds.sort((a, b) => b.timestamp - a.timestamp);
   }, [myBuilds, othersBuilds, showOthersBuilds]);
 
   // Create a map of jobUrl to tags for O(1) lookup
@@ -318,20 +317,16 @@ export function JenkinsView() {
             {loading ? '正在从 Jenkins 获取数据...' : '暂无数据，请点击采集'}
           </div>
         ) : filter ? (
-          <VirtualList
-            items={filteredJobs ?? []}
-            estimateSize={50}
-            overscan={5}
-            containerClassName="divide-y"
-            renderItem={(job) => (
+          <div className="divide-y">
+            {filteredJobs.map((job) => (
               <JobRow
                 key={job.url}
                 job={job}
                 onBuild={() => setBuildJob({ url: job.url, name: job.name, envId: job.env })}
                 availableTags={tags}
               />
-            )}
-          />
+            ))}
+          </div>
         ) : (
           <div className="p-2">
             {/* Build History Section */}
@@ -390,12 +385,8 @@ export function JenkinsView() {
                   {displayedBuilds.length === 0 ? (
                     <div className="p-2 text-xs text-muted-foreground">暂无构建记录</div>
                   ) : (
-                    <VirtualList
-                      items={displayedBuilds}
-                      estimateSize={50}
-                      overscan={5}
-                      containerClassName="space-y-1"
-                      renderItem={(build) => (
+                    <div className="space-y-1">
+                      {displayedBuilds.map((build) => (
                         <MyBuildRow
                           key={build.id}
                           build={build}
@@ -408,8 +399,8 @@ export function JenkinsView() {
                           }
                           tags={jobTagsMap.get(build.jobUrl)}
                         />
-                      )}
-                    />
+                      ))}
+                    </div>
                   )}
                 </div>
               )}

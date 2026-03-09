@@ -29,7 +29,18 @@ export default defineConfig({
     disabled: true,
   },
   hooks: {
-    'build:manifestGenerated': async (_wxt, manifest) => {
+    'build:manifestGenerated': async (wxt, manifest) => {
+      // Set DEV suffix and icons in development mode
+      if (wxt.config.mode === 'development') {
+        manifest.name = 'DPP(DEV)';
+        manifest.icons = {
+          16: '/icon-dev/16.png',
+          32: '/icon-dev/32.png',
+          48: '/icon-dev/48.png',
+          96: '/icon-dev/96.png',
+          128: '/icon-dev/128.png',
+        };
+      }
       // Remove default_popup from action to allow onClicked handler
       if (manifest.action) {
         delete manifest.action.default_popup;

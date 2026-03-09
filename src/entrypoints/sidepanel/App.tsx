@@ -134,9 +134,16 @@ export function App() {
           {/* Header */}
           {!isMinimalMode && (
             <header className="flex items-center justify-between p-4 border-b">
-              <h1 className="text-lg font-bold" data-testid="app-title">
-                DPP
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold" data-testid="app-title">
+                  DPP
+                </h1>
+                {import.meta.env.MODE === 'development' && (
+                  <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-600 rounded">
+                    DEV
+                  </span>
+                )}
+              </div>
               <Tips />
               <div className="flex items-center gap-1">
                 {showSyncButton && <GlobalSyncButton />}

@@ -387,9 +387,16 @@ function OptionsApp() {
   return (
     <div className="min-h-screen bg-background text-foreground" data-testid="options-page">
       <div className="container mx-auto p-8 max-w-2xl">
-        <h1 className="text-2xl font-bold mb-6" data-testid="options-title">
-          DPP 设置
-        </h1>
+        <div className="flex items-center gap-2 mb-6">
+          <h1 className="text-2xl font-bold" data-testid="options-title">
+            DPP 设置
+          </h1>
+          {import.meta.env.MODE === 'development' && (
+            <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-600 rounded">
+              DEV
+            </span>
+          )}
+        </div>
 
         <div className="space-y-8">
           <section className="space-y-4 border p-4 rounded-lg" data-testid="section-appearance">
