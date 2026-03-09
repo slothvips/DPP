@@ -14,9 +14,14 @@ import type { ToolHandler } from '../tools';
 import { createToolParameter, toolRegistry } from '../tools';
 
 /**
- * List all links, optionally filtered by keyword and tags
+ * List all links with pagination support
  */
-async function links_list(args: { keyword?: string; tags?: string[] }) {
+async function links_list(args: {
+  keyword?: string;
+  tags?: string[];
+  page?: number;
+  pageSize?: number;
+}) {
   return listLinks(args);
 }
 
@@ -95,7 +100,8 @@ export function registerLinksTools() {
   // links_list
   toolRegistry.register({
     name: 'links_list',
-    description: 'List all links, supports keyword and tag filtering',
+    description:
+      'List all links with pagination support. Returns total count, current page, and hasMore flag for pagination.',
     parameters: createToolParameter(
       {
         keyword: {
@@ -105,6 +111,15 @@ export function registerLinksTools() {
         tags: {
           type: 'array',
           description: 'Tag names to filter links',
+        },
+        page: {
+          type: 'number',
+          description: 'Page number (starting from 1). Default: 1',
+        },
+        pageSize: {
+          type: 'number',
+          description:
+            'Number of items per page. Default: 20. Recommended: 10-20 to avoid overwhelming the context',
         },
       },
       []

@@ -3,7 +3,7 @@ import type { AIProviderType } from '@/lib/ai/types';
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   /** Tool name - used for tool result messages */
   name?: string;

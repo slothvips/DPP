@@ -251,7 +251,7 @@ export function useAIChat(): UseAIChatReturn {
    */
   const toLibChatMessage = useCallback((msg: ChatMessage): import('@/lib/ai/types').ChatMessage => {
     return {
-      role: msg.role,
+      role: msg.role === 'tool' ? 'user' : msg.role,
       content: msg.content,
     };
   }, []);
@@ -469,11 +469,11 @@ export function useAIChat(): UseAIChatReturn {
         }
 
         // Create tool result message
-        // Note: We use role 'user' and include tool name in content for text-based tool calling
         const toolResultMessage: ChatMessage = {
           id: generateId(),
-          role: 'user',
-          content: `[${toolCall.function.name}] ${JSON.stringify(result, null, 2)}`,
+          role: 'tool',
+          name: toolCall.function.name,
+          content: JSON.stringify(result, null, 2),
           createdAt: Date.now(),
         };
 
@@ -483,8 +483,9 @@ export function useAIChat(): UseAIChatReturn {
         if (sessionId) {
           addMessage({
             sessionId,
-            role: 'user',
+            role: 'tool',
             content: toolResultMessage.content,
+            name: toolCall.function.name,
           }).catch((err) => logger.error('[AIChat] Failed to save tool result:', err));
         }
 
@@ -573,8 +574,9 @@ export function useAIChat(): UseAIChatReturn {
           // Create tool result message
           const toolResultMessage: ChatMessage = {
             id: generateId(),
-            role: 'user',
-            content: `[${toolCall.function.name}] ${JSON.stringify(result, null, 2)}`,
+            role: 'tool',
+            name: toolCall.function.name,
+            content: JSON.stringify(result, null, 2),
             createdAt: Date.now(),
           };
 
@@ -585,8 +587,9 @@ export function useAIChat(): UseAIChatReturn {
           // Create error tool result message
           const errorMessage: ChatMessage = {
             id: generateId(),
-            role: 'user',
-            content: `[${toolCall.function.name}] Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+            role: 'tool',
+            name: toolCall.function.name,
+            content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
             createdAt: Date.now(),
           };
 
@@ -594,24 +597,30 @@ export function useAIChat(): UseAIChatReturn {
         }
       }
 
-      // Add all tool result messages to state
-      setMessages((prev) => [...prev, ...toolResultMessages]);
+      const combinedContent = toolResultMessages
+        .map((msg) => `### ${msg.name}\n${msg.content}`)
+        .join('\n\n---\n\n');
 
-      // Save all tool results to database
+      const combinedMessage: ChatMessage = {
+        id: generateId(),
+        role: 'tool',
+        name: 'multiple_tools',
+        content: combinedContent,
+        createdAt: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, combinedMessage]);
+
       if (sessionId) {
-        await Promise.all(
-          toolResultMessages.map((msg) =>
-            addMessage({
-              sessionId,
-              role: msg.role,
-              content: msg.content,
-            }).catch((err) => logger.error('[AIChat] Failed to save tool result:', err))
-          )
-        );
+        addMessage({
+          sessionId,
+          role: 'tool',
+          content: combinedMessage.content,
+          name: 'multiple_tools',
+        }).catch((err) => logger.error('[AIChat] Failed to save combined tool result:', err));
       }
 
-      // Send all results together to the model
-      await continueConversationRef.current?.([...messagesRef.current, ...toolResultMessages]);
+      await continueConversationRef.current?.([...messagesRef.current, combinedMessage]);
     },
     [sessionId, continueConversationRef]
   );

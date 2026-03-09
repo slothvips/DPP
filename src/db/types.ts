@@ -163,7 +163,7 @@ export interface AISession {
 export interface AIMessage {
   id: string;
   sessionId: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   name?: string;
   createdAt: number;

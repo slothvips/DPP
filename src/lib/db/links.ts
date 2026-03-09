@@ -46,11 +46,19 @@ async function resolveTagNamesToIds(tagsInput: string[]): Promise<string[]> {
 }
 
 /**
- * List all links, optionally filtered by keyword and tags
+ * List all links, optionally filtered by keyword and tags with pagination support
  * Optimized to avoid N+1 queries by batch loading all related data
  */
-export async function listLinks(args: { keyword?: string; tags?: string[] }): Promise<{
+export async function listLinks(args: {
+  keyword?: string;
+  tags?: string[];
+  page?: number;
+  pageSize?: number;
+}): Promise<{
   total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
   links: Array<{
     id: string;
     name: string;
@@ -63,6 +71,8 @@ export async function listLinks(args: { keyword?: string; tags?: string[] }): Pr
     updatedAt: number;
   }>;
 }> {
+  const page = args.page ?? 1;
+  const pageSize = args.pageSize ?? 20;
   // Batch load all data in parallel to avoid N+1 queries
   const [allLinks, allLinkTags, allTags, allStats] = await Promise.all([
     db.links.filter((l) => !l.deletedAt).toArray(),
@@ -137,9 +147,16 @@ export async function listLinks(args: { keyword?: string; tags?: string[] }): Pr
     };
   });
 
+  const total = linksWithTags.length;
+  const startIndex = (page - 1) * pageSize;
+  const paginatedLinks = linksWithTags.slice(startIndex, startIndex + pageSize);
+
   return {
-    total: linksWithTags.length,
-    links: linksWithTags,
+    total,
+    page,
+    pageSize,
+    hasMore: startIndex + pageSize < total,
+    links: paginatedLinks,
   };
 }
 
