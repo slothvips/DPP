@@ -140,11 +140,13 @@ export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
             className="flex-1 px-2 py-1 text-sm border rounded bg-background"
           />
           <div className="flex items-center gap-2 text-xs">
-            <span className="text-green-600">{statusCounts.past}</span>
+            <span className="text-success dark:text-success">{statusCounts.past}</span>
             <span className="text-muted-foreground">/</span>
-            <span className="text-blue-600">{statusCounts.active}</span>
+            <span className="text-primary">{statusCounts.active}</span>
             <span className="text-muted-foreground">/</span>
-            <span className="text-muted-foreground/50">{statusCounts.future}</span>
+            <span className="text-muted-foreground/70 dark:text-muted-foreground/60">
+              {statusCounts.future}
+            </span>
           </div>
         </div>
 
@@ -158,7 +160,7 @@ export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
                 'px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1',
                 levelFilter.size === 0 || levelFilter.has(level)
                   ? getLevelButtonStyle(level)
-                  : 'bg-muted/50 text-muted-foreground/50'
+                  : 'bg-muted/50 text-muted-foreground/70 dark:text-muted-foreground/60'
               )}
             >
               <span>{getLevelIcon(level)}</span>
@@ -230,7 +232,7 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
     <div
       className={cn(
         'px-2 py-1.5 transition-colors',
-        isActive && 'bg-blue-500/20 border-l-2 border-l-blue-500',
+        isActive && 'bg-blue-500/20 dark:bg-blue-500/30 border-l-2 border-l-blue-500',
         isFuture && 'opacity-40',
         !isFuture && !isActive && getLogBackground(log.level)
       )}
@@ -240,7 +242,9 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
         <span
           className={cn(
             'flex-shrink-0 w-4 text-center',
-            isFuture ? 'text-muted-foreground/50' : getLevelColor(log.level)
+            isFuture
+              ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
+              : getLevelColor(log.level)
           )}
           title={log.level}
         >
@@ -251,7 +255,9 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
         <span
           className={cn(
             'flex-shrink-0 font-mono text-xs',
-            isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+            isFuture
+              ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
+              : 'text-muted-foreground'
           )}
         >
           {timeLabel}
@@ -262,7 +268,7 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
           <div
             className={cn(
               'font-mono text-xs break-all',
-              isFuture && 'text-muted-foreground/50',
+              isFuture && 'text-muted-foreground/70 dark:text-muted-foreground/60',
               !expanded && needsExpand && 'line-clamp-3'
             )}
           >
@@ -273,7 +279,7 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
           {needsExpand && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="text-xs text-blue-500 hover:text-blue-600 mt-1"
+              className="text-xs text-primary hover:text-primary/80 mt-1"
             >
               {expanded ? '收起' : '展开全部'}
             </button>
@@ -564,15 +570,15 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
 function getLevelButtonStyle(level: LogLevel): string {
   switch (level) {
     case 'error':
-      return 'bg-red-500/20 text-red-600 hover:bg-red-500/30';
+      return 'bg-red-500/20 text-red-600 dark:text-red-400 dark:bg-red-500/30 hover:bg-red-500/30 dark:hover:bg-red-500/40';
     case 'warn':
-      return 'bg-yellow-500/20 text-yellow-600 hover:bg-yellow-500/30';
+      return 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 dark:bg-yellow-500/30 hover:bg-yellow-500/30 dark:hover:bg-yellow-500/40';
     case 'info':
-      return 'bg-blue-500/20 text-blue-600 hover:bg-blue-500/30';
+      return 'bg-blue-500/20 text-blue-600 dark:text-blue-400 dark:bg-blue-500/30 hover:bg-blue-500/30 dark:hover:bg-blue-500/40';
     case 'debug':
-      return 'bg-purple-500/20 text-purple-600 hover:bg-purple-500/30';
+      return 'bg-purple-500/20 text-purple-600 dark:text-purple-400 dark:bg-purple-500/30 hover:bg-purple-500/30 dark:hover:bg-purple-500/40';
     case 'trace':
-      return 'bg-gray-500/20 text-gray-600 hover:bg-gray-500/30';
+      return 'bg-gray-500/20 text-gray-600 dark:text-gray-400 dark:bg-gray-500/30 hover:bg-gray-500/30 dark:hover:bg-gray-500/40';
     default:
       return 'bg-muted text-foreground hover:bg-muted/80';
   }

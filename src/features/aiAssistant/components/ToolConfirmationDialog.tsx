@@ -153,7 +153,7 @@ export function ToolConfirmationDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle
-              className={`w-5 h-5 ${content.isDestructive ? 'text-destructive' : 'text-yellow-500'}`}
+              className={`w-5 h-5 ${content.isDestructive ? 'text-destructive' : 'text-warning'}`}
             />
             {content.title}
           </DialogTitle>

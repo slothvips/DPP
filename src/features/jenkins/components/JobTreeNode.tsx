@@ -95,7 +95,7 @@ export function JobTreeNode({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-green-600 dark:text-green-500 shrink-0"
+            className="h-6 w-6 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-success dark:text-success shrink-0"
             onClick={() => onBuild(job)}
             title="构建"
           >

@@ -63,7 +63,7 @@ export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-green-600 hover:bg-green-100 dark:hover:text-green-400 dark:hover:bg-green-500/20"
+            className="h-8 w-8 text-muted-foreground hover:text-success hover:bg-success/10 dark:hover:text-success dark:hover:bg-success/20"
             title="构建"
             onClick={onBuild}
           >

@@ -128,11 +128,13 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
           className="flex-1 px-2 py-1 text-sm border rounded bg-background"
         />
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-green-600">{statusCounts.past}</span>
+          <span className="text-success dark:text-success">{statusCounts.past}</span>
           <span className="text-muted-foreground">/</span>
-          <span className="text-blue-600">{statusCounts.active}</span>
+          <span className="text-primary">{statusCounts.active}</span>
           <span className="text-muted-foreground">/</span>
-          <span className="text-muted-foreground/50">{statusCounts.future}</span>
+          <span className="text-muted-foreground/70 dark:text-muted-foreground/60">
+            {statusCounts.future}
+          </span>
         </div>
       </div>
 
@@ -162,15 +164,21 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       className={cn(
                         'grid grid-cols-[1fr_50px_45px_70px_60px] items-center cursor-pointer transition-colors px-2 py-2',
                         selectedRequest?.id === req.id && 'bg-muted',
-                        isActive && 'bg-blue-500/20 border-l-2 border-l-blue-500',
+                        isActive &&
+                          'bg-blue-500/20 dark:bg-blue-500/30 border-l-2 border-l-blue-500',
                         isFuture && 'opacity-40',
                         !isFuture && !isActive && 'hover:bg-muted/50',
-                        req.error && !isFuture && 'bg-red-500/10',
-                        req.isStreaming && req.phase !== 'complete' && 'bg-purple-500/10'
+                        req.error && !isFuture && 'bg-red-500/10 dark:bg-red-500/20',
+                        req.isStreaming &&
+                          req.phase !== 'complete' &&
+                          'bg-purple-500/10 dark:bg-purple-500/20'
                       )}
                     >
                       <div
-                        className={cn('truncate text-xs', isFuture && 'text-muted-foreground/50')}
+                        className={cn(
+                          'truncate text-xs',
+                          isFuture && 'text-muted-foreground/70 dark:text-muted-foreground/60'
+                        )}
                         title={req.url}
                       >
                         <div className="flex items-center gap-1">
@@ -198,7 +206,9 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'font-mono text-xs',
-                          isFuture ? 'text-muted-foreground/50' : getMethodColor(req.method)
+                          isFuture
+                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
+                            : getMethodColor(req.method)
                         )}
                       >
                         {req.method}
@@ -206,7 +216,9 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'font-mono text-xs',
-                          isFuture ? 'text-muted-foreground/50' : getStatusColor(req.status)
+                          isFuture
+                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
+                            : getStatusColor(req.status)
                         )}
                       >
                         {isFuture
@@ -216,7 +228,9 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'font-mono text-xs',
-                          isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                          isFuture
+                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
+                            : 'text-muted-foreground'
                         )}
                       >
                         {formatTimePoint(req.eventTimestamp)}
@@ -224,7 +238,9 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'text-right text-xs',
-                          isFuture ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                          isFuture
+                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
+                            : 'text-muted-foreground'
                         )}
                       >
                         {isFuture
@@ -286,7 +302,7 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <div className="w-12 h-12 mb-4 rounded-full bg-muted/50 flex items-center justify-center">
           <svg
-            className="w-6 h-6 text-muted-foreground/50"
+            className="w-6 h-6 text-muted-foreground/70 dark:text-muted-foreground/60"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -299,8 +315,12 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
             />
           </svg>
         </div>
-        <p className="text-muted-foreground/70 text-sm">此请求尚未发生</p>
-        <p className="text-muted-foreground/50 text-xs mt-1">播放到对应时间点后可查看详情</p>
+        <p className="text-muted-foreground/70 dark:text-muted-foreground/60 text-sm">
+          此请求尚未发生
+        </p>
+        <p className="text-muted-foreground/70 dark:text-muted-foreground/60 text-xs mt-1">
+          播放到对应时间点后可查看详情
+        </p>
       </div>
     );
   }
@@ -349,7 +369,7 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
             {request.streamChunks && <span>数据块: {request.streamChunks.length}</span>}
           </div>
           {request.error && (
-            <div className="mt-2 text-xs text-red-600 bg-red-500/10 p-2 rounded">
+            <div className="mt-2 text-xs text-destructive bg-destructive/10 dark:bg-destructive/20 p-2 rounded">
               错误: {request.error}
             </div>
           )}
@@ -440,7 +460,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
     >
       {copied ? (
         <svg
-          className="w-3.5 h-3.5 text-green-500"
+          className="w-3.5 h-3.5 text-success"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"

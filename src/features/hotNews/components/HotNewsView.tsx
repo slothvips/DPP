@@ -149,7 +149,7 @@ export function HotNewsView() {
               </button>
             ))}
           </div>
-          <span className="text-[10px] text-muted-foreground/60 hidden sm:inline-block">
+          <span className="text-[10px] text-muted-foreground hidden sm:inline-block">
             每日凌晨刷新
           </span>
         </div>

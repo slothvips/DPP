@@ -261,7 +261,7 @@ export function LinksView() {
           className="shrink-0 h-8 w-8 p-0"
           title="智能导入"
         >
-          <Bot className="h-4 w-4 text-blue-500" />
+          <Bot className="h-4 w-4 text-primary" />
         </Button>
         <Button onClick={handleAdd} size="sm" className="shrink-0 h-8 w-8 p-0" title="添加链接">
           <Plus className="h-4 w-4" />
@@ -300,11 +300,11 @@ export function LinksView() {
                     {link.name}
                   </div>
                   {link.note && (
-                    <StickyNote className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                    <StickyNote className="h-3.5 w-3.5 text-muted-foreground/70 dark:text-muted-foreground/60 shrink-0" />
                   )}
                   {import.meta.env.DEV && link.usageCount >= 0 && (
                     <div
-                      className="flex items-center gap-0.5 text-xs text-muted-foreground/50 bg-muted/30 px-1 rounded"
+                      className="flex items-center gap-0.5 text-xs text-muted-foreground/70 dark:text-muted-foreground/60 bg-muted/40 dark:bg-muted/30 px-1 rounded"
                       title={`使用次数：${link.usageCount}`}
                     >
                       <Eye className="h-3 w-3" />

@@ -191,7 +191,7 @@ export function BlackboardItemView({
                   ),
                   a: ({ node: _node, ...props }) => (
                     <a
-                      className="text-blue-600 hover:underline cursor-pointer"
+                      className="text-primary hover:underline cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         window.open(props.href, '_blank');
@@ -277,7 +277,7 @@ export function BlackboardItemView({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-red-500/70 hover:text-red-600 hover:bg-red-500/10 rounded-full"
+              className="h-7 w-7 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-full"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(item.id);

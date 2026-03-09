@@ -39,9 +39,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={t.id}
             className={`
               pointer-events-auto flex items-center justify-between gap-2 px-4 py-3 rounded-md shadow-lg text-sm font-medium transition-all mx-auto w-full max-w-sm border border-border bg-card text-card-foreground
-              ${t.type === 'success' ? '!bg-green-600 dark:!bg-green-700 !text-white' : ''}
-              ${t.type === 'error' ? '!bg-destructive !text-destructive-foreground' : ''}
-              ${t.type === 'info' ? '!bg-card !text-card-foreground border-border shadow-md' : ''}
+              ${t.type === 'success' ? 'bg-success text-success-foreground' : ''}
+              ${t.type === 'error' ? 'bg-destructive text-destructive-foreground' : ''}
+              ${t.type === 'info' ? 'bg-card text-card-foreground border-border shadow-md' : ''}
             `}
           >
             <span className="flex-1 break-words">{t.message}</span>

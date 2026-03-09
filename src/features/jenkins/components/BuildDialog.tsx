@@ -198,7 +198,7 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
           <Button
             onClick={handleBuild}
             disabled={building || loading}
-            className="bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600 dark:text-white dark:hover:bg-blue-500"
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {building && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             开始构建

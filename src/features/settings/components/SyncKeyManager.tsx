@@ -431,11 +431,11 @@ export function SyncKeyManager({
         </div>
 
         <div className="flex flex-col gap-1 px-1">
-          <p className="text-[10px] text-muted-foreground/80 flex items-center gap-1.5">
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
             <Shield className="w-3 h-3 text-success" />
             数据在本地加密后传输，服务器无法解密
           </p>
-          <p className="text-[10px] text-muted-foreground/70 flex items-center gap-1.5">
+          <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
             <Users className="w-3 h-3 text-primary" />
             若需共享数据，请确保团队成员使用相同密钥
           </p>
@@ -484,10 +484,10 @@ export function SyncKeyManager({
       </div>
 
       <div className="flex flex-col gap-1 px-1 pt-1">
-        <p className="text-[10px] text-muted-foreground/80">
+        <p className="text-[10px] text-muted-foreground">
           请妥善保管此密钥。丢失密钥将导致无法解密同步数据。
         </p>
-        <p className="text-[10px] text-primary/80 flex items-center gap-1.5">
+        <p className="text-[10px] text-primary flex items-center gap-1.5">
           <Users className="w-3 h-3" />
           团队协作提示：所有成员需配置完全一致的密钥才能共享数据
         </p>

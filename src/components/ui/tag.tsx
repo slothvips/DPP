@@ -21,9 +21,9 @@ export function Tag({
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded font-medium bg-info/10 text-info border border-info/20 max-w-[120px] group/tag relative transition-colors',
+        'inline-flex items-center rounded font-medium bg-info/20 dark:bg-info/30 text-info border border-info/30 dark:border-info/40 max-w-[120px] group/tag relative transition-colors',
         size === 'sm' ? 'px-1 py-0 text-[10px] h-4' : 'px-2 py-0.5 text-xs',
-        onClick && 'cursor-pointer hover:bg-info/20',
+        onClick && 'cursor-pointer hover:bg-info/30 dark:hover:bg-info/40',
         className
       )}
       title={name}
