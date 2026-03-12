@@ -141,7 +141,6 @@ export function useAIChat(): UseAIChatReturn {
     messagesRef.current = messages;
   }, [messages]);
 
-  // Store callbacks in refs to avoid circular dependency warnings
   const executeToolCallRef = useRef<
     ((toolCall: ToolCall, userMessageId: string) => Promise<void>) | null
   >(null);
@@ -152,9 +151,6 @@ export function useAIChat(): UseAIChatReturn {
     null
   );
 
-  /**
-   * Initialize or get the AI provider
-   */
   const getProvider = useCallback(async (): Promise<ModelProvider> => {
     if (providerRef.current) {
       // Check if WebLLM needs initialization
@@ -521,6 +517,8 @@ export function useAIChat(): UseAIChatReturn {
     [sessionId, continueConversationRef]
   );
 
+  executeToolCallRef.current = executeToolCall;
+
   /**
    * Execute multiple tool calls in sequence and collect all results
    */
@@ -626,6 +624,8 @@ export function useAIChat(): UseAIChatReturn {
     [sessionId, continueConversationRef]
   );
 
+  executeToolCallsRef.current = executeToolCalls;
+
   /**
    * Continue conversation after tool execution
    */
@@ -689,6 +689,8 @@ export function useAIChat(): UseAIChatReturn {
     },
     [getProvider, toLibChatMessage, processToolCall, sessionId]
   );
+
+  continueConversationRef.current = continueConversation;
 
   /**
    * Confirm and execute pending tool call
@@ -1036,20 +1038,11 @@ ${compressedMessages.slice(0, 2000)}${compressedMessages.length > 2000 ? '\n\n(å
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Save current session ID to sessionStorage when it changes
   useEffect(() => {
     if (sessionId) {
       sessionStorage.setItem('ai_current_session_id', sessionId);
     }
   }, [sessionId]);
-
-  // Update refs after functions are defined to avoid circular dependencies
-  // Using dependencies to ensure refs stay in sync with latest function versions
-  useEffect(() => {
-    executeToolCallRef.current = executeToolCall;
-    executeToolCallsRef.current = executeToolCalls;
-    continueConversationRef.current = continueConversation;
-  }, [executeToolCall, executeToolCalls, continueConversation]);
 
   return {
     messages,

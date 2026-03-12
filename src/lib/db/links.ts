@@ -228,18 +228,49 @@ export async function updateLink(args: {
     throw new Error(`链接不存在或已被删除`);
   }
 
-  // Validate URL format if provided
   if (args.url && !isValidUrl(args.url)) {
     throw new Error(`URL 格式不正确，请以 http:// 或 https:// 开头`);
   }
 
   const now = Date.now();
 
-  // Resolve tag names to IDs if needed
   const newTagIds = args.tags ? await resolveTagNamesToIds(args.tags) : undefined;
 
+  const existingLinkTags =
+    newTagIds !== undefined
+      ? await getLinkTagsTable().where('linkId').equals(args.id).toArray()
+      : [];
+
+  const existingTagIds = new Set(
+    existingLinkTags.filter((lt) => !lt.deletedAt).map((lt) => lt.tagId)
+  );
+
+  const toAdd: LinkTagItem[] = [];
+  const toUpdate: LinkTagItem[] = [];
+  const toDelete: Array<[string, string]> = [];
+
+  if (newTagIds !== undefined) {
+    const tagIdSet = new Set(newTagIds);
+
+    for (const tagId of newTagIds) {
+      if (!existingTagIds.has(tagId)) {
+        const deletedTag = existingLinkTags.find((lt) => lt.tagId === tagId && lt.deletedAt);
+        if (deletedTag) {
+          toUpdate.push({ ...deletedTag, deletedAt: undefined, updatedAt: now });
+        } else {
+          toAdd.push({ linkId: args.id, tagId, updatedAt: now });
+        }
+      }
+    }
+
+    for (const existingId of existingTagIds) {
+      if (!tagIdSet.has(existingId)) {
+        toDelete.push([args.id, existingId]);
+      }
+    }
+  }
+
   await db.transaction('rw', db.links, getLinkTagsTable(), async () => {
-    // Update link
     await db.links.update(args.id, {
       name: args.name ?? existingLink.name,
       url: args.url ?? existingLink.url,
@@ -247,35 +278,17 @@ export async function updateLink(args: {
       updatedAt: now,
     });
 
-    // Update tags if provided - use smart update logic (restore deleted tags)
     if (newTagIds !== undefined) {
-      const existingLinkTags = await getLinkTagsTable().where('linkId').equals(args.id).toArray();
-      const existingTagIds = new Set(
-        existingLinkTags.filter((lt) => !lt.deletedAt).map((lt) => lt.tagId)
-      );
-      const tagIdSet = new Set(newTagIds);
-
-      // Add new tags or restore deleted ones
-      for (const tagId of newTagIds) {
-        if (!existingTagIds.has(tagId)) {
-          const deletedTag = existingLinkTags.find((lt) => lt.tagId === tagId && lt.deletedAt);
-          if (deletedTag) {
-            // Restore deleted tag association
-            await getLinkTagsTable().put({ ...deletedTag, deletedAt: undefined, updatedAt: now });
-          } else {
-            // Add new tag association
-            await getLinkTagsTable().add({ linkId: args.id, tagId, updatedAt: now });
-          }
-        }
+      if (toAdd.length > 0) {
+        await getLinkTagsTable().bulkAdd(toAdd);
       }
-
-      // Remove tags that are no longer associated
-      for (const existingId of existingTagIds) {
-        if (!tagIdSet.has(existingId)) {
-          await getLinkTagsTable()
-            .where({ linkId: args.id, tagId: existingId })
-            .modify({ deletedAt: now, updatedAt: now });
-        }
+      if (toUpdate.length > 0) {
+        await getLinkTagsTable().bulkPut(toUpdate);
+      }
+      for (const [linkId, tagId] of toDelete) {
+        await getLinkTagsTable()
+          .where({ linkId, tagId })
+          .modify({ deletedAt: now, updatedAt: now });
       }
     }
   });

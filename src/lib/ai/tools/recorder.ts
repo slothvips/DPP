@@ -31,8 +31,8 @@ async function sendRecorderMessage<T>(message: {
  * List all recordings
  */
 async function recorder_list() {
-  const response = await sendRecorderMessage<{
-    recordings: Array<{
+  const recordings = await sendRecorderMessage<
+    Array<{
       id: string;
       title: string;
       url: string;
@@ -41,12 +41,12 @@ async function recorder_list() {
       duration: number;
       eventsCount: number;
       fileSize: number;
-    }>;
-  }>({ type: 'RECORDER_GET_ALL_RECORDINGS' });
+    }>
+  >({ type: 'RECORDER_GET_ALL_RECORDINGS' });
 
   return {
-    total: response.recordings.length,
-    recordings: response.recordings.map((r) => ({
+    total: recordings.length,
+    recordings: recordings.map((r) => ({
       id: r.id,
       title: r.title,
       url: r.url,

@@ -155,9 +155,16 @@ function runInMainFrame() {
         button.disabled = true;
 
         try {
-          const res = await browser.runtime.sendMessage({ type: 'RECORDER_GET_ALL_RECORDINGS' });
-          if (res.success && res.recordings?.length > 0) {
-            showRecordingPicker(doc, res.recordings, input, button, originalText);
+          const res = (await browser.runtime.sendMessage({
+            type: 'RECORDER_GET_ALL_RECORDINGS',
+          })) as {
+            success: boolean;
+            data?: Array<{ id: string; title: string; createdAt: number; duration: number }>;
+            error?: string;
+          };
+          const recordings = res.data;
+          if (res.success && recordings && recordings.length > 0) {
+            showRecordingPicker(doc, recordings, input, button, originalText);
           } else {
             showAlert('暂无录像记录');
             button.innerHTML = originalText;
