@@ -155,7 +155,7 @@ export function AIAssistantView() {
       } else {
         toast(response.error || '启动失败', 'error');
       }
-    } catch (error) {
+    } catch (_error) {
       toast('启动失败', 'error');
     } finally {
       setIsInjecting(false);
