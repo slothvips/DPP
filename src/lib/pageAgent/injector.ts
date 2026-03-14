@@ -2,25 +2,9 @@
 // PageAgent 注入逻辑
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from './types';
+import './types';
 
-/**
- * PageAgent 实例接口
- */
-interface PageAgentInstance {
-  panel?: {
-    show: () => void;
-    expand: () => void;
-  };
-}
-
-/**
- * 扩展 Window 接口
- */
-declare global {
-  interface Window {
-    __DPP_PAGE_AGENT__?: PageAgentInstance;
-  }
-}
+// 导入全局类型声明
 
 /**
  * 检测 URL 是否允许注入

@@ -1,31 +1,11 @@
 // src/entrypoints/pageAgent.content.ts
 // Content Script 入口 - 注入到目标页面后初始化 PageAgent
 import { PageAgent } from 'page-agent';
+import { browser } from 'wxt/browser';
+import type { PageAgentConfig } from '@/lib/pageAgent/types';
+import '@/lib/pageAgent/types';
 
-interface PageAgentConfig {
-  baseUrl: string;
-  apiKey: string;
-  model: string;
-}
-
-/**
- * PageAgent 实例接口
- */
-interface PageAgentInstance {
-  panel?: {
-    show: () => void;
-    expand: () => void;
-  };
-}
-
-/**
- * 扩展 Window 接口
- */
-declare global {
-  interface Window {
-    __DPP_PAGE_AGENT__?: PageAgentInstance;
-  }
-}
+// 导入全局类型声明
 
 export default defineContentScript({
   matches: [],

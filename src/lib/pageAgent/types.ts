@@ -2,6 +2,25 @@
 // Page-Agent 集成类型定义
 
 /**
+ * PageAgent 实例接口
+ */
+export interface PageAgentInstance {
+  panel?: {
+    show: () => void;
+    expand: () => void;
+  };
+}
+
+/**
+ * 扩展 Window 接口
+ */
+declare global {
+  interface Window {
+    __DPP_PAGE_AGENT__?: PageAgentInstance;
+  }
+}
+
+/**
  * PageAgent 初始化配置
  */
 export interface PageAgentConfig {
