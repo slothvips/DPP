@@ -6,6 +6,7 @@ import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
 import {
   handleJenkinsMessage,
+  handlePageAgentInject,
   handleProxyMessage,
   handleRecorderMessage,
   handleRemoteRecordingMessage,
@@ -124,6 +125,15 @@ export default defineBackground(() => {
     if (message.type === 'ZEN_FETCH_JSON' || message.type === 'JENKINS_API_REQUEST') {
       (async () => {
         const response = await handleProxyMessage(message);
+        sendResponse(response);
+      })();
+      return true;
+    }
+
+    // Page Agent 注入
+    if (message.type === 'PAGE_AGENT_INJECT') {
+      (async () => {
+        const response = await handlePageAgentInject(message);
         sendResponse(response);
       })();
       return true;
