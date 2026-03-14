@@ -67,17 +67,17 @@
 src/
 ├── lib/
 │   ├── db/
-│   │   └── settings.ts         # 添加 getAIConfig() 函数
+│   │   │   └── settings.ts         # 添加 getAIConfig() 函数
 │   └── pageAgent/
 │       ├── index.ts            # 导出入口
 │       ├── injector.ts         # 注入逻辑
-│       ├── content.ts          # Content Script 入口（打包为独立文件）
 │       └── types.ts            # 类型定义
 ├── features/
 │   └── aiAssistant/
 │       └── components/
 │           └── AIAssistantView.tsx  # 添加 Page Agent 按钮
 └── entrypoints/
+    ├── pageAgent.content.ts    # Content Script 入口（WXT 自动打包到 content-scripts/pageAgent.js）
     └── background/
         ├── handlers/
         │   ├── index.ts        # 导出 pageAgent handler
@@ -257,7 +257,7 @@ export async function injectPageAgent(
     // 注入打包后的 content script
     await browser.scripting.executeScript({
       target: { tabId },
-      files: ['/lib/pageAgent/content.js'],
+      files: ['/content-scripts/pageAgent.js'],
     });
     return { success: true };
   } catch (error) {
@@ -272,7 +272,7 @@ export async function injectPageAgent(
 ### Content Script 入口
 
 ```typescript
-// src/lib/pageAgent/content.ts
+// src/entrypoints/pageAgent.content.ts
 
 import { PageAgent } from 'page-agent';
 import { browser } from 'wxt/browser';
@@ -551,7 +551,7 @@ export default defineConfig({
 
 ### Content Script 打包
 
-WXT 会自动处理 `src/lib/pageAgent/content.ts` 中的 `import 'page-agent'` 并将其打包。通过 `browser.scripting.executeScript({ files: [...] })` 注入时，WXT 的构建产物会被正确加载。
+WXT 会自动处理 `src/entrypoints/pageAgent.content.ts` 中的 `import 'page-agent'` 并将其打包到 `content-scripts/pageAgent.js`。通过 `browser.scripting.executeScript({ files: [...] })` 注入时，WXT 的构建产物会被正确加载。
 
 ## 安全性
 
