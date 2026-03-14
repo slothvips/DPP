@@ -139,6 +139,20 @@ export default defineBackground(() => {
       return true;
     }
 
+    // Page Agent 获取配置（content script 调用）
+    if (message.type === 'PAGE_AGENT_GET_CONFIG') {
+      (async () => {
+        const result = await browser.storage.session.get('__pageAgentConfig');
+        const config = result.__pageAgentConfig;
+        // 读取后立即清除，防止敏感信息泄露
+        if (config) {
+          await browser.storage.session.remove('__pageAgentConfig');
+        }
+        sendResponse({ config });
+      })();
+      return true;
+    }
+
     // Open side panel request from popup
     if (message.type === 'OPEN_SIDE_PANEL') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

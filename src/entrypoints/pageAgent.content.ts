@@ -17,15 +17,14 @@ export default defineContentScript({
         return;
       }
 
-      const result = await browser.storage.session.get('__pageAgentConfig');
-      const config = result.__pageAgentConfig as PageAgentConfig | undefined;
+      // 通过消息从 background 获取配置（content script 无法直接访问 storage.session）
+      const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_GET_CONFIG' });
+      const config = response?.config as PageAgentConfig | undefined;
 
       if (!config) {
         console.error('[DPP] PageAgent config not found');
         return;
       }
-
-      await browser.storage.session.remove('__pageAgentConfig');
 
       try {
         const agent = new PageAgent({
