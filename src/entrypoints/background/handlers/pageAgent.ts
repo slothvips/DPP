@@ -6,7 +6,7 @@ import { injectPageAgent, isInjectable } from '@/lib/pageAgent/injector';
 import type { PageAgentInjectRequest, PageAgentInjectResponse } from '@/lib/pageAgent/types';
 
 export async function handlePageAgentInject(
-  request: PageAgentInjectRequest
+  _request: PageAgentInjectRequest
 ): Promise<PageAgentInjectResponse> {
   const tabs = await browser.tabs.query({ active: true, currentWindow: true });
   const activeTab = tabs[0];

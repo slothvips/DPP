@@ -48,7 +48,7 @@ export default defineConfig({
     },
   },
   manifest: {
-    permissions: ['storage', 'sidePanel', 'alarms'],
+    permissions: ['storage', 'sidePanel', 'alarms', 'activeTab', 'scripting'],
     side_panel: {
       default_path: 'sidepanel.html',
     },
@@ -64,7 +64,11 @@ export default defineConfig({
     omnibox: { keyword: 'dpp' },
     web_accessible_resources: [
       {
-        resources: ['network-interceptor.js', 'console-interceptor.js'],
+        resources: [
+          'network-interceptor.js',
+          'console-interceptor.js',
+          'content-scripts/pageAgent.js',
+        ],
         matches: ['<all_urls>'],
       },
     ],
