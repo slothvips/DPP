@@ -15,3 +15,6 @@ export type { RemoteRecordingMessage } from './remoteRecording';
 
 export { handleProxyMessage } from './proxy';
 export type { ProxyMessage } from './proxy';
+
+export { handlePageAgentInject } from './pageAgent';
+export type { PageAgentInjectRequest, PageAgentInjectResponse } from '@/lib/pageAgent/types';
