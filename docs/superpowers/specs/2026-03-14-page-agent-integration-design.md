@@ -38,7 +38,7 @@
              ▼
 ┌────────────────────────────────────────────────────────────┐
 │                    目标页面 (Injected Script)               │
-│  1. 动态加载 page-agent IIFE (CDN)                          │
+│  1. 注入打包后的 page-agent content script                  │
 │  2. 初始化 PageAgent 实例                                   │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │              PageAgent Panel (内置 UI)                │  │
@@ -55,10 +55,9 @@
 
 1. 用户在 AI 助手界面点击 "Page Agent" 按钮
 2. Background 查询当前活动标签页，读取并解密 AI 配置
-3. 通过 `browser.scripting.executeScript` 注入初始化代码
-4. 初始化代码从 CDN 加载 page-agent IIFE 版本
-5. PageAgent 在目标页面初始化并显示 Panel
-6. 用户通过 Panel 与 PageAgent 交互
+3. 通过 `browser.scripting.executeScript` 注入打包后的 content script
+4. Content script 初始化 PageAgent 并显示 Panel
+5. 用户通过 Panel 与 PageAgent 交互
 
 ## 模块设计
 
@@ -72,6 +71,7 @@ src/
 │   └── pageAgent/
 │       ├── index.ts            # 导出入口
 │       ├── injector.ts         # 注入逻辑
+│       ├── content.ts          # Content Script 入口（打包为独立文件）
 │       └── types.ts            # 类型定义
 ├── features/
 │   └── aiAssistant/
@@ -90,7 +90,8 @@ src/
 | 模块 | 职责 |
 |------|------|
 | `settings.ts` | 新增 `getAIConfig()` 函数，读取并解密 AI 配置 |
-| `injector.ts` | 封装注入逻辑：构建初始化代码、执行注入 |
+| `injector.ts` | 封装注入逻辑：检测注入状态、执行文件注入 |
+| `content.ts` | Content Script 入口，初始化 PageAgent 实例 |
 | `pageAgent.ts` (background handler) | 处理注入请求，查询活动标签页，调用配置读取 |
 | `AIAssistantView.tsx` | 添加按钮，发送注入请求消息 |
 
@@ -188,9 +189,6 @@ export async function getAIConfig(): Promise<AIConfigResult | null> {
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from './types';
 
-/** Page-Agent IIFE CDN URL */
-const PAGE_AGENT_CDN_URL = 'https://cdn.jsdelivr.net/npm/page-agent@1.5.6/dist/iife/page-agent.demo.js';
-
 /**
  * 检测 URL 是否允许注入
  */
@@ -221,7 +219,24 @@ export async function isAlreadyInjected(tabId: number): Promise<boolean> {
 }
 
 /**
+ * 聚焦已存在的 PageAgent Panel
+ */
+export async function focusExistingPanel(tabId: number): Promise<void> {
+  await browser.scripting.executeScript({
+    target: { tabId },
+    func: () => {
+      const agent = (window as any).__DPP_PAGE_AGENT__;
+      if (agent?.panel) {
+        agent.panel.show();
+        agent.panel.expand();
+      }
+    },
+  });
+}
+
+/**
  * 注入 PageAgent 到指定标签页
+ * 使用 WXT 打包的 content script 文件
  */
 export async function injectPageAgent(
   tabId: number,
@@ -231,25 +246,18 @@ export async function injectPageAgent(
     // 检查是否已注入
     const alreadyInjected = await isAlreadyInjected(tabId);
     if (alreadyInjected) {
-      // 聚焦已存在的 Panel
-      await browser.scripting.executeScript({
-        target: { tabId },
-        func: () => {
-          const agent = (window as any).__DPP_PAGE_AGENT__;
-          if (agent?.panel) {
-            agent.panel.show();
-            agent.panel.expand();
-          }
-        },
-      });
+      await focusExistingPanel(tabId);
       return { success: true };
     }
 
-    // 注入初始化代码
+    // 通过 storage 传递配置给 content script
+    // 使用 session storage 避免持久化敏感信息
+    await browser.storage.session.set({ __pageAgentConfig: config });
+
+    // 注入打包后的 content script
     await browser.scripting.executeScript({
       target: { tabId },
-      func: initPageAgent,
-      args: [config, PAGE_AGENT_CDN_URL],
+      files: ['/lib/pageAgent/content.js'],
     });
     return { success: true };
   } catch (error) {
@@ -259,25 +267,43 @@ export async function injectPageAgent(
     };
   }
 }
+```
+
+### Content Script 入口
+
+```typescript
+// src/lib/pageAgent/content.ts
+
+import { PageAgent } from 'page-agent';
+import { browser } from 'wxt/browser';
+import type { PageAgentConfig } from './types';
 
 /**
- * 在目标页面执行的初始化函数
- * 动态加载 page-agent IIFE 并初始化
+ * Content Script 入口
+ * 注入到目标页面后初始化 PageAgent
  */
-function initPageAgent(config: PageAgentConfig, cdnUrl: string): void {
-  // 创建 script 标签加载 IIFE
-  const script = document.createElement('script');
-  script.src = cdnUrl;
-  script.onload = () => {
-    // IIFE 加载完成后，PageAgent 挂载在 window.PageAgent
-    const PageAgentClass = (window as any).PageAgent;
-    if (!PageAgentClass) {
-      console.error('[DPP] PageAgent not found after script load');
-      return;
-    }
+async function main() {
+  // 检查是否已初始化
+  if ((window as any).__DPP_PAGE_AGENT__) {
+    console.log('[DPP] PageAgent already initialized');
+    return;
+  }
 
-    // 初始化实例
-    const agent = new PageAgentClass({
+  // 从 session storage 读取配置
+  const result = await browser.storage.session.get('__pageAgentConfig');
+  const config = result.__pageAgentConfig as PageAgentConfig | undefined;
+
+  if (!config) {
+    console.error('[DPP] PageAgent config not found');
+    return;
+  }
+
+  // 清除 session storage 中的配置
+  await browser.storage.session.remove('__pageAgentConfig');
+
+  try {
+    // 初始化 PageAgent
+    const agent = new PageAgent({
       baseURL: config.baseUrl,
       apiKey: config.apiKey,
       model: config.model,
@@ -291,13 +317,12 @@ function initPageAgent(config: PageAgentConfig, cdnUrl: string): void {
     (window as any).__DPP_PAGE_AGENT__ = agent;
 
     console.log('[DPP] PageAgent initialized successfully');
-  };
-  script.onerror = () => {
-    console.error('[DPP] Failed to load PageAgent script');
-  };
-
-  document.head.appendChild(script);
+  } catch (error) {
+    console.error('[DPP] Failed to initialize PageAgent:', error);
+  }
 }
+
+main();
 ```
 
 ### Background Handler
@@ -476,13 +501,13 @@ Background 查询活动标签页
    未注入
     │
     ▼
-注入初始化代码
+配置存入 session storage
     │
     ▼
-从 CDN 加载 page-agent IIFE
+注入打包后的 content script
     │
     ▼
-初始化 PageAgent 并显示 Panel
+Content script 初始化 PageAgent 并显示 Panel
 ```
 
 ### 状态反馈
@@ -496,12 +521,20 @@ Background 查询活动标签页
 
 ## 依赖与配置
 
-### 权限声明
+### 依赖安装
 
-在 `wxt.config.ts` 中添加权限：
+```bash
+pnpm add page-agent
+```
+
+### WXT 配置
+
+需要配置 WXT 将 `page-agent` 包打包为独立的 content script 文件：
 
 ```typescript
 // wxt.config.ts
+import { defineConfig } from 'wxt';
+
 export default defineConfig({
   // ... 现有配置
   manifest: {
@@ -516,9 +549,9 @@ export default defineConfig({
 });
 ```
 
-### 无需安装 npm 包
+### Content Script 打包
 
-使用 CDN 加载 IIFE 版本，无需安装 `page-agent` npm 包。
+WXT 会自动处理 `src/lib/pageAgent/content.ts` 中的 `import 'page-agent'` 并将其打包。通过 `browser.scripting.executeScript({ files: [...] })` 注入时，WXT 的构建产物会被正确加载。
 
 ## 安全性
 
@@ -562,7 +595,7 @@ export default defineConfig({
 | 未配置 AI 服务时点击按钮 | Toast: "请先配置 AI 服务" |
 | 在 `chrome://` 页面点击按钮 | Toast: "无法在此页面使用 Page Agent" |
 | 在扩展页面点击按钮 | Toast: "无法在此页面使用 Page Agent" |
-| CDN 加载失败 | 控制台错误日志，Toast: "启动失败" |
+| 注入失败 | 控制台错误日志，Toast 显示错误信息 |
 
 ### 兼容性测试
 
@@ -577,4 +610,3 @@ export default defineConfig({
 - [Page-Agent 官方文档](https://alibaba.github.io/page-agent/docs/introduction/overview/)
 - [Page-Agent GitHub](https://github.com/alibaba/page-agent)
 - [Page-Agent NPM](https://www.npmjs.com/package/page-agent)
-- [Page-Agent IIFE CDN](https://cdn.jsdelivr.net/npm/page-agent@1.5.6/dist/iife/page-agent.demo.js)
