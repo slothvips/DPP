@@ -32,6 +32,7 @@ export default defineContentScript({
           apiKey: config.apiKey,
           model: config.model,
           language: 'zh-CN',
+          maxRetries: 5, // LLM 调用失败时最多重试 5 次
         });
 
         agent.panel.show();
