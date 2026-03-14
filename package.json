@@ -41,6 +41,7 @@
     "dexie-react-hooks": "^4.2.0",
     "lucide-react": "^0.563.0",
     "masonry-layout": "^4.2.2",
+    "page-agent": "^1.5.7",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",

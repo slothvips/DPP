@@ -71,6 +71,9 @@ importers:
       masonry-layout:
         specifier: ^4.2.2
         version: 4.2.2
+      page-agent:
+        specifier: ^1.5.7
+        version: 1.5.7(zod@3.25.76)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -884,6 +887,22 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
+  '@page-agent/core@1.5.7':
+    resolution: {integrity: sha512-UuhUiuI1RMOWRS4YJtkxMD9ZiMyExG4cRn1tTlAVz/9Vz7VAm0HFkSVkG8LCW27PcQjVs0pb9umF0xrmAN2CvA==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
+  '@page-agent/llms@1.5.7':
+    resolution: {integrity: sha512-KPEEik/9zUt0ZgVtq2B208qPNWBNGiKDalGdWK7WmXBM9Q2ABX9wEzt2DD0EltJOdqNbmC0AiS0CZO0Arf/lkg==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
+  '@page-agent/page-controller@1.5.7':
+    resolution: {integrity: sha512-2nUg3EFTJsNUHpdVBxR+5TqgyC24v5XBok99iNLGSiBY3wKI8YbCPPWrdjmVYZP+WiH9vFTP9qANgFe+42wWxg==}
+
+  '@page-agent/ui@1.5.7':
+    resolution: {integrity: sha512-JkDLDzZKbSHR8izdzJf7xepYzDAxETSiiLqcMUhTL+GAuHNSmVezk3/Wt4r5rPewSlIJTjuraKc+NtuSPKLKcQ==}
+
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
@@ -1678,6 +1697,9 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  ai-motion@0.4.8:
+    resolution: {integrity: sha512-9nQVjf8lrYQWSW0sZdb9bES4x8Ei1w9C0S62po2KvRbMjslmjm0WMeszyW771SEauDnu4YGWqurLZ/gCkCTosQ==}
 
   ajv@6.12.6:
     resolution: {integrity: sha512-j3fVLgvTo527anyYyJOGTYJbG+vnnQYvE0m5mmkc1TK+nxAppkCLMIL0aZ4dblVCNoGShhm+kzE4ZUykBoMg4g==}
@@ -3252,6 +3274,11 @@ packages:
   package-manager-detector@1.6.0:
     resolution: {integrity: sha512-61A5ThoTiDG/C8s8UMZwSorAGwMJ0ERVGj2OjoW5pAalsNOg15+iQiPzrLJ4jhZ1HJzmC2PIHT2oEiH3R5fzNA==}
 
+  page-agent@1.5.7:
+    resolution: {integrity: sha512-98U3Ku7yClbBvRnBZUyHKdkcgX1wQo8KTzNi31fOtMK5elYye0HKjD2jMNerRxUXv8PXwynETkYNwQhKeY90HA==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
+
   pako@1.0.11:
     resolution: {integrity: sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==}
 
@@ -4752,6 +4779,24 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
+  '@page-agent/core@1.5.7(zod@3.25.76)':
+    dependencies:
+      '@page-agent/llms': 1.5.7(zod@3.25.76)
+      '@page-agent/page-controller': 1.5.7
+      chalk: 5.6.2
+      zod: 3.25.76
+
+  '@page-agent/llms@1.5.7(zod@3.25.76)':
+    dependencies:
+      chalk: 5.6.2
+      zod: 3.25.76
+
+  '@page-agent/page-controller@1.5.7':
+    dependencies:
+      ai-motion: 0.4.8
+
+  '@page-agent/ui@1.5.7': {}
+
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
@@ -5571,6 +5616,8 @@ snapshots:
   adm-zip@0.5.16: {}
 
   agent-base@7.1.4: {}
+
+  ai-motion@0.4.8: {}
 
   ajv@6.12.6:
     dependencies:
@@ -7352,6 +7399,15 @@ snapshots:
       semver: 7.7.4
 
   package-manager-detector@1.6.0: {}
+
+  page-agent@1.5.7(zod@3.25.76):
+    dependencies:
+      '@page-agent/core': 1.5.7(zod@3.25.76)
+      '@page-agent/llms': 1.5.7(zod@3.25.76)
+      '@page-agent/page-controller': 1.5.7
+      '@page-agent/ui': 1.5.7
+      chalk: 5.6.2
+      zod: 3.25.76
 
   pako@1.0.11: {}
 
