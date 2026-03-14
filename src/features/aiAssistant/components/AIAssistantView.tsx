@@ -1,6 +1,7 @@
 // AI Assistant View - Main conversation interface
-import { ArrowDown, Scissors, Settings, Trash2 } from 'lucide-react';
+import { ArrowDown, Bot, Loader2, Scissors, Settings, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
@@ -45,6 +46,7 @@ export function AIAssistantView() {
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [presetPrompt, setPresetPrompt] = useState<string>('');
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [isInjecting, setIsInjecting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -142,6 +144,24 @@ export function AIAssistantView() {
     }
   }, [isSummarizing, messages, status, summarizeSession, switchSession, toast]);
 
+  const handlePageAgentInject = useCallback(async () => {
+    if (isInjecting) return;
+
+    setIsInjecting(true);
+    try {
+      const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_INJECT' });
+      if (response.success) {
+        toast('Page Agent 已启动，请在当前页面操作', 'success');
+      } else {
+        toast(response.error || '启动失败', 'error');
+      }
+    } catch (error) {
+      toast('启动失败', 'error');
+    } finally {
+      setIsInjecting(false);
+    }
+  }, [isInjecting, toast]);
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -157,6 +177,20 @@ export function AIAssistantView() {
           />
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handlePageAgentInject}
+            disabled={isInjecting || status === 'loading' || status === 'streaming'}
+            title="Page Agent - AI 操作当前页面"
+            data-testid="page-agent-button"
+          >
+            {isInjecting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Bot className="w-4 h-4" />
+            )}
+          </Button>
           <AIConfigDialog onSaved={handleConfigSaved}>
             <Button variant="ghost" size="sm" title="AI 设置" data-testid="ai-config-button">
               <Settings className="w-4 h-4" />
