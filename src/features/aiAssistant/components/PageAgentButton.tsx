@@ -35,21 +35,12 @@ export function PageAgentButton({ disabled, className }: PageAgentButtonProps) {
   return (
     <button
       className={cn(
-        'relative p-[10px] rounded-[10px] cursor-pointer',
+        'relative p-2 rounded-lg cursor-pointer',
         'transition-all duration-200',
-        'hover:scale-105 hover:shadow-[0_0_12px_rgba(34,211,238,0.3)]',
-        'hover:animate-border-pulse-fast',
+        'hover:scale-110',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        'animate-border-pulse',
-        'border-2 border-transparent',
-        'dark:shadow-[0_0_8px_rgba(34,211,238,0.2)]',
-        'shadow-[0_0_8px_rgba(34,211,238,0.2)]',
         className
       )}
-      style={{
-        background:
-          'linear-gradient(var(--background), var(--background)) padding-box, linear-gradient(135deg, var(--gradient-start), var(--gradient-middle), var(--gradient-end)) border-box',
-      }}
       onClick={handleInject}
       disabled={disabled || isInjecting}
       title="Page Agent - AI 操作当前页面"
