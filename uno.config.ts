@@ -55,6 +55,20 @@ export default defineConfig({
       md: 'calc(var(--radius) - 2px)',
       sm: 'calc(var(--radius) - 4px)',
     },
+    animation: {
+      'border-pulse': 'border-pulse 3s ease-in-out infinite',
+      'border-pulse-fast': 'border-pulse-fast 1.5s ease-in-out infinite',
+    },
+    keyframes: {
+      'border-pulse': {
+        '0%, 100%': { opacity: '0.6' },
+        '50%': { opacity: '1' },
+      },
+      'border-pulse-fast': {
+        '0%, 100%': { opacity: '0.8' },
+        '50%': { opacity: '1' },
+      },
+    },
   },
   preflights: [
     {
@@ -86,6 +100,9 @@ export default defineConfig({
           --info: 221.2 83.2% 53.3%;
           --info-foreground: 210 40% 98%;
           --radius: 0.5rem;
+          --gradient-start: #0891b2;
+          --gradient-middle: #db2777;
+          --gradient-end: #d97706;
         }
         .dark {
           --background: 222.2 84% 4.9%;
@@ -113,6 +130,9 @@ export default defineConfig({
           --warning-foreground: 26.2 83.3% 14.1%;
           --info: 217.2 91.2% 59.8%;
           --info-foreground: 222.2 47.4% 11.2%;
+          --gradient-start: #22d3ee;
+          --gradient-middle: #f472b6;
+          --gradient-end: #fbbf24;
         }
       `,
     },
