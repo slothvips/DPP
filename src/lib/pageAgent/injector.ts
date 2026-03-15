@@ -2,9 +2,6 @@
 // PageAgent 注入逻辑
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from './types';
-import './types';
-
-// 导入全局类型声明
 
 /**
  * 检测 URL 是否允许注入
@@ -21,13 +18,20 @@ export function isInjectable(url: string): boolean {
 }
 
 /**
- * 检测页面是否已注入 PageAgent
+ * 检测页面是否已注入 PageAgent 且面板可用
  */
 export async function isAlreadyInjected(tabId: number): Promise<boolean> {
   try {
     const result = await browser.scripting.executeScript({
       target: { tabId },
-      func: () => !!window.__DPP_PAGE_AGENT__,
+      func: () => {
+        const agent = window.__DPP_PAGE_AGENT__;
+        if (!agent) return false;
+        if (!agent.panel) return false;
+        if (!agent.panel.wrapper) return false;
+        if (!document.body.contains(agent.panel.wrapper)) return false;
+        return true;
+      },
     });
     return result[0]?.result === true;
   } catch {
@@ -36,19 +40,47 @@ export async function isAlreadyInjected(tabId: number): Promise<boolean> {
 }
 
 /**
- * 聚焦已存在的 PageAgent Panel
+ * 尝试聚焦已存在的 PageAgent Panel
+ * @returns true 如果成功显示面板，false 如果面板不可用
  */
-export async function focusExistingPanel(tabId: number): Promise<void> {
-  await browser.scripting.executeScript({
-    target: { tabId },
-    func: () => {
-      const agent = window.__DPP_PAGE_AGENT__;
-      if (agent?.panel) {
-        agent.panel.show();
-        agent.panel.expand();
-      }
-    },
-  });
+export async function focusExistingPanel(tabId: number): Promise<boolean> {
+  try {
+    const result = await browser.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        const agent = window.__DPP_PAGE_AGENT__;
+        if (!agent?.panel) {
+          return false;
+        }
+        try {
+          agent.panel.show();
+          agent.panel.expand();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+    });
+    return result[0]?.result === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 清除已存在的 PageAgent 实例
+ */
+export async function clearExistingAgent(tabId: number): Promise<void> {
+  try {
+    await browser.scripting.executeScript({
+      target: { tabId },
+      func: () => {
+        delete window.__DPP_PAGE_AGENT__;
+      },
+    });
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -61,8 +93,11 @@ export async function injectPageAgent(
   try {
     const alreadyInjected = await isAlreadyInjected(tabId);
     if (alreadyInjected) {
-      await focusExistingPanel(tabId);
-      return { success: true };
+      const focused = await focusExistingPanel(tabId);
+      if (focused) {
+        return { success: true };
+      }
+      await clearExistingAgent(tabId);
     }
 
     await browser.storage.session.set({ __pageAgentConfig: config });

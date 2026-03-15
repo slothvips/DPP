@@ -79,7 +79,6 @@ app.get('/api/sync/pending', (c) => {
 });
 
 const port = 8889;
-console.log(`Server is running on port ${port}`);
 
 serve({
   fetch: app.fetch,

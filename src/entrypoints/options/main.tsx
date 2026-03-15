@@ -80,10 +80,6 @@ const SETTINGS_CATEGORIES = [
       'ai_ollama_model',
       // WebLLM
       'ai_webllm_model',
-      // OpenAI
-      'ai_openai_base_url',
-      'ai_openai_model',
-      'ai_openai_api_key',
       // Anthropic
       'ai_anthropic_base_url',
       'ai_anthropic_model',

@@ -35,6 +35,11 @@ export interface AIConfigResult {
   baseUrl: string;
   model: string;
   apiKey: string;
+  isAnthropicProvider: boolean;
+}
+
+function isAnthropicProvider(provider: AIProviderType, _baseUrl: string): boolean {
+  return provider === 'anthropic';
 }
 
 /**
@@ -43,11 +48,9 @@ export interface AIConfigResult {
  */
 export async function getAIConfig(): Promise<AIConfigResult | null> {
   try {
-    // 1. 读取 provider 类型
     const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
     const provider = (providerSetting?.value as AIProviderType) || 'custom';
 
-    // 2. 读取 provider 特定配置
     const baseUrlKey = `ai_${provider}_base_url`;
     const modelKey = `ai_${provider}_model`;
     const apiKeyKey = `ai_${provider}_api_key`;
@@ -59,7 +62,6 @@ export async function getAIConfig(): Promise<AIConfigResult | null> {
     const baseUrl = (baseUrlSetting?.value as string) || DEFAULT_CONFIGS[provider]?.baseUrl || '';
     const model = (modelSetting?.value as string) || DEFAULT_CONFIGS[provider]?.model || '';
 
-    // 3. 解密 API Key
     let apiKey = '';
     if (apiKeySetting?.value) {
       try {
@@ -77,9 +79,14 @@ export async function getAIConfig(): Promise<AIConfigResult | null> {
       }
     }
 
-    return { provider, baseUrl, model, apiKey };
-  } catch (error) {
-    console.error('[getAIConfig] Failed to load config:', error);
+    return {
+      provider,
+      baseUrl,
+      model,
+      apiKey,
+      isAnthropicProvider: isAnthropicProvider(provider, baseUrl),
+    };
+  } catch {
     return null;
   }
 }

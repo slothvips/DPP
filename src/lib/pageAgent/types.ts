@@ -8,6 +8,8 @@ export interface PageAgentInstance {
   panel?: {
     show: () => void;
     expand: () => void;
+    isVisible?: () => boolean;
+    wrapper?: HTMLElement;
   };
 }
 

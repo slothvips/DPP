@@ -153,6 +153,58 @@ export default defineBackground(() => {
       return true;
     }
 
+    // Page Agent 代理 fetch 请求（解决 CORS）
+    if (message.type === 'PAGE_AGENT_FETCH') {
+      (async () => {
+        try {
+          const { url, options } = message;
+
+          const headers: Record<string, string> = {};
+          if (options?.headers) {
+            const headersObj = options.headers;
+            if (headersObj instanceof Headers) {
+              headersObj.forEach((value, key) => {
+                headers[key] = value;
+              });
+            } else if (typeof headersObj === 'object') {
+              for (const [key, value] of Object.entries(headersObj)) {
+                headers[key] = String(value);
+              }
+            }
+          }
+
+          const response = await fetch(url, {
+            method: options?.method || 'POST',
+            headers,
+            body: options?.body,
+          });
+
+          const responseText = await response.text();
+
+          let responseBody: unknown = null;
+          try {
+            responseBody = responseText ? JSON.parse(responseText) : null;
+          } catch {
+            responseBody = responseText;
+          }
+
+          sendResponse({
+            success: true,
+            ok: response.ok,
+            status: response.status,
+            statusText: response.statusText,
+            headers: Object.fromEntries(response.headers.entries()),
+            body: responseBody,
+          });
+        } catch (error) {
+          sendResponse({
+            success: false,
+            error: error instanceof Error ? error.message : 'Fetch failed',
+          });
+        }
+      })();
+      return true;
+    }
     // Open side panel request from popup
     if (message.type === 'OPEN_SIDE_PANEL') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

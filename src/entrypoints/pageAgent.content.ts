@@ -3,26 +3,81 @@
 import { PageAgent } from 'page-agent';
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from '@/lib/pageAgent/types';
-import '@/lib/pageAgent/types';
-
-// 导入全局类型声明
 
 export default defineContentScript({
   matches: [],
   runAt: 'document_start',
   main() {
+    async function proxyFetch(input: RequestInfo | URL, options?: RequestInit): Promise<Response> {
+      const url =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.href
+            : (input as Request).url;
+
+      const serializedHeaders: Record<string, string> = {};
+      if (options?.headers) {
+        const h = options.headers;
+        if (h instanceof Headers) {
+          h.forEach((value, key) => {
+            serializedHeaders[key] = value;
+          });
+        } else if (Array.isArray(h)) {
+          for (const [key, value] of h) {
+            serializedHeaders[key] = value;
+          }
+        } else if (typeof h === 'object') {
+          for (const [key, value] of Object.entries(h)) {
+            serializedHeaders[key] = String(value);
+          }
+        }
+      }
+
+      const response = await browser.runtime.sendMessage({
+        type: 'PAGE_AGENT_FETCH',
+        url,
+        options: {
+          method: options?.method,
+          headers: serializedHeaders,
+          body: options?.body,
+        },
+      });
+
+      if (!response || response.success !== true) {
+        throw new Error(response?.error || 'Proxy fetch failed');
+      }
+
+      // 注意：这是 Response 的部分实现，仅支持 json() 和 text() 方法
+      // Page Agent 当前只使用 json()，如需完整实现可添加 arrayBuffer、blob 等
+      return {
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        headers: new Headers(response.headers),
+        json: async () => response.body,
+        text: async () =>
+          typeof response.body === 'string' ? response.body : JSON.stringify(response.body),
+      } as Response;
+    }
+
     async function initPageAgent() {
-      if (window.__DPP_PAGE_AGENT__) {
-        console.log('[DPP] PageAgent already initialized');
+      const existing = window.__DPP_PAGE_AGENT__;
+
+      if (existing?.panel?.wrapper && document.body.contains(existing.panel.wrapper)) {
+        existing.panel.show();
+        existing.panel.expand();
         return;
       }
 
-      // 通过消息从 background 获取配置（content script 无法直接访问 storage.session）
+      if (existing) {
+        delete window.__DPP_PAGE_AGENT__;
+      }
+
       const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_GET_CONFIG' });
       const config = response?.config as PageAgentConfig | undefined;
 
       if (!config) {
-        console.error('[DPP] PageAgent config not found');
         return;
       }
 
@@ -32,16 +87,15 @@ export default defineContentScript({
           apiKey: config.apiKey,
           model: config.model,
           language: 'zh-CN',
-          maxRetries: 5, // LLM 调用失败时最多重试 5 次
-          maxSteps: 200, // 最大执行步数，默认 40
+          maxRetries: 5,
+          maxSteps: 200,
+          customFetch: proxyFetch,
         });
 
         agent.panel.show();
         window.__DPP_PAGE_AGENT__ = agent;
-
-        console.log('[DPP] PageAgent initialized successfully');
-      } catch (error) {
-        console.error('[DPP] Failed to initialize PageAgent:', error);
+      } catch (_error) {
+        // Silently fail
       }
     }
 

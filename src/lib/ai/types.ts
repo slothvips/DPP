@@ -3,7 +3,7 @@
 /**
  * Supported AI provider types
  */
-export type AIProviderType = 'ollama' | 'openai' | 'anthropic' | 'custom' | 'webllm';
+export type AIProviderType = 'ollama' | 'anthropic' | 'custom' | 'webllm';
 
 export interface ModelProvider {
   name: string;
@@ -134,11 +134,23 @@ export interface AnthropicChatRequest {
   system?: string;
 }
 
+export interface AnthropicTextBlock {
+  type: 'text';
+  text: string;
+}
+
+export interface AnthropicThinkingBlock {
+  type: 'thinking';
+  thinking: string;
+}
+
+export type AnthropicContentBlock = AnthropicTextBlock | AnthropicThinkingBlock;
+
 export interface AnthropicChatResponse {
   id: string;
   type: string;
   role: 'assistant';
-  content: string;
+  content: AnthropicContentBlock[];
   model: string;
   stop_reason: string | null;
   usage: {

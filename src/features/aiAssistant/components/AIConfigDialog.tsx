@@ -36,9 +36,8 @@ interface AIConfigDialogProps {
 const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
   { value: 'ollama', label: 'Ollama (本地)' },
   { value: 'webllm', label: 'WebLLM (浏览器本地)' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic Claude' },
-  { value: 'custom', label: '自定义 (OpenAI 兼容)' },
+  { value: 'anthropic', label: 'Anthropic 兼容' },
+  { value: 'custom', label: 'OpenAI 兼容' },
 ];
 
 export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
@@ -172,6 +171,17 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
           <DialogDescription>配置 AI 模型服务连接信息</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          {provider === 'anthropic' && (
+            <div className="rounded-md bg-amber-50 dark:bg-amber-950 p-3 text-xs text-amber-800 dark:text-amber-200">
+              <p className="font-medium">⚠️ Page Agent 兼容性提示</p>
+              <p className="mt-1">
+                Page Agent 仅支持 OpenAI 兼容格式的 API。Anthropic 供应商使用 Anthropic
+                格式端点，无法使用 Page Agent。如需使用 Page Agent，请切换到其他供应商或使用 OpenAI
+                兼容代理。
+              </p>
+            </div>
+          )}
+
           {/* Provider Selection */}
           <div className="grid gap-2">
             <Label htmlFor="ai-provider">服务商</Label>
@@ -219,7 +229,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
                     ? 'http://localhost:11434'
                     : provider === 'anthropic'
                       ? 'https://api.anthropic.com'
-                      : 'https://api.openai.com/v1'
+                      : 'https://api.example.com/v1'
                 }
               />
             </div>
