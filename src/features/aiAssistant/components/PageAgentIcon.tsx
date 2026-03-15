@@ -7,13 +7,13 @@ export interface PageAgentIconProps {
 export function PageAgentIcon({ className }: PageAgentIconProps) {
   return (
     <svg
-      width="16"
-      height="16"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="url(#agent-gradient)"
       strokeWidth="2"
-      className={cn('w-4 h-4', className)}
+      className={cn('w-5 h-5', className)}
       aria-hidden="true"
     >
       <defs>

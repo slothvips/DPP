@@ -48,7 +48,7 @@ export function PageAgentButton({ disabled, className }: PageAgentButtonProps) {
       data-testid="page-agent-button"
     >
       {isInjecting ? (
-        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
       ) : (
         <PageAgentIcon />
       )}

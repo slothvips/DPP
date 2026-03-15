@@ -1,0 +1,161 @@
+<h2>设计方向确认</h2>
+<p class="subtitle">增强视觉表现,保持现有位置</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">设计目标</div>
+    <div class="mockup-body" style="padding: 16px">
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px">
+        <div
+          style="
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+            text-align: center;
+          "
+        >
+          <div style="font-size: 24px; margin-bottom: 8px">✨</div>
+          <div style="font-size: 13px; font-weight: 600">发光效果</div>
+          <div style="font-size: 11px; opacity: 0.9; margin-top: 4px">霓虹光晕、渐变</div>
+        </div>
+        <div
+          style="
+            padding: 12px;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 8px;
+            color: white;
+            text-align: center;
+          "
+        >
+          <div style="font-size: 24px; margin-bottom: 8px">⚡</div>
+          <div style="font-size: 13px; font-weight: 600">动态交互</div>
+          <div style="font-size: 11px; opacity: 0.9; margin-top: 4px">动画、粒子效果</div>
+        </div>
+        <div
+          style="
+            padding: 12px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border-radius: 8px;
+            color: white;
+            text-align: center;
+          "
+        >
+          <div style="font-size: 24px; margin-bottom: 8px">🎨</div>
+          <div style="font-size: 13px; font-weight: 600">独特图标</div>
+          <div style="font-size: 11px; opacity: 0.9; margin-top: 4px">专属品牌符号</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>接下来需要确认几个问题:</h3>
+
+  <div style="margin-bottom: 24px">
+    <h4 style="margin-bottom: 12px">问题 1: 发光效果的强度?</h4>
+    <div class="options">
+      <div class="option" data-choice="subtle" onclick="toggleSelect(this)">
+        <div class="letter">A</div>
+        <div class="content">
+          <h3>微光点缀</h3>
+          <p>柔和的光晕,不过分耀眼,日常使用不刺眼</p>
+        </div>
+      </div>
+      <div class="option" data-choice="medium" onclick="toggleSelect(this)">
+        <div class="letter">B</div>
+        <div class="content">
+          <h3>适中发光</h3>
+          <p>明显的光晕效果,有科技感但不夸张</p>
+        </div>
+      </div>
+      <div class="option" data-choice="strong" onclick="toggleSelect(this)">
+        <div class="letter">C</div>
+        <div class="content">
+          <h3>强烈霓虹</h3>
+          <p>炫酷的霓虹灯效果,赛博朋克风格,非常夺目</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom: 24px">
+    <h4 style="margin-bottom: 12px">问题 2: 动画触发方式?</h4>
+    <div class="options">
+      <div class="option" data-choice="idle" onclick="toggleSelect(this)">
+        <div class="letter">A</div>
+        <div class="content">
+          <h3>持续动画</h3>
+          <p>按钮始终保持呼吸/脉冲动画,时刻吸引注意</p>
+        </div>
+      </div>
+      <div class="option" data-choice="hover" onclick="toggleSelect(this)">
+        <div class="letter">B</div>
+        <div class="content">
+          <h3>Hover 触发</h3>
+          <p>鼠标悬停时才显示动画效果,平时静态</p>
+        </div>
+      </div>
+      <div class="option" data-choice="both" onclick="toggleSelect(this)">
+        <div class="letter">C</div>
+        <div class="content">
+          <h3>混合模式</h3>
+          <p>平时有微弱的呼吸动画,hover 时增强效果</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-bottom: 24px">
+    <h4 style="margin-bottom: 12px">问题 3: 科技感的配色偏好?</h4>
+    <div class="options">
+      <div class="option" data-choice="blue" onclick="toggleSelect(this)">
+        <div class="letter">A</div>
+        <div class="content">
+          <h3>蓝色系</h3>
+          <p style="display: flex; gap: 4px; margin-top: 8px">
+            <span style="width: 20px; height: 20px; background: #4facfe; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #00f2fe; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #667eea; border-radius: 4px"></span>
+          </p>
+        </div>
+      </div>
+      <div class="option" data-choice="purple" onclick="toggleSelect(this)">
+        <div class="letter">B</div>
+        <div class="content">
+          <h3>紫色系</h3>
+          <p style="display: flex; gap: 4px; margin-top: 8px">
+            <span style="width: 20px; height: 20px; background: #a855f7; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #ec4899; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #f093fb; border-radius: 4px"></span>
+          </p>
+        </div>
+      </div>
+      <div class="option" data-choice="green" onclick="toggleSelect(this)">
+        <div class="letter">C</div>
+        <div class="content">
+          <h3>绿色系</h3>
+          <p style="display: flex; gap: 4px; margin-top: 8px">
+            <span style="width: 20px; height: 20px; background: #10b981; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #34d399; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #6ee7b7; border-radius: 4px"></span>
+          </p>
+        </div>
+      </div>
+      <div class="option" data-choice="cyber" onclick="toggleSelect(this)">
+        <div class="letter">D</div>
+        <div class="content">
+          <h3>赛博朋克</h3>
+          <p style="display: flex; gap: 4px; margin-top: 8px">
+            <span style="width: 20px; height: 20px; background: #f472b6; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #22d3ee; border-radius: 4px"></span>
+            <span style="width: 20px; height: 20px; background: #fbbf24; border-radius: 4px"></span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="color: #888; font-size: 13px">请依次选择每个问题的答案</p>
