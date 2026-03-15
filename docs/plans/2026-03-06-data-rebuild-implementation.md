@@ -13,6 +13,7 @@
 ## Task 1: 读取并理解现有代码结构
 
 **Files:**
+
 - Read: `src/entrypoints/options/main.tsx`
 - Read: `src/features/settings/components/SyncKeyManager.tsx` (参考 getSyncEngine 用法)
 - Read: `src/lib/sync/SyncEngine.ts:653-683` (clearAllData 方法)
@@ -31,11 +32,13 @@
 ## Task 2: 添加数据重建按钮
 
 **Files:**
+
 - Modify: `src/entrypoints/options/main.tsx:490-518` (数据管理区域)
 
 **Step 1: 导入 getSyncEngine**
 
 在文件顶部 import 部分添加:
+
 ```typescript
 import { getSyncEngine } from '@/db';
 ```
@@ -43,19 +46,16 @@ import { getSyncEngine } from '@/db';
 **Step 2: 在数据管理区域添加按钮**
 
 在导出/导入按钮旁边添加重建按钮:
+
 ```tsx
-<Button
-  onClick={rebuildLocalData}
-  variant="outline"
-  className="gap-2"
-  data-testid="button-rebuild"
->
+<Button onClick={rebuildLocalData} variant="outline" className="gap-2" data-testid="button-rebuild">
   <AlertTriangle className="w-4 h-4" />
   重建本地数据
 </Button>
 ```
 
 需要添加 AlertTriangle 图标导入:
+
 ```typescript
 import { AlertTriangle, Download, Upload } from 'lucide-react';
 ```
@@ -65,11 +65,13 @@ import { AlertTriangle, Download, Upload } from 'lucide-react';
 ## Task 3: 实现重建逻辑
 
 **Files:**
+
 - Modify: `src/entrypoints/options/main.tsx` (添加 rebuildLocalData 函数)
 
 **Step 1: 添加 rebuildLocalData 函数**
 
 在 `clearData` 函数附近添加:
+
 ```typescript
 const rebuildLocalData = async () => {
   const confirmed = await confirm(
@@ -123,10 +125,10 @@ pnpm lint
 
 ## 关键文件路径
 
-| 文件 | 行号 | 说明 |
-|------|------|------|
-| `src/entrypoints/options/main.tsx` | 31 | import 区域 |
-| `src/entrypoints/options/main.tsx` | 497 | 数据管理按钮区域 |
-| `src/entrypoints/options/main.tsx` | 340 | clearData 函数位置 |
-| `src/lib/sync/SyncEngine.ts` | 653 | clearAllData 方法 |
-| `src/lib/sync/SyncEngine.ts` | 352 | pull 方法 |
+| 文件                               | 行号 | 说明               |
+| ---------------------------------- | ---- | ------------------ |
+| `src/entrypoints/options/main.tsx` | 31   | import 区域        |
+| `src/entrypoints/options/main.tsx` | 497  | 数据管理按钮区域   |
+| `src/entrypoints/options/main.tsx` | 340  | clearData 函数位置 |
+| `src/lib/sync/SyncEngine.ts`       | 653  | clearAllData 方法  |
+| `src/lib/sync/SyncEngine.ts`       | 352  | pull 方法          |

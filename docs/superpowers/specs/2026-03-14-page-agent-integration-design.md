@@ -87,13 +87,13 @@ src/
 
 ### 模块职责
 
-| 模块 | 职责 |
-|------|------|
-| `settings.ts` | 新增 `getAIConfig()` 函数，读取并解密 AI 配置 |
-| `injector.ts` | 封装注入逻辑：检测注入状态、执行文件注入 |
-| `content.ts` | Content Script 入口，初始化 PageAgent 实例 |
-| `pageAgent.ts` (background handler) | 处理注入请求，查询活动标签页，调用配置读取 |
-| `AIAssistantView.tsx` | 添加按钮，发送注入请求消息 |
+| 模块                                | 职责                                          |
+| ----------------------------------- | --------------------------------------------- |
+| `settings.ts`                       | 新增 `getAIConfig()` 函数，读取并解密 AI 配置 |
+| `injector.ts`                       | 封装注入逻辑：检测注入状态、执行文件注入      |
+| `content.ts`                        | Content Script 入口，初始化 PageAgent 实例    |
+| `pageAgent.ts` (background handler) | 处理注入请求，查询活动标签页，调用配置读取    |
+| `AIAssistantView.tsx`               | 添加按钮，发送注入请求消息                    |
 
 ### 类型定义
 
@@ -120,11 +120,10 @@ export interface PageAgentInjectResponse {
 
 ```typescript
 // src/lib/db/settings.ts 新增函数
-
 import { db } from '@/db';
-import { decryptData, loadKey } from '@/lib/crypto/encryption';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import type { AIProviderType } from '@/lib/ai/types';
+import { decryptData, loadKey } from '@/lib/crypto/encryption';
 
 export interface AIConfigResult {
   provider: AIProviderType;
@@ -185,7 +184,6 @@ export async function getAIConfig(): Promise<AIConfigResult | null> {
 
 ```typescript
 // src/lib/pageAgent/injector.ts
-
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from './types';
 
@@ -200,7 +198,7 @@ export function isInjectable(url: string): boolean {
     'chrome-extension://',
     'https://chrome.google.com/webstore',
   ];
-  return !blockedPrefixes.some(prefix => url.startsWith(prefix));
+  return !blockedPrefixes.some((prefix) => url.startsWith(prefix));
 }
 
 /**
@@ -273,7 +271,6 @@ export async function injectPageAgent(
 
 ```typescript
 // src/entrypoints/pageAgent.content.ts
-
 import { PageAgent } from 'page-agent';
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from './types';
@@ -329,11 +326,10 @@ main();
 
 ```typescript
 // src/entrypoints/background/handlers/pageAgent.ts
-
-import { injectPageAgent, isInjectable } from '@/lib/pageAgent/injector';
-import { getAIConfig } from '@/lib/db/settings';
-import type { PageAgentInjectRequest, PageAgentInjectResponse } from '@/lib/pageAgent/types';
 import { browser } from 'wxt/browser';
+import { getAIConfig } from '@/lib/db/settings';
+import { injectPageAgent, isInjectable } from '@/lib/pageAgent/injector';
+import type { PageAgentInjectRequest, PageAgentInjectResponse } from '@/lib/pageAgent/types';
 
 export async function handlePageAgentInject(
   request: PageAgentInjectRequest
@@ -384,7 +380,6 @@ export type { PageAgentInjectRequest, PageAgentInjectResponse } from '@/lib/page
 
 ```typescript
 // src/entrypoints/background.ts 新增路由
-
 import { handlePageAgentInject } from './handlers';
 
 // 在消息监听器中添加
@@ -422,7 +417,6 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 ```tsx
 // AIAssistantView.tsx Header 区域新增按钮
-
 import { Bot } from 'lucide-react';
 import { browser } from 'wxt/browser';
 
@@ -455,12 +449,8 @@ const handlePageAgentInject = async () => {
   title="Page Agent - AI 操作当前页面"
   data-testid="page-agent-button"
 >
-  {isInjecting ? (
-    <Loader2 className="w-4 h-4 animate-spin" />
-  ) : (
-    <Bot className="w-4 h-4" />
-  )}
-</Button>
+  {isInjecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+</Button>;
 ```
 
 ### 按钮样式
@@ -512,11 +502,11 @@ Content script 初始化 PageAgent 并显示 Panel
 
 ### 状态反馈
 
-| 状态 | 反馈 |
-|------|------|
-| 注入中 | 按钮显示 loading 动画 |
-| 注入成功 | Toast: "Page Agent 已启动，请在当前页面操作" |
-| 注入失败 | Toast 显示错误信息 |
+| 状态       | 反馈                                                          |
+| ---------- | ------------------------------------------------------------- |
+| 注入中     | 按钮显示 loading 动画                                         |
+| 注入成功   | Toast: "Page Agent 已启动，请在当前页面操作"                  |
+| 注入失败   | Toast 显示错误信息                                            |
 | 已存在实例 | Toast: "Page Agent 已启动，请在当前页面操作" (聚焦现有 Panel) |
 
 ## 依赖与配置
@@ -542,8 +532,8 @@ export default defineConfig({
       'storage',
       'sidePanel',
       'alarms',
-      'activeTab',   // 新增：访问活动标签页
-      'scripting',   // 新增：脚本注入
+      'activeTab', // 新增：访问活动标签页
+      'scripting', // 新增：脚本注入
     ],
   },
 });
@@ -559,10 +549,10 @@ WXT 会自动处理 `src/entrypoints/pageAgent.content.ts` 中的 `import 'page-
 
 以下页面类型不允许注入：
 
-| 页面类型 | 示例 |
-|---------|------|
-| 浏览器内部页面 | `chrome://`, `edge://`, `about:` |
-| 扩展页面 | `chrome-extension://` |
+| 页面类型         | 示例                                 |
+| ---------------- | ------------------------------------ |
+| 浏览器内部页面   | `chrome://`, `edge://`, `about:`     |
+| 扩展页面         | `chrome-extension://`                |
 | Chrome Web Store | `https://chrome.google.com/webstore` |
 
 ### API Key 安全
@@ -581,29 +571,29 @@ WXT 会自动处理 `src/entrypoints/pageAgent.content.ts` 中的 `import 'page-
 
 ### 功能测试
 
-| 测试项 | 预期结果 |
-|-------|---------|
-| 点击按钮后 PageAgent Panel 正常显示 | Panel 显示在页面右下角 |
-| 在 Panel 中输入任务执行 | PageAgent 正确操作页面元素 |
-| 复用现有 AI 配置正常工作 | 使用已配置的 provider/model/apiKey |
-| 重复点击按钮 | 聚焦现有 Panel，不重复注入 |
+| 测试项                              | 预期结果                           |
+| ----------------------------------- | ---------------------------------- |
+| 点击按钮后 PageAgent Panel 正常显示 | Panel 显示在页面右下角             |
+| 在 Panel 中输入任务执行             | PageAgent 正确操作页面元素         |
+| 复用现有 AI 配置正常工作            | 使用已配置的 provider/model/apiKey |
+| 重复点击按钮                        | 聚焦现有 Panel，不重复注入         |
 
 ### 边界测试
 
-| 测试项 | 预期结果 |
-|-------|---------|
-| 未配置 AI 服务时点击按钮 | Toast: "请先配置 AI 服务" |
+| 测试项                      | 预期结果                             |
+| --------------------------- | ------------------------------------ |
+| 未配置 AI 服务时点击按钮    | Toast: "请先配置 AI 服务"            |
 | 在 `chrome://` 页面点击按钮 | Toast: "无法在此页面使用 Page Agent" |
-| 在扩展页面点击按钮 | Toast: "无法在此页面使用 Page Agent" |
-| 注入失败 | 控制台错误日志，Toast 显示错误信息 |
+| 在扩展页面点击按钮          | Toast: "无法在此页面使用 Page Agent" |
+| 注入失败                    | 控制台错误日志，Toast 显示错误信息   |
 
 ### 兼容性测试
 
-| 浏览器 | 状态 |
-|-------|------|
-| Chrome | ✅ 支持 |
+| 浏览器  | 状态                          |
+| ------- | ----------------------------- |
+| Chrome  | ✅ 支持                       |
 | Firefox | ✅ 支持（使用 `browser` API） |
-| Edge | ✅ 支持 |
+| Edge    | ✅ 支持                       |
 
 ## 参考资源
 

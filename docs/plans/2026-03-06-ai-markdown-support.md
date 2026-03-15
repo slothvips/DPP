@@ -15,9 +15,10 @@
 **文件**: `src/features/aiAssistant/components/AIAssistantView.tsx`
 
 - 添加导入:
+
   ```typescript
-  import ReactMarkdown from 'react-markdown';
   import remarkGfm from 'remark-gfm';
+  import ReactMarkdown from 'react-markdown';
   ```
 
 - 修改第 234 行，将:

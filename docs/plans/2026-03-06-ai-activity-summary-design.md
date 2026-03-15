@@ -19,9 +19,11 @@
 **工具名称**: `get_recent_activities`
 
 **参数**:
+
 - `days`: number (1-15, required) - 查询最近多少天的操作
 
 **返回数据格式**:
+
 ```typescript
 {
   period: {
@@ -65,17 +67,17 @@
 
 ### 3. 描述生成规则
 
-| 操作类型 | 描述模板 |
-|---------|---------|
-| links create | 添加了链接 "{name}" |
-| links update | 更新了链接 "{name}" |
-| links delete | 删除了链接 |
-| tags create | 创建了标签 "{name}" |
-| tags update | 更新了标签 "{name}" |
-| tags delete | 删除了标签 "{name}" |
-| blackboard create | 添加了便签 |
-| blackboard update | 更新了便签 |
-| blackboard delete | 删除了便签 |
+| 操作类型          | 描述模板            |
+| ----------------- | ------------------- |
+| links create      | 添加了链接 "{name}" |
+| links update      | 更新了链接 "{name}" |
+| links delete      | 删除了链接          |
+| tags create       | 创建了标签 "{name}" |
+| tags update       | 更新了标签 "{name}" |
+| tags delete       | 删除了标签 "{name}" |
+| blackboard create | 添加了便签          |
+| blackboard update | 更新了便签          |
+| blackboard delete | 删除了便签          |
 
 ### 4. System Prompt 更新
 

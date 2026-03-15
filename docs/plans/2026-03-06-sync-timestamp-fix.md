@@ -3,6 +3,7 @@
 ## Context
 
 当前 pull 操作在冲突解决时使用 `serverTimestamp ?? timestamp`，但根据 LWW (Last Write Wins) 策略，应该始终使用本地 `timestamp`（客户端时间戳），因为：
+
 - 团队已提前沟通保证时间一致
 - 本地最后编辑的内容应该胜出
 

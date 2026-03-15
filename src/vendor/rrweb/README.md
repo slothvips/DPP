@@ -15,7 +15,7 @@ src/vendor/rrweb/
 
 ```ts
 // 在你的 TypeScript/JavaScript 文件中
-import { record, Replayer } from '@/vendor/rrweb/rrweb.js';
+import { Replayer, record } from '@/vendor/rrweb/rrweb.js';
 ```
 
 ### 2. 录制页面
@@ -64,14 +64,14 @@ const replayer = new Replayer(events, {
 });
 
 // 播放控制
-replayer.play();                    // 开始播放
-replayer.play(3000);                // 从第 3 秒开始播放
-replayer.pause();                   // 暂停
-replayer.pause(5000);               // 暂停在第 5 秒
-replayer.resume();                  // 继续播放
+replayer.play(); // 开始播放
+replayer.play(3000); // 从第 3 秒开始播放
+replayer.pause(); // 暂停
+replayer.pause(5000); // 暂停在第 5 秒
+replayer.resume(); // 继续播放
 
 // 获取信息
-const metadata = replayer.getMetaData();  // { startTime, endTime, totalTime }
+const metadata = replayer.getMetaData(); // { startTime, endTime, totalTime }
 const currentTime = replayer.getCurrentTime();
 
 // 事件监听
@@ -101,5 +101,6 @@ import type { eventWithTime } from '@rrweb/types';
 ## 来源
 
 本地文件来自 rrweb 项目构建产物：
+
 - 仓库: https://github.com/rrweb-io/rrweb
 - 版本: 2.0.0-alpha.20

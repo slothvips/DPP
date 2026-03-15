@@ -22,10 +22,10 @@ if (op.keyHash && op.keyHash !== currentKeyHash) {
 
 ## 两种更换模式
 
-| 模式 | 角色 | 行为 | 适用场景 |
-|------|------|------|----------|
-| **Authority（管理员）** | 数据权威源 | 保留本地数据，重新加密上传 | 发起密钥轮换的人 |
-| **Member（普通成员）** | 数据接收方 | 清空本地数据，从服务器拉取 | 接收新密钥的团队成员 |
+| 模式                    | 角色       | 行为                       | 适用场景             |
+| ----------------------- | ---------- | -------------------------- | -------------------- |
+| **Authority（管理员）** | 数据权威源 | 保留本地数据，重新加密上传 | 发起密钥轮换的人     |
+| **Member（普通成员）**  | 数据接收方 | 清空本地数据，从服务器拉取 | 接收新密钥的团队成员 |
 
 ## 更换流程
 
@@ -50,12 +50,12 @@ if (op.keyHash && op.keyHash !== currentKeyHash) {
 
 ## 核心方法
 
-| 方法 | 位置 | 作用 |
-|------|------|------|
-| `resetSyncState()` | SyncEngine.ts | 清除 syncMetadata、operations、deferred_ops 表 |
-| `clearAllData()` | SyncEngine.ts | 清除同步状态 + 所有业务数据表 |
-| `regenerateOperations()` | SyncEngine.ts | 遍历业务表，为每条记录生成 create 操作 |
-| `getKeyHash()` | encryption.ts | 计算密钥哈希用于标识 |
+| 方法                     | 位置          | 作用                                           |
+| ------------------------ | ------------- | ---------------------------------------------- |
+| `resetSyncState()`       | SyncEngine.ts | 清除 syncMetadata、operations、deferred_ops 表 |
+| `clearAllData()`         | SyncEngine.ts | 清除同步状态 + 所有业务数据表                  |
+| `regenerateOperations()` | SyncEngine.ts | 遍历业务表，为每条记录生成 create 操作         |
+| `getKeyHash()`           | encryption.ts | 计算密钥哈希用于标识                           |
 
 ## 流程图
 

@@ -5,6 +5,7 @@
 当前同步引擎在拉取远程操作后，只将操作应用到本地数据表（links, tags, blackboard 等），但不保存远程操作的记录。这导致用户无法通过 `get_recent_activities` 工具查看其他设备的操作记录。
 
 本计划旨在：
+
 1. 新增一张表用于归档远程操作
 2. 修改 SyncEngine，在拉取远程操作时保存到归档表
 3. 修改 `get_recent_activities` 工具，支持查询归档的远程操作
@@ -18,6 +19,7 @@
 **文件**: `src/db/types.ts`, `src/db/index.ts`
 
 新增 `remoteActivityLog` 表：
+
 ```typescript
 // 类型定义 (types.ts)
 export interface RemoteActivityLog {
@@ -31,7 +33,7 @@ export interface RemoteActivityLog {
 }
 
 // 表定义 (index.ts)
-remoteActivityLog: 'id, clientId, table, type, timestamp, receivedAt'
+remoteActivityLog: 'id, clientId, table, type, timestamp, receivedAt';
 ```
 
 ### 2. 修改 SyncEngine
@@ -44,7 +46,7 @@ remoteActivityLog: 'id, clientId, table, type, timestamp, receivedAt'
 // 在 validOps 应用到本地数据表之后，添加：
 if (validOps.length > 0) {
   await this.db.table('remoteActivityLog').bulkAdd(
-    validOps.map(op => ({
+    validOps.map((op) => ({
       id: op.id,
       clientId: op.clientId,
       table: op.table,
@@ -74,8 +76,8 @@ const remoteOps = await db.remoteActivityLog.where('timestamp').between(startTim
 
 // 合并结果并添加来源标识
 const activities = [
-  ...localOps.map(op => ({ ...op, source: 'local' })),
-  ...remoteOps.map(op => ({ ...op, source: 'remote' })),
+  ...localOps.map((op) => ({ ...op, source: 'local' })),
+  ...remoteOps.map((op) => ({ ...op, source: 'remote' })),
 ];
 ```
 
@@ -84,6 +86,7 @@ const activities = [
 **文件**: `src/lib/ai/prompt.ts`
 
 在 Example 5 中添加说明：
+
 - 远程操作也包含在结果中
 - 可以看到其他设备的操作记录（包括 clientId）
 

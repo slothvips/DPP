@@ -17,6 +17,7 @@
 ### Task 1: 安装 page-agent 依赖
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml`
 
@@ -42,6 +43,7 @@ git commit -m "chore: add page-agent dependency"
 ### Task 2: 创建类型定义文件
 
 **Files:**
+
 - Create: `src/lib/pageAgent/types.ts`
 
 - [ ] **Step 1: 创建 types.ts 文件**
@@ -92,6 +94,7 @@ git commit -m "feat(pageAgent): add type definitions"
 ### Task 3: 创建导出入口文件
 
 **Files:**
+
 - Create: `src/lib/pageAgent/index.ts`
 
 - [ ] **Step 1: 创建 index.ts 文件**
@@ -118,6 +121,7 @@ Expected: 无错误（injector.ts 尚不存在，先跳过）
 ### Task 4: 添加 getAIConfig 函数到 settings.ts
 
 **Files:**
+
 - Modify: `src/lib/db/settings.ts`
 
 - [ ] **Step 1: 添加必要的导入**
@@ -125,9 +129,9 @@ Expected: 无错误（injector.ts 尚不存在，先跳过）
 在文件顶部添加：
 
 ```typescript
-import { decryptData, loadKey } from '@/lib/crypto/encryption';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import type { AIProviderType } from '@/lib/ai/types';
+import { decryptData, loadKey } from '@/lib/crypto/encryption';
 ```
 
 - [ ] **Step 2: 添加 AIConfigResult 接口**
@@ -216,6 +220,7 @@ git commit -m "feat(settings): add getAIConfig function with decryption"
 ### Task 5: 创建注入器模块
 
 **Files:**
+
 - Create: `src/lib/pageAgent/injector.ts`
 
 - [ ] **Step 1: 创建 injector.ts 文件**
@@ -223,7 +228,6 @@ git commit -m "feat(settings): add getAIConfig function with decryption"
 ```typescript
 // src/lib/pageAgent/injector.ts
 // PageAgent 注入逻辑
-
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from './types';
 
@@ -238,7 +242,7 @@ export function isInjectable(url: string): boolean {
     'chrome-extension://',
     'https://chrome.google.com/webstore',
   ];
-  return !blockedPrefixes.some(prefix => url.startsWith(prefix));
+  return !blockedPrefixes.some((prefix) => url.startsWith(prefix));
 }
 
 /**
@@ -324,6 +328,7 @@ git commit -m "feat(pageAgent): add injector module"
 ### Task 6: 创建 Content Script 入口
 
 **Files:**
+
 - Create: `src/entrypoints/pageAgent.content.ts`
 
 - [ ] **Step 1: 创建 pageAgent.content.ts 文件**
@@ -332,10 +337,9 @@ git commit -m "feat(pageAgent): add injector module"
 // src/entrypoints/pageAgent.content.ts
 // Content Script 入口 - 注入到目标页面后初始化 PageAgent
 // 注意：此 content script 通过 scripting.executeScript 手动注入，不会自动注入到所有页面
-
-import { defineContentScript } from 'wxt/sandbox';
 import { PageAgent } from 'page-agent';
 import { browser } from 'wxt/browser';
+import { defineContentScript } from 'wxt/sandbox';
 
 interface PageAgentConfig {
   baseUrl: string;
@@ -417,6 +421,7 @@ git commit -m "feat(pageAgent): add content script entry with defineContentScrip
 ### Task 7: 创建 Background Handler
 
 **Files:**
+
 - Create: `src/entrypoints/background/handlers/pageAgent.ts`
 
 - [ ] **Step 1: 创建 pageAgent.ts 文件**
@@ -424,7 +429,6 @@ git commit -m "feat(pageAgent): add content script entry with defineContentScrip
 ```typescript
 // src/entrypoints/background/handlers/pageAgent.ts
 // PageAgent 注入请求处理器
-
 import { browser } from 'wxt/browser';
 import { getAIConfig } from '@/lib/db/settings';
 import { injectPageAgent, isInjectable } from '@/lib/pageAgent/injector';
@@ -486,6 +490,7 @@ git commit -m "feat(pageAgent): add background handler"
 ### Task 8: 更新 handlers/index.ts 导出
 
 **Files:**
+
 - Modify: `src/entrypoints/background/handlers/index.ts`
 
 - [ ] **Step 1: 添加 pageAgent 导出**
@@ -514,6 +519,7 @@ git commit -m "feat(pageAgent): export handler from index"
 ### Task 9: 更新 Background 消息路由
 
 **Files:**
+
 - Modify: `src/entrypoints/background.ts`
 
 - [ ] **Step 1: 添加 handlePageAgentInject 导入**
@@ -523,11 +529,11 @@ git commit -m "feat(pageAgent): export handler from index"
 ```typescript
 import {
   handleJenkinsMessage,
+  handlePageAgentInject,
   handleProxyMessage,
   handleRecorderMessage,
   handleRemoteRecordingMessage,
   handleSyncMessage,
-  handlePageAgentInject,
   setupAutoSync,
   setupOmnibox,
 } from './background/handlers';
@@ -567,6 +573,7 @@ git commit -m "feat(pageAgent): add message routing in background"
 ### Task 10: 更新 WXT 配置添加权限
 
 **Files:**
+
 - Modify: `wxt.config.ts`
 
 - [ ] **Step 1: 添加 activeTab 和 scripting 权限**
@@ -607,6 +614,7 @@ git commit -m "feat(pageAgent): add activeTab and scripting permissions"
 ### Task 11: 添加 UI 按钮到 AIAssistantView
 
 **Files:**
+
 - Modify: `src/features/aiAssistant/components/AIAssistantView.tsx`
 
 - [ ] **Step 1: 添加必要的导入**
@@ -623,7 +631,7 @@ import { browser } from 'wxt/browser';
 在组件内的 state 定义区域（约第44-49行附近）添加：
 
 ```typescript
-  const [isInjecting, setIsInjecting] = useState(false);
+const [isInjecting, setIsInjecting] = useState(false);
 ```
 
 - [ ] **Step 3: 添加注入处理函数**
@@ -631,23 +639,23 @@ import { browser } from 'wxt/browser';
 在 `handleSummarize` 函数之后添加：
 
 ```typescript
-  const handlePageAgentInject = useCallback(async () => {
-    if (isInjecting) return;
+const handlePageAgentInject = useCallback(async () => {
+  if (isInjecting) return;
 
-    setIsInjecting(true);
-    try {
-      const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_INJECT' });
-      if (response.success) {
-        toast('Page Agent 已启动，请在当前页面操作', 'success');
-      } else {
-        toast(response.error || '启动失败', 'error');
-      }
-    } catch (error) {
-      toast('启动失败', 'error');
-    } finally {
-      setIsInjecting(false);
+  setIsInjecting(true);
+  try {
+    const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_INJECT' });
+    if (response.success) {
+      toast('Page Agent 已启动，请在当前页面操作', 'success');
+    } else {
+      toast(response.error || '启动失败', 'error');
     }
-  }, [isInjecting, toast]);
+  } catch (error) {
+    toast('启动失败', 'error');
+  } finally {
+    setIsInjecting(false);
+  }
+}, [isInjecting, toast]);
 ```
 
 - [ ] **Step 4: 添加按钮到 Header**
@@ -655,20 +663,16 @@ import { browser } from 'wxt/browser';
 在 Settings 按钮之前（约第160行）添加 Page Agent 按钮：
 
 ```tsx
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handlePageAgentInject}
-            disabled={isInjecting || status === 'loading' || status === 'streaming'}
-            title="Page Agent - AI 操作当前页面"
-            data-testid="page-agent-button"
-          >
-            {isInjecting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Bot className="w-4 h-4" />
-            )}
-          </Button>
+<Button
+  variant="ghost"
+  size="sm"
+  onClick={handlePageAgentInject}
+  disabled={isInjecting || status === 'loading' || status === 'streaming'}
+  title="Page Agent - AI 操作当前页面"
+  data-testid="page-agent-button"
+>
+  {isInjecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
+</Button>
 ```
 
 - [ ] **Step 5: 验证类型检查通过**
@@ -690,6 +694,7 @@ git commit -m "feat(pageAgent): add Page Agent button to AI Assistant"
 ### Task 12: 构建验证
 
 **Files:**
+
 - 无文件修改
 
 - [ ] **Step 1: 运行开发构建**
