@@ -9,7 +9,6 @@ import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
 import { AISessionList } from './AISessionList';
 import { ChatInput } from './ChatInput';
 import { MessageItem } from './MessageItem';
-import { PageAgentButton } from './PageAgentButton';
 import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 export function AIAssistantView() {
@@ -158,7 +157,6 @@ export function AIAssistantView() {
           />
         </div>
         <div className="flex items-center gap-1">
-          <PageAgentButton disabled={status === 'loading' || status === 'streaming'} />
           <AIConfigDialog onSaved={handleConfigSaved}>
             <Button variant="ghost" size="sm" title="AI 设置" data-testid="ai-config-button">
               <Settings className="w-4 h-4" />

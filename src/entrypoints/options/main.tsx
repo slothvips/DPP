@@ -2,6 +2,7 @@ import { AlertTriangle, Download, FileText, Github, Upload } from 'lucide-react'
 import 'virtual:uno.css';
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -655,7 +656,9 @@ if (rootElement) {
     <React.StrictMode>
       <ToastProvider>
         <ConfirmDialogProvider>
-          <OptionsApp />
+          <ErrorBoundary>
+            <OptionsApp />
+          </ErrorBoundary>
         </ConfirmDialogProvider>
       </ToastProvider>
     </React.StrictMode>

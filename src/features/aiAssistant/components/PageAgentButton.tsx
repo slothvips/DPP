@@ -21,7 +21,7 @@ export function PageAgentButton({ disabled, className }: PageAgentButtonProps) {
     try {
       const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_INJECT' });
       if (response?.success) {
-        toast('Page Agent 已启动，请在当前页面操作', 'success');
+        // No toast needed - agent runs in background
       } else {
         toast(response?.error || '启动失败', 'error');
       }

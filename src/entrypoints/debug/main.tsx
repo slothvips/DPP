@@ -1,6 +1,7 @@
 import 'virtual:uno.css';
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -178,7 +179,9 @@ if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ToastProvider>
-        <DebugApp />
+        <ErrorBoundary>
+          <DebugApp />
+        </ErrorBoundary>
       </ToastProvider>
     </React.StrictMode>
   );

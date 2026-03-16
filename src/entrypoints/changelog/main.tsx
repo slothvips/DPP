@@ -4,6 +4,7 @@ import 'virtual:uno.css';
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/hooks/useTheme';
 import '@unocss/reset/tailwind.css';
@@ -113,7 +114,9 @@ const rootElement = document.getElementById('root');
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <ChangelogApp />
+      <ErrorBoundary>
+        <ChangelogApp />
+      </ErrorBoundary>
     </React.StrictMode>
   );
 }
