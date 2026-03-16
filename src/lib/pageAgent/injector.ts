@@ -107,10 +107,10 @@ export async function injectPageAgent(
       files: ['/content-scripts/pageAgent.js'],
     });
     return { success: true };
-  } catch (error) {
+  } catch {
     return {
       success: false,
-      error: error instanceof Error ? error.message : '注入失败',
+      error: '注入失败，请稍后重试',
     };
   }
 }

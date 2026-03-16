@@ -3,6 +3,7 @@
 import { browser } from 'wxt/browser';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
+import { serializeHeaders } from '@/lib/pageAgent/utils';
 import { logger } from '@/utils/logger';
 import {
   handleJenkinsMessage,
@@ -159,19 +160,7 @@ export default defineBackground(() => {
         try {
           const { url, options } = message;
 
-          const headers: Record<string, string> = {};
-          if (options?.headers) {
-            const headersObj = options.headers;
-            if (headersObj instanceof Headers) {
-              headersObj.forEach((value, key) => {
-                headers[key] = value;
-              });
-            } else if (typeof headersObj === 'object') {
-              for (const [key, value] of Object.entries(headersObj)) {
-                headers[key] = String(value);
-              }
-            }
-          }
+          const headers = serializeHeaders(options?.headers);
 
           const response = await fetch(url, {
             method: options?.method || 'POST',

@@ -3,6 +3,7 @@
 import { PageAgent } from 'page-agent';
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig } from '@/lib/pageAgent/types';
+import { serializeHeaders } from '@/lib/pageAgent/utils';
 
 export default defineContentScript({
   matches: [],
@@ -16,23 +17,7 @@ export default defineContentScript({
             ? input.href
             : (input as Request).url;
 
-      const serializedHeaders: Record<string, string> = {};
-      if (options?.headers) {
-        const h = options.headers;
-        if (h instanceof Headers) {
-          h.forEach((value, key) => {
-            serializedHeaders[key] = value;
-          });
-        } else if (Array.isArray(h)) {
-          for (const [key, value] of h) {
-            serializedHeaders[key] = value;
-          }
-        } else if (typeof h === 'object') {
-          for (const [key, value] of Object.entries(h)) {
-            serializedHeaders[key] = String(value);
-          }
-        }
-      }
+      const serializedHeaders = serializeHeaders(options?.headers);
 
       const response = await browser.runtime.sendMessage({
         type: 'PAGE_AGENT_FETCH',
@@ -94,8 +79,11 @@ export default defineContentScript({
 
         agent.panel.show();
         window.__DPP_PAGE_AGENT__ = agent;
-      } catch (_error) {
-        // Silently fail
+      } catch (error) {
+        console.error(
+          '[PageAgent] 初始化失败:',
+          error instanceof Error ? error.message : '未知错误'
+        );
       }
     }
 
