@@ -3,9 +3,9 @@
 import { browser } from 'wxt/browser';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
-import { serializeHeaders } from '@/lib/pageAgent/utils';
 import { logger } from '@/utils/logger';
 import {
+  handleGeneralMessage,
   handleJenkinsMessage,
   handlePageAgentInject,
   handleProxyMessage,
@@ -31,7 +31,6 @@ export default defineBackground(() => {
   if (browser.alarms) {
     browser.alarms.onAlarm.addListener(async (alarm) => {
       if (alarm.name === 'auto-sync-alarm') {
-        // Check if auto sync is enabled before triggering
         const enabledSetting = await getSetting('auto_sync_enabled');
         if (enabledSetting === false) {
           logger.info('Auto sync alarm triggered but auto sync is disabled, skipping');
@@ -46,184 +45,121 @@ export default defineBackground(() => {
   // Listen for setting changes
   browser.runtime.onMessage.addListener((message) => {
     if (message.type === 'AUTO_SYNC_SETTINGS_CHANGED') {
-      setupAutoSync();
+      setupAutoSync().catch((e) => logger.error('Failed to setup auto sync:', e));
     }
-    // Return false here so other listeners can also handle messages
     return false;
   });
 
   // Check for stuck sync status on startup
-  getSetting('global_sync_status').then(async (status) => {
-    if (status === 'syncing') {
-      logger.warn('Detected stuck sync status on startup. Resetting to idle.');
-      await updateSetting('global_sync_status', 'idle');
-      await updateSetting('global_sync_error', '');
-    }
-  });
+  getSetting('global_sync_status')
+    .then(async (status) => {
+      if (status === 'syncing') {
+        logger.warn('Detected stuck sync status on startup. Resetting to idle.');
+        await updateSetting('global_sync_status', 'idle');
+        await updateSetting('global_sync_error', '');
+      }
+    })
+    .catch((e) => {
+      logger.error('Failed to check sync status on startup:', e);
+    });
 
   // Network online event - trigger auto sync
-  if (typeof self !== 'undefined') {
-    self.addEventListener('online', () => {
+  if (typeof globalThis !== 'undefined') {
+    globalThis.addEventListener('online', () => {
       logger.info('Network online, triggering global auto sync');
-      getSetting('auto_sync_enabled').then((enabledSetting) => {
-        if (enabledSetting !== undefined ? Boolean(enabledSetting) : true) {
-          performGlobalSync().catch((e) => logger.error('Online auto sync failed:', e));
-        }
-      });
+      getSetting('auto_sync_enabled')
+        .then((enabledSetting) => {
+          if (enabledSetting !== undefined ? Boolean(enabledSetting) : true) {
+            performGlobalSync().catch((e) => logger.error('Online auto sync failed:', e));
+          }
+        })
+        .catch((e) => {
+          logger.error('Failed to get auto sync setting:', e);
+        });
     });
   }
 
   // Setup omnibox listeners
   setupOmnibox();
 
-  // Main message router
+  // Main message router - strategy pattern
+  type MessageHandler = (
+    message: {
+      type: string;
+      payload?: unknown;
+    },
+    sender?: unknown
+  ) => unknown;
+
+  const messageHandlers: Array<{
+    match: (type: string) => boolean;
+    handler: MessageHandler;
+  }> = [
+    {
+      match: (type) => type.startsWith('JENKINS_'),
+      handler: (message) =>
+        handleJenkinsMessage(message as Parameters<typeof handleJenkinsMessage>[0]),
+    },
+    {
+      match: (type) => type.startsWith('RECORDER_'),
+      handler: (message, sender) =>
+        handleRecorderMessage(
+          message as Parameters<typeof handleRecorderMessage>[0],
+          sender as Parameters<typeof handleRecorderMessage>[1]
+        ),
+    },
+    {
+      match: (type) =>
+        type === 'AUTO_SYNC_TRIGGER_PUSH' ||
+        type === 'AUTO_SYNC_TRIGGER_PULL' ||
+        type === 'GLOBAL_SYNC_START' ||
+        type === 'GLOBAL_SYNC_PUSH' ||
+        type === 'GLOBAL_SYNC_PULL',
+      handler: (message) => handleSyncMessage(message as Parameters<typeof handleSyncMessage>[0]),
+    },
+    {
+      match: (type) =>
+        type === 'REMOTE_RECORDING_CACHE' ||
+        type === 'REMOTE_RECORDING_GET' ||
+        type === 'OPEN_PLAYER_TAB',
+      handler: (message) =>
+        handleRemoteRecordingMessage(message as Parameters<typeof handleRemoteRecordingMessage>[0]),
+    },
+    {
+      match: (type) => type === 'ZEN_FETCH_JSON' || type === 'JENKINS_API_REQUEST',
+      handler: (message) => handleProxyMessage(message as Parameters<typeof handleProxyMessage>[0]),
+    },
+    {
+      match: (type) => type === 'PAGE_AGENT_INJECT',
+      handler: (message) =>
+        handlePageAgentInject(message as Parameters<typeof handlePageAgentInject>[0]),
+    },
+    {
+      match: (type) =>
+        type === 'PAGE_AGENT_GET_CONFIG' ||
+        type === 'PAGE_AGENT_FETCH' ||
+        type === 'OPEN_SIDE_PANEL' ||
+        type === 'SAVE_JENKINS_TOKEN',
+      handler: (message) =>
+        handleGeneralMessage(message as Parameters<typeof handleGeneralMessage>[0]),
+    },
+  ];
+
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // Jenkins messages
-    if (message.type.startsWith('JENKINS_')) {
-      (async () => {
-        const response = await handleJenkinsMessage(message);
-        sendResponse(response);
-      })();
-      return true;
-    }
+    const messageType = message.type as string;
 
-    // Recorder messages
-    if (message.type.startsWith('RECORDER_')) {
-      (async () => {
-        const response = await handleRecorderMessage(message, sender);
-        sendResponse(response);
-      })();
-      return true;
-    }
-
-    // Sync messages
-    if (
-      message.type === 'AUTO_SYNC_TRIGGER_PUSH' ||
-      message.type === 'AUTO_SYNC_TRIGGER_PULL' ||
-      message.type === 'GLOBAL_SYNC_START' ||
-      message.type === 'GLOBAL_SYNC_PUSH' ||
-      message.type === 'GLOBAL_SYNC_PULL'
-    ) {
-      (async () => {
-        const response = await handleSyncMessage(message);
-        sendResponse(response);
-      })();
-      return true;
-    }
-
-    // Remote recording cache messages
-    if (
-      message.type === 'REMOTE_RECORDING_CACHE' ||
-      message.type === 'REMOTE_RECORDING_GET' ||
-      message.type === 'OPEN_PLAYER_TAB'
-    ) {
-      const response = handleRemoteRecordingMessage(message);
-      sendResponse(response);
-      return true;
-    }
-
-    // Proxy messages (Zen fetch, Jenkins API request)
-    if (message.type === 'ZEN_FETCH_JSON' || message.type === 'JENKINS_API_REQUEST') {
-      (async () => {
-        const response = await handleProxyMessage(message);
-        sendResponse(response);
-      })();
-      return true;
-    }
-
-    // Page Agent 注入
-    if (message.type === 'PAGE_AGENT_INJECT') {
-      (async () => {
-        const response = await handlePageAgentInject(message);
-        sendResponse(response);
-      })();
-      return true;
-    }
-
-    // Page Agent 获取配置（content script 调用）
-    if (message.type === 'PAGE_AGENT_GET_CONFIG') {
-      (async () => {
-        const result = await browser.storage.session.get('__pageAgentConfig');
-        const config = result.__pageAgentConfig;
-        // 读取后立即清除，防止敏感信息泄露
-        if (config) {
-          await browser.storage.session.remove('__pageAgentConfig');
+    for (const { match, handler } of messageHandlers) {
+      if (match(messageType)) {
+        const result = handler(message as { type: string; payload?: unknown }, sender);
+        if (result instanceof Promise) {
+          result.then(sendResponse);
+        } else {
+          sendResponse(result);
         }
-        sendResponse({ config });
-      })();
-      return true;
+        return true;
+      }
     }
 
-    // Page Agent 代理 fetch 请求（解决 CORS）
-    if (message.type === 'PAGE_AGENT_FETCH') {
-      (async () => {
-        try {
-          const { url, options } = message;
-
-          const headers = serializeHeaders(options?.headers);
-
-          const response = await fetch(url, {
-            method: options?.method || 'POST',
-            headers,
-            body: options?.body,
-          });
-
-          const responseText = await response.text();
-
-          let responseBody: unknown = null;
-          try {
-            responseBody = responseText ? JSON.parse(responseText) : null;
-          } catch {
-            responseBody = responseText;
-          }
-
-          sendResponse({
-            success: true,
-            ok: response.ok,
-            status: response.status,
-            statusText: response.statusText,
-            headers: Object.fromEntries(response.headers.entries()),
-            body: responseBody,
-          });
-        } catch (error) {
-          sendResponse({
-            success: false,
-            error: error instanceof Error ? error.message : 'Fetch failed',
-          });
-        }
-      })();
-      return true;
-    }
-    // Open side panel request from popup
-    if (message.type === 'OPEN_SIDE_PANEL') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (browser.sidePanel as any).open();
-      sendResponse({ success: true });
-      return true;
-    }
-
-    // Save Jenkins token (legacy)
-    if (message.type === 'SAVE_JENKINS_TOKEN') {
-      const { token, host, user } = message.payload;
-      logger.debug('Received Jenkins token for:', host);
-
-      (async () => {
-        try {
-          await updateSetting('jenkins_host', host);
-          await updateSetting('jenkins_user', user);
-          await updateSetting('jenkins_token', token);
-          logger.debug('Jenkins settings saved');
-          sendResponse({ success: true });
-        } catch (e) {
-          logger.error('Error saving settings:', e);
-          sendResponse({ success: false, error: String(e) });
-        }
-      })();
-
-      return true;
-    }
-
-    // Return false for unknown message types
     return false;
   });
 });

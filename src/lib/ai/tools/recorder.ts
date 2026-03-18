@@ -185,7 +185,7 @@ export function registerRecorderTools() {
     handler: recorder_stop as ToolHandler,
   });
 
-  // recorder_delete
+  // recorder_delete (requires confirmation)
   toolRegistry.register({
     name: 'recorder_delete',
     description: 'Delete a recording by ID',
@@ -199,14 +199,16 @@ export function registerRecorderTools() {
       []
     ),
     handler: recorder_delete as ToolHandler,
+    requiresConfirmation: true,
   });
 
-  // recorder_clear
+  // recorder_clear (requires confirmation)
   toolRegistry.register({
     name: 'recorder_clear',
     description: 'Clear all recordings from the database',
     parameters: createToolParameter({}, []),
     handler: recorder_clear as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // recorder_updateTitle
@@ -229,7 +231,7 @@ export function registerRecorderTools() {
     handler: recorder_updateTitle as ToolHandler,
   });
 
-  // recorder_import
+  // recorder_import (requires confirmation)
   toolRegistry.register({
     name: 'recorder_import',
     description: 'Import a recording from JSON events array',
@@ -247,6 +249,7 @@ export function registerRecorderTools() {
       []
     ),
     handler: recorder_import as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // recorder_export

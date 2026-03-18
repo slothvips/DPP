@@ -18,3 +18,6 @@ export type { ProxyMessage } from './proxy';
 
 export { handlePageAgentInject } from './pageAgent';
 export type { PageAgentInjectRequest, PageAgentInjectResponse } from '@/lib/pageAgent/types';
+
+export { handleGeneralMessage } from './general';
+export type { GeneralMessage } from './general';

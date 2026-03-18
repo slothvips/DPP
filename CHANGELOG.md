@@ -1,5 +1,33 @@
 # 更新日志
 
+## v0.3.6 (2026-03-18)
+
+### ✨ 新功能
+
+- **链接排序持久化**: 链接列表的排序方式（按添加时间/更新时间/使用次数/上次使用）现在会持久化保存，刷新页面后保持不变
+
+### 🔒 安全与稳定性
+
+- **同步 Token 修复**: 修复 `getSyncAccessToken()` 在未配置时返回 undefined 的问题，现在正确返回空字符串
+- **PageAgent 网络请求**: 移除对 localhost 和私有网络请求的验证，确保 PageAgent 可以正常访问内部开发服务
+
+### 💬 AI 助手改进
+
+- **工具执行确认优化**: AI 助手的所有增删改操作现在都需要用户确认，防止意外操作
+  - 新增确认工具: links_add, links_update, links_togglePin, links_bulkAdd, tags_add, tags_update, tags_toggle, jenkins_trigger_build, jenkins_sync, blackboard_add, blackboard_update, recorder_delete, recorder_clear, recorder_import, sync_trigger
+- **Prompt 精简优化**: 精简 AI 系统提示词，从 295 行优化到 145 行，结构更清晰准确
+- **Prompt 行为一致**: 修复提示词描述与实际行为不一致的问题
+
+### 🏗️ 架构优化
+
+- **Background 消息路由重构**: 将 background.ts 中的消息处理逻辑重构为策略模式，提升代码可维护性
+- **通用消息处理器**: 新增 `general.ts` 统一处理 PAGE_AGENT 和 Jenkins Token 等通用消息
+- **Base64 工具模块**: 提取 base64 编解码工具函数到独立模块 `src/utils/base64.ts`
+- **数据库迁移文档**: 完善数据库增量迁移注释，明确版本历史和迁移规则
+- **同步 URL 提取**: 提取 `getSyncServerUrl()` 和 `getSyncAccessToken()` 辅助函数，减少重复代码
+
+---
+
 ## v0.3.5 (2026-03-12)
 
 ### ⚡ 性能优化

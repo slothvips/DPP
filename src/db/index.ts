@@ -19,8 +19,15 @@ export type { Recording } from '@/features/recorder/types';
 
 export const db = new Dexie('DPPDB') as DPPDatabase;
 
-// Database schema - all tables defined in a single version
-// Note: This is a development version. In production, use incremental migrations.
+// Database schema with incremental migrations
+// Version history:
+// v1: Initial schema (core tables only)
+// v2: Added AI Chat tables (aiSessions, aiMessages)
+// v3: Added remoteActivityLog table
+//
+// IMPORTANT: Each version only defines NEW tables not in previous versions.
+// Dexie automatically handles adding new indexes to existing tables.
+
 db.version(1).stores({
   // Core tables
   links: 'id, category, name',
@@ -30,38 +37,57 @@ db.version(1).stores({
   jobTags: '[jobUrl+tagId], jobUrl, tagId',
   linkTags: '[linkId+tagId], linkId, tagId',
   linkStats: 'id, usageCount, lastUsedAt',
-
-  // Build history
   myBuilds: 'id, timestamp, env',
   othersBuilds: 'id, timestamp, env',
-
-  // Cache
   hotNews: 'date',
-
-  // Recordings
   recordings: '&id, createdAt, url',
-
-  // Blackboard
   blackboard: 'id, createdAt, pinned',
-
-  // Sync tables
   operations: 'id, table, type, synced, timestamp',
   syncMetadata: 'id',
   deferred_ops: '++id, table, timestamp',
+});
 
-  // AI Chat tables
+db.version(2).stores({
+  // v1 tables + AI Chat tables (only new tables need to be defined)
   aiSessions: 'id, createdAt, updatedAt',
   aiMessages: 'id, sessionId, createdAt',
+});
 
-  // Remote activity log
+db.version(3).stores({
+  // v2 tables + remoteActivityLog (only new table)
   remoteActivityLog: 'id, clientId, table, type, timestamp, receivedAt',
 });
+
+// Helper to validate and get the sync server URL
+async function getSyncServerUrl(): Promise<{ apiUrl: string; endpoint: string }> {
+  const setting = await db.settings.get('custom_server_url');
+  const rawUrl = (setting?.value as string)?.trim();
+  if (!rawUrl) throw new Error('Sync server URL not configured');
+
+  try {
+    new URL(rawUrl);
+  } catch {
+    throw new Error('Invalid sync server URL format');
+  }
+
+  const apiUrl = rawUrl.replace(/\/$/, '');
+  const endpoint = `${apiUrl}/api/sync`;
+  return { apiUrl, endpoint };
+}
+
+// Helper to get sync access token
+async function getSyncAccessToken(): Promise<string> {
+  const tokenSetting = await db.settings.get('sync_access_token');
+  return (tokenSetting?.value as string) || '';
+}
 
 const defaultSyncProvider: SyncProvider = {
   push: async (ops, clientId) => {
     const key = await loadKey();
     if (!key) {
-      throw new Error('同步失败：未配置安全密钥。请在设置中生成或导入密钥以启用端到端加密同步。');
+      throw new Error(
+        'Sync failed: Security key not configured. Please generate or import a key in settings to enable end-to-end encrypted sync.'
+      );
     }
 
     const finalOps = await Promise.all(ops.map((op) => encryptOperation(op, key)));
@@ -91,21 +117,8 @@ const defaultSyncProvider: SyncProvider = {
     return data.cursor ? { cursor: data.cursor } : undefined;
   },
   pull: async (cursor, clientId) => {
-    const setting = await db.settings.get('custom_server_url');
-    const rawUrl = (setting?.value as string)?.trim();
-    if (!rawUrl) throw new Error('Sync server URL not configured');
-
-    try {
-      new URL(rawUrl);
-    } catch {
-      throw new Error('Invalid sync server URL format');
-    }
-
-    const apiUrl = rawUrl.replace(/\/$/, '');
-    const endpoint = `${apiUrl}/api/sync`;
-
-    const tokenSetting = await db.settings.get('sync_access_token');
-    const token = tokenSetting?.value as string;
+    const { endpoint } = await getSyncServerUrl();
+    const token = await getSyncAccessToken();
 
     const url = new URL(`${endpoint}/pull`);
     url.searchParams.append('cursor', String(cursor || 0));
@@ -128,21 +141,8 @@ const defaultSyncProvider: SyncProvider = {
     return { ops, nextCursor: data.cursor };
   },
   getPendingCount: async (cursor, clientId) => {
-    const setting = await db.settings.get('custom_server_url');
-    const rawUrl = (setting?.value as string)?.trim();
-    if (!rawUrl) throw new Error('Sync server URL not configured');
-
-    try {
-      new URL(rawUrl);
-    } catch {
-      throw new Error('Invalid sync server URL format');
-    }
-
-    const apiUrl = rawUrl.replace(/\/$/, '');
-    const endpoint = `${apiUrl}/api/sync`;
-
-    const tokenSetting = await db.settings.get('sync_access_token');
-    const token = tokenSetting?.value as string;
+    const { endpoint } = await getSyncServerUrl();
+    const token = await getSyncAccessToken();
 
     const url = new URL(`${endpoint}/pending`);
     url.searchParams.append('cursor', String(cursor || 0));

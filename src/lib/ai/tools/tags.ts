@@ -50,7 +50,7 @@ export function registerTagsTools() {
     handler: tags_list as ToolHandler,
   });
 
-  // tags_add
+  // tags_add (requires confirmation)
   toolRegistry.register({
     name: 'tags_add',
     description: 'Create a new tag',
@@ -62,9 +62,10 @@ export function registerTagsTools() {
       ['name']
     ),
     handler: tags_add as ToolHandler,
+    requiresConfirmation: true,
   });
 
-  // tags_update
+  // tags_update (requires confirmation)
   toolRegistry.register({
     name: 'tags_update',
     description: 'Update an existing tag (name or color)',
@@ -77,6 +78,7 @@ export function registerTagsTools() {
       ['id']
     ),
     handler: tags_update as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // tags_delete (requires confirmation)
@@ -93,7 +95,7 @@ export function registerTagsTools() {
     requiresConfirmation: true,
   });
 
-  // tags_toggle
+  // tags_toggle (requires confirmation)
   toolRegistry.register({
     name: 'tags_toggle',
     description: 'Toggle tag association with a link or job',
@@ -106,5 +108,6 @@ export function registerTagsTools() {
       ['tagId', 'entityId', 'entityType']
     ),
     handler: tags_toggle as ToolHandler,
+    requiresConfirmation: true,
   });
 }

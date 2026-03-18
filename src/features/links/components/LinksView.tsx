@@ -1,6 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Bot, Edit, Eye, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
-import { type AnchorHTMLAttributes, type MouseEvent, useMemo, useRef, useState } from 'react';
+import {
+  type AnchorHTMLAttributes,
+  type MouseEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -18,6 +25,7 @@ import { ImportLinksDialog } from '@/features/links/components/ImportLinksDialog
 import { LinkDialog } from '@/features/links/components/LinkDialog';
 import { LinkTagSelector } from '@/features/links/components/LinkTagSelector';
 import { type LinkWithStats, useLinks } from '@/features/links/hooks/useLinks';
+import { getSetting, updateSetting } from '@/lib/db/settings';
 import { cn } from '@/utils/cn';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
@@ -103,6 +111,25 @@ export function LinksView() {
   const [editingLink, setEditingLink] = useState<(LinkItem & { tags?: TagItem[] }) | null>(null);
   const { toast } = useToast();
   const { confirm } = useConfirmDialog();
+  const isInitializedRef = useRef(false);
+
+  useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
+    const loadSort = async () => {
+      const saved = await getSetting<SortOption>('links_sort_by');
+      if (saved) {
+        setSortBy(saved);
+      }
+    };
+    loadSort();
+  }, []);
+
+  const handleSortChange = async (newSort: SortOption) => {
+    setSortBy(newSort);
+    await updateSetting('links_sort_by', newSort);
+  };
 
   const filteredAndSortedLinks = useMemo(() => {
     if (!links) return [];
@@ -228,7 +255,7 @@ export function LinksView() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+        <Select value={sortBy} onValueChange={(v) => handleSortChange(v as SortOption)}>
           <SelectTrigger className="w-[140px] shrink-0 h-8 text-xs">
             <SelectValue placeholder="排序方式" />
           </SelectTrigger>

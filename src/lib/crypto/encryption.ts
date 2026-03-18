@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { deleteSetting, getSetting, updateSetting } from '@/lib/db/settings';
+import { arrayBufferToBase64, base64ToArrayBuffer } from '@/utils/base64';
 import { logger } from '@/utils/logger';
 
 const ALGORITHM = 'AES-GCM';
@@ -146,26 +147,4 @@ export async function getKeyHash(key: CryptoKey): Promise<string> {
   const hashBuffer = await crypto.subtle.digest('SHA-256', raw);
   const hashArray = Array.from(new Uint8Array(hashBuffer)).slice(0, 8);
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-// --- Helpers ---
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-  const binaryString = atob(base64);
-  const len = binaryString.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes.buffer;
 }

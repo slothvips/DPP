@@ -102,7 +102,7 @@ export function registerJenkinsTools() {
     handler: jenkins_list_builds as ToolHandler,
   });
 
-  // jenkins_trigger_build (opens BuildDialog for user confirmation)
+  // jenkins_trigger_build (requires confirmation)
   toolRegistry.register({
     name: 'jenkins_trigger_build',
     description: 'Trigger a Jenkins build',
@@ -117,9 +117,10 @@ export function registerJenkinsTools() {
       ['jobUrl']
     ),
     handler: jenkins_trigger_build as ToolHandler,
+    requiresConfirmation: true,
   });
 
-  // jenkins_sync
+  // jenkins_sync (requires confirmation)
   toolRegistry.register({
     name: 'jenkins_sync',
     description: 'Sync Jenkins jobs and builds data',
@@ -134,6 +135,7 @@ export function registerJenkinsTools() {
       []
     ),
     handler: jenkins_sync as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // jenkins_switchEnv

@@ -93,11 +93,12 @@ export function registerHotNewsTools() {
     handler: hotnews_get as ToolHandler,
   });
 
-  // sync_trigger
+  // sync_trigger (requires confirmation)
   toolRegistry.register({
     name: 'sync_trigger',
     description: 'Trigger global sync (push and pull)',
     parameters: createToolParameter({}, []),
     handler: sync_trigger as ToolHandler,
+    requiresConfirmation: true,
   });
 }

@@ -127,7 +127,7 @@ export function registerLinksTools() {
     handler: links_list as ToolHandler,
   });
 
-  // links_add
+  // links_add (requires confirmation)
   toolRegistry.register({
     name: 'links_add',
     description: 'Add a new link with name, URL, note, and tags',
@@ -145,9 +145,10 @@ export function registerLinksTools() {
       ['name', 'url']
     ),
     handler: links_add as ToolHandler,
+    requiresConfirmation: true,
   });
 
-  // links_update
+  // links_update (requires confirmation)
   toolRegistry.register({
     name: 'links_update',
     description: 'Update an existing link',
@@ -166,6 +167,7 @@ export function registerLinksTools() {
       ['id']
     ),
     handler: links_update as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // links_delete (requires confirmation)
@@ -195,7 +197,7 @@ export function registerLinksTools() {
     handler: links_visit as ToolHandler,
   });
 
-  // links_togglePin
+  // links_togglePin (requires confirmation)
   toolRegistry.register({
     name: 'links_togglePin',
     description: 'Toggle link pin status (pin or unpin a link)',
@@ -206,6 +208,7 @@ export function registerLinksTools() {
       ['id']
     ),
     handler: links_togglePin as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // links_recordVisit
@@ -221,7 +224,7 @@ export function registerLinksTools() {
     handler: links_recordVisit as ToolHandler,
   });
 
-  // links_bulkAdd
+  // links_bulkAdd (requires confirmation)
   toolRegistry.register({
     name: 'links_bulkAdd',
     description: 'Bulk add multiple links at once',
@@ -235,5 +238,6 @@ export function registerLinksTools() {
       ['links']
     ),
     handler: links_bulkAdd as ToolHandler,
+    requiresConfirmation: true,
   });
 }

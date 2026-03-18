@@ -69,7 +69,7 @@ export function registerBlackboardTools() {
     handler: blackboard_list as ToolHandler,
   });
 
-  // blackboard_add
+  // blackboard_add (requires confirmation)
   toolRegistry.register({
     name: 'blackboard_add',
     description: 'Add a new blackboard item (便签)',
@@ -84,9 +84,10 @@ export function registerBlackboardTools() {
       ['content']
     ),
     handler: blackboard_add as ToolHandler,
+    requiresConfirmation: true,
   });
 
-  // blackboard_update
+  // blackboard_update (requires confirmation)
   toolRegistry.register({
     name: 'blackboard_update',
     description: 'Update a blackboard item (便签)',
@@ -100,6 +101,7 @@ export function registerBlackboardTools() {
       ['id']
     ),
     handler: blackboard_update as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // blackboard_delete (requires confirmation)
