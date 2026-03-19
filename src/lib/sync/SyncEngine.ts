@@ -68,6 +68,9 @@ export class SyncEngine {
   // Max number of consecutive pull batches to prevent infinite loops
   private readonly MAX_PULL_LOOPS = 100;
 
+  // Track whether hooks have been registered to prevent duplicate registration
+  private _registered = false;
+
   constructor(
     db: Dexie,
     tables: string[],
@@ -175,6 +178,13 @@ export class SyncEngine {
   }
 
   public register() {
+    // Prevent duplicate registration of hooks
+    if (this._registered) {
+      logger.warn('[Sync] Hooks already registered, skipping duplicate registration');
+      return;
+    }
+    this._registered = true;
+
     // Trigger deferred operations processing on startup
     this.processDeferredOperations().catch((e) => {
       logger.error('[Sync] Failed to process deferred operations on startup:', e);
@@ -188,6 +198,8 @@ export class SyncEngine {
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
       table.hook('creating', function (_primKey, obj, transaction) {
+        // Skip if engine has been destroyed
+        if (!self._registered) return;
         const tx = transaction as SyncTransaction | undefined;
         if (tx?.source === 'sync') return;
         const now = Date.now();
@@ -195,6 +207,7 @@ export class SyncEngine {
         // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
         this.onsuccess = function (resultKey: unknown) {
           queueMicrotask(() => {
+            if (!self._registered) return;
             let payload = objWithTimestamp;
             if (_primKey === undefined && resultKey !== undefined) {
               payload = { ...objWithTimestamp, id: resultKey };
@@ -205,22 +218,28 @@ export class SyncEngine {
       });
 
       table.hook('updating', (modifications, primKey, obj, transaction) => {
+        // Skip if engine has been destroyed
+        if (!this._registered) return;
         const tx = transaction as SyncTransaction | undefined;
         if (tx?.source === 'sync') return;
         const now = Date.now();
         const newObj = { ...obj, ...modifications, updatedAt: now };
         queueMicrotask(() => {
+          if (!this._registered) return;
           this.recordOperation(tableName, 'update', primKey, newObj);
         });
       });
 
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
       table.hook('deleting', function (primKey, obj, transaction) {
+        // Skip if engine has been destroyed
+        if (!self._registered) return;
         const tx = transaction as SyncTransaction | undefined;
         if (tx?.source === 'sync') return;
         const now = Date.now();
 
         queueMicrotask(async () => {
+          if (!self._registered) return;
           try {
             const updated = { ...obj, deletedAt: now, updatedAt: now };
             await table.put(updated);
@@ -632,6 +651,8 @@ export class SyncEngine {
   }
 
   public destroy() {
+    // Mark as unregistered so hooks will skip processing
+    this._registered = false;
     this.eventListeners.clear();
   }
 

@@ -74,7 +74,8 @@ export function App() {
         | 'aiAssistant';
     }
 
-    const saved = localStorage.getItem('dpp_active_tab');
+    const saved =
+      typeof localStorage !== 'undefined' ? localStorage.getItem('dpp_active_tab') : null;
     if (
       saved &&
       ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant'].includes(saved)
@@ -106,7 +107,8 @@ export function App() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Only set default if no saved state
-    const saved = localStorage.getItem('dpp_active_tab');
+    const saved =
+      typeof localStorage !== 'undefined' ? localStorage.getItem('dpp_active_tab') : null;
     if (!saved) {
       setActiveTab('blackboard');
     }
@@ -120,7 +122,9 @@ export function App() {
     tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant'
   ) => {
     setActiveTab(tab);
-    localStorage.setItem('dpp_active_tab', tab);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('dpp_active_tab', tab);
+    }
   };
 
   const openSettings = () => {
