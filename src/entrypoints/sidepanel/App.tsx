@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { ToastProvider } from '@/components/ui/toast';
 import { db } from '@/db';
 import type { JenkinsEnvironment } from '@/db';
-import { PageAgentButton } from '@/features/aiAssistant/components/PageAgentButton';
 import { BlackboardView } from '@/features/blackboard/components/BlackboardView';
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
@@ -148,7 +147,6 @@ export function App() {
               <Tips />
               <div className="flex items-center gap-1">
                 {showSyncButton && <GlobalSyncButton />}
-                <PageAgentButton />
                 <Button
                   variant="ghost"
                   size="icon"

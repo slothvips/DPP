@@ -24,9 +24,10 @@ export const ChatInput = memo(function ChatInput({
   const [input, setInput] = useState(initialInput);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Focus textarea when initialInput is provided (preset prompt from other tabs)
+  // Sync initialInput to input state when it changes (e.g., preset prompt from other tabs)
   useEffect(() => {
     if (initialInput) {
+      setInput(initialInput);
       textareaRef.current?.focus();
     }
   }, [initialInput]);

@@ -9,6 +9,7 @@ import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
 import { AISessionList } from './AISessionList';
 import { ChatInput } from './ChatInput';
 import { MessageItem } from './MessageItem';
+import { PageAgentButton } from './PageAgentButton';
 import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 export function AIAssistantView() {
@@ -54,12 +55,28 @@ export function AIAssistantView() {
       setIsConfigMissing(!configured);
     });
 
-    // Check for preset prompt from other tabs (e.g., smart import)
-    const preset = localStorage.getItem('dpp_ai_preset_prompt');
-    if (preset) {
-      setPresetPrompt(preset);
-      localStorage.removeItem('dpp_ai_preset_prompt');
-    }
+    const checkPreset = async () => {
+      // Try storage.session first (new way)
+      try {
+        const result = await browser.storage.session.get('dpp_ai_preset_prompt');
+        const preset = result?.dpp_ai_preset_prompt as string | undefined;
+        if (preset) {
+          setPresetPrompt(preset);
+          await browser.storage.session.remove('dpp_ai_preset_prompt');
+          return;
+        }
+      } catch {
+        // storage.session not available, try localStorage
+      }
+
+      // Fallback to localStorage (old way with reload)
+      const localPreset = localStorage.getItem('dpp_ai_preset_prompt');
+      if (localPreset) {
+        setPresetPrompt(localPreset);
+        localStorage.removeItem('dpp_ai_preset_prompt');
+      }
+    };
+    checkPreset();
   }, []);
 
   // Re-check config when config is saved
@@ -157,6 +174,7 @@ export function AIAssistantView() {
           />
         </div>
         <div className="flex items-center gap-1">
+          <PageAgentButton />
           <AIConfigDialog onSaved={handleConfigSaved}>
             <Button variant="ghost" size="sm" title="AI 设置" data-testid="ai-config-button">
               <Settings className="w-4 h-4" />
