@@ -65,7 +65,9 @@ export function handleGeneralMessage(message: GeneralMessage): unknown {
   }
 
   if (message.type === 'OPEN_SIDE_PANEL') {
-    (browser.sidePanel as unknown as { open: () => Promise<void> }).open();
+    if (browser.sidePanel && typeof browser.sidePanel.open === 'function') {
+      (browser.sidePanel.open as () => Promise<void>)();
+    }
     return { success: true };
   }
 

@@ -93,7 +93,7 @@ export async function http(url: string, options: HttpOptions = {}): Promise<Resp
     }
   }
 
-  throw lastError || new Error(`HTTP request failed: ${url}`);
+  throw lastError ?? new Error(`HTTP request failed: ${url}`);
 }
 
 /**

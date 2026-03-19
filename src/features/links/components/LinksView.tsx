@@ -73,29 +73,42 @@ function LinkWithCopy({
   ...props
 }: AnchorHTMLAttributes<HTMLAnchorElement> & { onSingleClick?: () => void | Promise<void> }) {
   const { toast } = useToast();
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
+  const handleClick = async (e: MouseEvent<HTMLAnchorElement>) => {
+    // 中键点击或 Ctrl/Cmd 点击 - 复制链接到剪贴板
+    if (e.button === 1 || e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      try {
+        await navigator.clipboard.writeText(href || '');
+        toast('链接已复制', 'success');
+      } catch {
+        toast('复制失败', 'error');
+      }
+      return;
+    }
+    // 普通左键点击 - 记录访问，让浏览器处理跳转
+    if (onSingleClick) await onSingleClick();
+  };
+
+  const handleDoubleClick = async (e: MouseEvent<HTMLAnchorElement>) => {
     e.preventDefault();
-
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-      navigator.clipboard.writeText(href || '').then(
-        () => toast('链接已复制', 'success'),
-        () => toast('复制失败', 'error')
-      );
-    } else {
-      timerRef.current = setTimeout(async () => {
-        timerRef.current = null;
-        if (onSingleClick) await onSingleClick();
-        if (href) window.open(href, target || '_self');
-      }, 250);
+    try {
+      await navigator.clipboard.writeText(href || '');
+      toast('链接已复制', 'success');
+    } catch {
+      toast('复制失败', 'error');
     }
   };
 
   return (
-    <a href={href} onClick={handleClick} className={className} target={target} {...props}>
+    <a
+      href={href}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+      className={className}
+      target={target}
+      {...props}
+    >
       {children}
     </a>
   );
@@ -275,13 +288,14 @@ export function LinksView() {
           </SelectContent>
         </Select>
         <Button
-          onClick={() => {
-            localStorage.setItem('dpp_active_tab', 'aiAssistant');
-            localStorage.setItem(
-              'dpp_ai_preset_prompt',
-              '我想导入一批链接，请你帮我整理成标准的链接格式并导入'
-            );
-            window.location.reload();
+          aria-label="智能导入链接"
+          onClick={async () => {
+            const extBrowser = await import('@/utils/extension-browser');
+            await extBrowser.browser.storage.session.set({
+              dpp_smart_import_tab: 'aiAssistant',
+              dpp_ai_preset_prompt: '我想导入一批链接，请你帮我整理成标准的链接格式并导入',
+            });
+            toast('请手动切换到 AI 助手标签页', 'info');
           }}
           variant="ghost"
           size="sm"
@@ -290,7 +304,13 @@ export function LinksView() {
         >
           <Bot className="h-4 w-4 text-primary" />
         </Button>
-        <Button onClick={handleAdd} size="sm" className="shrink-0 h-8 w-8 p-0" title="添加链接">
+        <Button
+          aria-label="添加链接"
+          onClick={handleAdd}
+          size="sm"
+          className="shrink-0 h-8 w-8 p-0"
+          title="添加链接"
+        >
           <Plus className="h-4 w-4" />
         </Button>
       </div>
@@ -316,11 +336,6 @@ export function LinksView() {
                 rel="noreferrer"
                 className={cn('block group/link')}
                 onSingleClick={() => handleLinkClick(link.id)}
-                onAuxClick={(e) => {
-                  if (e.button === 1) {
-                    handleLinkClick(link.id);
-                  }
-                }}
               >
                 <div className="flex items-center gap-2">
                   <div className="font-medium truncate text-base leading-normal py-0.5">
@@ -329,7 +344,7 @@ export function LinksView() {
                   {link.note && (
                     <StickyNote className="h-3.5 w-3.5 text-muted-foreground/70 dark:text-muted-foreground/60 shrink-0" />
                   )}
-                  {import.meta.env.DEV && link.usageCount >= 0 && (
+                  {import.meta.env.DEV && (
                     <div
                       className="flex items-center gap-0.5 text-xs text-muted-foreground/70 dark:text-muted-foreground/60 bg-muted/40 dark:bg-muted/30 px-1 rounded"
                       title={`使用次数：${link.usageCount}`}

@@ -167,6 +167,7 @@ export function BlackboardView() {
       {/* Floating Action Button */}
       <div className="absolute bottom-6 right-6">
         <Button
+          aria-label="添加新便签"
           size="icon"
           className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-transform hover:scale-105 active:scale-95 bg-primary text-primary-foreground"
           onClick={handleAdd}

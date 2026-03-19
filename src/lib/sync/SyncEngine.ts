@@ -1,4 +1,4 @@
-import Dexie, { type Transaction } from 'dexie';
+import Dexie, { type Table, type Transaction } from 'dexie';
 import type { IndexableType } from 'dexie';
 import { browser } from 'wxt/browser';
 import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
@@ -495,90 +495,129 @@ export class SyncEngine {
 
   private async applyOperation(op: SyncOperation) {
     if (!this.tables.includes(op.table)) {
-      // Defer operation for unknown table to support future schema updates
-      try {
-        await this.db.table('deferred_ops').add({
-          table: op.table,
-          op,
-          timestamp: op.timestamp,
-          receivedAt: Date.now(),
-        });
-        logger.info(`[Sync] Deferred operation for unknown table: ${op.table}`);
-      } catch (e) {
-        logger.error(`[Sync] Failed to defer operation for ${op.table}:`, e);
-      }
+      await this.deferOperation(op);
       return;
     }
 
-    const table = this.db.table(op.table);
+    const table = this.db.table(op.table) as Table<unknown, IndexableType>;
 
     if (op.type === 'delete') {
-      const payload = op.payload as Record<string, unknown>;
-      if (payload && typeof payload === 'object') {
-        await table.put(payload);
-      }
+      await this.applyDeleteOperation(table, op);
     } else if (op.type === 'create' || op.type === 'update') {
-      const existing = await table.get(op.key as IndexableType);
+      await this.applyCreateOrUpdateOperation(table, op);
+    }
+  }
 
-      if (existing) {
-        const existingTimestamp = this.getRecordTimestamp(existing);
-        const opTimestamp = op.timestamp;
-        if (existingTimestamp && existingTimestamp > opTimestamp) {
-          return;
+  private async deferOperation(op: SyncOperation) {
+    try {
+      await this.db.table('deferred_ops').add({
+        table: op.table,
+        op,
+        timestamp: op.timestamp,
+        receivedAt: Date.now(),
+      });
+      logger.info(`[Sync] Deferred operation for unknown table: ${op.table}`);
+    } catch (e) {
+      logger.error(`[Sync] Failed to defer operation for ${op.table}:`, e);
+    }
+  }
+
+  private async applyDeleteOperation(table: Table<unknown, IndexableType>, op: SyncOperation) {
+    const payload = op.payload as Record<string, unknown>;
+    if (payload && typeof payload === 'object') {
+      await table.put(payload);
+    }
+  }
+
+  private async applyCreateOrUpdateOperation(
+    table: Table<unknown, IndexableType>,
+    op: SyncOperation
+  ) {
+    const existing = await table.get(op.key as IndexableType);
+
+    if (existing) {
+      const existingTimestamp = this.getRecordTimestamp(existing);
+      const opTimestamp = op.timestamp;
+      if (existingTimestamp && existingTimestamp > opTimestamp) {
+        return;
+      }
+    }
+
+    const payload = this.resolvePayloadKey(table, op);
+    await this.putWithConstraintRecovery(table, op, payload);
+  }
+
+  private resolvePayloadKey(
+    table: Table<unknown, IndexableType>,
+    op: SyncOperation
+  ): Record<string, unknown> {
+    let payload = op.payload as Record<string, unknown>;
+    const keyPath = table.schema.primKey.keyPath;
+
+    if (!keyPath) return payload;
+
+    if (typeof keyPath === 'string') {
+      if (payload[keyPath] === undefined && op.key !== undefined) {
+        payload = { ...payload, [keyPath]: op.key };
+      }
+    } else if (Array.isArray(keyPath)) {
+      const keyArray = op.key as unknown[];
+      if (Array.isArray(keyArray)) {
+        for (let i = 0; i < keyPath.length; i++) {
+          const path = keyPath[i];
+          if (payload[path] === undefined && keyArray[i] !== undefined) {
+            payload = { ...payload, [path]: keyArray[i] };
+          }
         }
       }
+    }
 
-      let payload = op.payload as Record<string, unknown>;
-      const keyPath = table.schema.primKey.keyPath;
+    return payload;
+  }
 
-      if (keyPath) {
-        if (typeof keyPath === 'string') {
-          if (payload[keyPath] === undefined && op.key !== undefined) {
-            payload = { ...payload, [keyPath]: op.key };
-          }
-        } else if (Array.isArray(keyPath)) {
-          const keyArray = op.key as unknown[];
-          if (Array.isArray(keyArray)) {
-            keyPath.forEach((path, index) => {
-              if (payload[path] === undefined && keyArray[index] !== undefined) {
-                payload = { ...payload, [path]: keyArray[index] };
-              }
-            });
-          }
-        }
-      }
-
-      try {
+  private async putWithConstraintRecovery(
+    table: Table<unknown, IndexableType>,
+    op: SyncOperation,
+    payload: Record<string, unknown>
+  ) {
+    try {
+      await table.put(payload);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'ConstraintError') {
+        await this.resolveConstraintError(table, op, payload);
         await table.put(payload);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'ConstraintError') {
-          for (const index of table.schema.indexes) {
-            if (!index.unique) continue;
-            const indexKeyPath = index.keyPath;
-            if (!indexKeyPath || typeof indexKeyPath !== 'string') continue;
-            const value = payload[indexKeyPath];
-            if (value === undefined) continue;
+      } else {
+        throw err;
+      }
+    }
+  }
 
-            const conflict = await table
-              .where(indexKeyPath)
-              .equals(value as IndexableType)
-              .first();
-            if (!conflict) continue;
+  private async resolveConstraintError(
+    table: Table<unknown, IndexableType>,
+    op: SyncOperation,
+    payload: Record<string, unknown>
+  ) {
+    for (const index of table.schema.indexes) {
+      if (!index.unique) continue;
+      const indexKeyPath = index.keyPath;
+      if (!indexKeyPath || typeof indexKeyPath !== 'string') continue;
+      const value = payload[indexKeyPath];
+      if (value === undefined) continue;
 
-            const pkPath = table.schema.primKey.keyPath;
-            if (typeof pkPath === 'string') {
-              const conflictKey = (conflict as Record<string, unknown>)[pkPath];
-              if (conflictKey !== op.key && conflictKey !== undefined) {
-                logger.info(
-                  `[Sync] Deleting conflicting record in ${op.table} (${indexKeyPath}=${value})`
-                );
-                await table.delete(conflictKey as IndexableType);
-              }
-            }
-          }
-          await table.put(payload);
-        } else {
-          throw err;
+      const conflict = await table
+        .where(indexKeyPath)
+        .equals(value as IndexableType)
+        .first();
+      if (!conflict) continue;
+
+      const pkPath = table.schema.primKey.keyPath;
+      if (typeof pkPath === 'string') {
+        const conflictKey = (conflict as Record<string, unknown>)[pkPath];
+        if (conflictKey !== op.key && conflictKey !== undefined) {
+          logger.info(
+            `[Sync] Deleting conflicting record in ${op.table} (${indexKeyPath}=${value})`
+          );
+          await table.delete(conflictKey as IndexableType);
         }
       }
     }
@@ -587,7 +626,6 @@ export class SyncEngine {
   private getRecordTimestamp(record: unknown): number | null {
     if (typeof record === 'object' && record !== null) {
       const r = record as Record<string, unknown>;
-      // 根据 LWW 策略，始终使用本地客户端时间戳
       if (typeof r.updatedAt === 'number') return r.updatedAt;
     }
     return null;

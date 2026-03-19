@@ -3,6 +3,7 @@ import type { Setting, SettingKey } from '@/db/types';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import type { AIProviderType } from '@/lib/ai/types';
 import { decryptData, loadKey } from '@/lib/crypto/encryption';
+import { logger } from '@/utils/logger';
 
 export async function getSetting<T>(key: string): Promise<T | undefined> {
   const setting = await db.settings.get(key as SettingKey);
@@ -74,8 +75,9 @@ export async function getAIConfig(): Promise<AIConfigResult | null> {
         } else {
           apiKey = apiKeySetting.value as string;
         }
-      } catch {
-        apiKey = '';
+      } catch (err) {
+        logger.error('[Settings] Failed to decrypt API key:', err);
+        return null;
       }
     }
 

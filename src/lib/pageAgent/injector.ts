@@ -1,6 +1,7 @@
 // src/lib/pageAgent/injector.ts
 // PageAgent 注入逻辑
 import { browser } from 'wxt/browser';
+import { logger } from '@/utils/logger';
 import type { PageAgentConfig } from './types';
 
 /**
@@ -78,8 +79,8 @@ export async function clearExistingAgent(tabId: number): Promise<void> {
         delete window.__DPP_PAGE_AGENT__;
       },
     });
-  } catch {
-    // ignore
+  } catch (err) {
+    logger.debug('[PageAgent] Failed to clear existing agent:', err);
   }
 }
 

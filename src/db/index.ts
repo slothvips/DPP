@@ -64,10 +64,15 @@ async function getSyncServerUrl(): Promise<{ apiUrl: string; endpoint: string }>
   const rawUrl = (setting?.value as string)?.trim();
   if (!rawUrl) throw new Error('Sync server URL not configured');
 
+  let url: URL;
   try {
-    new URL(rawUrl);
+    url = new URL(rawUrl);
   } catch {
-    throw new Error('Invalid sync server URL format');
+    throw new Error('Invalid sync server URL format. Example: https://sync.example.com');
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Sync server URL must use http:// or https:// protocol');
   }
 
   const apiUrl = rawUrl.replace(/\/$/, '');
