@@ -58,7 +58,8 @@ export default defineConfig({
       default_path: 'sidepanel.html',
     },
     name: 'DPP',
-    description: 'Team documentation & Jenkins deployment assistant with tech news',
+    description:
+      'DPP - 团队文档与 Jenkins 部署助手，支持 AI 智能问答、屏幕录制、链接管理与技术资讯聚合',
     icons: {
       16: '/icon/16.png',
       32: '/icon/32.png',
