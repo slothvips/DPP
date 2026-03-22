@@ -1,5 +1,52 @@
 # 更新日志
 
+## v0.3.8 (2026-03-22)
+
+### 🔒 安全与稳定性
+
+- **SyncEngine 重复注册防护**: 添加 `_registered` 标志位，防止同步引擎重复注册 hooks 导致的问题
+- **localStorage 安全访问**: 在 App.tsx 中添加 `typeof localStorage !== 'undefined'` 检查，避免 SSR/测试环境报错
+- **Chrome Web Store 合规**: 更新扩展元数据以符合 Chrome Web Store 规范
+
+### 🏗️ 架构优化
+
+- **SyncEngine 改进**: 优化同步引擎内部实现，提升稳定性和性能
+- **PageAgentButton 重构**: 将 PageAgentButton 从全局 header 移至 AI Assistant 面板，优化布局结构
+- **清理临时文件**: 移除 .planning 目录和过期文档，保持仓库整洁
+
+---
+
+## v0.3.7 (2026-03-21)
+
+### ✨ 新功能
+
+- **工具箱 (Toolbox)**: 新增实用工具集，支持多种常用功能
+  - **Diff 对比工具**: 基于 Monaco Editor 的文本差异对比，支持 side-by-side 显示、AI 智能解读差异内容
+  - **正则表达式工具**: 支持常用正则预设（URL、HTML标签、邮箱、手机号等）、实时匹配高亮、ReDoS 防护
+  - **时间戳工具**: 支持时间戳/日期字符串互转、时区转换、AI 智能解析模糊时间表达
+
+### 🏗️ 架构优化
+
+- **Tab Keep-alive 模式**: 所有 Tab 组件使用 Vue-like keep-alive 模式，保持挂载状态避免重复渲染
+- **平滑切换动画**: Tab 切换添加 opacity 过渡效果，消除闪烁
+- **独立 Diff 页面**: 新增 `diff/index.html` 独立页面入口，可单独打开使用
+- **JenkinsIcon 组件**: 新增 Jenkins 图标组件
+
+### 🔒 安全与稳定性
+
+- **SyncEngine 重复注册防护**: 防止同步引擎重复注册 hooks 导致的问题
+- **localStorage 安全访问**: 添加安全检查避免 SSR/Worker 环境报错
+- **ReDoS 防护**: 正则表达式工具简化预设模式，避免恶意输入导致的正则爆炸
+- **内存泄漏修复**: 修复 BlackboardItem 等组件中的 setTimeout 未清理问题
+
+### 🔧 代码质量
+
+- **PlayerApp 重构**: 移除多个 setTimeout，使用重试计数器机制替代，提升可靠性
+- **DiffView 错误边界**: Monaco Editor 添加错误边界处理，初始化失败时显示友好提示
+- **ConsolePanel 优化**: 提取魔法数字为常量，添加 ESLint 规则说明注释
+
+---
+
 ## v0.3.6 (2026-03-18)
 
 ### ✨ 新功能

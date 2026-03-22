@@ -51,8 +51,8 @@ export default defineConfig({
     // storage: 存储扩展配置
     // sidePanel: 侧边面板功能
     // alarms: 定时任务
-    // activeTab: 获取当前活动标签页信息（用于 Page Agent 注入）
-    // scripting: 编程式注入脚本（用于 Page Agent 注入）
+    // activeTab: 获取标签页信息
+    // scripting: 编程式注入脚本（用于 Page Agent 注入，用户需先选择目标标签页）
     permissions: ['storage', 'sidePanel', 'alarms', 'activeTab', 'scripting'],
     side_panel: {
       default_path: 'sidepanel.html',

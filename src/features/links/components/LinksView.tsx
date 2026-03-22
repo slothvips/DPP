@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Bot, Edit, Eye, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
+import { Edit, Eye, Pin, PinOff, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
 import {
   type AnchorHTMLAttributes,
   type MouseEvent,
@@ -72,43 +72,15 @@ function LinkWithCopy({
   onSingleClick,
   ...props
 }: AnchorHTMLAttributes<HTMLAnchorElement> & { onSingleClick?: () => void | Promise<void> }) {
-  const { toast } = useToast();
-
   const handleClick = async (e: MouseEvent<HTMLAnchorElement>) => {
-    // 中键点击或 Ctrl/Cmd 点击 - 复制链接到剪贴板
-    if (e.button === 1 || e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      try {
-        await navigator.clipboard.writeText(href || '');
-        toast('链接已复制', 'success');
-      } catch {
-        toast('复制失败', 'error');
-      }
-      return;
-    }
-    // 普通左键点击 - 记录访问，让浏览器处理跳转
-    if (onSingleClick) await onSingleClick();
-  };
-
-  const handleDoubleClick = async (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    try {
-      await navigator.clipboard.writeText(href || '');
-      toast('链接已复制', 'success');
-    } catch {
-      toast('复制失败', 'error');
+    // 左键点击 - 记录访问，让浏览器处理跳转
+    if (e.button === 0 && onSingleClick) {
+      await onSingleClick();
     }
   };
 
   return (
-    <a
-      href={href}
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      className={className}
-      target={target}
-      {...props}
-    >
+    <a href={href} onClick={handleClick} className={className} target={target} {...props}>
       {children}
     </a>
   );
@@ -288,23 +260,6 @@ export function LinksView() {
           </SelectContent>
         </Select>
         <Button
-          aria-label="智能导入链接"
-          onClick={async () => {
-            const extBrowser = await import('@/utils/extension-browser');
-            await extBrowser.browser.storage.session.set({
-              dpp_smart_import_tab: 'aiAssistant',
-              dpp_ai_preset_prompt: '我想导入一批链接，请你帮我整理成标准的链接格式并导入',
-            });
-            toast('请手动切换到 AI 助手标签页', 'info');
-          }}
-          variant="ghost"
-          size="sm"
-          className="shrink-0 h-8 w-8 p-0"
-          title="智能导入"
-        >
-          <Bot className="h-4 w-4 text-primary" />
-        </Button>
-        <Button
           aria-label="添加链接"
           onClick={handleAdd}
           size="sm"
@@ -317,7 +272,7 @@ export function LinksView() {
 
       <VirtualList
         items={filteredAndSortedLinks ?? []}
-        estimateSize={108}
+        estimateSize={116}
         overscan={5}
         containerClassName="pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] flex-1 min-h-0"
         renderItem={(link) => (
@@ -325,11 +280,77 @@ export function LinksView() {
             key={link.id}
             className={cn(
               'flex items-start gap-2 rounded-lg border transition-colors group relative overflow-hidden',
-              'p-3 mb-2 min-h-[60px]',
+              'p-3 mb-3 min-h-[60px]',
               link.pinnedAt ? 'bg-secondary/30 border-primary/20' : 'hover:bg-accent'
             )}
           >
             <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                <LinkWithCopy
+                  href={link.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn('block group/link')}
+                  onSingleClick={() => handleLinkClick(link.id)}
+                >
+                  <div className="font-medium truncate text-base leading-normal py-0.5">
+                    {link.name}
+                  </div>
+                </LinkWithCopy>
+                {import.meta.env.DEV && (
+                  <div
+                    className="flex items-center gap-0.5 text-xs text-muted-foreground/70 dark:text-muted-foreground/60 bg-muted/40 dark:bg-muted/30 px-1 rounded"
+                    title={`使用次数：${link.usageCount}`}
+                  >
+                    <Eye className="h-3 w-3" />
+                    <span>{link.usageCount}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1 ml-auto shrink-0">
+                  {link.note && <NoteButton note={link.note} />}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      togglePin(link.id);
+                    }}
+                    title={link.pinnedAt ? '取消置顶' : '置顶'}
+                  >
+                    {link.pinnedAt ? (
+                      <PinOff className="h-3.5 w-3.5" />
+                    ) : (
+                      <Pin className="h-3.5 w-3.5 text-muted-foreground" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(link);
+                    }}
+                    title="编辑"
+                  >
+                    <Edit className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(link);
+                    }}
+                    title="删除"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+
               <LinkWithCopy
                 href={link.url}
                 target="_blank"
@@ -337,26 +358,9 @@ export function LinksView() {
                 className={cn('block group/link')}
                 onSingleClick={() => handleLinkClick(link.id)}
               >
-                <div className="flex items-center gap-2">
-                  <div className="font-medium truncate text-base leading-normal py-0.5">
-                    {link.name}
-                  </div>
-                  {link.note && (
-                    <StickyNote className="h-3.5 w-3.5 text-muted-foreground/70 dark:text-muted-foreground/60 shrink-0" />
-                  )}
-                  {import.meta.env.DEV && (
-                    <div
-                      className="flex items-center gap-0.5 text-xs text-muted-foreground/70 dark:text-muted-foreground/60 bg-muted/40 dark:bg-muted/30 px-1 rounded"
-                      title={`使用次数：${link.usageCount}`}
-                    >
-                      <Eye className="h-3 w-3" />
-                      <span>{link.usageCount}</span>
-                    </div>
-                  )}
-                </div>
                 <div
                   className={cn(
-                    'text-xs text-muted-foreground truncate flex items-center gap-2 mt-0.5',
+                    'text-xs text-muted-foreground truncate flex items-center gap-2',
                     'w-full'
                   )}
                 >
@@ -366,7 +370,7 @@ export function LinksView() {
                 </div>
               </LinkWithCopy>
 
-              <div>
+              <div onClick={(e) => e.stopPropagation()}>
                 <LinkTagSelector
                   linkId={link.id}
                   selectedTagIds={new Set(link.tags?.map((t) => t.id))}
@@ -374,62 +378,6 @@ export function LinksView() {
                 />
               </div>
             </div>
-
-            <div
-              className={cn(
-                'opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-background/90 backdrop-blur-sm p-1 rounded-md shadow-sm border shrink-0 z-10',
-                'absolute top-2 right-2'
-              )}
-            >
-              {link.note && <NoteButton note={link.note} />}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  togglePin(link.id);
-                }}
-                title={link.pinnedAt ? '取消置顶' : '置顶'}
-              >
-                {link.pinnedAt ? (
-                  <PinOff className="h-3.5 w-3.5" />
-                ) : (
-                  <Pin className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(link);
-                }}
-                title="编辑"
-              >
-                <Edit className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(link);
-                }}
-                title="删除"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            {link.pinnedAt && (
-              <div className="absolute top-0 right-0 p-1 opacity-100 pointer-events-none">
-                <div className="bg-primary/10 p-1 rounded-bl-lg backdrop-blur-[1px]">
-                  <Pin className="h-3 w-3 text-primary/70 rotate-0" />
-                </div>
-              </div>
-            )}
           </div>
         )}
       />

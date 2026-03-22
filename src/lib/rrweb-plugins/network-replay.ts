@@ -206,10 +206,10 @@ export function formatDuration(ms: number | undefined): string {
  */
 export function getStatusColor(status: number | undefined): string {
   if (status === undefined) return 'text-muted-foreground';
-  if (status >= 200 && status < 300) return 'text-green-600';
-  if (status >= 300 && status < 400) return 'text-yellow-600';
-  if (status >= 400 && status < 500) return 'text-orange-600';
-  if (status >= 500) return 'text-red-600';
+  if (status >= 200 && status < 300) return 'text-success';
+  if (status >= 300 && status < 400) return 'text-warning';
+  if (status >= 400 && status < 500) return 'text-warning';
+  if (status >= 500) return 'text-destructive';
   return 'text-muted-foreground';
 }
 
@@ -219,15 +219,15 @@ export function getStatusColor(status: number | undefined): string {
 export function getMethodColor(method: string): string {
   switch (method.toUpperCase()) {
     case 'GET':
-      return 'text-blue-600';
+      return 'text-info';
     case 'POST':
-      return 'text-green-600';
+      return 'text-success';
     case 'PUT':
-      return 'text-orange-600';
+      return 'text-warning';
     case 'DELETE':
-      return 'text-red-600';
+      return 'text-destructive';
     case 'PATCH':
-      return 'text-purple-600';
+      return 'text-console-debug';
     default:
       return 'text-muted-foreground';
   }

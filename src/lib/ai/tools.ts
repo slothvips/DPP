@@ -1,6 +1,9 @@
 // AI Tools - Tool registry and conversion utilities
+import { browser } from 'wxt/browser';
 import { logger } from '@/utils/logger';
 import type { ToolParameter } from './types';
+
+export const YOLO_MODE_KEY = '__dpp_yolo_mode';
 
 /**
  * Tool execution handler type
@@ -68,15 +71,40 @@ class ToolRegistry {
   }
 
   /**
-   * Check if a tool requires confirmation
+   * Check if a tool requires confirmation (considers YOLO mode)
    */
-  requiresConfirmation(name: string): boolean {
+  async requiresConfirmation(name: string): Promise<boolean> {
+    // Check YOLO mode first
+    const isYolo = await this.isYoloMode();
+    if (isYolo) {
+      return false;
+    }
+
     const tool = this.tools.get(name);
     return tool?.requiresConfirmation ?? false;
   }
 
   /**
-   * Get list of tools that require confirmation
+   * Check if YOLO mode is enabled
+   */
+  async isYoloMode(): Promise<boolean> {
+    try {
+      const result = await browser.storage.session.get(YOLO_MODE_KEY);
+      return result[YOLO_MODE_KEY] === true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Set YOLO mode
+   */
+  async setYoloMode(enabled: boolean): Promise<void> {
+    await browser.storage.session.set({ [YOLO_MODE_KEY]: enabled });
+  }
+
+  /**
+   * Get list of tools that require confirmation (for prompt generation, not considering YOLO)
    */
   getConfirmationRequired(): string[] {
     return this.getAll()

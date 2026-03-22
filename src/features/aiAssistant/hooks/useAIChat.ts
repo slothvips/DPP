@@ -1,11 +1,12 @@
 // AI Chat hook - Core conversation logic
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { browser } from 'wxt/browser';
 // Import AI module to trigger tool registration
 import '@/lib/ai';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
 import { DEFAULT_CONFIGS, createProvider } from '@/lib/ai/provider';
 import { containsToolCall, parseResponse } from '@/lib/ai/response-parser';
-import { toolRegistry } from '@/lib/ai/tools';
+import { YOLO_MODE_KEY, toolRegistry } from '@/lib/ai/tools';
 import type { AIProviderType, ModelProvider } from '@/lib/ai/types';
 import { WebLLMProvider } from '@/lib/ai/webllm';
 import { decryptData, loadKey } from '@/lib/crypto/encryption';
@@ -84,9 +85,15 @@ export interface UseAIChatReturn {
   modelLoadStatus: string;
   // Current provider type for UI warnings
   currentProvider: AIProviderType | null;
+  // YOLO mode - auto-confirm all tools
+  yoloMode: boolean;
+  setYoloMode: (value: boolean) => void;
+  // Running state for stop button
+  isRunning: boolean;
 
   // Actions
   sendMessage: (content: string) => Promise<void>;
+  stop: () => void;
   confirmToolCall: () => Promise<void>;
   confirmAllToolCalls: () => Promise<void>;
   cancelToolCall: () => void;
@@ -127,6 +134,38 @@ export function useAIChat(): UseAIChatReturn {
   const [modelLoadStatus, setModelLoadStatus] = useState('');
   // Current provider type for UI
   const [currentProvider, setCurrentProvider] = useState<AIProviderType | null>(null);
+
+  // YOLO mode - auto-confirm all tool calls without asking
+  const [yoloMode, setYoloMode] = useState(false);
+  // Store yoloMode in ref to avoid dependency issues in callbacks
+  const yoloModeRef = useRef(yoloMode);
+  useEffect(() => {
+    yoloModeRef.current = yoloMode;
+  }, [yoloMode]);
+
+  // Initialize YOLO mode from storage and listen for changes
+  useEffect(() => {
+    // Initial read
+    browser.storage.session
+      .get(YOLO_MODE_KEY)
+      .then((result) => {
+        if (result[YOLO_MODE_KEY] === true) {
+          setYoloMode(true);
+        }
+      })
+      .catch(() => {});
+
+    // Listen for changes (when AI uses agent_setYoloMode)
+    const listener = (changes: Record<string, { newValue?: unknown }>) => {
+      if (changes[YOLO_MODE_KEY]) {
+        setYoloMode(changes[YOLO_MODE_KEY].newValue === true);
+      }
+    };
+    browser.storage.session.onChanged.addListener(listener);
+    return () => {
+      browser.storage.session.onChanged.removeListener(listener);
+    };
+  }, []);
 
   // Refs
   const providerRef = useRef<ModelProvider | null>(null);
@@ -280,8 +319,8 @@ export function useAIChat(): UseAIChatReturn {
           },
         };
 
-        // Check if confirmation is required
-        if (toolRegistry.requiresConfirmation(name)) {
+        // Check if confirmation is required (skip if YOLO mode is enabled)
+        if (!yoloModeRef.current && (await toolRegistry.requiresConfirmation(name))) {
           toolCallsToConfirm.push({ toolCall, arguments: args });
         } else {
           toolCallsToExecute.push(toolCall);
@@ -384,6 +423,7 @@ export function useAIChat(): UseAIChatReturn {
         // For streaming response (tool calls are parsed from content, not API response)
         await provider.chat(apiMessages, {
           stream: true,
+          signal: abortControllerRef.current.signal,
           onChunk: (chunk) => {
             // Accumulate content for tool call detection
             accumulatedContentRef.current += chunk;
@@ -644,9 +684,13 @@ export function useAIChat(): UseAIChatReturn {
           ...allMessages.map(toLibChatMessage),
         ];
 
+        // Create abort controller for potential cancellation
+        abortControllerRef.current = new AbortController();
+
         // Get response (tool calls are parsed from content, not API response)
         await provider.chat(apiMessages, {
           stream: true,
+          signal: abortControllerRef.current.signal,
           onChunk: (chunk) => {
             // Accumulate content
             accumulatedContentRef.current += chunk;
@@ -790,6 +834,47 @@ export function useAIChat(): UseAIChatReturn {
     setPendingToolCalls(null);
     setStatus('idle');
   }, [pendingToolCall, pendingToolCalls, sessionId]);
+
+  /**
+   * Stop the current AI task (abort the request)
+   */
+  const stop = useCallback(() => {
+    // Abort the current AI request if running
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Add stop message
+    const stopMessage: ChatMessage = {
+      id: generateId(),
+      role: 'user',
+      content: '【任务已终止】',
+      createdAt: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, stopMessage]);
+
+    // Save to database
+    if (sessionId) {
+      addMessage({
+        sessionId,
+        role: 'user',
+        content: stopMessage.content,
+      }).catch((err) => logger.error('[AIChat] Failed to save stop message:', err));
+    }
+
+    // Clear any pending tool calls or builds
+    setPendingToolCall(null);
+    setPendingToolCalls(null);
+    setPendingBuild(null);
+
+    // Reset status to idle
+    setStatus('idle');
+    setError(null);
+
+    logger.info('[AIChat] AI task stopped by user');
+  }, [sessionId]);
 
   /**
    * Clear all messages in current session
@@ -1057,7 +1142,10 @@ ${compressedMessages.slice(0, 2000)}${compressedMessages.length > 2000 ? '\n\n(�
     modelLoadProgress,
     modelLoadStatus,
     currentProvider,
+    yoloMode,
+    isRunning: status === 'loading' || status === 'streaming',
     sendMessage,
+    stop,
     confirmToolCall,
     confirmAllToolCalls,
     cancelToolCall,
@@ -1069,5 +1157,6 @@ ${compressedMessages.slice(0, 2000)}${compressedMessages.length > 2000 ? '\n\n(�
     completeBuild,
     cancelBuild,
     summarizeSession,
+    setYoloMode,
   };
 }

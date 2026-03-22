@@ -16,8 +16,20 @@ export type { RemoteRecordingMessage } from './remoteRecording';
 export { handleProxyMessage } from './proxy';
 export type { ProxyMessage } from './proxy';
 
-export { handlePageAgentInject } from './pageAgent';
-export type { PageAgentInjectRequest, PageAgentInjectResponse } from '@/lib/pageAgent/types';
+export {
+  handlePageAgentInject,
+  handlePageAgentExecute,
+  handlePageAgentInjectWithTab,
+  handlePageAgentExecuteTaskWithTab,
+} from './pageAgent';
+export type {
+  PageAgentInjectRequest,
+  PageAgentInjectResponse,
+  PageAgentExecuteRequest,
+  PageAgentExecuteResponse,
+  PageAgentInjectWithTabRequest,
+  PageAgentExecuteTaskWithTabRequest,
+} from '@/lib/pageAgent/types';
 
 export { handleGeneralMessage } from './general';
 export type { GeneralMessage } from './general';

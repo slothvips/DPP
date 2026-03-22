@@ -96,7 +96,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
     try {
       if (options?.stream && options.onChunk) {
-        return this.handleStreamingChat(url, requestBody, options.onChunk);
+        return this.handleStreamingChat(url, requestBody, options.onChunk, options.signal);
       }
 
       const response = await httpPost<OpenAIChatResponse>(url, requestBody, {
@@ -122,7 +122,8 @@ export class OpenAICompatibleProvider implements ModelProvider {
   private async handleStreamingChat(
     url: string,
     requestBody: OpenAIChatRequest,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
   ): Promise<ChatResponse> {
     const response = await fetch(url, {
       method: 'POST',
@@ -131,6 +132,7 @@ export class OpenAICompatibleProvider implements ModelProvider {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ ...requestBody, stream: true }),
+      signal,
     });
 
     if (!response.ok) {
@@ -150,6 +152,12 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
     try {
       while (true) {
+        // Check if abort was requested
+        if (signal?.aborted) {
+          logger.info('[OpenAI] Streaming aborted by user');
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -298,7 +306,7 @@ export class AnthropicProvider implements ModelProvider {
 
     try {
       if (options?.stream && options.onChunk) {
-        return this.handleStreamingChat(requestBody, options.onChunk);
+        return this.handleStreamingChat(requestBody, options.onChunk, options.signal);
       }
 
       // Try native Anthropic endpoint first
@@ -415,7 +423,8 @@ export class AnthropicProvider implements ModelProvider {
    */
   private async handleStreamingChat(
     requestBody: AnthropicChatRequest,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
   ): Promise<ChatResponse> {
     // Try native Anthropic endpoint first
     const nativeUrl = `${this.baseUrl}/v1/messages`;
@@ -432,6 +441,7 @@ export class AnthropicProvider implements ModelProvider {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ ...requestBody, stream: true }),
+        signal,
       });
 
       if (!response.ok) {
@@ -474,6 +484,7 @@ export class AnthropicProvider implements ModelProvider {
           messages: openaiMessages,
           stream: true,
         }),
+        signal,
       });
 
       if (!response.ok) {
@@ -493,6 +504,12 @@ export class AnthropicProvider implements ModelProvider {
 
     try {
       while (true) {
+        // Check if abort was requested
+        if (signal?.aborted) {
+          logger.info('[Anthropic] Streaming aborted by user');
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 

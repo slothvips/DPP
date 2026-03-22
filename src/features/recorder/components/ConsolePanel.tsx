@@ -23,6 +23,9 @@ type LogStatus = 'past' | 'active' | 'future';
 const LOG_LEVELS = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const;
 type LogLevel = (typeof LOG_LEVELS)[number];
 
+// 内容展开阈值
+const EXPAND_CONTENT_THRESHOLD = 200;
+
 export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
   const [filter, setFilter] = useState('');
   const [levelFilter, setLevelFilter] = useState<Set<LogLevel>>(new Set());
@@ -95,6 +98,8 @@ export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
       counts[getLogStatus(log)]++;
     });
     return counts;
+    // filteredLogs 已经包含 currentTime 的影响（通过过滤逻辑），
+    // 添加 currentTime 到依赖项会导致不必要的重新计算
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredLogs, currentTime]);
 
@@ -226,7 +231,8 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
   }, [log.args]);
 
   // 判断是否需要展开按钮（内容较长或包含换行）
-  const needsExpand = formattedContent.length > 200 || formattedContent.includes('\n');
+  const needsExpand =
+    formattedContent.length > EXPAND_CONTENT_THRESHOLD || formattedContent.includes('\n');
 
   return (
     <div
@@ -350,20 +356,22 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
 
   // null
   if (value === null) {
-    return <span className={cn(baseClass, !isFuture && 'text-gray-500 italic')}>null</span>;
+    return <span className={cn(baseClass, !isFuture && 'text-muted-foreground italic')}>null</span>;
   }
 
   // 基本类型
   if (typeof value === 'string') {
-    return <span className={cn(baseClass, !isFuture && 'text-green-600')}>"{value}"</span>;
+    return <span className={cn(baseClass, !isFuture && 'text-console-log')}>"{value}"</span>;
   }
 
   if (typeof value === 'number') {
-    return <span className={cn(baseClass, !isFuture && 'text-blue-600')}>{value}</span>;
+    return <span className={cn(baseClass, !isFuture && 'text-console-info')}>{value}</span>;
   }
 
   if (typeof value === 'boolean') {
-    return <span className={cn(baseClass, !isFuture && 'text-purple-600')}>{String(value)}</span>;
+    return (
+      <span className={cn(baseClass, !isFuture && 'text-console-debug')}>{String(value)}</span>
+    );
   }
 
   // 数组
@@ -398,38 +406,42 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
       switch (type) {
         case 'undefined':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-gray-500 italic')}>undefined</span>
+            <span className={cn(baseClass, !isFuture && 'text-muted-foreground italic')}>
+              undefined
+            </span>
           );
 
         case 'number':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-blue-600')}>{String(obj.value)}</span>
+            <span className={cn(baseClass, !isFuture && 'text-console-info')}>
+              {String(obj.value)}
+            </span>
           );
 
         case 'symbol':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-yellow-600')}>
+            <span className={cn(baseClass, !isFuture && 'text-console-warn')}>
               Symbol({(obj.description as string) || ''})
             </span>
           );
 
         case 'function':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-cyan-600')}>
+            <span className={cn(baseClass, !isFuture && 'text-console-trace')}>
               ƒ {(obj.name as string) || 'anonymous'}()
             </span>
           );
 
         case 'bigint':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-blue-600')}>
+            <span className={cn(baseClass, !isFuture && 'text-console-info')}>
               {String(obj.value)}n
             </span>
           );
 
         case 'Element':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-purple-600')}>
+            <span className={cn(baseClass, !isFuture && 'text-console-debug')}>
               &lt;{((obj.tagName as string) || 'unknown').toLowerCase()}
               {obj.id ? `#${String(obj.id)}` : ''}
               {obj.className
@@ -441,7 +453,7 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
 
         case 'Error':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-red-600')}>
+            <span className={cn(baseClass, !isFuture && 'text-console-error')}>
               {String(obj.name)}: {String(obj.message)}
             </span>
           );
@@ -455,7 +467,7 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
 
         case 'RegExp':
           return (
-            <span className={cn(baseClass, !isFuture && 'text-red-500')}>
+            <span className={cn(baseClass, !isFuture && 'text-destructive')}>
               /{String(obj.source)}/{String(obj.flags)}
             </span>
           );
@@ -513,7 +525,7 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
     // 循环引用
     if ('__circular__' in obj) {
       return (
-        <span className={cn(baseClass, !isFuture && 'text-orange-600')}>
+        <span className={cn(baseClass, !isFuture && 'text-console-warn')}>
           [Circular: {String(obj.__circular__)}]
         </span>
       );
@@ -522,7 +534,7 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
     // 错误
     if ('__error__' in obj) {
       return (
-        <span className={cn(baseClass, !isFuture && 'text-red-600')}>
+        <span className={cn(baseClass, !isFuture && 'text-console-error')}>
           [Error: {String(obj.message)}]
         </span>
       );
@@ -530,7 +542,7 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
 
     // getter
     if ('__getter__' in obj) {
-      return <span className={cn(baseClass, !isFuture && 'text-gray-500')}>[Getter]</span>;
+      return <span className={cn(baseClass, !isFuture && 'text-muted-foreground')}>[Getter]</span>;
     }
 
     // 普通对象
@@ -542,7 +554,7 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
           {keys.map((key, i) => (
             <span key={key}>
               {i > 0 && <span className="text-muted-foreground">, </span>}
-              <span className="text-purple-500">{key}</span>
+              <span className="text-console-debug">{key}</span>
               <span className="text-muted-foreground">: </span>
               <FormattedValue value={obj[key]} isFuture={isFuture} expanded={expanded} />
             </span>
@@ -570,15 +582,15 @@ function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
 function getLevelButtonStyle(level: LogLevel): string {
   switch (level) {
     case 'error':
-      return 'bg-red-500/20 text-red-600 dark:text-red-400 dark:bg-red-500/30 hover:bg-red-500/30 dark:hover:bg-red-500/40';
+      return 'bg-destructive/20 text-destructive hover:bg-destructive/30 dark:hover:bg-destructive/40';
     case 'warn':
-      return 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 dark:bg-yellow-500/30 hover:bg-yellow-500/30 dark:hover:bg-yellow-500/40';
+      return 'bg-warning/20 text-warning hover:bg-warning/30 dark:hover:bg-warning/40';
     case 'info':
-      return 'bg-blue-500/20 text-blue-600 dark:text-blue-400 dark:bg-blue-500/30 hover:bg-blue-500/30 dark:hover:bg-blue-500/40';
+      return 'bg-info/20 text-info hover:bg-info/30 dark:hover:bg-info/40';
     case 'debug':
-      return 'bg-purple-500/20 text-purple-600 dark:text-purple-400 dark:bg-purple-500/30 hover:bg-purple-500/30 dark:hover:bg-purple-500/40';
+      return 'bg-console-debug/20 text-console-debug hover:bg-console-debug/30 dark:hover:bg-console-debug/40';
     case 'trace':
-      return 'bg-gray-500/20 text-gray-600 dark:text-gray-400 dark:bg-gray-500/30 hover:bg-gray-500/30 dark:hover:bg-gray-500/40';
+      return 'bg-muted text-foreground hover:bg-muted/80';
     default:
       return 'bg-muted text-foreground hover:bg-muted/80';
   }
@@ -590,9 +602,9 @@ function getLevelButtonStyle(level: LogLevel): string {
 function getLogBackground(level: LogLevel): string {
   switch (level) {
     case 'error':
-      return 'bg-red-500/5';
+      return 'bg-destructive/5';
     case 'warn':
-      return 'bg-yellow-500/5';
+      return 'bg-warning/5';
     default:
       return '';
   }

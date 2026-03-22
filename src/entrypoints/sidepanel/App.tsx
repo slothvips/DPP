@@ -1,9 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Settings } from 'lucide-react';
+import { Box, Flame, Link, MessageSquare, Settings, Sparkles, Video } from 'lucide-react';
 import React, { Suspense, useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { GlobalSyncButton } from '@/components/GlobalSyncButton';
 import { Tips } from '@/components/Tips';
+import { JenkinsIcon } from '@/components/ui/JenkinsIcon';
 import { Button } from '@/components/ui/button';
 import { ToastProvider } from '@/components/ui/toast';
 import { db } from '@/db';
@@ -12,9 +13,20 @@ import { BlackboardView } from '@/features/blackboard/components/BlackboardView'
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
+import { ToolboxView } from '@/features/toolbox/components/ToolboxView';
 import { useTheme } from '@/hooks/useTheme';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
+
+// Tab 类型定义
+type TabId =
+  | 'links'
+  | 'jenkins'
+  | 'hotNews'
+  | 'recorder'
+  | 'blackboard'
+  | 'aiAssistant'
+  | 'toolbox';
 
 // 动态导入大型组件以减少初始体积
 const AIAssistantView = React.lazy(() =>
@@ -57,13 +69,15 @@ export function App() {
   const isMinimalMode = !!params.get('buildJobUrl');
 
   const [activeTab, setActiveTab] = useState<
-    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant'
+    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'toolbox'
   >(() => {
     // Check URL params first for deep linking
     const tabParam = params.get('tab');
     if (
       tabParam &&
-      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant'].includes(tabParam)
+      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant', 'toolbox'].includes(
+        tabParam
+      )
     ) {
       return tabParam as
         | 'links'
@@ -71,16 +85,26 @@ export function App() {
         | 'hotNews'
         | 'recorder'
         | 'blackboard'
-        | 'aiAssistant';
+        | 'aiAssistant'
+        | 'toolbox';
     }
 
     const saved =
       typeof localStorage !== 'undefined' ? localStorage.getItem('dpp_active_tab') : null;
     if (
       saved &&
-      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant'].includes(saved)
+      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant', 'toolbox'].includes(
+        saved
+      )
     ) {
-      return saved as 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant';
+      return saved as
+        | 'links'
+        | 'jenkins'
+        | 'hotNews'
+        | 'recorder'
+        | 'blackboard'
+        | 'aiAssistant'
+        | 'toolbox';
     }
     return 'blackboard';
   });
@@ -119,7 +143,7 @@ export function App() {
   }, []);
 
   const handleTabChange = (
-    tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant'
+    tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'toolbox'
   ) => {
     setActiveTab(tab);
     if (typeof localStorage !== 'undefined') {
@@ -143,7 +167,7 @@ export function App() {
                   DPP
                 </h1>
                 {import.meta.env.MODE === 'development' && (
-                  <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-600 rounded">
+                  <span className="px-1.5 py-0.5 text-xs font-bold text-destructive-foreground bg-destructive rounded">
                     DEV
                   </span>
                 )}
@@ -169,72 +193,146 @@ export function App() {
               <button
                 type="button"
                 data-testid="tab-blackboard"
-                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('blackboard')}
               >
-                黑板
+                <MessageSquare className="h-4 w-4" />
               </button>
               {hasJenkins && (
                 <button
                   type="button"
                   data-testid="tab-jenkins"
-                  className={`flex-1 py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('jenkins')}
                 >
-                  Jenkins
+                  <JenkinsIcon className="h-4 w-4" />
                 </button>
               )}
               {featureToggles.links && (
                 <button
                   type="button"
                   data-testid="tab-links"
-                  className={`flex-1 py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('links')}
                 >
-                  链接
+                  <Link className="h-4 w-4" />
                 </button>
               )}
               <button
                 type="button"
                 data-testid="tab-recorder"
-                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('recorder')}
               >
-                录制
+                <Video className="h-4 w-4" />
               </button>
               {featureToggles.hotNews && (
                 <button
                   type="button"
                   data-testid="tab-hotnews"
-                  className={`flex-1 py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('hotNews')}
                 >
-                  资讯
+                  <Flame className="h-4 w-4" />
                 </button>
               )}
               <button
                 type="button"
                 data-testid="tab-ai-assistant"
-                className={`flex-1 py-2 text-sm font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('aiAssistant')}
               >
-                AI
+                <Sparkles className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                data-testid="tab-toolbox"
+                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'toolbox' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('toolbox')}
+              >
+                <Box className="h-4 w-4" />
               </button>
             </div>
           )}
 
-          {/* Content */}
-          <main className="flex-1 overflow-hidden p-2" data-testid="main-content">
-            <Suspense
-              fallback={<div className="flex items-center justify-center h-full">加载中...</div>}
+          {/* Content - Keep-alive: 始终渲染所有 tab，用 opacity + visibility 保持状态并实现平滑过渡 */}
+          <main className="flex-1 overflow-hidden p-2 relative" data-testid="main-content">
+            {/* 使用 opacity 过渡实现平滑切换动画 */}
+            <div
+              className="absolute inset-0 p-2 transition-opacity duration-150"
+              style={{
+                opacity: activeTab === 'links' && featureToggles.links ? 1 : 0,
+                visibility: activeTab === 'links' && featureToggles.links ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'links' && featureToggles.links ? 'auto' : 'none',
+              }}
             >
-              {activeTab === 'links' && featureToggles.links && <LinksView />}
-              {activeTab === 'jenkins' && hasJenkins && <JenkinsView />}
-              {activeTab === 'recorder' && <RecordingsView />}
-              {activeTab === 'blackboard' && <BlackboardView />}
-              {activeTab === 'hotNews' && featureToggles.hotNews && <HotNewsView />}
-              {activeTab === 'aiAssistant' && <AIAssistantView />}
-            </Suspense>
+              <LinksView />
+            </div>
+            <div
+              className="absolute inset-0 p-2 transition-opacity duration-150"
+              style={{
+                opacity: activeTab === 'jenkins' && hasJenkins ? 1 : 0,
+                visibility: activeTab === 'jenkins' && hasJenkins ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'jenkins' && hasJenkins ? 'auto' : 'none',
+              }}
+            >
+              <JenkinsView />
+            </div>
+            <div
+              className="absolute inset-0 p-2 transition-opacity duration-150"
+              style={{
+                opacity: activeTab === 'recorder' ? 1 : 0,
+                visibility: activeTab === 'recorder' ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'recorder' ? 'auto' : 'none',
+              }}
+            >
+              <Suspense
+                fallback={<div className="flex items-center justify-center h-full">加载中...</div>}
+              >
+                <RecordingsView />
+              </Suspense>
+            </div>
+            <div
+              className="absolute inset-0 p-2 transition-opacity duration-150"
+              style={{
+                opacity: activeTab === 'blackboard' ? 1 : 0,
+                visibility: activeTab === 'blackboard' ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'blackboard' ? 'auto' : 'none',
+              }}
+            >
+              <BlackboardView />
+            </div>
+            <div
+              className="absolute inset-0 p-2 transition-opacity duration-150"
+              style={{
+                opacity: activeTab === 'hotNews' && featureToggles.hotNews ? 1 : 0,
+                visibility:
+                  activeTab === 'hotNews' && featureToggles.hotNews ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'hotNews' && featureToggles.hotNews ? 'auto' : 'none',
+              }}
+            >
+              <HotNewsView />
+            </div>
+            <div
+              className="absolute inset-0 p-2 transition-opacity duration-150"
+              style={{
+                opacity: activeTab === 'aiAssistant' ? 1 : 0,
+                visibility: activeTab === 'aiAssistant' ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'aiAssistant' ? 'auto' : 'none',
+              }}
+            >
+              <AIAssistantView />
+            </div>
+            <div
+              className="absolute inset-0 p-2 transition-opacity duration-150"
+              style={{
+                opacity: activeTab === 'toolbox' ? 1 : 0,
+                visibility: activeTab === 'toolbox' ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'toolbox' ? 'auto' : 'none',
+              }}
+            >
+              <ToolboxView />
+            </div>
           </main>
         </div>
       </ConfirmDialogProvider>

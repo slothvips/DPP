@@ -49,6 +49,22 @@ export default defineConfig({
         DEFAULT: 'hsl(var(--info))',
         foreground: 'hsl(var(--info-foreground))',
       },
+      sticky: {
+        yellow: 'hsl(var(--sticky-yellow))',
+        blue: 'hsl(var(--sticky-blue))',
+        green: 'hsl(var(--sticky-green))',
+        pink: 'hsl(var(--sticky-pink))',
+        purple: 'hsl(var(--sticky-purple))',
+        orange: 'hsl(var(--sticky-orange))',
+      },
+      console: {
+        log: 'hsl(var(--console-log))',
+        info: 'hsl(var(--console-info))',
+        warn: 'hsl(var(--console-warn))',
+        error: 'hsl(var(--console-error))',
+        debug: 'hsl(var(--console-debug))',
+        trace: 'hsl(var(--console-trace))',
+      },
     },
     borderRadius: {
       lg: 'var(--radius)',
@@ -73,6 +89,22 @@ export default defineConfig({
   preflights: [
     {
       getCSS: () => `
+        @keyframes yolo-flow {
+          0% { border-color: #22d3ee; }
+          33% { border-color: #f472b6; }
+          66% { border-color: #fbbf24; }
+          100% { border-color: #22d3ee; }
+        }
+        .yolo-button-active {
+          animation: yolo-flow 1.5s ease-in-out infinite;
+          border: 2px solid;
+        }
+        .yolo-button-active > * {
+          color: white;
+        }
+        .yolo-button-active svg {
+          fill: white;
+        }
         :root {
           --background: 0 0% 100%;
           --foreground: 222.2 84% 4.9%;
@@ -103,6 +135,20 @@ export default defineConfig({
           --gradient-start: #0891b2;
           --gradient-middle: #db2777;
           --gradient-end: #d97706;
+          /* 便签调色板 */
+          --sticky-yellow: 54 90% 92%;
+          --sticky-blue: 213 90% 95%;
+          --sticky-green: 142 60% 92%;
+          --sticky-pink: 330 90% 92%;
+          --sticky-purple: 270 80% 93%;
+          --sticky-orange: 30 90% 93%;
+          /* 控制台日志颜色 */
+          --console-log: 142 76% 36%;
+          --console-info: 221 83% 53%;
+          --console-warn: 38 92% 50%;
+          --console-error: 0 84% 50%;
+          --console-debug: 270 80% 65%;
+          --console-trace: 215 14% 56%;
         }
         .dark {
           --background: 222.2 84% 4.9%;
@@ -133,6 +179,20 @@ export default defineConfig({
           --gradient-start: #22d3ee;
           --gradient-middle: #f472b6;
           --gradient-end: #fbbf24;
+          /* 便签调色板 - 深色版本 */
+          --sticky-yellow: 48 89% 30%;
+          --sticky-blue: 217 91% 30%;
+          --sticky-green: 142 70% 30%;
+          --sticky-pink: 330 80% 35%;
+          --sticky-purple: 270 65% 40%;
+          --sticky-orange: 30 90% 35%;
+          /* 控制台日志颜色 - 深色版本 */
+          --console-log: 142 70% 55%;
+          --console-info: 217 91% 60%;
+          --console-warn: 48 95% 55%;
+          --console-error: 0 72% 50%;
+          --console-debug: 270 80% 65%;
+          --console-trace: 215 20% 65%;
         }
       `,
     },

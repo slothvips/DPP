@@ -18,9 +18,8 @@ export function handleGeneralMessage(message: GeneralMessage): unknown {
     return (async () => {
       const result = await browser.storage.session.get('__pageAgentConfig');
       const config = result.__pageAgentConfig;
-      if (config) {
-        await browser.storage.session.remove('__pageAgentConfig');
-      }
+      // 不再立即删除，让 content script 可以重试获取
+      // config 会在新配置写入时被覆盖
       return { config };
     })();
   }
@@ -30,31 +29,57 @@ export function handleGeneralMessage(message: GeneralMessage): unknown {
       try {
         const { url, options } = message;
 
-        const headers = serializeHeaders(options?.headers);
-
-        const fetchResponse = await fetch(url, {
-          method: options?.method || 'POST',
-          headers,
-          body: options?.body,
-        });
-
-        const responseText = await fetchResponse.text();
-
-        let responseBody: unknown = null;
+        // URL 验证：只允许 http/https 协议
+        let parsedUrl: URL;
         try {
-          responseBody = responseText ? JSON.parse(responseText) : null;
+          parsedUrl = new URL(url);
         } catch {
-          responseBody = responseText;
+          return { success: false, error: '无效的 URL 格式' };
+        }
+        if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+          return { success: false, error: '只支持 http/https 协议的 URL' };
         }
 
-        return {
-          success: true,
-          ok: fetchResponse.ok,
-          status: fetchResponse.status,
-          statusText: fetchResponse.statusText,
-          headers: Object.fromEntries(fetchResponse.headers.entries()),
-          body: responseBody,
-        };
+        const headers = serializeHeaders(options?.headers);
+
+        // 添加超时控制：30秒
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+        try {
+          const fetchResponse = await fetch(url, {
+            method: options?.method || 'POST',
+            headers,
+            body: options?.body,
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
+          const responseText = await fetchResponse.text();
+
+          let responseBody: unknown = null;
+          try {
+            responseBody = responseText ? JSON.parse(responseText) : null;
+          } catch {
+            responseBody = responseText;
+          }
+
+          return {
+            success: true,
+            ok: fetchResponse.ok,
+            status: fetchResponse.status,
+            statusText: fetchResponse.statusText,
+            headers: Object.fromEntries(fetchResponse.headers.entries()),
+            body: responseBody,
+          };
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+            return { success: false, error: '请求超时（30秒）' };
+          }
+          throw fetchError;
+        }
       } catch (error) {
         return {
           success: false,

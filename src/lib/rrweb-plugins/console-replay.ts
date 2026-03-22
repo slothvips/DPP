@@ -92,15 +92,15 @@ export function getReplayConsolePlugin(
 export function getLevelColor(level: string): string {
   switch (level) {
     case 'error':
-      return 'text-red-600';
+      return 'text-destructive';
     case 'warn':
-      return 'text-yellow-600';
+      return 'text-warning';
     case 'info':
-      return 'text-blue-600';
+      return 'text-info';
     case 'debug':
-      return 'text-purple-600';
+      return 'text-console-debug';
     case 'trace':
-      return 'text-gray-500';
+      return 'text-muted-foreground';
     default:
       return 'text-foreground';
   }

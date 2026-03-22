@@ -42,12 +42,13 @@ export function BlackboardItemView({
     if (isFocused) {
       setIsEditing(true);
       // Small timeout to ensure DOM is ready and layout is stable
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (containerRef.current) {
           containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
         onFocusHandled?.();
       }, 100);
+      return () => clearTimeout(timer);
     }
   }, [isFocused, onFocusHandled]);
 
@@ -116,8 +117,8 @@ export function BlackboardItemView({
       {/* Pin Indicator */}
       {item.pinned && (
         <div className="absolute -top-3 -right-3 z-20 transform rotate-12 drop-shadow-md">
-          <div className="bg-red-500 w-3 h-3 rounded-full border border-red-700 shadow-sm"></div>
-          <Pin className="w-5 h-5 text-zinc-700 fill-zinc-700 absolute -top-1 -left-1 opacity-80" />
+          <div className="bg-destructive w-3 h-3 rounded-full border border-destructive/70 shadow-sm"></div>
+          <Pin className="w-5 h-5 text-foreground fill-foreground absolute -top-1 -left-1 opacity-80" />
         </div>
       )}
 
@@ -134,7 +135,7 @@ export function BlackboardItemView({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder="写点什么..."
-            className="w-full bg-transparent border-none outline-none ring-0 shadow-none focus:ring-0 focus:outline-none focus:border-none resize-none p-0 text-base text-slate-800 placeholder:text-slate-400 placeholder:italic overflow-hidden"
+            className="w-full bg-transparent border-none outline-none ring-0 shadow-none focus:ring-0 focus:outline-none focus:border-none resize-none p-0 text-base text-foreground placeholder:text-muted-foreground placeholder:italic overflow-hidden"
             style={{
               ...commonStyle,
               minHeight: minEditHeight,
@@ -157,7 +158,7 @@ export function BlackboardItemView({
                 setIsEditing(true);
               }
             }}
-            className={`markdown-preview w-full h-full min-h-[140px] text-base text-slate-800 ${!readOnly && !item.locked ? 'cursor-text' : 'cursor-default'}`}
+            className={`markdown-preview w-full h-full min-h-[140px] text-base text-foreground ${!readOnly && !item.locked ? 'cursor-text' : 'cursor-default'}`}
             style={commonStyle}
           >
             {content ? (
@@ -185,13 +186,13 @@ export function BlackboardItemView({
                   li: ({ node: _node, ...props }) => <li className="pl-1" {...props} />,
                   blockquote: ({ node: _node, ...props }) => (
                     <blockquote
-                      className="border-l-4 border-slate-400/30 pl-3 italic my-2 text-slate-600"
+                      className="border-l-4 border-muted-foreground/30 pl-3 italic my-2 text-muted-foreground dark:border-muted-foreground/50 dark:text-muted-foreground/80"
                       {...props}
                     />
                   ),
                   a: ({ node: _node, ...props }) => (
                     <a
-                      className="text-primary hover:underline cursor-pointer"
+                      className="bg-blue-500/10 dark:bg-blue-400/20 text-blue-600 dark:text-blue-300 px-1 py-0.5 rounded hover:bg-blue-500/20 dark:hover:bg-blue-400/30 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
                         window.open(props.href, '_blank');
@@ -204,7 +205,7 @@ export function BlackboardItemView({
                     const isInline = !match && !String(children).includes('\n');
                     return (
                       <code
-                        className={`${isInline ? 'bg-black/5 rounded px-1 py-0.5 mx-0.5 text-sm font-mono' : 'block bg-black/5 rounded p-2 my-2 text-sm font-mono overflow-x-auto'}`}
+                        className={`${isInline ? 'bg-muted rounded px-1 py-0.5 mx-0.5 text-sm font-mono dark:bg-muted/80' : 'block bg-muted rounded p-2 my-2 text-sm font-mono overflow-x-auto dark:bg-muted/80'}`}
                         {...props}
                       >
                         {children}
@@ -217,7 +218,7 @@ export function BlackboardItemView({
                       return (
                         <input
                           type="checkbox"
-                          className="mr-2 cursor-pointer accent-slate-700"
+                          className="mr-2 cursor-pointer accent-primary"
                           checked={props.checked}
                           readOnly
                           {...props}
@@ -231,7 +232,7 @@ export function BlackboardItemView({
                 {content}
               </ReactMarkdown>
             ) : (
-              <span className="text-slate-400 italic">写点什么...</span>
+              <span className="text-muted-foreground italic">写点什么...</span>
             )}
           </div>
         )}
@@ -239,15 +240,15 @@ export function BlackboardItemView({
 
       {/* Action Bar - Only visible on hover */}
       {!readOnly && (
-        <div className="flex justify-between items-end mt-4 pt-2 border-t border-black/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <div className="text-[10px] text-slate-500 font-mono">
+        <div className="flex justify-between items-end mt-4 pt-2 border-t border-border opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <div className="text-[10px] text-muted-foreground font-mono">
             {format(item.createdAt, 'MM-dd HH:mm')}
           </div>
           <div className="flex gap-1">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-black/5 rounded-full"
+              className="h-7 w-7 hover:bg-muted rounded-full"
               onClick={(e) => {
                 e.stopPropagation();
                 onPin(item.id, !item.pinned);
@@ -255,13 +256,13 @@ export function BlackboardItemView({
               title={item.pinned ? '取消置顶' : '置顶'}
             >
               <Pin
-                className={`w-3.5 h-3.5 ${item.pinned ? 'fill-slate-700 text-slate-700' : 'text-slate-500'}`}
+                className={`w-3.5 h-3.5 ${item.pinned ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`}
               />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-black/5 rounded-full"
+              className="h-7 w-7 hover:bg-muted rounded-full"
               onClick={(e) => {
                 e.stopPropagation();
                 onLock(item.id, !item.locked);
@@ -269,9 +270,9 @@ export function BlackboardItemView({
               title={item.locked ? '解锁' : '锁定'}
             >
               {item.locked ? (
-                <Unlock className="w-3.5 h-3.5 text-amber-600" />
+                <Unlock className="w-3.5 h-3.5 text-warning" />
               ) : (
-                <Lock className="w-3.5 h-3.5 text-slate-500" />
+                <Lock className="w-3.5 h-3.5 text-muted-foreground" />
               )}
             </Button>
             <Button

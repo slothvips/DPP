@@ -38,7 +38,7 @@ export function RecorderControl() {
     if (isChecking) {
       return (
         <Button variant="destructive" className="w-full flex items-center gap-2" disabled>
-          <div className="w-3 h-3 rounded-full bg-white/50 animate-pulse" />
+          <div className="w-3 h-3 rounded-full bg-destructive-foreground/50 animate-pulse" />
           检测页面...
         </Button>
       );
@@ -59,7 +59,7 @@ export function RecorderControl() {
         className="w-full flex items-center gap-2"
         onClick={handleStartRecording}
       >
-        <div className="w-3 h-3 rounded-full bg-white" />
+        <div className="w-3 h-3 rounded-full bg-destructive-foreground" />
         开始录制
       </Button>
     );

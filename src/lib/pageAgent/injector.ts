@@ -4,6 +4,9 @@ import { browser } from 'wxt/browser';
 import { logger } from '@/utils/logger';
 import type { PageAgentConfig } from './types';
 
+// 正在注入的 tabId 集合，用于防止并发注入
+const injectingTabs = new Set<number>();
+
 /**
  * 检测 URL 是否允许注入
  */
@@ -91,6 +94,13 @@ export async function injectPageAgent(
   tabId: number,
   config: PageAgentConfig
 ): Promise<{ success: boolean; error?: string }> {
+  // 防重入检查
+  if (injectingTabs.has(tabId)) {
+    logger.info('[PageAgent] 正在注入中，忽略重复请求');
+    return { success: true };
+  }
+
+  injectingTabs.add(tabId);
   try {
     const alreadyInjected = await isAlreadyInjected(tabId);
     if (alreadyInjected) {
@@ -101,6 +111,9 @@ export async function injectPageAgent(
       await clearExistingAgent(tabId);
     }
 
+    // 注意：API key 会短暂存储在 session storage 中（标签页级别，关闭后自动清除）
+    // 这是因为 content script 需要获取配置但无法直接调用 background 函数
+    // 未来考虑重构为通过消息传递，避免敏感信息存储
     await browser.storage.session.set({ __pageAgentConfig: config });
 
     await browser.scripting.executeScript({
@@ -108,10 +121,13 @@ export async function injectPageAgent(
       files: ['/content-scripts/pageAgent.js'],
     });
     return { success: true };
-  } catch {
+  } catch (err) {
+    logger.error('[PageAgent] 注入失败:', err);
     return {
       success: false,
       error: '注入失败，请稍后重试',
     };
+  } finally {
+    injectingTabs.delete(tabId);
   }
 }

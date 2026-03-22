@@ -164,14 +164,13 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       className={cn(
                         'grid grid-cols-[1fr_50px_45px_70px_60px] items-center cursor-pointer transition-colors px-2 py-2',
                         selectedRequest?.id === req.id && 'bg-muted',
-                        isActive &&
-                          'bg-blue-500/20 dark:bg-blue-500/30 border-l-2 border-l-blue-500',
+                        isActive && 'bg-info/20 dark:bg-info/30 border-l-2 border-l-info',
                         isFuture && 'opacity-40',
                         !isFuture && !isActive && 'hover:bg-muted/50',
-                        req.error && !isFuture && 'bg-red-500/10 dark:bg-red-500/20',
+                        req.error && !isFuture && 'bg-destructive/10 dark:bg-destructive/20',
                         req.isStreaming &&
                           req.phase !== 'complete' &&
-                          'bg-purple-500/10 dark:bg-purple-500/20'
+                          'bg-console-debug/10 dark:bg-console-debug/20'
                       )}
                     >
                       <div
@@ -183,12 +182,12 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       >
                         <div className="flex items-center gap-1">
                           {req.isStreaming && (
-                            <span className="text-purple-500 text-xs" title="流式响应">
+                            <span className="text-console-debug text-xs" title="流式响应">
                               ⚡
                             </span>
                           )}
                           {req.type === 'sse' && (
-                            <span className="text-orange-500 text-xs" title="SSE">
+                            <span className="text-warning text-xs" title="SSE">
                               📡
                             </span>
                           )}

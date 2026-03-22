@@ -68,7 +68,7 @@ export class OllamaProvider implements ModelProvider {
     try {
       if (options?.stream && options.onChunk) {
         // Handle streaming response
-        return this.handleStreamingChat(url, requestBody, options.onChunk);
+        return this.handleStreamingChat(url, requestBody, options.onChunk, options.signal);
       }
 
       const response = await httpPost<OllamaChatResponse>(url, requestBody, { timeout: 120000 });
@@ -88,12 +88,14 @@ export class OllamaProvider implements ModelProvider {
   private async handleStreamingChat(
     url: string,
     requestBody: OllamaChatRequest,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    signal?: AbortSignal
   ): Promise<ChatResponse> {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...requestBody, stream: true }),
+      signal,
     });
 
     if (!response.ok) {
@@ -110,6 +112,12 @@ export class OllamaProvider implements ModelProvider {
 
     try {
       while (true) {
+        // Check if abort was requested
+        if (signal?.aborted) {
+          logger.info('[Ollama] Streaming aborted by user');
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 

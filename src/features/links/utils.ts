@@ -1,8 +1,12 @@
 import { getLinkByUrl, recordLinkVisit } from '@/lib/db';
 import { logger } from '@/utils/logger';
 
-export async function openLink(url: string) {
-  if (!url) return;
+/**
+ * Validate and normalize URL for security
+ * Returns the validated URL or null if invalid/unsafe
+ */
+export function validateUrl(url: string): string | null {
+  if (!url) return null;
 
   let finalUrl = url.trim();
 
@@ -12,7 +16,7 @@ export async function openLink(url: string) {
 
   if (dangerousProtocols.some((proto) => lowerUrl.startsWith(proto))) {
     logger.error('[Security] Blocked dangerous URL protocol:', finalUrl);
-    return;
+    return null;
   }
 
   // Check if URL already has a safe protocol
@@ -24,7 +28,7 @@ export async function openLink(url: string) {
       finalUrl = `https://${finalUrl}`;
     } else {
       logger.warn('[Security] Blocked invalid URL format:', finalUrl);
-      return;
+      return null;
     }
   }
 
@@ -33,16 +37,22 @@ export async function openLink(url: string) {
     const urlObj = new URL(finalUrl);
     if (!['http:', 'https:'].includes(urlObj.protocol)) {
       logger.error('[Security] Invalid protocol after normalization:', urlObj.protocol);
-      return;
+      return null;
     }
+    return finalUrl;
   } catch (e) {
     logger.error('[Security] Invalid URL format:', finalUrl, e);
-    return;
+    return null;
   }
+}
+
+export async function openLink(url: string) {
+  const validatedUrl = validateUrl(url);
+  if (!validatedUrl) return;
 
   // Record usage
   try {
-    const link = await getLinkByUrl(finalUrl);
+    const link = await getLinkByUrl(validatedUrl);
 
     if (link) {
       await recordLinkVisit({ id: link.id });
@@ -53,8 +63,8 @@ export async function openLink(url: string) {
 
   // Open link
   if (typeof browser !== 'undefined' && browser.tabs) {
-    await browser.tabs.create({ url: finalUrl });
+    await browser.tabs.create({ url: validatedUrl });
   } else {
-    window.open(finalUrl, '_blank');
+    window.open(validatedUrl, '_blank');
   }
 }

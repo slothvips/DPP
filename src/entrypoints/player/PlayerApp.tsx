@@ -127,11 +127,20 @@ export function PlayerApp() {
     };
 
     // 使用 requestAnimationFrame 确保在浏览器完成布局后执行
-    requestAnimationFrame(() => {
-      if (!doUpdate()) {
-        // 如果更新失败（尺寸为0），延迟重试
-        setTimeout(() => requestAnimationFrame(doUpdate), 100);
-      }
+    return new Promise<boolean>((resolve) => {
+      requestAnimationFrame(() => {
+        const success = doUpdate();
+        if (!success) {
+          // 如果更新失败（尺寸为0），延迟重试
+          setTimeout(() => {
+            requestAnimationFrame(() => {
+              resolve(doUpdate());
+            });
+          }, 100);
+        } else {
+          resolve(true);
+        }
+      });
     });
   }, []);
 
@@ -263,10 +272,29 @@ export function PlayerApp() {
   useEffect(() => {
     if (!hasPlayer || !replayerRef.current) return;
 
-    // 初始加载时多次延迟更新，确保布局完成
-    const timers = [50, 100, 200, 300, 500, 800, 1000, 1500].map((delay) =>
-      setTimeout(updateScale, delay)
-    );
+    // 使用计数器实现重试机制，避免多重 setTimeout
+    let retryCount = 0;
+    const maxRetries = 8;
+    const delays = [50, 100, 200, 300, 500, 800, 1000, 1500];
+
+    const scheduleUpdate = async () => {
+      if (retryCount < maxRetries) {
+        setTimeout(
+          async () => {
+            const success = await updateScale();
+            if (success) {
+              retryCount = 0;
+            } else {
+              retryCount++;
+              scheduleUpdate();
+            }
+          },
+          delays[Math.min(retryCount, delays.length - 1)]
+        );
+      }
+    };
+
+    scheduleUpdate();
 
     // 监听 playerArea 和 main 容器的尺寸变化
     const resizeObserver = new ResizeObserver(() => {
@@ -286,7 +314,6 @@ export function PlayerApp() {
     }
 
     return () => {
-      timers.forEach(clearTimeout);
       resizeObserver.disconnect();
     };
   }, [hasPlayer, updateScale]);
@@ -294,9 +321,11 @@ export function PlayerApp() {
   // 侧边栏显示状态变化时更新缩放
   useEffect(() => {
     if (hasPlayer) {
-      // 多次延迟执行以等待 Allotment 布局完全更新
-      const timers = [0, 50, 100, 200, 300].map((delay) => setTimeout(updateScale, delay));
-      return () => timers.forEach(clearTimeout);
+      // 使用单个 setTimeout 等待 Allotment 布局完全更新
+      const timer = setTimeout(() => {
+        updateScale();
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [showSidePanel, hasPlayer, updateScale]);
 
@@ -356,7 +385,7 @@ export function PlayerApp() {
               {/* 播放器容器 */}
               <div
                 ref={playerAreaRef}
-                className="flex-1 min-h-0 overflow-hidden bg-neutral-900 relative"
+                className="flex-1 min-h-0 overflow-hidden bg-background relative"
               >
                 <div ref={containerRef} className="absolute" />
               </div>

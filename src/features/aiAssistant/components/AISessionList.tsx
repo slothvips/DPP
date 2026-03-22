@@ -1,5 +1,5 @@
 // AI Session List Component
-import { Check, Plus, Trash2 } from 'lucide-react';
+import { Check, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { AISession } from '../types';
@@ -8,7 +8,6 @@ interface AISessionListProps {
   sessions: AISession[];
   currentSessionId: string | null;
   onSelectSession: (id: string) => void;
-  onCreateSession: () => void;
   onDeleteSession: (id: string) => void;
 }
 
@@ -16,7 +15,6 @@ export function AISessionList({
   sessions,
   currentSessionId,
   onSelectSession,
-  onCreateSession,
   onDeleteSession,
 }: AISessionListProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,11 +27,11 @@ export function AISessionList({
         variant="ghost"
         size="sm"
         onClick={() => setIsOpen(!isOpen)}
-        className="text-xs font-normal h-7 px-2"
-        title="会话列表"
+        className="text-xs font-normal h-7 px-2 max-w-[120px]"
+        title={currentSession?.title || '新会话'}
       >
-        {currentSession?.title || '新会话'}
-        <span className="ml-1 text-muted-foreground">▼</span>
+        <span className="truncate">{currentSession?.title || '新会话'}</span>
+        <span className="ml-1 text-muted-foreground shrink-0">▼</span>
       </Button>
 
       {isOpen && (
@@ -44,23 +42,6 @@ export function AISessionList({
           {/* Dropdown */}
           <div className="absolute left-0 top-full mt-1 w-72 bg-popover border rounded-md shadow-lg z-20 max-h-48 overflow-y-auto custom-scrollbar">
             <div className="p-1">
-              {/* New Session Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onCreateSession();
-                  setIsOpen(false);
-                }}
-                className="w-full justify-start text-xs h-8"
-              >
-                <Plus className="w-3 h-3 mr-2" />
-                新建会话
-              </Button>
-
-              {/* Divider */}
-              <div className="my-1 border-t" />
-
               {/* Session List */}
               {sessions.length === 0 ? (
                 <div className="text-xs text-muted-foreground px-2 py-2">暂无会话</div>

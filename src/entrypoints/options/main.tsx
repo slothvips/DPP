@@ -73,7 +73,7 @@ const SETTINGS_CATEGORIES = [
   {
     key: 'ai_settings',
     label: 'AI 设置',
-    description: 'AI 助手服务商、模型配置',
+    description: 'D仔服务商、模型配置',
     keys: [
       'ai_provider_type',
       // Ollama
@@ -389,7 +389,7 @@ function OptionsApp() {
             DPP 设置
           </h1>
           {import.meta.env.MODE === 'development' && (
-            <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-600 rounded">
+            <span className="px-1.5 py-0.5 text-xs font-bold text-destructive-foreground bg-destructive rounded">
               DEV
             </span>
           )}
@@ -511,7 +511,7 @@ function OptionsApp() {
               <Button
                 onClick={saveDataSourceConfig}
                 data-testid="button-save-sync"
-                className="bg-purple-600 hover:bg-purple-700 w-full"
+                className="bg-primary hover:bg-primary/90 w-full"
               >
                 保存
               </Button>
@@ -547,7 +547,7 @@ function OptionsApp() {
                 <Button
                   onClick={rebuildLocalData}
                   variant="outline"
-                  className="gap-2 text-orange-600 border-orange-600 hover:bg-orange-50"
+                  className="gap-2 text-warning border-warning hover:bg-warning/10"
                   data-testid="button-rebuild"
                 >
                   <AlertTriangle className="w-4 h-4" />

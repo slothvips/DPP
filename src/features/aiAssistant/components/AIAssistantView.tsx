@@ -1,15 +1,28 @@
 // AI Assistant View - Main conversation interface
-import { ArrowDown, Scissors, Settings, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  Database,
+  FileText,
+  Languages,
+  Plus,
+  Scissors,
+  Settings,
+  TestTube2,
+  Trash2,
+  Zap,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
+import { cn } from '@/utils/cn';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { useAIChat } from '../hooks/useAIChat';
 import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
 import { AISessionList } from './AISessionList';
 import { ChatInput } from './ChatInput';
 import { MessageItem } from './MessageItem';
-import { PageAgentButton } from './PageAgentButton';
+import { TabSelector } from './TabSelector';
 import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 export function AIAssistantView() {
@@ -26,7 +39,10 @@ export function AIAssistantView() {
     modelLoadProgress,
     modelLoadStatus,
     currentProvider,
+    yoloMode,
+    isRunning,
     sendMessage,
+    stop,
     confirmToolCall,
     confirmAllToolCalls,
     cancelToolCall,
@@ -38,11 +54,14 @@ export function AIAssistantView() {
     completeBuild,
     cancelBuild,
     summarizeSession,
+    setYoloMode,
   } = useAIChat();
 
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
 
   const [isConfigMissing, setIsConfigMissing] = useState(false);
+  const [selectedTabId, setSelectedTabId] = useState<number | null>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [presetPrompt, setPresetPrompt] = useState<string>('');
   const [isSummarizing, setIsSummarizing] = useState(false);
@@ -164,17 +183,25 @@ export function AIAssistantView() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">AI 助手</span>
+          <span className="text-xs text-muted-foreground">D仔</span>
           <AISessionList
             sessions={sessions}
             currentSessionId={sessionId}
             onSelectSession={switchSession}
-            onCreateSession={createNewSession}
             onDeleteSession={deleteSession}
           />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={createNewSession}
+            title="新建会话"
+            className="text-xs h-7"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            新建会话
+          </Button>
         </div>
         <div className="flex items-center gap-1">
-          <PageAgentButton />
           <AIConfigDialog onSaved={handleConfigSaved}>
             <Button variant="ghost" size="sm" title="AI 设置" data-testid="ai-config-button">
               <Settings className="w-4 h-4" />
@@ -208,10 +235,10 @@ export function AIAssistantView() {
 
       {/* Local model warning */}
       {(currentProvider === 'ollama' || currentProvider === 'webllm') && !isLoadingModel && (
-        <div className="px-3 py-2 bg-amber-50 dark:bg-amber-950 border-b border-amber-200 dark:border-amber-800">
+        <div className="px-3 py-2 bg-warning/10 dark:bg-warning/20 border-b border-warning/30">
           <div className="flex items-start gap-2">
-            <span className="text-amber-600 dark:text-amber-400 text-sm">⚠️</span>
-            <div className="text-xs text-amber-800 dark:text-amber-200">
+            <span className="text-warning text-sm">⚠️</span>
+            <div className="text-xs text-warning">
               <p className="font-medium">当前使用本地模型，体验可能不佳</p>
               <p className="mt-0.5 opacity-80">
                 玩玩就好，别认真~ 如需更好的体验，请切换到 OpenAI、Anthropic 等知名供应商
@@ -262,11 +289,12 @@ export function AIAssistantView() {
 
           {/* Welcome message when empty and configured */}
           {!isConfigMissing && !isLoadingModel && messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground px-4">
               <div className="text-4xl mb-4">🤖</div>
-              <p className="text-sm font-medium">你好！我是 AI 助手</p>
-              <p className="text-xs mt-1">我可以帮助你管理链接、便签、Jenkins 任务等</p>
-              <p className="text-xs mt-2">直接发送消息开始对话</p>
+              <p className="text-sm font-medium">你好！我是 D仔</p>
+              <p className="text-xs mt-2">你可以用自然语言与我对话，我来帮你完成任务</p>
+              <p className="text-xs mt-1">还可以管理链接、便签、Jenkins 任务等</p>
+              <p className="text-xs mt-3 mb-4">使用快捷指令按钮或直接发送消息</p>
             </div>
           )}
 
@@ -315,16 +343,14 @@ export function AIAssistantView() {
       <div className="border-t p-3">
         {/* Config missing warning */}
         {isConfigMissing && (
-          <div className="mb-2 p-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
+          <div className="mb-2 p-2 bg-warning/10 dark:bg-warning/20 border border-warning/30 rounded-md">
             <div className="flex items-center justify-between">
-              <p className="text-xs text-amber-800 dark:text-amber-200">
-                未配置 AI 服务商，请先配置后才能对话
-              </p>
+              <p className="text-xs text-warning">未配置 AI 服务商，请先配置后才能对话</p>
               <AIConfigDialog onSaved={handleConfigSaved}>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 text-xs text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100"
+                  className="h-6 text-xs text-warning hover:text-warning/80"
                 >
                   去配置
                 </Button>
@@ -334,14 +360,86 @@ export function AIAssistantView() {
         )}
         <ChatInput
           onSend={handleSend}
-          disabled={
-            status === 'loading' ||
-            status === 'streaming' ||
-            status === 'confirming' ||
-            isLoadingModel
-          }
+          onStop={stop}
+          disabled={status === 'confirming' || isLoadingModel}
+          isRunning={isRunning}
           placeholder={isLoadingModel ? '模型加载中...' : '发送消息... (Shift+Enter 换行)'}
           initialInput={presetPrompt}
+          rightSlot={
+            <div className="flex gap-2 items-center">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">目标页面:</span>
+                <TabSelector selectedTabId={selectedTabId} onTabSelect={setSelectedTabId} />
+              </div>
+              <Button
+                variant={yoloMode ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={async () => {
+                  if (!yoloMode) {
+                    const ok = await confirm(
+                      'YOLO 模式会跳过所有确认对话框，自动执行工具操作，可能导致意外修改。\n\n建议仅在网页操作时开启，避免对数据造成不可逆的更改。\n\n确定要开启吗？',
+                      '开启 YOLO 模式',
+                      'danger'
+                    );
+                    if (!ok) return;
+                  }
+                  setYoloMode(!yoloMode);
+                }}
+                title="YOLO 模式：自动确认所有工具调用"
+                className="text-xs gap-1"
+              >
+                <Zap className={cn('w-3.5 h-3.5', yoloMode && 'fill-primary text-primary')} />
+                <span>YOLO</span>
+              </Button>
+            </div>
+          }
+          bottomSlot={
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-muted-foreground">页面快捷指令:</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSend('请总结页面的主要内容')}
+                disabled={status === 'confirming' || isLoadingModel}
+                className="text-xs"
+              >
+                <FileText className="w-3 h-3 mr-1" />
+                总结页面
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSend('请提取页面的主要内容，并以结构化的格式呈现')}
+                disabled={status === 'confirming' || isLoadingModel}
+                className="text-xs"
+              >
+                <Database className="w-3 h-3 mr-1" />
+                提取信息
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleSend('请翻译页面的主要内容')}
+                disabled={status === 'confirming' || isLoadingModel}
+                className="text-xs"
+              >
+                <Languages className="w-3 h-3 mr-1" />
+                翻译内容
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  handleSend('开始自动化测试：探索页面结构，识别可交互元素，逐步执行测试')
+                }
+                disabled={status === 'confirming' || isLoadingModel}
+                className="text-xs"
+              >
+                <TestTube2 className="w-3 h-3 mr-1" />
+                自动化测试
+              </Button>
+            </div>
+          }
         />
       </div>
 

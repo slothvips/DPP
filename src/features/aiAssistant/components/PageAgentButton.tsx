@@ -8,9 +8,10 @@ import { PageAgentIcon } from './PageAgentIcon';
 export interface PageAgentButtonProps {
   disabled?: boolean;
   className?: string;
+  tabId?: number | null;
 }
 
-export function PageAgentButton({ disabled, className }: PageAgentButtonProps) {
+export function PageAgentButton({ disabled, className, tabId }: PageAgentButtonProps) {
   const [isInjecting, setIsInjecting] = useState(false);
   const { toast } = useToast();
 
@@ -19,7 +20,11 @@ export function PageAgentButton({ disabled, className }: PageAgentButtonProps) {
 
     setIsInjecting(true);
     try {
-      const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_INJECT' });
+      const message =
+        tabId != null
+          ? { type: 'PAGE_AGENT_INJECT_WITH_TAB' as const, tabId }
+          : { type: 'PAGE_AGENT_INJECT' as const };
+      const response = await browser.runtime.sendMessage(message);
       if (response?.success) {
         // No toast needed - agent runs in background
       } else {
@@ -30,7 +35,7 @@ export function PageAgentButton({ disabled, className }: PageAgentButtonProps) {
     } finally {
       setIsInjecting(false);
     }
-  }, [isInjecting, toast]);
+  }, [isInjecting, toast, tabId]);
 
   return (
     <button
@@ -43,7 +48,7 @@ export function PageAgentButton({ disabled, className }: PageAgentButtonProps) {
       )}
       onClick={handleInject}
       disabled={disabled || isInjecting}
-      title="Page Agent - AI 操作当前页面"
+      title="Page Agent - AI 操作页面"
       aria-label="启动 Page Agent"
       data-testid="page-agent-button"
     >

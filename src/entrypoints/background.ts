@@ -7,7 +7,10 @@ import { logger } from '@/utils/logger';
 import {
   handleGeneralMessage,
   handleJenkinsMessage,
+  handlePageAgentExecute,
+  handlePageAgentExecuteTaskWithTab,
   handlePageAgentInject,
+  handlePageAgentInjectWithTab,
   handleProxyMessage,
   handleRecorderMessage,
   handleRemoteRecordingMessage,
@@ -133,6 +136,23 @@ export default defineBackground(() => {
       match: (type) => type === 'PAGE_AGENT_INJECT',
       handler: (message) =>
         handlePageAgentInject(message as Parameters<typeof handlePageAgentInject>[0]),
+    },
+    {
+      match: (type) => type === 'PAGE_AGENT_INJECT_WITH_TAB',
+      handler: (message) =>
+        handlePageAgentInjectWithTab(message as Parameters<typeof handlePageAgentInjectWithTab>[0]),
+    },
+    {
+      match: (type) => type === 'PAGE_AGENT_EXECUTE_TASK',
+      handler: (message) =>
+        handlePageAgentExecute(message as Parameters<typeof handlePageAgentExecute>[0]),
+    },
+    {
+      match: (type) => type === 'PAGE_AGENT_EXECUTE_TASK_WITH_TAB',
+      handler: (message) =>
+        handlePageAgentExecuteTaskWithTab(
+          message as Parameters<typeof handlePageAgentExecuteTaskWithTab>[0]
+        ),
     },
     {
       match: (type) =>

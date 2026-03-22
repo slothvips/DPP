@@ -7,7 +7,7 @@ const TIPS = [
   { icon: Sparkles, text: '搜索支持空格分隔多关键词', color: 'text-primary' },
   { icon: Sparkles, text: '地址栏输入 dpp + 空格，全局快速搜索', color: 'text-primary' },
   { icon: Lightbulb, text: 'Jenkins 支持多环境切换，在设置中配置', color: 'text-success' },
-  { icon: Lightbulb, text: 'AI 助手支持自然语言管理链接、Job、便签', color: 'text-success' },
+  { icon: Lightbulb, text: 'D仔支持自然语言管理链接、Job、便签', color: 'text-success' },
   { icon: Lightbulb, text: '便签支持 Markdown 格式', color: 'text-success' },
 ];
 

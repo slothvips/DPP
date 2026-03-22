@@ -17,12 +17,12 @@ import { BlackboardItemView } from './BlackboardItem';
 import { SYSTEM_NOTES } from './tips';
 
 const STICKY_COLORS = [
-  'bg-yellow-100',
-  'bg-blue-100',
-  'bg-green-100',
-  'bg-pink-100',
-  'bg-purple-100',
-  'bg-orange-100',
+  'bg-sticky-yellow',
+  'bg-sticky-blue',
+  'bg-sticky-green',
+  'bg-sticky-pink',
+  'bg-sticky-purple',
+  'bg-sticky-orange',
 ];
 
 export function BlackboardView() {
@@ -120,7 +120,7 @@ export function BlackboardView() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-stone-100 dark:bg-stone-900 relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')]">
+    <div className="flex flex-col h-full bg-muted relative bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDUiLz4KPC9zdmc+')]">
       <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
         {/* Loading State */}
         {items === undefined && (

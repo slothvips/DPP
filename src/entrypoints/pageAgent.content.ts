@@ -2,13 +2,40 @@
 // Content Script 入口 - 注入到目标页面后初始化 PageAgent
 import { PageAgent } from 'page-agent';
 import { browser } from 'wxt/browser';
-import type { PageAgentConfig } from '@/lib/pageAgent/types';
+import type { PageAgentConfig, PageAgentInstance } from '@/lib/pageAgent/types';
 import { serializeHeaders } from '@/lib/pageAgent/utils';
 
 export default defineContentScript({
-  matches: [],
+  matches: ['<all_urls>'],
   runAt: 'document_start',
   main() {
+    // 保存 agent 实例引用，用于在页面卸载时停止
+    let currentAgent: PageAgentInstance | null = null;
+
+    /**
+     * 页面卸载时停止 PageAgent，避免继续重试
+     */
+    function handlePageUnload() {
+      if (currentAgent) {
+        logger.info('[PageAgent] 页面即将卸载，停止 Agent');
+        currentAgent.stop();
+      }
+    }
+
+    /**
+     * 监听页面可见性变化，当 tab 切换到后台时停止 Agent
+     */
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'hidden' && currentAgent) {
+        logger.info('[PageAgent] 页面不可见，停止 Agent');
+        currentAgent.stop();
+      }
+    }
+
+    // 监听页面卸载和可见性变化
+    window.addEventListener('beforeunload', handlePageUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     async function proxyFetch(input: RequestInfo | URL, options?: RequestInit): Promise<Response> {
       const url =
         typeof input === 'string'
@@ -52,6 +79,7 @@ export default defineContentScript({
       if (existing?.panel?.wrapper && document.body.contains(existing.panel.wrapper)) {
         existing.panel.show();
         existing.panel.expand();
+        currentAgent = existing;
         return;
       }
 
@@ -72,13 +100,14 @@ export default defineContentScript({
           apiKey: config.apiKey,
           model: config.model,
           language: 'zh-CN',
-          maxRetries: 5,
+          maxRetries: 0, // 禁用自动重试，由我们控制何时停止
           maxSteps: 200,
           customFetch: proxyFetch,
         });
 
         agent.panel.show();
         window.__DPP_PAGE_AGENT__ = agent;
+        currentAgent = agent;
       } catch (error) {
         console.error(
           '[PageAgent] 初始化失败:',

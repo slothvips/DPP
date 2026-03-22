@@ -24,6 +24,7 @@ export interface ChatMessage {
 export interface ChatOptions {
   temperature?: number;
   stream?: boolean;
+  signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
 }
 
