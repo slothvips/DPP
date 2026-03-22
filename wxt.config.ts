@@ -52,7 +52,9 @@ export default defineConfig({
     // alarms: 定时任务
     // activeTab: 获取标签页信息
     // scripting: 编程式注入脚本（用于 Page Agent 注入，用户需先选择目标标签页）
-    permissions: ['storage', 'sidePanel', 'alarms', 'activeTab', 'scripting'],
+    // tabs: 获取标签页列表信息
+    permissions: ['storage', 'sidePanel', 'alarms', 'activeTab', 'scripting', 'tabs'],
+    host_permissions: ['<all_urls>'],
     side_panel: {
       default_path: 'sidepanel.html',
     },
