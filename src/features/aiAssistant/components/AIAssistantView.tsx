@@ -184,12 +184,14 @@ export function AIAssistantView() {
             currentSessionId={sessionId}
             onSelectSession={switchSession}
             onDeleteSession={deleteSession}
+            disabled={isRunning}
           />
           <Button
             variant="ghost"
             size="sm"
             onClick={createNewSession}
-            title="新建会话"
+            disabled={isRunning}
+            title={isRunning ? '请等待 D仔 完成当前任务' : '新建会话'}
             className="text-xs h-7"
           >
             <Plus className="w-3.5 h-3.5 mr-1" />
@@ -323,7 +325,7 @@ export function AIAssistantView() {
         <ChatInput
           onSend={handleSend}
           onStop={stop}
-          disabled={status === 'confirming'}
+          disabled={isRunning || status === 'confirming'}
           isRunning={isRunning}
           placeholder="发送消息... (Shift+Enter 换行)"
           initialInput={presetPrompt}
@@ -371,7 +373,7 @@ export function AIAssistantView() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleSend('请总结页面的主要内容')}
-                disabled={status === 'confirming'}
+                disabled={isRunning || status === 'confirming'}
                 className="text-xs"
               >
                 <FileText className="w-3 h-3 mr-1" />
@@ -381,7 +383,7 @@ export function AIAssistantView() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleSend('请提取页面的主要内容，并以结构化的格式呈现')}
-                disabled={status === 'confirming'}
+                disabled={isRunning || status === 'confirming'}
                 className="text-xs"
               >
                 <Database className="w-3 h-3 mr-1" />
@@ -391,7 +393,7 @@ export function AIAssistantView() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleSend('请翻译页面的主要内容')}
-                disabled={status === 'confirming'}
+                disabled={isRunning || status === 'confirming'}
                 className="text-xs"
               >
                 <Languages className="w-3 h-3 mr-1" />

@@ -9,6 +9,7 @@ interface AISessionListProps {
   currentSessionId: string | null;
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
+  disabled?: boolean;
 }
 
 export function AISessionList({
@@ -16,17 +17,39 @@ export function AISessionList({
   currentSessionId,
   onSelectSession,
   onDeleteSession,
+  disabled = false,
 }: AISessionListProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const currentSession = sessions.find((s) => s.id === currentSessionId);
+
+  const handleToggle = () => {
+    if (!disabled) {
+      setIsOpen(!isOpen);
+    }
+  };
+
+  const handleSelectSession = (id: string) => {
+    if (!disabled) {
+      onSelectSession(id);
+      setIsOpen(false);
+    }
+  };
+
+  const handleDeleteSession = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!disabled) {
+      onDeleteSession(id);
+    }
+  };
 
   return (
     <div className="relative">
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={handleToggle}
+        disabled={disabled}
         className="text-xs font-normal h-7 px-2 max-w-[120px]"
         title={currentSession?.title || '新会话'}
       >
@@ -51,11 +74,8 @@ export function AISessionList({
                     key={session.id}
                     className={`flex items-center justify-between px-2 py-1.5 rounded-sm text-xs cursor-pointer hover:bg-accent ${
                       session.id === currentSessionId ? 'bg-accent' : ''
-                    }`}
-                    onClick={() => {
-                      onSelectSession(session.id);
-                      setIsOpen(false);
-                    }}
+                    } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+                    onClick={() => handleSelectSession(session.id)}
                   >
                     <div className="flex items-center min-w-0 flex-1">
                       {session.id === currentSessionId && (
@@ -67,10 +87,8 @@ export function AISessionList({
                       variant="ghost"
                       size="icon"
                       className="h-5 w-5 ml-1 hover:bg-destructive hover:text-destructive-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteSession(session.id);
-                      }}
+                      onClick={(e) => handleDeleteSession(session.id, e)}
+                      disabled={disabled}
                     >
                       <Trash2 className="w-3 h-3" />
                     </Button>

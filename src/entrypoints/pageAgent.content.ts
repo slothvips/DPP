@@ -6,9 +6,9 @@ import type { PageAgentConfig, PageAgentInstance } from '@/lib/pageAgent/types';
 import { serializeHeaders } from '@/lib/pageAgent/utils';
 
 export default defineContentScript({
-  // 注意：此脚本通过 browser.scripting.executeScript 动态注入，不依赖此处 matches
-  // 设置为 <all_urls> 以满足 Chrome manifest 要求
-  matches: ['<all_urls>'],
+  // 此脚本通过 browser.scripting.executeScript 动态注入
+  // 使用一个永远不会匹配的 pattern 来避免自动注入
+  matches: ['https://page-agent-manual-inject.invalid/*'],
   runAt: 'document_idle',
   main() {
     // 保存 agent 实例引用，用于在页面卸载时停止
