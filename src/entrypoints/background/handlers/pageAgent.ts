@@ -241,6 +241,14 @@ export async function handlePageAgentExecute(
       };
     }
 
+    // 检测是否是 AbortError（通常表示执行超时或被取消）
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        success: false,
+        error: '任务执行超时或被取消，请重试',
+      };
+    }
+
     return {
       success: false,
       error: errorMessage,

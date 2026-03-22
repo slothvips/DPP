@@ -74,9 +74,24 @@ async function pageagent_execute_task(args: { task: string }): Promise<{
     }
   } catch (error) {
     logger.error('[PageAgent Tool] 执行出错:', error);
+
+    // 提供更友好的错误消息
+    let errorMessage = '执行失败';
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        errorMessage = '执行超时或被取消，请重试';
+      } else if (error.message.includes('Extension context invalidated')) {
+        errorMessage = '扩展上下文已失效，请重新加载扩展';
+      } else if (error.message.includes('No receiving end')) {
+        errorMessage = '消息传递失败，请重新加载扩展';
+      } else {
+        errorMessage = error.message;
+      }
+    }
+
     return {
       success: false,
-      message: error instanceof Error ? error.message : '执行失败',
+      message: errorMessage,
     };
   }
 }
