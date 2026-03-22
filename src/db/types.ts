@@ -112,10 +112,7 @@ export type SettingKey =
   | 'ai_anthropic_api_key'
   | 'ai_custom_base_url'
   | 'ai_custom_model'
-  | 'ai_custom_api_key'
-  | 'ai_webllm_base_url'
-  | 'ai_webllm_model'
-  | 'ai_webllm_api_key';
+  | 'ai_custom_api_key';
 
 export interface Setting {
   key: SettingKey;

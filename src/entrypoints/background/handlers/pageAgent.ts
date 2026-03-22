@@ -2,7 +2,12 @@
 // PageAgent 注入请求处理器
 import { browser } from 'wxt/browser';
 import { getAIConfig } from '@/lib/db/settings';
-import { clearExistingAgent, injectPageAgent, isInjectable } from '@/lib/pageAgent/injector';
+import {
+  clearAllAgents,
+  clearExistingAgent,
+  injectPageAgent,
+  isInjectable,
+} from '@/lib/pageAgent/injector';
 import type {
   PageAgentExecuteRequest,
   PageAgentExecuteResponse,
@@ -12,6 +17,20 @@ import type {
   PageAgentInjectWithTabRequest,
 } from '@/lib/pageAgent/types';
 import { logger } from '@/utils/logger';
+
+/**
+ * 处理关闭所有 PageAgent 实例的请求
+ */
+export async function handlePageAgentCloseAll(): Promise<{ success: boolean }> {
+  logger.info('[PageAgent] 收到关闭所有实例请求');
+  try {
+    await clearAllAgents();
+    return { success: true };
+  } catch (error) {
+    logger.error('[PageAgent] 关闭所有实例失败:', error);
+    return { success: false };
+  }
+}
 
 /**
  * 验证 AI 配置并返回配置或错误
@@ -26,7 +45,7 @@ async function validateAIConfig(): Promise<
     return { success: false, error: '请先配置 AI 服务' };
   }
 
-  if (!aiConfig.apiKey && aiConfig.provider !== 'webllm') {
+  if (!aiConfig.apiKey) {
     return { success: false, error: '请先配置 API Key' };
   }
 

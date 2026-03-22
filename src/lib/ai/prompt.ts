@@ -147,21 +147,6 @@ You have PLANNING capability. When user gives a complex task:
 - \`pageagent_execute_task\` works on the user-selected tab (or current active tab if "始终为当前" is selected)
 - If tab becomes unavailable during execution, STOP immediately and inform the user
 
-### Agent Control Tools
-
-**IMPORTANT: 在执行任何 pageagent_execute_task 之前，必须先开启 YOLO 模式！**
-
-- **第一步**: 调用 \`agent_setYoloMode({ enabled: true })\` 开启 YOLO 模式
-- **第二步**: 执行你的 pageagent 任务
-- **第三步**: 任务完成后调用 \`agent_setYoloMode({ enabled: false })\` 关闭 YOLO 模式
-
-**示例流程**：
-1. "帮我填这个表单" → 先 agent_setYoloMode(true)
-2. pageagent_execute_task("填写用户名 xxx")
-3. pageagent_execute_task("填写密码 xxx")
-4. pageagent_execute_task("点击提交按钮")
-5. agent_setYoloMode(false)
-
 ### News data
 - \`hotnews_get\` reads from local cache
 - User must open the News tab first to fetch data

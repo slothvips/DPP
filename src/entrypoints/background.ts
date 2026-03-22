@@ -3,10 +3,12 @@
 import { browser } from 'wxt/browser';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
+import { clearAllAgents } from '@/lib/pageAgent/injector';
 import { logger } from '@/utils/logger';
 import {
   handleGeneralMessage,
   handleJenkinsMessage,
+  handlePageAgentCloseAll,
   handlePageAgentExecute,
   handlePageAgentExecuteTaskWithTab,
   handlePageAgentInject,
@@ -26,6 +28,14 @@ export default defineBackground(() => {
   browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error) => logger.error('Failed to set side panel behavior:', error));
+
+  // Listen for side panel close to destroy all PageAgent instances
+  browser.sidePanel.onClosed.addListener(() => {
+    logger.info('[Background] Side panel closed, destroying all PageAgent instances');
+    clearAllAgents().catch((e: Error) =>
+      logger.error('Failed to clear agents on side panel close:', e)
+    );
+  });
 
   // Run initial auto sync setup
   setupAutoSync();
@@ -153,6 +163,10 @@ export default defineBackground(() => {
         handlePageAgentExecuteTaskWithTab(
           message as Parameters<typeof handlePageAgentExecuteTaskWithTab>[0]
         ),
+    },
+    {
+      match: (type) => type === 'PAGE_AGENT_CLOSE_ALL',
+      handler: () => handlePageAgentCloseAll(),
     },
     {
       match: (type) =>

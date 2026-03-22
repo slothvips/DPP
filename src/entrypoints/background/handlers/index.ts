@@ -21,6 +21,7 @@ export {
   handlePageAgentExecute,
   handlePageAgentInjectWithTab,
   handlePageAgentExecuteTaskWithTab,
+  handlePageAgentCloseAll,
 } from './pageAgent';
 export type {
   PageAgentInjectRequest,

@@ -2,17 +2,24 @@
 
 ## v0.3.8 (2026-03-22)
 
-### 🔒 安全与稳定性
+### ✨ 新功能
 
-- **SyncEngine 重复注册防护**: 添加 `_registered` 标志位，防止同步引擎重复注册 hooks 导致的问题
-- **localStorage 安全访问**: 在 App.tsx 中添加 `typeof localStorage !== 'undefined'` 检查，避免 SSR/测试环境报错
-- **Chrome Web Store 合规**: 更新扩展元数据以符合 Chrome Web Store 规范
+- **PageAgent 独立控制**: 新增关闭所有 PageAgent 实例功能，侧边栏关闭时自动清理所有活跃实例
+- **PageAgent 工具超时机制**: 为 pageagent_execute_task 工具添加 60 秒超时，避免 background 无响应时永久等待
+- **YOLO 按钮动画**: 为 AI 助手界面的 YOLO 模式按钮添加边框高亮动画效果
 
 ### 🏗️ 架构优化
 
-- **SyncEngine 改进**: 优化同步引擎内部实现，提升稳定性和性能
-- **PageAgentButton 重构**: 将 PageAgentButton 从全局 header 移至 AI Assistant 面板，优化布局结构
-- **清理临时文件**: 移除 .planning 目录和过期文档，保持仓库整洁
+- **Content Script 优化**: 移除 content script 的自动注入配置 (`matches: []`)，改为完全由 background 编程式注入
+- **PageAgent 生命周期管理**: 新增 `injectedTabs` 追踪机制，监听标签页关闭自动清理注入记录
+- **PlayerApp 播放控制改进**: 添加 seekTimeRef 追踪播放位置，支持从上次位置继续播放
+- **PlayerApp 缩放优化**: 简化初始加载和侧边栏切换时的缩放更新逻辑
+
+### 🔧 代码质量
+
+- **WebLLM 设置移除**: 从设置类型和 UI 中移除 WebLLM 相关配置项，简化 AI 提供商选择
+- **自动化测试按钮移除**: 从 AI 助手快捷指令中移除不再使用的自动化测试按钮
+- **Prompt 精简**: 移除 Agent Control Tools 相关描述，保持 prompt 简洁准确
 
 ---
 

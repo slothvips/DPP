@@ -97,13 +97,6 @@ class ToolRegistry {
   }
 
   /**
-   * Set YOLO mode
-   */
-  async setYoloMode(enabled: boolean): Promise<void> {
-    await browser.storage.session.set({ [YOLO_MODE_KEY]: enabled });
-  }
-
-  /**
    * Get list of tools that require confirmation (for prompt generation, not considering YOLO)
    */
   getConfirmationRequired(): string[] {

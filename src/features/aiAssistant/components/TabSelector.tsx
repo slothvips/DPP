@@ -133,9 +133,9 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-2" align="end">
+      <PopoverContent className="w-80 p-3" align="end">
         <div className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-          选择 Page Agent 工作标签页（仅支持 SPA）
+          选择 Page Agent 工作标签页
         </div>
         {/* 始终为当前标签选项 */}
         <button

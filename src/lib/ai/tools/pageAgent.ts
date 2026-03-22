@@ -47,7 +47,20 @@ async function pageagent_execute_task(args: { task: string }): Promise<{
       tabId !== null
         ? { type: 'PAGE_AGENT_EXECUTE_TASK_WITH_TAB' as const, task: args.task, tabId }
         : { type: 'PAGE_AGENT_EXECUTE_TASK' as const, task: args.task };
-    const response = await browser.runtime.sendMessage(message);
+
+    // 添加 60 秒超时，避免 background 无响应时永久等待
+    const response = await Promise.race([
+      browser.runtime.sendMessage(message),
+      new Promise<undefined>((_, reject) => setTimeout(() => reject(new Error('timeout')), 60000)),
+    ]).catch((error) => {
+      // 将超时错误转换为可识别的 AbortError
+      if (error.message === 'timeout') {
+        const timeoutError = new Error('timeout');
+        timeoutError.name = 'AbortError';
+        throw timeoutError;
+      }
+      throw error;
+    });
 
     logger.info('[PageAgent Tool] 收到响应:', JSON.stringify(response));
 

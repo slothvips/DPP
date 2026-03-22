@@ -6,8 +6,8 @@ import type { PageAgentConfig, PageAgentInstance } from '@/lib/pageAgent/types';
 import { serializeHeaders } from '@/lib/pageAgent/utils';
 
 export default defineContentScript({
-  matches: ['<all_urls>'],
-  runAt: 'document_start',
+  matches: [],
+  runAt: 'document_idle',
   main() {
     // 保存 agent 实例引用，用于在页面卸载时停止
     let currentAgent: PageAgentInstance | null = null;
@@ -19,22 +19,12 @@ export default defineContentScript({
       if (currentAgent) {
         logger.info('[PageAgent] 页面即将卸载，停止 Agent');
         currentAgent.stop();
+        currentAgent = null;
       }
     }
 
-    /**
-     * 监听页面可见性变化，当 tab 切换到后台时停止 Agent
-     */
-    function handleVisibilityChange() {
-      if (document.visibilityState === 'hidden' && currentAgent) {
-        logger.info('[PageAgent] 页面不可见，停止 Agent');
-        currentAgent.stop();
-      }
-    }
-
-    // 监听页面卸载和可见性变化
+    // 监听页面卸载，并在 cleanup 时移除监听器
     window.addEventListener('beforeunload', handlePageUnload);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     async function proxyFetch(input: RequestInfo | URL, options?: RequestInit): Promise<Response> {
       const url =
@@ -105,6 +95,7 @@ export default defineContentScript({
           customFetch: proxyFetch,
         });
 
+        // 确保 panel.show() 之后才设置全局引用
         agent.panel.show();
         window.__DPP_PAGE_AGENT__ = agent;
         currentAgent = agent;
@@ -113,9 +104,22 @@ export default defineContentScript({
           '[PageAgent] 初始化失败:',
           error instanceof Error ? error.message : '未知错误'
         );
+        // 清理可能的部分初始化状态
+        delete window.__DPP_PAGE_AGENT__;
+        currentAgent = null;
       }
     }
 
     initPageAgent();
+
+    // Content script 卸载时清理
+    return () => {
+      window.removeEventListener('beforeunload', handlePageUnload);
+      if (currentAgent) {
+        currentAgent.stop();
+        currentAgent = null;
+      }
+      delete window.__DPP_PAGE_AGENT__;
+    };
   },
 });

@@ -21,7 +21,6 @@ export default defineConfig({
     },
     build: {
       // 提高警告阈值，消除 "chunk too large" 警告
-      // Web LLM 动态加载的 chunk 约 6MB，设置阈值为 7000KB
       chunkSizeWarningLimit: 7000,
     },
   }),

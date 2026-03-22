@@ -7,7 +7,6 @@ import {
   Plus,
   Scissors,
   Settings,
-  TestTube2,
   Trash2,
   Zap,
 } from 'lucide-react';
@@ -370,6 +369,12 @@ export function AIAssistantView() {
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground">目标页面:</span>
                 <TabSelector selectedTabId={selectedTabId} onTabSelect={setSelectedTabId} />
+                <span
+                  className="text-[10px] text-orange-500 italic cursor-help"
+                  title="执行期间请保持页面在前台，不要切换或关闭标签页"
+                >
+                  (仅支持SPA，请保持页面始终处于前台)
+                </span>
               </div>
               <Button
                 variant="ghost"
@@ -387,7 +392,7 @@ export function AIAssistantView() {
                 }}
                 title="YOLO 模式：自动确认所有工具调用"
                 className={cn(
-                  'text-xs gap-1 transition-all duration-300',
+                  'text-xs gap-1 transition-all duration-300 border border-border',
                   yoloMode && 'yolo-button-active'
                 )}
               >
@@ -428,18 +433,6 @@ export function AIAssistantView() {
               >
                 <Languages className="w-3 h-3 mr-1" />
                 翻译内容
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  handleSend('开始自动化测试：探索页面结构，识别可交互元素，逐步执行测试')
-                }
-                disabled={status === 'confirming' || isLoadingModel}
-                className="text-xs"
-              >
-                <TestTube2 className="w-3 h-3 mr-1" />
-                自动化测试
               </Button>
             </div>
           }

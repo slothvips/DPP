@@ -14,7 +14,6 @@ import { registerTagsTools } from './tools/tags';
 
 export * from './types';
 export * from './ollama';
-export * from './webllm';
 export * from './tools';
 export * from './prompt';
 export * from './tools/links';

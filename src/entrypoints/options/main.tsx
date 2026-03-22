@@ -79,8 +79,6 @@ const SETTINGS_CATEGORIES = [
       // Ollama
       'ai_ollama_base_url',
       'ai_ollama_model',
-      // WebLLM
-      'ai_webllm_model',
       // Anthropic
       'ai_anthropic_base_url',
       'ai_anthropic_model',
