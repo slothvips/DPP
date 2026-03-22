@@ -372,7 +372,7 @@ export function AIAssistantView() {
                 <TabSelector selectedTabId={selectedTabId} onTabSelect={setSelectedTabId} />
               </div>
               <Button
-                variant={yoloMode ? 'secondary' : 'ghost'}
+                variant="ghost"
                 size="sm"
                 onClick={async () => {
                   if (!yoloMode) {
@@ -386,10 +386,13 @@ export function AIAssistantView() {
                   setYoloMode(!yoloMode);
                 }}
                 title="YOLO 模式：自动确认所有工具调用"
-                className="text-xs gap-1"
+                className={cn(
+                  'text-xs gap-1 transition-all duration-300',
+                  yoloMode && 'yolo-button-active'
+                )}
               >
                 <Zap className={cn('w-3.5 h-3.5', yoloMode && 'fill-primary text-primary')} />
-                <span>YOLO</span>
+                <span className={yoloMode ? 'text-primary font-medium' : ''}>YOLO</span>
               </Button>
             </div>
           }
