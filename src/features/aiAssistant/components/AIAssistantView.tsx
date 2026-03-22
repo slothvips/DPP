@@ -34,10 +34,6 @@ export function AIAssistantView() {
     pendingBuild,
     sessions,
     sessionId,
-    isLoadingModel,
-    modelLoadProgress,
-    modelLoadStatus,
-    currentProvider,
     yoloMode,
     isRunning,
     sendMessage,
@@ -232,21 +228,6 @@ export function AIAssistantView() {
         </div>
       </div>
 
-      {/* Local model warning */}
-      {(currentProvider === 'ollama' || currentProvider === 'webllm') && !isLoadingModel && (
-        <div className="px-3 py-2 bg-warning/10 dark:bg-warning/20 border-b border-warning/30">
-          <div className="flex items-start gap-2">
-            <span className="text-warning text-sm">⚠️</span>
-            <div className="text-xs text-warning">
-              <p className="font-medium">当前使用本地模型，体验可能不佳</p>
-              <p className="mt-0.5 opacity-80">
-                玩玩就好，别认真~ 如需更好的体验，请切换到 OpenAI、Anthropic 等知名供应商
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Messages area */}
       <div className="relative flex-1 overflow-hidden">
         <div
@@ -268,26 +249,8 @@ export function AIAssistantView() {
             </div>
           )}
 
-          {/* WebLLM Model Loading Progress */}
-          {isLoadingModel && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="text-4xl mb-4">📥</div>
-              <p className="text-sm font-medium">正在加载模型...</p>
-              <div className="w-48 h-2 bg-muted rounded-full mt-3 overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${modelLoadProgress}%` }}
-                />
-              </div>
-              <p className="text-xs mt-2 text-muted-foreground">
-                {modelLoadProgress}% - {modelLoadStatus}
-              </p>
-              <p className="text-xs mt-1 text-muted-foreground">首次加载需要下载模型，请耐心等待</p>
-            </div>
-          )}
-
           {/* Welcome message when empty and configured */}
-          {!isConfigMissing && !isLoadingModel && messages.length === 0 && (
+          {!isConfigMissing && messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground px-4">
               <div className="text-4xl mb-4">🤖</div>
               <p className="text-sm font-medium">你好！我是 D仔</p>
@@ -360,9 +323,9 @@ export function AIAssistantView() {
         <ChatInput
           onSend={handleSend}
           onStop={stop}
-          disabled={status === 'confirming' || isLoadingModel}
+          disabled={status === 'confirming'}
           isRunning={isRunning}
-          placeholder={isLoadingModel ? '模型加载中...' : '发送消息... (Shift+Enter 换行)'}
+          placeholder="发送消息... (Shift+Enter 换行)"
           initialInput={presetPrompt}
           rightSlot={
             <div className="flex gap-2 items-center">
@@ -408,7 +371,7 @@ export function AIAssistantView() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleSend('请总结页面的主要内容')}
-                disabled={status === 'confirming' || isLoadingModel}
+                disabled={status === 'confirming'}
                 className="text-xs"
               >
                 <FileText className="w-3 h-3 mr-1" />
@@ -418,7 +381,7 @@ export function AIAssistantView() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleSend('请提取页面的主要内容，并以结构化的格式呈现')}
-                disabled={status === 'confirming' || isLoadingModel}
+                disabled={status === 'confirming'}
                 className="text-xs"
               >
                 <Database className="w-3 h-3 mr-1" />
@@ -428,7 +391,7 @@ export function AIAssistantView() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleSend('请翻译页面的主要内容')}
-                disabled={status === 'confirming' || isLoadingModel}
+                disabled={status === 'confirming'}
                 className="text-xs"
               >
                 <Languages className="w-3 h-3 mr-1" />

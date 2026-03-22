@@ -16,7 +16,6 @@ import type {
   OpenAIChatRequest,
   OpenAIChatResponse,
 } from './types';
-import { DEFAULT_WEBLLM_MODEL, WebLLMProvider } from './webllm';
 
 /**
  * Default configurations for different providers
@@ -33,10 +32,6 @@ export const DEFAULT_CONFIGS = {
   custom: {
     baseUrl: '',
     model: '',
-  },
-  webllm: {
-    baseUrl: '',
-    model: DEFAULT_WEBLLM_MODEL,
   },
 } as const;
 
@@ -642,8 +637,6 @@ export function createProvider(
       return new OpenAICompatibleProvider(baseUrl, apiKey || '', model);
     case 'anthropic':
       return new AnthropicProvider(baseUrl, apiKey || '', model);
-    case 'webllm':
-      return new WebLLMProvider(model);
     default:
       logger.warn(`[AI Provider] Unknown provider type: ${providerType}, falling back to Ollama`);
       return new OllamaProvider(baseUrl, model);

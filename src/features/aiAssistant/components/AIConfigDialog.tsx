@@ -23,7 +23,6 @@ import {
 import { db } from '@/db';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import type { AIProviderType } from '@/lib/ai/types';
-import { WEBLLM_MODELS } from '@/lib/ai/webllm';
 import { decryptData, encryptData, loadKey } from '@/lib/crypto/encryption';
 import { updateSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
@@ -35,7 +34,6 @@ interface AIConfigDialogProps {
 
 const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
   { value: 'ollama', label: 'Ollama (本地)' },
-  { value: 'webllm', label: 'WebLLM (浏览器本地)' },
   { value: 'anthropic', label: 'Anthropic 兼容' },
   { value: 'custom', label: 'OpenAI 兼容' },
 ];
@@ -152,8 +150,8 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     }
   };
 
-  const showApiKey = provider !== 'ollama' && provider !== 'webllm';
-  const showBaseUrl = provider !== 'webllm';
+  const showApiKey = provider !== 'ollama';
+  const showBaseUrl = true;
   const showModelField = true;
 
   return (
@@ -239,33 +237,18 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
           {showModelField && (
             <div className="grid gap-2">
               <Label htmlFor="ai-model">模型</Label>
-              {provider === 'webllm' ? (
-                <Select value={model} onValueChange={setModel}>
-                  <SelectTrigger id="ai-model">
-                    <SelectValue placeholder="选择模型" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {WEBLLM_MODELS.map((m) => (
-                      <SelectItem key={m.name} value={m.name}>
-                        {m.name} ({m.size})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  id="ai-model"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder={
-                    provider === 'ollama'
-                      ? 'llama3.2'
-                      : provider === 'anthropic'
-                        ? 'claude-3-5-sonnet-20241022'
-                        : 'gpt-4o-mini'
-                  }
-                />
-              )}
+              <Input
+                id="ai-model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={
+                  provider === 'ollama'
+                    ? 'llama3.2'
+                    : provider === 'anthropic'
+                      ? 'claude-3-5-sonnet-20241022'
+                      : 'gpt-4o-mini'
+                }
+              />
             </div>
           )}
         </div>

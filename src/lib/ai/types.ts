@@ -3,7 +3,7 @@
 /**
  * Supported AI provider types
  */
-export type AIProviderType = 'ollama' | 'anthropic' | 'custom' | 'webllm';
+export type AIProviderType = 'ollama' | 'anthropic' | 'custom';
 
 export interface ModelProvider {
   name: string;
