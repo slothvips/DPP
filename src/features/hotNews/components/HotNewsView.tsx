@@ -102,7 +102,7 @@ export function HotNewsView() {
     if (!news || news.sections.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-          <p className="text-muted-foreground">暂时没有新闻~(世界在这一天这么安静吗🤫?)</p>
+          <p className="text-muted-foreground">暂时没有新闻 ~(世界在这一天这么安静吗🤫?)</p>
           <Button variant="outline" size="sm" onClick={loadNews}>
             <RefreshCw className="h-4 w-4 mr-2" />
             刷新

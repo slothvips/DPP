@@ -147,12 +147,12 @@ export function AIAssistantView() {
     if (isSummarizing) return;
 
     if (messages.length === 0) {
-      toast('无法压缩', 'error');
+      toast('无法压缩当前会话', 'error');
       return;
     }
 
     if (status === 'loading' || status === 'streaming') {
-      toast('请稍候', 'info');
+      toast('压缩中，请稍候', 'info');
       return;
     }
 
@@ -257,7 +257,7 @@ export function AIAssistantView() {
               <div className="text-4xl mb-4">🤖</div>
               <p className="text-sm font-medium">你好！我是 D仔</p>
               <p className="text-xs mt-2">你可以用自然语言与我对话，我来帮你完成任务</p>
-              <p className="text-xs mt-1">还可以管理链接、便签、Jenkins 任务等</p>
+              <p className="text-xs mt-1">还可以管理链接、便笺、Jenkins 任务等</p>
               <p className="text-xs mt-3 mb-4">使用快捷指令按钮或直接发送消息</p>
             </div>
           )}
@@ -382,7 +382,7 @@ export function AIAssistantView() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => handleSend('请提取页面的主要内容，并以结构化的格式呈现')}
+                onClick={() => handleSend('请提取页面主要内容并以结构化格式呈现')}
                 disabled={isRunning || status === 'confirming'}
                 className="text-xs"
               >

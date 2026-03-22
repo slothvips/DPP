@@ -3,12 +3,12 @@ import { useEffect, useState } from 'react';
 import { cn } from '@/utils/cn';
 
 const TIPS = [
-  { icon: Lightbulb, text: '链接单击打开，双击复制地址', color: 'text-success' },
-  { icon: Sparkles, text: '搜索支持空格分隔多关键词', color: 'text-primary' },
-  { icon: Sparkles, text: '地址栏输入 dpp + 空格，全局快速搜索', color: 'text-primary' },
+  { icon: Sparkles, text: '任何搜索支持空格分隔多关键词', color: 'text-primary' },
   { icon: Lightbulb, text: 'Jenkins 支持多环境切换，在设置中配置', color: 'text-success' },
-  { icon: Lightbulb, text: 'D仔支持自然语言管理链接、Job、便签', color: 'text-success' },
+  { icon: Lightbulb, text: 'D仔支持自然语言管理链接、Job、便签，操控页面', color: 'text-success' },
   { icon: Lightbulb, text: '便签支持 Markdown 格式', color: 'text-success' },
+  { icon: Sparkles, text: '设置中可管理多个 Jenkins 环境凭证', color: 'text-primary' },
+  { icon: Sparkles, text: '浏览器地址栏输入 [dpp + 空格]，全局快速搜索', color: 'text-primary' },
 ];
 
 export function Tips() {
