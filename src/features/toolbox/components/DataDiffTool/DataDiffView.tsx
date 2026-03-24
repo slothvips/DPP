@@ -132,7 +132,7 @@ function computeDiff(
   dataB.forEach((itemB) => {
     const itemA = mapA.get(itemB[idField] as string);
     if (!itemA) {
-      diffResult.push({ ...itemB, type: 'remove' });
+      diffResult.push({ ...itemB, type: 'insert' });
     } else if (isKeyFieldChanged(itemA, itemB, keyFields)) {
       diffResult.push({ ...itemB, type: 'update' });
     }
@@ -140,7 +140,7 @@ function computeDiff(
 
   dataA.forEach((itemA) => {
     if (!mapB.has(itemA[idField] as string)) {
-      diffResult.push({ ...itemA, type: 'insert' });
+      diffResult.push({ ...itemA, type: 'remove' });
     }
   });
 
