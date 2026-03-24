@@ -26,7 +26,7 @@ type TabId =
   | 'recorder'
   | 'blackboard'
   | 'aiAssistant'
-  | 'toolbox';
+  | 'playground';
 
 // 动态导入大型组件以减少初始体积
 const AIAssistantView = React.lazy(() =>
@@ -69,15 +69,21 @@ export function App() {
   const isMinimalMode = !!params.get('buildJobUrl');
 
   const [activeTab, setActiveTab] = useState<
-    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'toolbox'
+    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'playground'
   >(() => {
     // Check URL params first for deep linking
     const tabParam = params.get('tab');
     if (
       tabParam &&
-      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant', 'toolbox'].includes(
-        tabParam
-      )
+      [
+        'links',
+        'jenkins',
+        'hotNews',
+        'recorder',
+        'blackboard',
+        'aiAssistant',
+        'playground',
+      ].includes(tabParam)
     ) {
       return tabParam as
         | 'links'
@@ -86,16 +92,22 @@ export function App() {
         | 'recorder'
         | 'blackboard'
         | 'aiAssistant'
-        | 'toolbox';
+        | 'playground';
     }
 
     const saved =
       typeof localStorage !== 'undefined' ? localStorage.getItem('dpp_active_tab') : null;
     if (
       saved &&
-      ['links', 'jenkins', 'hotNews', 'recorder', 'blackboard', 'aiAssistant', 'toolbox'].includes(
-        saved
-      )
+      [
+        'links',
+        'jenkins',
+        'hotNews',
+        'recorder',
+        'blackboard',
+        'aiAssistant',
+        'playground',
+      ].includes(saved)
     ) {
       return saved as
         | 'links'
@@ -104,7 +116,7 @@ export function App() {
         | 'recorder'
         | 'blackboard'
         | 'aiAssistant'
-        | 'toolbox';
+        | 'playground';
     }
     return 'blackboard';
   });
@@ -143,7 +155,7 @@ export function App() {
   }, []);
 
   const handleTabChange = (
-    tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'toolbox'
+    tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'playground'
   ) => {
     setActiveTab(tab);
     if (typeof localStorage !== 'undefined') {
@@ -246,9 +258,9 @@ export function App() {
               </button>
               <button
                 type="button"
-                data-testid="tab-toolbox"
-                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'toolbox' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('toolbox')}
+                data-testid="tab-playground"
+                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'playground' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                onClick={() => handleTabChange('playground')}
               >
                 <Box className="h-4 w-4" />
               </button>
@@ -326,9 +338,9 @@ export function App() {
             <div
               className="absolute inset-0 p-2 transition-opacity duration-150"
               style={{
-                opacity: activeTab === 'toolbox' ? 1 : 0,
-                visibility: activeTab === 'toolbox' ? 'visible' : 'hidden',
-                pointerEvents: activeTab === 'toolbox' ? 'auto' : 'none',
+                opacity: activeTab === 'playground' ? 1 : 0,
+                visibility: activeTab === 'playground' ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'playground' ? 'auto' : 'none',
               }}
             >
               <ToolboxView />

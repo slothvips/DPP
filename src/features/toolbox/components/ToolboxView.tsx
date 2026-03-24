@@ -84,7 +84,7 @@ export function ToolboxView() {
       <div className="mb-6">
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Box className="h-5 w-5" />
-          Toolbox
+          游乐园
         </h2>
         <p className="text-sm text-muted-foreground mt-1">选择一个项目开始使用</p>
       </div>
