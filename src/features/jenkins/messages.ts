@@ -30,11 +30,21 @@ export interface GetJobDetailsMessage extends JenkinsMessageBase {
   };
 }
 
+export interface CancelBuildMessage extends JenkinsMessageBase {
+  type: 'JENKINS_CANCEL_BUILD';
+  payload: {
+    jobUrl: string;
+    buildNumber: number;
+    envId?: string;
+  };
+}
+
 export type JenkinsMessage =
   | FetchJobsMessage
   | FetchMyBuildsMessage
   | TriggerBuildMessage
-  | GetJobDetailsMessage;
+  | GetJobDetailsMessage
+  | CancelBuildMessage;
 
 export interface JenkinsResponse<T = unknown> {
   success: boolean;

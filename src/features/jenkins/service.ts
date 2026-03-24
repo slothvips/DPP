@@ -37,4 +37,11 @@ export const JenkinsService = {
       payload: { jobUrl, envId },
     });
   },
+
+  async cancelBuild(jobUrl: string, buildNumber: number, envId?: string): Promise<boolean> {
+    return send<boolean>({
+      type: 'JENKINS_CANCEL_BUILD',
+      payload: { jobUrl, buildNumber, envId },
+    });
+  },
 };

@@ -23,10 +23,12 @@ import { RefreshCountdown } from '@/features/jenkins/components/RefreshCountdown
 import { JenkinsService } from '@/features/jenkins/service';
 import { buildJobTree } from '@/features/jenkins/utils';
 import { updateSetting } from '@/lib/db/settings';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
 export function JenkinsView() {
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
   const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
@@ -397,6 +399,25 @@ export function JenkinsView() {
                               envId: build.env,
                             })
                           }
+                          onCancel={async () => {
+                            const confirmed = await confirm(
+                              `确定要取消 "${build.jobName} #${build.number}" 吗？`,
+                              '确认取消构建',
+                              'danger'
+                            );
+                            if (!confirmed) return;
+                            try {
+                              await JenkinsService.cancelBuild(
+                                build.jobUrl,
+                                build.number,
+                                build.env
+                              );
+                              toast('取消构建请求已发送', 'success');
+                            } catch (e) {
+                              logger.error('Cancel build failed', e);
+                              toast('取消构建失败', 'error');
+                            }
+                          }}
                           tags={jobTagsMap.get(build.jobUrl)}
                         />
                       ))}

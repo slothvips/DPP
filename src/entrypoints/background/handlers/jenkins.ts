@@ -1,7 +1,7 @@
 // Jenkins message handlers for background script
 // Import JenkinsEnvironment type for credentials function
 import type { JenkinsEnvironment } from '@/db';
-import { getJobDetails, triggerBuild } from '@/features/jenkins/api/build';
+import { cancelBuild, getJobDetails, triggerBuild } from '@/features/jenkins/api/build';
 import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
 import type { JenkinsMessage, JenkinsResponse } from '@/features/jenkins/messages';
@@ -73,6 +73,11 @@ export async function handleJenkinsMessage(message: JenkinsMessage): Promise<Jen
       case 'JENKINS_GET_JOB_DETAILS': {
         const { jobUrl } = message.payload;
         data = await getJobDetails(jobUrl, user, token);
+        break;
+      }
+      case 'JENKINS_CANCEL_BUILD': {
+        const { jobUrl, buildNumber } = message.payload;
+        data = await cancelBuild(jobUrl, buildNumber, user, token, host);
         break;
       }
     }

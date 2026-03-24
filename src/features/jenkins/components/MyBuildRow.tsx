@@ -1,4 +1,4 @@
-import { Clock, Play } from 'lucide-react';
+import { Clock, Play, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tag } from '@/components/ui/tag';
 import type { MyBuildItem, TagItem } from '@/db';
@@ -8,9 +8,10 @@ interface MyBuildRowProps {
   build: MyBuildItem;
   tags?: TagItem[];
   onBuild: () => void;
+  onCancel: () => void;
 }
 
-export function MyBuildRow({ build, tags, onBuild }: MyBuildRowProps) {
+export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) {
   return (
     <div className="flex items-start gap-2 p-1.5 rounded hover:bg-accent/50 group relative">
       <div className="shrink-0 mt-1">
@@ -63,12 +64,23 @@ export function MyBuildRow({ build, tags, onBuild }: MyBuildRowProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 absolute right-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-success hover:bg-success/10 dark:hover:text-success dark:hover:bg-success/20"
+        className="h-6 w-6 text-muted-foreground hover:text-success hover:bg-success/10 dark:hover:text-success dark:hover:bg-success/20"
         onClick={onBuild}
         title="再次构建"
       >
         <Play className="w-3 h-3" />
       </Button>
+      {build.building && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 dark:hover:text-destructive dark:hover:bg-destructive/20"
+          onClick={onCancel}
+          title="取消构建"
+        >
+          <X className="w-3 h-3" />
+        </Button>
+      )}
     </div>
   );
 }

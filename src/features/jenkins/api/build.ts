@@ -96,3 +96,44 @@ async function getCrumb(baseUrl: string, user: string, token: string) {
   }
   return null;
 }
+
+export async function cancelBuild(
+  jobUrl: string,
+  buildNumber: number,
+  user: string,
+  token: string,
+  jenkinsHost: string
+): Promise<boolean> {
+  const client = createJenkinsClient({ baseUrl: jenkinsHost, user, token });
+  const rootUrl = jobUrl.replace(/\/$/, '');
+
+  const headers = new Headers(client.headers);
+
+  try {
+    const crumb = await getCrumb(jenkinsHost, user, token);
+    if (crumb) {
+      headers.set(crumb.header, crumb.value);
+    }
+  } catch (e) {
+    logger.warn('Failed to fetch crumb, proceeding without it:', e);
+  }
+
+  const apiUrl = `${rootUrl}/${buildNumber}/stop`;
+
+  try {
+    const res = await http(apiUrl, {
+      method: 'POST',
+      headers,
+      timeout: 30000,
+    });
+
+    if (res.status >= 200 && res.status < 300) {
+      return true;
+    }
+    logger.error(`Cancel build failed: ${res.status} ${res.statusText}`);
+    return false;
+  } catch (e) {
+    logger.error('Cancel build error:', e);
+    return false;
+  }
+}
