@@ -205,64 +205,71 @@ export function App() {
               <button
                 type="button"
                 data-testid="tab-blackboard"
-                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('blackboard')}
               >
                 <MessageSquare className="h-4 w-4" />
+                <span>黑板</span>
               </button>
               {hasJenkins && (
                 <button
                   type="button"
                   data-testid="tab-jenkins"
-                  className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('jenkins')}
                 >
                   <JenkinsIcon className="h-4 w-4" />
+                  <span>Jenkins</span>
                 </button>
               )}
               {featureToggles.links && (
                 <button
                   type="button"
                   data-testid="tab-links"
-                  className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('links')}
                 >
                   <Link className="h-4 w-4" />
+                  <span>链接</span>
                 </button>
               )}
               <button
                 type="button"
                 data-testid="tab-recorder"
-                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('recorder')}
               >
                 <Video className="h-4 w-4" />
+                <span>录制</span>
               </button>
               {featureToggles.hotNews && (
                 <button
                   type="button"
                   data-testid="tab-hotnews"
-                  className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                   onClick={() => handleTabChange('hotNews')}
                 >
                   <Flame className="h-4 w-4" />
+                  <span>热点</span>
                 </button>
               )}
               <button
                 type="button"
                 data-testid="tab-ai-assistant"
-                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('aiAssistant')}
               >
                 <Sparkles className="h-4 w-4" />
+                <span>AI助手</span>
               </button>
               <button
                 type="button"
                 data-testid="tab-playground"
-                className={`flex-1 flex items-center justify-center py-2 text-sm font-medium ${activeTab === 'playground' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'playground' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
                 onClick={() => handleTabChange('playground')}
               >
                 <Box className="h-4 w-4" />
+                <span>游乐园</span>
               </button>
             </div>
           )}
