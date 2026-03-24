@@ -165,8 +165,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>AI 设置</DialogTitle>
-          <DialogDescription>配置 AI 模型服务连接信息</DialogDescription>
+          <DialogTitle>给 D仔 接入外置大脑</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           {provider === 'anthropic' && (

@@ -250,7 +250,7 @@ export function App() {
                   onClick={() => handleTabChange('hotNews')}
                 >
                   <Flame className="h-4 w-4" />
-                  <span>热点</span>
+                  <span>资讯</span>
                 </button>
               )}
               <button
@@ -260,7 +260,7 @@ export function App() {
                 onClick={() => handleTabChange('aiAssistant')}
               >
                 <Sparkles className="h-4 w-4" />
-                <span>AI助手</span>
+                <span>D仔</span>
               </button>
               <button
                 type="button"

@@ -4,7 +4,7 @@ import { JsonView } from './JsonTool/JsonView';
 import { RegexView } from './RegexTool/RegexView';
 import { TimestampView } from './TimestampTool/TimestampView';
 
-type ToolId = 'diff' | 'json' | 'regex' | 'timestamp';
+type ToolId = 'diff' | 'json' | 'regex' | 'timestamp' | 'tree-diff';
 
 const tools = [
   {
@@ -36,6 +36,13 @@ const tools = [
     openInNewTab: false,
   },
   {
+    id: 'tree-diff' as ToolId,
+    name: '树形数据对比',
+    icon: <FileDiff className="h-4 w-4" />,
+    description: '树形/扁平数据对比',
+    openInNewTab: true,
+  },
+  {
     id: 'react-playground',
     name: 'React Playground',
     icon: <Box className="h-4 w-4" />,
@@ -60,7 +67,11 @@ export function ToolboxView() {
       chrome.tabs.create({ url: tool.url });
     } else if (tool.openInNewTab) {
       // 内部页面在新标签页打开
-      const url = chrome.runtime.getURL('/diff.html');
+      const pageMap: Record<string, string> = {
+        diff: '/diff.html',
+        'tree-diff': '/tree-diff.html',
+      };
+      const url = chrome.runtime.getURL(pageMap[tool.id] || '/diff.html');
       chrome.tabs.create({ url });
     } else {
       setActiveTool(tool.id);

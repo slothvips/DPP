@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>数据差异对比工具</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config({
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            border: 'hsl(var(--border))',
+            input: 'hsl(var(--input))',
+            ring: 'hsl(var(--ring))',
+            background: 'hsl(var(--background))',
+            foreground: 'hsl(var(--foreground))',
+            primary: {
+              DEFAULT: 'hsl(var(--primary))',
+              foreground: 'hsl(var(--primary-foreground))',
+            },
+            secondary: {
+              DEFAULT: 'hsl(var(--secondary))',
+              foreground: 'hsl(var(--secondary-foreground))',
+            },
+            muted: {
+              DEFAULT: 'hsl(var(--muted))',
+              foreground: 'hsl(var(--muted-foreground))',
+            },
+            accent: {
+              DEFAULT: 'hsl(var(--accent))',
+              foreground: 'hsl(var(--accent-foreground))',
+            },
+            destructive: {
+              DEFAULT: 'hsl(var(--destructive))',
+              foreground: 'hsl(var(--destructive-foreground))',
+            },
+            success: {
+              DEFAULT: 'hsl(var(--success))',
+              foreground: 'hsl(var(--success-foreground))',
+            },
+          },
+          borderRadius: {
+            lg: 'var(--radius)',
+            md: 'calc(var(--radius) - 2px)',
+            sm: 'calc(var(--radius) - 4px)',
+          },
+        },
+      },
+    })
+  </script>
+  <style>
+    :root {
+      --background: 0 0% 100%;
+      --foreground: 222.2 84% 4.9%;
+      --card: 0 0% 100%;
+      --card-foreground: 222.2 84% 4.9%;
+      --popover: 0 0% 100%;
+      --popover-foreground: 222.2 84% 4.9%;
+      --primary: 220 100% 30%;
+      --primary-foreground: 0 0% 100%;
+      --secondary: 210 40% 90%;
+      --secondary-foreground: 222.2 47.4% 11.2%;
+      --muted: 210 40% 96.1%;
+      --muted-foreground: 215.4 16.3% 46.9%;
+      --accent: 210 40% 96.1%;
+      --accent-foreground: 222.2 47.4% 11.2%;
+      --destructive: 0 84.2% 50%;
+      --destructive-foreground: 0 0% 100%;
+      --border: 214.3 31.8% 91.4%;
+      --input: 214.3 31.8% 91.4%;
+      --ring: 221.2 83.2% 53.3%;
+      --success: 142.1 76.2% 36.3%;
+      --success-foreground: 210 40% 98%;
+      --radius: 0.5rem;
+    }
+    .dark {
+      --background: 222.2 84% 4.9%;
+      --foreground: 210 40% 98%;
+      --card: 222.2 84% 4.9%;
+      --card-foreground: 210 40% 98%;
+      --popover: 222.2 84% 4.9%;
+      --popover-foreground: 210 40% 98%;
+      --primary: 217.2 91.2% 59.8%;
+      --primary-foreground: 222.2 47.4% 11.2%;
+      --secondary: 217.2 32.6% 17.5%;
+      --secondary-foreground: 210 40% 98%;
+      --muted: 217.2 32.6% 17.5%;
+      --muted-foreground: 215 20.2% 65.1%;
+      --accent: 217.2 32.6% 17.5%;
+      --accent-foreground: 210 40% 98%;
+      --destructive: 0 62.8% 30.6%;
+      --destructive-foreground: 210 40% 98%;
+      --border: 217.2 32.6% 17.5%;
+      --input: 217.2 32.6% 17.5%;
+      --ring: 224.3 76.3% 48%;
+      --success: 142.1 70.6% 45.3%;
+      --success-foreground: 144.9 80.4% 10%;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      background-color: hsl(var(--background));
+      color: hsl(var(--foreground));
+    }
+
+    textarea, input[type="text"] {
+      font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+      font-size: 12px;
+    }
+
+    .toast {
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: all 0.3s;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div id="inputPage" class="min-h-screen p-6">
+    <div class="max-w-6xl mx-auto">
+      <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-foreground mb-2">数据差异对比工具</h1>
+        <p class="text-sm text-muted-foreground">输入两组树形/扁平数据，自动检测层级关系并对比差异。支持任意树形结构。</p>
+      </div>
+
+      <form id="diffForm" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="space-y-2">
+            <label for="dataA" class="text-sm font-medium text-foreground">数据源 A - JSON</label>
+            <textarea
+              id="dataA"
+              rows="20"
+              placeholder='扁平数据: [{"id":"1","name":"节点1","pid":"0",...}]&#10;&#10;树形数据: [{"id":"1","name":"节点1","children":[...]}]'
+              class="flex w-full rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+            ></textarea>
+          </div>
+          <div class="space-y-2">
+            <label for="dataB" class="text-sm font-medium text-foreground">数据源 B - JSON</label>
+            <textarea
+              id="dataB"
+              rows="20"
+              placeholder='扁平数据: [{"id":"1","name":"节点1","pid":"0",...}]&#10;&#10;树形数据: [{"id":"1","name":"节点1","children":[...]}]'
+              class="flex w-full rounded-md border border-input bg-background text-foreground px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="flex gap-3 justify-center">
+          <button
+            type="submit"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-10 px-4 py-2"
+          >
+            开始对比
+          </button>
+          <button
+            type="button"
+            onclick="clearInputs()"
+            class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+          >
+            清空
+          </button>
+        </div>
+      </form>
+
+      <div id="error" class="hidden mt-4 p-3 rounded-md bg-destructive/10 text-destructive text-sm border border-destructive/20"></div>
+    </div>
+  </div>
+
+  <div id="resultPage" class="hidden min-h-screen p-6">
+    <div class="max-w-6xl mx-auto space-y-4">
+      <button
+        onclick="showInputPage()"
+        class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+      >
+        返回输入
+      </button>
+
+      <div>
+        <h1 class="text-2xl font-semibold text-foreground mb-2">差异对比结果</h1>
+        <p class="text-sm text-muted-foreground">完整展示数据层级结构，差异项已用标签标记。</p>
+      </div>
+
+      <div class="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border">
+        <label class="flex items-center gap-2 text-sm text-foreground cursor-pointer">
+          <input type="checkbox" id="showDiffOnly" class="h-4 w-4 rounded border-input text-primary focus:ring-primary">
+          <span>仅显示差异项</span>
+        </label>
+        <button
+          id="copyBtn"
+          onclick="copyDiffResult()"
+          class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-3"
+        >
+          📋 一键复制差异项
+        </button>
+      </div>
+
+      <div id="stats" class="flex gap-4 flex-wrap"></div>
+
+      <div id="treeContainer" class="rounded-lg border border-border bg-card p-4"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast fixed top-4 right-4 px-5 py-3 rounded-md bg-success text-success-foreground shadow-lg z-50"></div>
+
+  <div id="diffModal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-background rounded-lg w-[90%] max-w-2xl max-h-[80vh] overflow-auto p-6">
+      <div class="flex items-center justify-between mb-5 pb-3 border-b border-border">
+        <h3 class="text-lg font-semibold text-foreground m-0">变更详情</h3>
+        <button onclick="closeDiffModal()" class="bg-none border-none text-2xl cursor-pointer text-muted-foreground hover:text-foreground">&times;</button>
+      </div>
+      <div class="bg-primary/10 text-primary rounded-md p-3 mb-4 text-sm">
+        💡 <strong>填写提示：</strong>通常需要将 <strong>B 数据源（新值）</strong> 填写到对应系统中
+      </div>
+      <div id="diffModalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 字段自动检测 ==========
+
+    const ID_PATTERNS = ['id', 'menuId', 'key', 'uid', 'code'];
+    const NAME_PATTERNS = ['name', 'menuName', 'label', 'title', 'text'];
+    const PID_PATTERNS = ['pid', 'parentId', 'parent_id', 'parent', 'parentKey', 'pId'];
+    const CHILDREN_PATTERNS = ['children', 'childs', 'nodes', 'items'];
+    const SORT_PATTERNS = ['sort', 'sortNo', 'sortno', 'order', 'seq', 'index'];
+
+    function detectField(data, patterns) {
+      if (!data || !Array.isArray(data) || data.length === 0) return null;
+      const sample = data[0];
+      if (typeof sample !== 'object') return null;
+
+      for (const pattern of patterns) {
+        if (sample.hasOwnProperty(pattern)) return pattern;
+      }
+      return null;
+    }
+
+    function detectFields(data) {
+      return {
+        idField: detectField(data, ID_PATTERNS) || 'id',
+        nameField: detectField(data, NAME_PATTERNS) || 'name',
+        pidField: detectField(data, PID_PATTERNS) || 'pid',
+        childrenField: detectField(data, CHILDREN_PATTERNS) || 'children',
+        sortField: detectField(data, SORT_PATTERNS) || 'sortNo'
+      };
+    }
+
+    // ========== 数据格式转换 ==========
+
+    function isTreeData(data, childrenField) {
+      if (!Array.isArray(data) || data.length === 0) return false;
+      return data.some(item => item[childrenField] && Array.isArray(item[childrenField]));
+    }
+
+    function flattenTreeData(treeData, childrenField) {
+      const result = [];
+
+      function traverse(nodes) {
+        nodes.forEach(node => {
+          const children = node[childrenField];
+          const nodeData = { ...node };
+          delete nodeData[childrenField];
+          result.push(nodeData);
+          if (children && Array.isArray(children) && children.length > 0) {
+            traverse(children);
+          }
+        });
+      }
+
+      traverse(treeData);
+      return result;
+    }
+
+    function parseData(jsonText, childrenField) {
+      const parsed = JSON.parse(jsonText);
+      if (isTreeData(parsed, childrenField)) {
+        return flattenTreeData(parsed, childrenField);
+      }
+      return parsed;
+    }
+
+    // ========== 差异对比 ==========
+
+    function isEqual(obj1, obj2) {
+      if (obj1 === obj2) return true;
+      if (obj1 == null || obj2 == null) return obj1 === obj2;
+      if (typeof obj1 !== 'object' || typeof obj2 !== 'object') return obj1 === obj2;
+
+      const keys1 = Object.keys(obj1);
+      const keys2 = Object.keys(obj2);
+
+      if (keys1.length !== keys2.length) return false;
+
+      for (const key of keys1) {
+        if (!keys2.includes(key)) return false;
+        if (!isEqual(obj1[key], obj2[key])) return false;
+      }
+
+      return true;
+    }
+
+    function computeDiff(dataA, dataB, fields) {
+      const { idField, pidField } = fields;
+      const diffResult = [];
+
+      const mapA = new Map();
+      dataA.forEach(item => mapA.set(item[idField], item));
+
+      const mapB = new Map();
+      dataB.forEach(item => mapB.set(item[idField], item));
+
+      dataB.forEach(itemB => {
+        const itemA = mapA.get(itemB[idField]);
+        if (!itemA) {
+          diffResult.push({ ...itemB, type: 'remove' });
+        } else if (!isEqual(itemA, itemB)) {
+          diffResult.push({ ...itemB, type: 'update' });
+        }
+      });
+
+      dataA.forEach(itemA => {
+        if (!mapB.has(itemA[idField])) {
+          diffResult.push({ ...itemA, type: 'insert' });
+        }
+      });
+
+      return diffResult;
+    }
+
+    function processDiff(dataA, dataB, fields) {
+      const diffResult = computeDiff(dataA, dataB, fields);
+      const { idField } = fields;
+
+      const diffMap = new Map();
+      diffResult.forEach(item => diffMap.set(item[idField], item.type));
+
+      const dataBIds = new Set(dataB.map(m => m[idField]));
+      const allData = [...dataB];
+      dataA.forEach(item => {
+        if (!dataBIds.has(item[idField])) {
+          allData.push(item);
+        }
+      });
+
+      return { diffResult, diffMap, allData };
+    }
+
+    // ========== 树构建 ==========
+
+    function buildTree(data, fields, diffMap) {
+      const { idField, pidField, sortField, childrenField } = fields;
+
+      const nodeMap = new Map();
+      const rootNodes = [];
+
+      data.forEach(item => {
+        const node = {
+          ...item,
+          _id: item[idField],
+          _pid: item[pidField] || 'root',
+          _sort: item[sortField] || 0,
+          _children: [],
+          _diffType: diffMap.get(item[idField]) || null
+        };
+        nodeMap.set(item[idField], node);
+      });
+
+      data.forEach(item => {
+        const node = nodeMap.get(item[idField]);
+        const pid = item[pidField] || 'root';
+
+        if (pid === 'root' || !nodeMap.has(pid)) {
+          rootNodes.push(node);
+        } else {
+          nodeMap.get(pid)._children.push(node);
+        }
+      });
+
+      function sortChildren(node) {
+        if (node._children.length > 0) {
+          node._children.sort((a, b) => (a._sort || 0) - (b._sort || 0));
+          node._children.forEach(sortChildren);
+        }
+      }
+
+      rootNodes.sort((a, b) => (a._sort || 0) - (b._sort || 0));
+      rootNodes.forEach(sortChildren);
+
+      return rootNodes;
+    }
+
+    // ========== 渲染 ==========
+
+    function getDiffInfo(type) {
+      switch (type) {
+        case 'insert': return { text: '新增', bg: 'bg-success/10', border: 'border-success/20', textColor: 'text-success' };
+        case 'remove': return { text: '删除', bg: 'bg-destructive/10', border: 'border-destructive/20', textColor: 'text-destructive' };
+        case 'update': return { text: '更新', bg: 'bg-primary/10', border: 'border-primary/20', textColor: 'text-primary' };
+      }
+    }
+
+    function hasDiff(node) {
+      if (node._diffType) return true;
+      return node._children.some(child => hasDiff(child));
+    }
+
+    function renderNode(node, level, fields) {
+      const { idField, nameField } = fields;
+      const indent = level * 20;
+      const hasChildren = node._children.length > 0;
+      const diffInfo = node._diffType ? getDiffInfo(node._diffType) : null;
+      const nodeHasDiff = hasDiff(node);
+
+      const diffBadge = diffInfo
+        ? `<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${diffInfo.bg} ${diffInfo.textColor} border ${diffInfo.border}">${diffInfo.text}</span>`
+        : '';
+
+      const name = node[nameField] || node[idField] || '(无名称)';
+      const id = node[idField];
+
+      const otherFields = Object.entries(node)
+        .filter(([k, v]) => !['_id', '_pid', '_sort', '_children', '_diffType', idField, nameField].includes(k) && v != null)
+        .slice(0, 3)
+        .map(([k, v]) => `<span class="text-muted-foreground">${k}: ${String(v).slice(0, 20)}</span>`)
+        .join(' ');
+
+      const clickHandler = diffInfo && diffInfo.text === '更新'
+        ? `onclick="showUpdateDetail('${id}')" style="cursor:pointer;"`
+        : '';
+
+      const borderColor = diffInfo
+        ? (node._diffType === 'insert' ? 'border-l-success' : node._diffType === 'remove' ? 'border-l-destructive' : 'border-l-primary')
+        : 'border-l-border';
+
+      let html = `
+        <div class="tree-node" data-has-diff="${nodeHasDiff}" data-id="${id}" ${clickHandler} style="margin-left:${indent}px;padding:8px 12px;border-left:2px solid hsl(var(--${borderColor.replace('border-l-', '')}));" onmouseover="this.style.backgroundColor='hsl(var(--accent))'" onmouseout="this.style.backgroundColor='transparent'">
+          <div class="flex items-center gap-2 flex-wrap">
+            ${diffBadge}
+            <span class="font-medium text-foreground">${name}</span>
+            <span class="text-muted-foreground text-xs">(${id})</span>
+            ${otherFields ? `<span class="text-xs">${otherFields}</span>` : ''}
+            ${diffInfo && diffInfo.text === '更新' ? '<span class="text-xs text-primary">点击查看详情</span>' : ''}
+          </div>
+        </div>
+      `;
+
+      if (hasChildren) {
+        node._children.forEach(child => {
+          html += renderNode(child, level + 1, fields);
+        });
+      }
+
+      return html;
+    }
+
+    function showUpdateDetail(id) {
+      const { idField } = currentFields;
+      const itemA = currentDataA.find(item => item[idField] === id);
+      const itemB = currentDataB.find(item => item[idField] === id);
+
+      if (!itemA || !itemB) return;
+
+      const allKeys = new Set([...Object.keys(itemA), ...Object.keys(itemB)]);
+      const changedFields = [];
+
+      allKeys.forEach(key => {
+        if (!isEqual(itemA[key], itemB[key])) {
+          changedFields.push({
+            key,
+            oldVal: itemA[key],
+            newVal: itemB[key]
+          });
+        }
+      });
+
+      const fieldsHtml = changedFields.map(f => `
+        <div class="mb-4 p-3 rounded bg-muted/50 border border-border">
+          <div class="font-semibold text-foreground mb-2">${f.key}</div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-destructive/10 rounded p-2 border border-destructive/20">
+              <div class="text-xs font-bold text-destructive mb-1">A 数据源（旧值）</div>
+              <div class="font-mono text-sm text-foreground">${formatValue(f.oldVal)}</div>
+            </div>
+            <div class="bg-success/10 rounded p-2 border border-success/20">
+              <div class="text-xs font-bold text-success mb-1">B 数据源（新值）</div>
+              <div class="font-mono text-sm text-foreground">${formatValue(f.newVal)}</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('diffModalBody').innerHTML = fieldsHtml || '<p class="text-muted-foreground">无变更详情</p>';
+      document.getElementById('diffModal').classList.remove('hidden');
+    }
+
+    function formatValue(val) {
+      if (val == null) return '<em class="text-muted-foreground">null</em>';
+      if (typeof val === 'object') return JSON.stringify(val);
+      return String(val);
+    }
+
+    function closeDiffModal() {
+      document.getElementById('diffModal').classList.add('hidden');
+    }
+
+    document.getElementById('diffModal').addEventListener('click', function(e) {
+      if (e.target === this) closeDiffModal();
+    });
+
+    // ========== UI ==========
+
+    let currentDiffResult = [];
+    let currentFields = null;
+    let currentDataA = [];
+    let currentDataB = [];
+
+    function showInputPage() {
+      document.getElementById('inputPage').classList.remove('hidden');
+      document.getElementById('resultPage').classList.add('hidden');
+    }
+
+    function showResultPage() {
+      document.getElementById('inputPage').classList.add('hidden');
+      document.getElementById('resultPage').classList.remove('hidden');
+    }
+
+    function clearInputs() {
+      document.getElementById('dataA').value = '';
+      document.getElementById('dataB').value = '';
+      document.getElementById('error').classList.add('hidden');
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    async function copyDiffResult() {
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(currentDiffResult, null, 2));
+        showToast('✅ 已复制到剪贴板');
+        const btn = document.getElementById('copyBtn');
+        btn.classList.remove('bg-primary');
+        btn.classList.add('bg-success');
+        btn.textContent = '✓ 已复制';
+        setTimeout(() => {
+          btn.classList.remove('bg-success');
+          btn.classList.add('bg-primary');
+          btn.textContent = '📋 一键复制差异项';
+        }, 2000);
+      } catch {
+        showToast('❌ 复制失败');
+      }
+    }
+
+    function filterTree() {
+      const checked = document.getElementById('showDiffOnly').checked;
+      document.querySelectorAll('.tree-node').forEach(node => {
+        const hasDiff = node.dataset.hasDiff === 'true';
+        if (checked && !hasDiff) {
+          node.classList.add('hidden');
+        } else {
+          node.classList.remove('hidden');
+        }
+      });
+    }
+
+    // ========== 表单提交 ==========
+
+    document.getElementById('diffForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      const textA = document.getElementById('dataA').value.trim();
+      const textB = document.getElementById('dataB').value.trim();
+      const errorDiv = document.getElementById('error');
+      errorDiv.classList.add('hidden');
+
+      if (!textA || !textB) {
+        errorDiv.textContent = '请填写两组数据';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const tempA = JSON.parse(textA);
+        const tempB = JSON.parse(textB);
+        const sampleData = Array.isArray(tempA) ? tempA : tempB;
+        const parsedSample = Array.isArray(sampleData) ? sampleData : [sampleData];
+
+        const childrenField = detectField(parsedSample, CHILDREN_PATTERNS) || 'children';
+
+        const dataA = parseData(textA, childrenField);
+        const dataB = parseData(textB, childrenField);
+
+        currentDataA = dataA;
+        currentDataB = dataB;
+
+        currentFields = detectFields(dataA.length > 0 ? dataA : dataB);
+        const { idField } = currentFields;
+
+        const { diffResult, diffMap, allData } = processDiff(dataA, dataB, currentFields);
+        currentDiffResult = diffResult;
+
+        const tree = buildTree(allData, currentFields, diffMap);
+
+        const insertCount = diffResult.filter(r => r.type === 'insert').length;
+        const removeCount = diffResult.filter(r => r.type === 'remove').length;
+        const updateCount = diffResult.filter(r => r.type === 'update').length;
+
+        document.getElementById('stats').innerHTML = `
+          <div class="px-4 py-2 rounded font-bold bg-success/10 text-success border border-success/20">新增: ${insertCount}</div>
+          <div class="px-4 py-2 rounded font-bold bg-destructive/10 text-destructive border border-destructive/20">删除: ${removeCount}</div>
+          <div class="px-4 py-2 rounded font-bold bg-primary/10 text-primary border border-primary/20">更新: ${updateCount}</div>
+          <div class="px-4 py-2 rounded font-bold bg-muted text-muted-foreground border border-input">显示节点: ${allData.length}</div>
+        `;
+
+        document.getElementById('treeContainer').innerHTML = tree
+          .map(node => renderNode(node, 0, currentFields))
+          .join('');
+
+        document.getElementById('showDiffOnly').checked = false;
+        showResultPage();
+      } catch (err) {
+        errorDiv.textContent = '处理失败: ' + err.message;
+        errorDiv.classList.remove('hidden');
+      }
+    });
+
+    document.getElementById('showDiffOnly').addEventListener('change', filterTree);
+
+    // ========== 主题检测 ==========
+    (function() {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+      }
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (e.matches) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
