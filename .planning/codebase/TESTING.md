@@ -1,51 +1,32 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-26
+**Analysis Date:** 2026-03-27
 
 ## Test Framework
 
-**Status:** No unit test framework configured
+**Status:** Not configured
 
-This codebase does not have a traditional unit testing framework (Jest, Vitest, etc.) set up. Testing is done through:
-- TypeScript compilation checking (`pnpm compile`)
-- ESLint linting (`pnpm lint`)
-- Prettier formatting (`pnpm format`)
-- Manual testing via Chrome DevTools MCP
+This codebase does NOT have a unit testing framework configured. There are:
+- No `jest.config.*` or `vitest.config.*` files
+- No `.test.ts` or `.spec.ts` files in `src/`
+- No test scripts in `package.json`
 
-**Type Checking:**
-```bash
-pnpm compile    # Run tsc --noEmit for type checking
-```
+## Testing Approach
 
-**Linting:**
-```bash
-pnpm lint       # Run ESLint
-pnpm lint:fix  # Fix linting issues automatically
-```
+**Primary Testing Method:** Manual testing via Chrome DevTools MCP
 
-**Formatting:**
-```bash
-pnpm format    # Format code with Prettier
-```
-
-## Test File Organization
-
-**Location:** Not applicable
-
-No test files exist in the `src/` directory. All test patterns are for manual/automation testing.
-
-## Test ID Based Testing
-
-The extension is designed for automation testing via Chrome DevTools MCP with `data-testid` attributes.
+The extension is designed for automation testing via Chrome DevTools MCP (Model Context Protocol). All interactive elements have `data-testid` attributes for reliable selection.
 
 **Running Tests:**
 ```bash
-pnpm dev  # Start dev server for Chrome
+pnpm dev              # Start dev server for Chrome
+pnpm dev:firefox      # Start dev server for Firefox
+# Then use Chrome DevTools MCP to interact with the extension
 ```
 
-Then use Chrome DevTools MCP to interact with the extension.
+## Test ID Reference
 
-## Test IDs Reference
+The codebase uses `data-testid` attributes for element selection. Reference from `CLAUDE.md`:
 
 ### Side Panel
 
@@ -86,88 +67,106 @@ Then use Chrome DevTools MCP to interact with the extension.
 
 ### Loading States
 
-| testid | Description |
-|--------|-------------|
-| `loading` | Shows during data fetch (e.g., BlackboardView) |
+- `[data-testid="loading"]` - Shows during data fetch (e.g., BlackboardView)
 
-## Testing Tips
+### Testing Tips
 
-**Wait for Loading:**
-```javascript
-await wait_for('not([data-testid="loading"])');
+1. Wait for loading to finish before assertions:
+   ```javascript
+   await wait_for('not([data-testid="loading"])');
+   ```
+
+2. Click elements by testid:
+   ```javascript
+   await click('[data-testid="settings-button"]');
+   ```
+
+3. Fill inputs by testid:
+   ```javascript
+   await fill('[data-testid="input-server-url"]', 'http://localhost:3000');
+   ```
+
+## Test File Organization
+
+**Location:** N/A - No test files exist in `src/`
+
+**Expected pattern if tests were added:**
+```
+src/
+  features/
+    links/
+      __tests__/
+        useLinks.test.ts
+        LinksView.test.tsx
+  lib/
+    db/
+      __tests__/
+        links.test.ts
 ```
 
-**Click Elements:**
-```javascript
-await click('[data-testid="settings-button"]');
-```
+## Mocking
 
-**Fill Inputs:**
-```javascript
-await fill('[data-testid="input-server-url"]', 'http://localhost:3000');
-```
+**Framework:** N/A - No testing framework
 
-## Code Quality Assurance
+**If testing were to be added, mocking approach would likely:**
+- Use `vi.mock()` for module mocking (if using Vitest)
+- Mock Dexie/database operations
+- Mock browser APIs via `wxt/browser`
 
-### Pre-commit Hooks
+**Current manual testing considerations:**
+- Real database operations (Dexie/IndexedDB)
+- Real browser extension APIs
+- Test data must be created manually or via UI
 
-Git hooks via `simple-git-hooks` with `lint-staged`:
+## Coverage
 
+**Requirements:** None enforced
+
+**No coverage tools configured.** If testing were to be added:
 ```bash
-# .git/hooks are managed via simple-git-hooks
-# Pre-commit runs: pnpm lint-staged
+# Would likely be (if using Vitest)
+vitest run --coverage
 ```
 
-**lint-staged Configuration (package.json):**
-```json
-{
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
-    ]
+## Common Patterns for Future Testing
+
+**Async Testing:**
+```typescript
+// Pattern used in codebase for async operations
+async function handleSave(data: SaveData) {
+  try {
+    await saveToDb(data);
+    toast('保存成功', 'success');
+  } catch (error) {
+    logger.error('Failed to save:', error);
+    toast('保存失败', 'error');
   }
 }
 ```
 
-### Type Safety
+**Error Testing:**
+```typescript
+// Pattern for testing error cases
+if (!existingLink) {
+  throw new Error(`链接不存在或已被删除`);
+}
+```
 
-- TypeScript strict mode enabled
-- No `any` type allowed (enforced by ESLint)
-- Unused variables trigger warnings
+**State Testing (via useLiveQuery):**
+```typescript
+// Pattern for reactive data
+const links = useLiveQuery(() => db.links.filter((l) => !l.deletedAt).toArray());
+```
 
-### ESLint Rules
+## Quality Commands
 
-From `eslint.config.js`:
-- `react-hooks/rules-of-hooks`: error
-- `react-hooks/exhaustive-deps`: warn
-- `@typescript-eslint/no-unused-vars`: warn (with `_` ignore pattern)
-- `@typescript-eslint/no-explicit-any`: error
-
-## What Is NOT Tested
-
-The following are NOT covered by automated tests:
-- Database operations (Dexie/IndexedDB)
-- Sync engine operations
-- AI tool handlers
-- Background message handlers
-- React component rendering
-- UI interactions
-
-## Manual Testing Workflow
-
-1. Run `pnpm dev` to start the development server
-2. Open Chrome and load the extension
-3. Use the side panel to navigate features
-4. Use Chrome DevTools console for logging
-5. Inspect network requests via DevTools Network tab
-
-## Coverage
-
-**Type Coverage:** 100% (TypeScript with strict mode)
-
-**Runtime Coverage:** Manual only
+```bash
+pnpm lint              # Run ESLint
+pnpm lint:fix          # Fix linting issues
+pnpm format            # Format code with Prettier
+pnpm compile           # Type check with TypeScript (tsc --noEmit)
+```
 
 ---
 
-*Testing analysis: 2026-03-26*
+*Testing analysis: 2026-03-27*

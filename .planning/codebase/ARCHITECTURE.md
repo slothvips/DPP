@@ -1,212 +1,221 @@
 # Architecture
 
-**Analysis Date:** 2026-03-26
+**Analysis Date:** 2026-03-27
 
 ## Pattern Overview
 
-**Overall:** Feature-based modular architecture with message-driven background service
+**Overall:** WXT-based Browser Extension with Feature-Module Architecture + Strategy Pattern for Message Routing
 
 **Key Characteristics:**
-- **Browser Extension (WXT):** Multi-entrypoint extension with side panel, options, popup, and background service worker
-- **Feature Modules:** Self-contained feature directories (`src/features/{name}/`) containing components, hooks, API clients, and utilities
-- **Message Routing:** Strategy pattern in background script routes messages to feature-specific handlers based on message type prefix
-- **Unified Data Layer:** Dexie.js (IndexedDB) with unified CRUD operations in `src/lib/db/`
-- **Sync Engine:** Last Write Wins (LWW) conflict resolution with E2EE encryption
+- **Extension Framework**: WXT (Web Extension Tools) provides the build system and entrypoint management
+- **UI Framework**: React 19 with TypeScript, using functional components with hooks
+- **Database**: Dexie.js (IndexedDB wrapper) with reactive queries via `dexie-react-hooks`
+- **State**: Reactive database queries as the primary state mechanism
+- **Sync**: Custom E2EE sync engine using Web Crypto API with Last Write Wins (LWW) conflict resolution
+- **AI**: Multi-provider AI integration (Ollama, WebLLM, Anthropic, OpenAI-compatible) with tool registry pattern
+- **Message Routing**: Strategy pattern in background script for handling extension messages
 
 ## Layers
 
-**Extension Entrypoints Layer:**
-- Purpose: Bootstrap extension functionality and route to appropriate handlers
+**Extension Entrypoints (UI Layer):**
+- Purpose: Browser extension entry points
 - Location: `src/entrypoints/`
-- Contains: Background service worker, side panel, content scripts, options page, player
-- Depends on: Handlers, database, hooks
+- Contains: Background service worker, side panel, options page, popup, content scripts, player
+- Depends on: Features, lib modules
 - Used by: Browser extension runtime
 
-**Background Handler Layer:**
-- Purpose: Handle messages from UI and content scripts, orchestrate feature logic
-- Location: `src/entrypoints/background/handlers/`
-- Contains: `jenkins.ts`, `sync.ts`, `recorder.ts`, `pageAgent.ts`, `proxy.ts`, `omnibox.ts`, `remoteRecording.ts`, `general.ts`
-- Depends on: Feature APIs (`src/features/{name}/api/`), database operations, external services
-- Used by: Background script entrypoint via strategy pattern
+**Features Layer:**
+- Purpose: Feature-specific business logic and UI
+- Location: `src/features/{feature}/`
+- Contains: Components, hooks, API clients, types, utilities
+- Sub-modules:
+  - `components/` - React UI components
+  - `hooks/` - Feature-specific React hooks
+  - `api/` - API client functions (where applicable)
+  - `utils/` - Feature-specific utilities
+- Depends on: lib modules, components, db
+- Used by: Entrypoints, other features
 
-**Feature Layer:**
-- Purpose: Implement feature-specific UI, state, and business logic
-- Location: `src/features/{name}/`
-- Contains: Components (`components/`), hooks (`hooks/`), API clients (`api/`), types, utils
-- Depends on: UI components, database layer, http utilities
-- Used by: Handlers, other features, side panel views
+**Lib Modules (Shared Business Logic):**
+- Purpose: Cross-cutting functionality used by multiple features
+- Location: `src/lib/`
+- Contains: `ai/`, `db/`, `sync/`, `crypto/`, `pageAgent/`, `rrweb-plugins/`, `http.ts`
+- Key modules:
+  - `lib/ai/` - AI tool registry, providers, prompts
+  - `lib/db/` - Unified database CRUD operations
+  - `lib/sync/` - E2EE sync engine
+  - `lib/crypto/` - Encryption utilities
+  - `lib/pageAgent/` - Page automation via `page-agent` library
+  - `lib/rrweb-plugins/` - Recording replay plugins
+- Depends on: db, types
+- Used by: Features, entrypoints, background handlers
 
 **Database Layer:**
-- Purpose: Abstract all data persistence with unified CRUD operations
-- Location: `src/lib/db/`, `src/db/`
-- Contains: Dexie schema (`src/db/`), CRUD operations (`src/lib/db/*.ts`)
-- Key files:
-  - `src/db/index.ts`: Database schema and initialization
-  - `src/db/types.ts`: TypeScript interfaces for all entities
-  - `src/lib/db/links.ts`: Link CRUD operations
-  - `src/lib/db/tags.ts`: Tag CRUD operations
-  - `src/lib/db/blackboard.ts`: Blackboard CRUD operations
-  - `src/lib/db/jenkins.ts`: Jenkins build/history operations
-  - `src/lib/db/settings.ts`: Settings persistence
-- Depends on: Dexie library
-- Used by: Handlers, feature hooks, AI tools
+- Purpose: Schema definition and database instance
+- Location: `src/db/`, `src/db/index.ts`
+- Contains: Dexie database instance, type definitions
+- Depends on: Dexie
+- Used by: lib/db operations, features
 
-**Sync Layer:**
-- Purpose: Synchronize encrypted data with remote server
-- Location: `src/lib/sync/`
-- Key files:
-  - `src/lib/sync/SyncEngine.ts`: Core sync logic with LWW conflict resolution
-  - `src/lib/sync/types.ts`: Sync operation types
-  - `src/lib/sync/api.ts`: Sync API wrapper
-  - `src/lib/sync/crypto-helpers.ts`: Encryption utilities
-  - `src/lib/globalSync.ts`: Orchestrates sync across database, Jenkins, and hotnews
-- Depends on: Database, crypto utilities, http layer
-- Used by: Background handlers, UI components
+**Components Layer:**
+- Purpose: Reusable UI primitives
+- Location: `src/components/`
+- Contains: `ui/` (shadcn components), shared components
+- Depends on: UI library (shadcn/ui, UnoCSS)
+- Used by: Features
 
-**AI Tools Layer:**
-- Purpose: Provide AI-assisted functionality via tool registry
-- Location: `src/lib/ai/`
-- Contains: Tool registry (`tools.ts`), provider implementations, tool definitions (`tools/*.ts`)
-- Key files:
-  - `src/lib/ai/index.ts`: Tool registration (calls all `register*Tools()` functions)
-  - `src/lib/ai/tools.ts`: `ToolRegistry` class with `register()`, `execute()`, `requiresConfirmation()`
-  - `src/lib/ai/tools/links.ts`, `tags.ts`, `jenkins.ts`, etc.: Feature-specific tool definitions
-  - `src/lib/ai/provider.ts`: Multi-provider AI support (Ollama, WebLLM, Anthropic, OpenAI)
-- Depends on: Database layer, page agent
-- Used by: AI Assistant UI component
+**Hooks Layer:**
+- Purpose: Global React hooks
+- Location: `src/hooks/`
+- Contains: `useTheme.ts`, `useGlobalSync.ts`
+- Depends on: db, sync engine
+- Used by: Entrypoints
 
-**Page Agent Layer:**
-- Purpose: Inject automation agent into web pages
-- Location: `src/lib/pageAgent/`
-- Contains: `injector.ts` (tab management, injection logic), `types.ts`
-- Depends on: Content script (`pageAgent.content.ts`)
-- Used by: Background handler, AI tools
+**Config Layer:**
+- Purpose: Constants and configuration
+- Location: `src/config/`, `src/config/constants.ts`
+- Contains: Feature flags, API endpoints, constants
+- Used by: Throughout codebase
 
-**Utilities Layer:**
-- Purpose: Shared utilities for logging, HTTP, validation, styling
+**Utils Layer:**
+- Purpose: General utilities
 - Location: `src/utils/`
-- Key files:
-  - `src/utils/logger.ts`: Structured logging
-  - `src/utils/cn.ts`: Class name merging (clsx + tailwind-merge)
-  - `src/utils/confirm-dialog.tsx`: Confirmation dialog provider
-  - `src/lib/http.ts`: HTTP client with timeout and retry
-  - `src/lib/crypto/encryption.ts`: Web Crypto API E2EE implementation
-- Depends on: Browser APIs, external libraries
-- Used by: All layers
-
-**UI Components Layer:**
-- Purpose: Reusable UI building blocks
-- Location: `src/components/ui/`
-- Contains: Shadcn-style components (button, input, dialog, select, etc.)
-- Depends on: Radix UI primitives, Lucide icons
-- Used by: Feature views
+- Contains: `cn.ts` (classname utility), `logger.ts`, `modal.ts`, `validation.ts`, `confirm-dialog.tsx`, `base64.ts`
+- Used by: Throughout codebase
 
 ## Data Flow
 
-**Message Flow (Background Service):**
-1. User action in UI or content script triggers `browser.runtime.sendMessage()`
-2. Background service (`src/entrypoints/background.ts`) receives message
-3. Message router iterates through handler array with `match()` predicates
-4. First matching handler processes message and returns response
-5. Response sent back to caller via `sendResponse()`
+**User Interaction Flow (e.g., Jenkins build trigger):**
 
-**Data Sync Flow:**
-1. Local change triggers Dexie hook (`creating`, `updating`, `deleting`)
-2. Hook records sync operation in `operations` table with timestamp
-3. Hook queues `AUTO_SYNC_TRIGGER_PUSH` message
-4. Background sync handler calls `SyncEngine.push()`
-5. Operations encrypted with user's key and pushed to server
-6. Server responds with cursor; local cursor updated
+1. User clicks "Build" button in JenkinsView (`src/features/jenkins/components/JenkinsView.tsx`)
+2. Component calls `JenkinsService.triggerBuild()` (`src/features/jenkins/service.ts`)
+3. Service sends message via `browser.runtime.sendMessage()` with type `JENKINS_TRIGGER_BUILD`
+4. Background script (`src/entrypoints/background.ts`) receives message
+5. Message router matches `JENKINS_*` prefix, delegates to `handleJenkinsMessage()`
+6. Handler (`src/entrypoints/background/handlers/jenkins.ts`) calls `triggerBuild()` API
+7. API makes HTTP request to Jenkins, returns result
+8. Handler returns response wrapped in `JenkinsResponse` format
+9. Service receives response, returns to component
+10. Component updates UI state
 
-**Pull Flow:**
-1. Auto-pull triggered on side panel visibility or alarm
-2. Background sync handler calls `SyncEngine.pull()`
-3. Encrypted operations fetched from server since last cursor
-4. Operations decrypted and applied with LWW conflict resolution
-5. Remote activity logged for UI display
+**Sync Data Flow:**
+
+1. Database operation occurs via Dexie CRUD API
+2. SyncEngine hooks (`creating`, `updating`, `deleting`) intercept the operation
+3. Hook checks `tx.source !== 'sync'` to avoid infinite loops
+4. For syncable tables (`tags`, `jobTags`, `links`, `linkTags`, `blackboard`), operation is queued
+5. `queueMicrotask` defers sync operation queuing
+6. `performGlobalSync()` triggers push to sync server
+7. Operations are encrypted via Web Crypto API (E2EE)
+8. Server stores only encrypted blobs
+9. Pull operations decrypt incoming operations and apply via Dexie
 
 **AI Tool Execution Flow:**
-1. User sends message to AI Assistant
-2. AI provider processes with tool definitions from registry
-3. If tool requires confirmation, dialog shown to user
-4. Tool handler calls unified DB operations (`src/lib/db/*.ts`)
-5. Result returned to AI provider for response generation
+
+1. User interacts with AI Assistant
+2. AI provider (Ollama/WebLLM/Anthropic) returns tool call request
+3. `AIAssistantView` shows tool confirmation dialog if required
+4. On confirm, `toolRegistry.execute()` is called
+5. Tool handler (e.g., `registerLinksTools()`) calls `lib/db/` operations
+6. DB operations trigger sync engine hooks
+7. Result returned to AI provider for response generation
 
 ## Key Abstractions
 
-**ToolRegistry (src/lib/ai/tools.ts):**
-- Purpose: Global registry for AI tools with registration, execution, and confirmation
-- Examples: `registerLinksTools()`, `registerJenkinsTools()`, `registerPageAgentTools()`
-- Pattern: Singleton registry with `register()`, `execute()`, `getAll()`, `requiresConfirmation()`
+**JenkinsService:**
+- Purpose: Unified Jenkins API client for all features
+- Examples: `src/features/jenkins/service.ts`
+- Pattern: Service that sends typed messages to background handlers
 
-**SyncEngine (src/lib/sync/SyncEngine.ts):**
-- Purpose: Manages bidirectional sync with LWW conflict resolution
-- Examples: `push()`, `pull()`, `recordOperation()`, `getPendingCounts()`
-- Pattern: Class with event emitter (`on()`, `emit()`), retry logic, batch processing
+**ToolRegistry:**
+- Purpose: Global registry for AI tools
+- Examples: `src/lib/ai/tools.ts`
+- Pattern: Singleton registry with `register()`, `execute()`, `requiresConfirmation()`
 
-**JenkinsCredentials (src/entrypoints/background/handlers/jenkins.ts):**
-- Purpose: Resolve Jenkins credentials from multiple environments
-- Examples: `getJenkinsCredentials(targetEnvId?)`
-- Pattern: Environment-based credential resolution with legacy fallback
+**SyncEngine:**
+- Purpose: E2EE sync with LWW conflict resolution
+- Examples: `src/lib/sync/SyncEngine.ts`
+- Pattern: Class with hooks, event emitters, and sync lock
 
-**Dexie Hooks (src/lib/sync/SyncEngine.ts):**
-- Purpose: Intercept database changes for sync tracking
-- Examples: `table.hook('creating')`, `table.hook('updating')`, `table.hook('deleting')`
-- Pattern: Hook checks `tx.source === 'sync'` to skip self-triggered operations
+**Database CRUD (lib/db):**
+- Purpose: Unified data access layer
+- Examples: `src/lib/db/links.ts`, `src/lib/db/tags.ts`, `src/lib/db/blackboard.ts`
+- Pattern: Functional API with transactions, soft-delete support
+
+**Background Handlers:**
+- Purpose: Message handling for background script
+- Examples: `src/entrypoints/background/handlers/jenkins.ts`, `src/entrypoints/background/handlers/sync.ts`
+- Pattern: Module exports `handle*Message()` function, registered in `handlers/index.ts`
 
 ## Entry Points
 
 **Background Service Worker:**
 - Location: `src/entrypoints/background.ts`
-- Triggers: Extension install/update, message received, alarm, network status change
-- Responsibilities: Message routing, auto-sync setup, omnibox, side panel behavior
+- Triggers: Extension install/update, browser startup, alarm events, network events
+- Responsibilities: Message routing, auto-sync setup, omnibox setup, side panel behavior
 
-**Side Panel:**
+**Side Panel (Main UI):**
 - Location: `src/entrypoints/sidepanel/App.tsx`
-- Triggers: User clicks extension icon
-- Responsibilities: Tab-based navigation (blackboard, jenkins, links, recorder, hotnews, aiAssistant, toolbox), auto-pull on visibility
-
-**Content Scripts:**
-- Location: `src/entrypoints/recorder.content.ts`, `src/entrypoints/pageAgent.content.ts`, `src/entrypoints/jenkins.content.ts`
-- Triggers: Page load or specific URL patterns
-- Responsibilities: rrweb recording, page agent injection, Jenkins page enhancement
+- Triggers: User clicks side panel icon
+- Responsibilities: Tab-based navigation, lazy-loaded feature views, theme management, auto-pull sync
 
 **Options Page:**
 - Location: `src/entrypoints/options/main.tsx`
 - Triggers: User opens extension options
-- Responsibilities: Settings UI, theme toggle, sync configuration, data export/import
+- Responsibilities: Settings management, sync key management, Jenkins env management
+
+**Popup:**
+- Location: `src/entrypoints/popup/App.tsx` (referenced but structure shown in sidepanel pattern)
+- Triggers: User clicks browser action
+
+**Content Scripts:**
+- Location: `src/entrypoints/recorder.content.ts`, `src/entrypoints/jenkins.content.ts`, `src/entrypoints/zentao.content.tsx`, `src/entrypoints/pageAgent.content.ts`
+- Triggers: Page load on configured URLs
+- Responsibilities: Page-specific recording, Jenkins integration, PageAgent injection
 
 **Player:**
 - Location: `src/entrypoints/player/PlayerApp.tsx`
-- Triggers: User opens recording playback
-- Responsibilities: Session replay with console/network panels
+- Triggers: Opening recording playback
+- Responsibilities: rrweb replay with custom plugins
 
-**Debugger:**
-- Location: `src/entrypoints/debug/main.tsx`
-- Triggers: Development mode
-- Responsibilities: Testing and debugging tools
+**Debug/Other:**
+- Location: `src/entrypoints/debug/main.tsx`, `src/entrypoints/changelog/main.tsx`, `src/entrypoints/diff/main.tsx`, `src/entrypoints/tree-diff/main.tsx`
+- Triggers: Direct URL access
+- Responsibilities: Debug tools, changelog, data diff tools
 
 ## Error Handling
 
-**Strategy:** Layered error handling with logging at boundaries
+**Strategy:** Try-catch with typed error responses
 
 **Patterns:**
-- **Handlers:** Try-catch with structured error responses `{ success: false, error: string }`
-- **Database:** Transactions with rollback, constraint error recovery
-- **Sync:** Retry with exponential backoff, status tracking (`idle`, `pushing`, `pulling`, `error`)
-- **HTTP:** Timeout with AbortController, retry with exponential backoff
-- **UI:** Toast notifications for user feedback, error boundaries for component crashes
+- Background handlers return `JenkinsResponse | { success: false, error: string }`
+- Service layer wraps errors in descriptive messages
+- UI components use `useToast` for error display
+- Sync engine emits `sync-error` events for global error handling
+
+**Logging:**
+- Custom `logger` utility (`src/utils/logger.ts`)
+- Structured logging with context
+- Service worker and background contexts use different logging transports
 
 ## Cross-Cutting Concerns
 
-**Logging:** `src/utils/logger.ts` provides structured logging with timestamps and error stacks
+**Logging:** Custom `logger` utility wrapping console with context awareness
 
-**Validation:** `src/utils/validation.ts` contains URL and input validation utilities
+**Validation:**
+- URL validation in `lib/db/links.ts` via `isValidUrl()`
+- Tag name resolution with case-insensitive matching
+- Environment variable validation for Jenkins credentials
 
-**Authentication:** Jenkins credentials stored in settings, sync uses access token + encryption key
+**Authentication:**
+- Jenkins credentials stored encrypted in IndexedDB
+- Sync uses access tokens and E2EE
+- AI providers use API keys or local models
 
-**State Management:** Dexie with `useLiveQuery` from `dexie-react-hooks` for reactive data access
+**Error Boundaries:**
+- React `ErrorBoundary` component at `src/components/ErrorBoundary.tsx`
+- Graceful degradation for component errors
 
 ---
 
-*Architecture analysis: 2026-03-26*
+*Architecture analysis: 2026-03-27*

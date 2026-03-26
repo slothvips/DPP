@@ -1,137 +1,166 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-26
+**Analysis Date:** 2026-03-27
 
 ## APIs & External Services
 
 **AI Model Providers:**
-- **Ollama** (Local LLM)
-  - Default URL: `http://localhost:11434`
-  - Default Model: `llama3.2`
-  - Implementation: `src/lib/ai/ollama.ts` (OllamaProvider class)
 
-- **Anthropic API**
-  - Base URL: `https://api.anthropic.com` (configurable)
-  - Supports native Anthropic API and OpenAI-compatible endpoints
-  - Implementation: `src/lib/ai/provider.ts` (AnthropicProvider class)
-  - Config keys: `ai_anthropic_base_url`, `ai_anthropic_model`, `ai_anthropic_api_key`
+- **Ollama** - Local AI model inference
+  - Endpoint: `http://localhost:11434` (configurable)
+  - Default model: `llama3.2`
+  - Implementation: `src/lib/ai/ollama.ts`
 
-- **OpenAI-Compatible APIs** (Custom provider)
+- **Anthropic** - Claude API access
+  - Endpoint: `https://api.anthropic.com` (native) or OpenAI-compatible
+  - API key: Stored in settings (`api_key`)
+  - Implementation: `src/lib/ai/provider.ts`
+
+- **OpenAI-Compatible** - Third-party OpenAI-compatible APIs
   - Configurable base URL and API key
-  - Supports streaming responses
-  - Implementation: `src/lib/ai/provider.ts` (OpenAICompatibleProvider class)
-  - Config keys: `ai_custom_base_url`, `ai_custom_model`, `ai_custom_api_key`
+  - Implementation: `src/lib/ai/provider.ts`
+
+- **WebLLM** - Browser-based local LLM (mentioned in docs)
+  - No explicit implementation found
+
+**Jenkins CI/CD:**
+
+- **Jenkins** - CI server integration
+  - Authentication: Basic Auth (username:token)
+  - Implementation: `src/features/jenkins/api/client.ts`
+  - Configuration: Stored in IndexedDB settings
 
 **Hot News Feed:**
-- GitHub Pages hosted news archive
-- URL: `https://slothvips.github.io/daily-hot-news/archives`
-- Implementation: `src/features/hotNews/api/index.ts`
-- Cached in IndexedDB (`hotNews` table)
 
-**Sync Server:**
-- Self-hosted sync server (custom implementation)
-- Endpoints: `/api/sync/push`, `/api/sync/pull`, `/api/sync/pending`
-- Config keys: `custom_server_url`, `sync_access_token`
-- Implementation: `src/db/index.ts` (defaultSyncProvider)
-
-**Jenkins Integration:**
-- Multiple Jenkins environments supported
-- Per-environment configuration: host, user, token
-- Implementation: `src/lib/db/jenkins.ts`, `src/entrypoints/background/handlers/jenkins.ts`
-- Config keys: `jenkins_environments`, `jenkins_current_env`
-
-**Zentao (Project Management):**
-- Fetch JSON via proxy handler
-- Implementation: `src/entrypoints/zentao.content.tsx`
-- Message type: `ZEN_FETCH_JSON`
+- **GitHub Pages News API** - Daily hot news aggregation
+  - Endpoint: `https://slothvips.github.io/daily-hot-news/archives/daily_hot_{date}.md`
+  - Implementation: `src/features/hotNews/api/index.ts`
+  - Cache: 24 hours, max 7 days
 
 ## Data Storage
 
-**Database:**
-- **IndexedDB via Dexie**
-  - Database name: `DPPDB`
-  - Schema version: 3
-  - Tables: links, jobs, settings, tags, jobTags, linkTags, linkStats, myBuilds, othersBuilds, hotNews, recordings, blackboard, operations, syncMetadata, deferred_ops, aiSessions, aiMessages, remoteActivityLog
-  - Location: `src/db/index.ts`, `src/db/types.ts`
+**Local Database:**
 
-**Encryption:**
-- **Web Crypto API** (AES-256-GCM)
-  - E2EE for sync data
-  - Key storage: IndexedDB settings table
-  - Implementation: `src/lib/crypto/encryption.ts`
+- **IndexedDB (via Dexie.js)**
+  - Database name: `DPPDB`
+  - Tables: links, jobs, settings, tags, jobTags, linkTags, linkStats, myBuilds, othersBuilds, hotNews, recordings, blackboard, operations, syncMetadata, deferred_ops, aiSessions, aiMessages, remoteActivityLog
+  - Location: Browser's IndexedDB
+  - Schema: `src/db/index.ts`
+
+**Sync Server:**
+
+- **Custom E2EE Sync Server** - End-to-end encrypted data sync
+  - Endpoint: Configurable via `custom_server_url` setting
+  - Default: `http://localhost:3000`
+  - Authentication: `X-Access-Token` header
+  - Implementation: `src/db/index.ts` (defaultSyncProvider)
+  - Blind storage model: Server only sees encrypted blobs
 
 ## Authentication & Identity
 
-**Auth Provider:**
-- Custom token-based authentication for sync server
-- Access token passed via `X-Access-Token` header
-- Config key: `sync_access_token`
+**Extension Settings Auth:**
 
-**Jenkins Authentication:**
-- Per-environment user/API token pairs
-- Stored encrypted in settings
+- **Sync Access Token** - Stored in IndexedDB (`sync_access_token`)
+- **Custom Server URL** - Stored in IndexedDB (`custom_server_url`)
 
-**AI API Authentication:**
-- API keys stored encrypted in settings
-- Decrypted on-demand via Web Crypto API
+**Jenkins Auth:**
+
+- **Basic Authentication** - Username and API token
+  - Stored in IndexedDB (per-environment credentials)
+  - Credentials object: `{ baseUrl, user, token }`
+  - Implementation: `src/features/jenkins/api/client.ts`
+
+**AI Provider Auth:**
+
+- **API Keys** - Stored in IndexedDB settings
+  - Anthropic: `api_key` setting
+  - Custom providers: `ai_api_key` setting
+
+## Encryption & Security
+
+**End-to-End Encryption (E2EE):**
+
+- **Web Crypto API** - AES-256-GCM encryption
+  - Algorithm: AES-GCM, 256-bit key
+  - Key storage: IndexedDB (via Dexie settings)
+  - Key derivation: Direct key import/export (no passphrase)
+  - Implementation: `src/lib/crypto/encryption.ts`
+
+- **Sync Encryption** - Encrypted sync operations
+  - Each operation encrypted before upload
+  - Key hash for identification: SHA-256 (first 8 bytes)
+  - Implementation: `src/lib/sync/crypto-helpers.ts`
 
 ## Monitoring & Observability
 
-**Logging:**
+**Error Tracking:**
 - Custom logger utility
 - Implementation: `src/utils/logger.ts`
-- Levels: debug, info, warn, error
-- Browser console output
+- No external error tracking service detected
 
-**Error Tracking:**
-- Not detected (no Sentry, LogRocket, or similar)
-
-**Session Recording:**
-- rrweb for browser session recording
-- Console/network event interception
-- Implementation: `src/entrypoints/recorder.content.ts`, `src/lib/rrweb-plugins/`
+**Logging:**
+- Console logging via custom logger
+- Debug mode available via `debug` flag in HTTP options
 
 ## CI/CD & Deployment
 
-**Build:**
-- WXT built-in build commands
-- Chrome and Firefox targets
-- Output: `.output/` directory
+**Extension Distribution:**
+- Chrome Web Store (via WXT zip)
+- Firefox Add-ons (via WXT zip)
 
-**Distribution:**
-- ZIP packaging via `wxt zip` / `wxt zip:firefox`
+**Cloudflare Worker:**
+- `packages/cf-worker-googlesheet` - Google Sheets integration worker
+  - Uses hono 4.11.7 framework
+  - Google Auth Library for OAuth
+  - google-spreadsheet for Sheet operations
+  - jose for JWT handling
 
-**Git Hooks:**
-- pre-commit: lint-staged (eslint --fix, prettier --write)
+**Node Server:**
+- `packages/node-server` - Local sync server
+  - Hono framework with @hono/node-server
+  - better-sqlite3 for persistence
+  - Zod for validation
 
 ## Environment Configuration
 
-**Required settings (stored in IndexedDB):**
-- `ai_provider_type` - AI provider selection
-- `ai_*_base_url` - Provider API URL
-- `ai_*_model` - Model name
-- `ai_*_api_key` - Encrypted API key
+**Stored in IndexedDB (via settings table):**
+
 - `custom_server_url` - Sync server URL
-- `sync_access_token` - Sync server token
-- `jenkins_environments` - Array of Jenkins env configs
-- `theme` - UI theme preference
-- Feature toggles: `feature_hotnews_enabled`, `feature_links_enabled`
-- Sync settings: `auto_sync_enabled`, `auto_sync_interval`
+- `sync_access_token` - Sync authentication token
+- `sync_encryption_key` - E2EE key (Base64 encoded)
+- `api_key` - Anthropic API key
+- `ai_api_key` - Custom/other AI provider key
+- `ai_provider_type` - Provider selection (ollama/anthropic/custom)
+- `ollama_base_url` - Ollama server URL
+- `ollama_model` - Ollama model name
+- Jenkins credentials per environment
+
+**Chrome Extension Permissions:**
+
+- `storage` - Extension storage
+- `sidePanel` - Side panel UI
+- `alarms` - Scheduled tasks
+- `activeTab` - Current tab access
+- `scripting` - Content script injection
+- `tabs` - Tab management
+- `<all_urls>` - Host permission for web requests
 
 ## Webhooks & Callbacks
 
-**Incoming:**
-- Chrome Extension Messages (runtime.onMessage)
-  - Types prefixed: `JENKINS_*`, `RECORDER_*`, `SYNC_*`, `PROXY_*`, `PAGE_AGENT_*`
-  - Implementation: `src/entrypoints/background.ts`
+**Background Message Handling:**
+- Strategy pattern for message routing
+- Handler modules in `src/entrypoints/background/handlers/`
+- Message type prefixes: `JENKINS_*`, `RECORDER_*`, `SYNC_*`, `PROXY_*`
+- Implementation: `src/entrypoints/background.ts`
 
-**Outgoing:**
-- None detected (extension does not send webhooks)
+**Page Agent:**
+- Content script injection on demand via `PAGE_AGENT_INJECT` message
+- Handler: `src/entrypoints/background/handlers/pageAgent.ts`
+- Implementation: `src/entrypoints/pageAgent.content.ts`
 
-**Chrome Alarms:**
-- Auto-sync alarm (`auto-sync-alarm`)
-- Configurable interval (default 30 minutes)
+**Network Interception:**
+- `src/entrypoints/network-interceptor.ts` - Fetch/XHR override for recording
 
 ---
 
-*Integration audit: 2026-03-26*
+*Integration audit: 2026-03-27*

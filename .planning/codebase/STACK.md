@@ -1,22 +1,20 @@
 # Technology Stack
 
-**Analysis Date:** 2026-03-26
+**Analysis Date:** 2026-03-27
 
 ## Languages
 
 **Primary:**
-- TypeScript 5.9.3 - All source code (`.ts`, `.tsx` files)
-- CSS/UnoCSS - Styling via utility-first CSS approach
+- TypeScript 5.9.3 - All extension code, server code, and packages
 
 **Secondary:**
-- JSON - Package manifests and configuration files
+- CSS/UnoCSS - Styling via utility-first approach
 
 ## Runtime
 
 **Environment:**
-- Browser Extension (Chrome/Firefox) via WXT
-- React 19.2.3 (DOM rendering)
-- Service Worker (background.ts)
+- Chrome/Firefox browser extensions (WXT framework)
+- Node.js 20+ (for node-server package)
 
 **Package Manager:**
 - pnpm 10.33.0
@@ -25,91 +23,106 @@
 ## Frameworks
 
 **Core:**
-- WXT 0.20.6 - Web Extension framework and build tool
-- React 19.2.3 - UI framework with React Compiler (babel-plugin-react-compiler 1.0.0)
+- WXT 0.20.6 - Web Extension Tools framework (Chrome/Firefox)
+- React 19.2.3 - UI framework
+- React DOM 19.2.3 - DOM rendering
 
-**UI/Styling:**
-- UnoCSS 66.6.0 - Atomic CSS engine (presetUno, presetIcons, presetTypography)
-- Tailwind-compatible class utilities via UnoCSS
-- Shadcn UI components (@radix-ui/* packages)
-- class-variance-authority 0.7.1 - Component variant handling
-- lucide-react 0.563.0 - Icon library
+**Build/Dev:**
+- Vite (via WXT) - Build tool
+- UnoCSS 66.6.0 - Atomic CSS engine
+- Babel 7.28.5 (via vite-plugin-babel) - TypeScript transpilation with React Compiler
+- Babel Plugin React Compiler 1.0.0 - React 19 optimization
+
+**Testing:**
+- No formal test framework detected (manual testing via Chrome DevTools MCP)
 
 **Database:**
 - Dexie 4.2.1 - IndexedDB wrapper
 - dexie-react-hooks 4.2.0 - React hooks for Dexie
 
-**State Management:**
-- React hooks (useState, useEffect, useLiveQuery)
-- Dexie useLiveQuery for reactive database queries
+**UI Components:**
+- Radix UI (multiple packages) - Headless UI primitives
+  - @radix-ui/react-checkbox 1.3.3
+  - @radix-ui/react-dialog 1.1.15
+  - @radix-ui/react-popover 1.1.15
+  - @radix-ui/react-select 2.2.6
+  - @radix-ui/react-slot 1.2.4
+- class-variance-authority 0.7.1 - Component variant styling
+- clsx 2.1.1 - Conditional classNames
+- tailwind-merge 3.4.0 - Tailwind class merging
 
-**Build/Dev:**
-- Vite 7.x (via WXT) - Build tooling
-- Babel with @babel/preset-typescript and babel-plugin-react-compiler
-- TypeScript 5.9.3 (strict mode enabled)
-- chokidar-cli 3.0.0 - File watching
+**Code Editor:**
+- Monaco Editor 0.55.1 - VS Code's editor component
+- @codingame/monaco-vscode-multi-diff-editor-service-override 28.3.1
 
-**Testing:**
-- Not explicitly configured (no Jest/Vitest detected in dependencies)
+**Session Recording:**
+- rrweb 2.0.0-alpha.20 - Session recording and replay
+- @rrweb/packer 2.0.0-alpha.20
+- @rrweb/types 2.0.0-alpha.20
 
-**Code Quality:**
-- ESLint 9.17.0 with typescript-eslint 8.18.1
-- eslint-plugin-react-hooks 5.1.0
-- prettier 3.4.2 with @trivago/prettier-plugin-sort-imports 5.2.0
-- lint-staged 16.2.7 with simple-git-hooks 2.13.1 (pre-commit hooks)
+**AI/ML:**
+- page-agent 1.6.1 - In-page automation agent
 
 ## Key Dependencies
 
 **Critical:**
-- rrweb 2.0.0-alpha.20 - Session recording/replay
-- @rrweb/packer 2.0.0-alpha.20 - rrweb data packing
-- page-agent 1.6.1 - In-page automation agent
-- monaco-editor 0.55.1 - Code/diff editor
-- react-markdown 10.1.0 - Markdown rendering
-- remark-gfm 4.0.1 - GitHub-flavored markdown
-
-**Infrastructure:**
-- @tanstack/react-virtual 3.13.21 - Virtual list rendering
-- allotment 1.20.5 - Resizable split panels
-- masonry-layout 4.2.2 - Masonry grid layout
+- react 19.2.3 - UI rendering
+- dexie 4.2.1 - Local database (IndexedDB)
+- wxt 0.20.6 - Extension framework
 
 **Utilities:**
 - lodash-es 4.17.23 - Utility functions
-- date-fns 4.1.0 - Date formatting
-- diff 8.0.3 - Text diffing
-- clsx 2.1.1, tailwind-merge 3.4.0 - Class name utilities
+- date-fns 4.1.0 - Date manipulation
+- diff 8.0.3 - Diff algorithm
+- lucide-react 0.563.0 - Icons
+- react-markdown 10.1.0 - Markdown rendering
+- remark-gfm 4.0.1 - GitHub Flavored Markdown
 
-**AI Integration:**
-- Custom providers for Ollama, Anthropic, OpenAI-compatible APIs
+**Layout:**
+- allotment 1.20.5 - Split panes
+- masonry-layout 4.2.2 - Masonry layout
+- @tanstack/react-virtual 3.13.21 - Virtual scrolling
+
+**Data Visualization:**
+- react-diff-viewer-continued 4.2.0 - Diff viewer component
 
 ## Configuration
 
-**Environment:**
-- No `.env` file in repository (secrets not stored in code)
-- Settings stored in Dexie IndexedDB via `settings` table
-- Configuration keys defined in `src/db/types.ts` (SettingKey type)
+**TypeScript:**
+- `tsconfig.json` extends `.wxt/tsconfig.json`
+- Path alias: `@/*` maps to `src/*`
+- Strict mode enabled
+
+**ESLint:**
+- `eslint.config.js` uses typescript-eslint
+- React Hooks rules enforced
+- No explicit-any is error
+- Prettier integration via eslint-config-prettier
+
+**UnoCSS:**
+- `uno.config.ts` - UnoCSS configuration
+- Presets: preset-uno, preset-icons
+
+**WXT:**
+- `wxt.config.ts` - Extension configuration
+- Manifest V3 permissions: storage, sidePanel, alarms, activeTab, scripting, tabs
+- Host permissions: `<all_urls>`
 
 **Build:**
-- `wxt.config.ts` - WXT extension framework config
-- `uno.config.ts` - UnoCSS styling config with custom theme
-- `tsconfig.json` - TypeScript config (extends .wxt/tsconfig.json)
-- `eslint.config.js` - ESLint rules
-
-**Path Aliases:**
-- `@/*` maps to `src/*` (configured in tsconfig.json)
+- Chunk size warning limit: 7000KB (increased from default)
+- Development mode adds "(DEV)" suffix to extension name
 
 ## Platform Requirements
 
 **Development:**
-- Node.js (via pnpm)
-- Chrome browser (for dev server)
-- Firefox (via `pnpm dev:firefox`)
+- Node.js 20+
+- pnpm 10+
+- Chrome or Firefox browser for testing
 
 **Production:**
-- Chrome 88+ or Firefox 78+ (browser extension)
-- IndexedDB support required
-- Web Crypto API support required (for E2EE sync)
+- Chrome 88+ or Firefox 78+
+- Manifest V3 support
 
 ---
 
-*Stack analysis: 2026-03-26*
+*Stack analysis: 2026-03-27*

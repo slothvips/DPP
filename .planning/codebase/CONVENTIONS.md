@@ -1,292 +1,203 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-26
+**Analysis Date:** 2026-03-27
 
 ## Naming Patterns
 
 **Files:**
-- React components: PascalCase (e.g., `AIAssistantView.tsx`, `BuildDialog.tsx`)
-- Utilities/hooks: camelCase (e.g., `useLinks.ts`, `logger.ts`, `cn.ts`)
-- API modules: camelCase (e.g., `build.ts`, `fetchJobs.ts`)
-- Types/interfaces: PascalCase (e.g., `LinkItem`, `JenkinsEnvironment`)
-- Database operations: camelCase (e.g., `links.ts`, `tags.ts`)
-
-**Directories:**
-- Feature directories: camelCase (e.g., `features/jenkins`, `features/aiAssistant`)
-- Library directories: camelCase (e.g., `lib/db`, `lib/sync`, `lib/ai`)
-- Component subdirectories: camelCase (e.g., `components/ui`, `components/ui/button.tsx`)
+- PascalCase for components: `LinksView.tsx`, `BlackboardView.tsx`, `ErrorBoundary.tsx`
+- camelCase for utilities/hooks: `useLinks.ts`, `useTheme.ts`, `cn.ts`, `logger.ts`
+- kebab-case for directories: `links/`, `blackboard/`, `aiAssistant/`
+- Index files for barrel exports: `index.ts`, `index.tsx`
 
 **Functions:**
-- General: camelCase (e.g., `listLinks`, `handleJenkinsMessage`, `triggerBuild`)
-- React hooks: camelCase with `use` prefix (e.g., `useAIChat`, `useGlobalSync`, `useLinks`)
-- Event handlers: camelCase with `handle` prefix (e.g., `handleConfigSaved`, `handlePageAgentInject`)
-- Handler functions: camelCase (e.g., `links_list`, `links_add` for AI tools)
+- camelCase: `addLink()`, `updateLink()`, `resolveTagNamesToIds()`
+- use-prefix for React hooks: `useLinks()`, `useTheme()`, `useAIChat()`
+- handle-prefix for message handlers: `handleJenkinsMessage()`, `handleSyncMessage()`
+- get-prefix for getters: `getLink()`, `getClientId()`, `getSettingByKey()`
 
 **Variables:**
-- camelCase for general variables (e.g., `isSyncing`, `localPushCount`)
-- Boolean variables often use `is`, `has`, `can` prefixes
-- Underscore prefix for ignored parameters: `_` or `_variableName`
+- camelCase: `existingLink`, `tagIds`, `filteredLinks`
+- PascalCase for React components and types: `LinkItem`, `TagItem`, `Theme`
+- SCREAMING_SNAKE_CASE for constants: `PREFIX`, `YOLO_MODE_KEY`, `PUSH_BATCH_SIZE`
 
 **Types:**
-- PascalCase for all type names (e.g., `LinkItem`, `JenkinsCredentials`, `SyncEngineOptions`)
-- Interface names do not have `I` prefix
+- PascalCase with descriptive suffixes: `LinkItem`, `LinkTagItem`, `SyncOperation`
+- Interface names without "I" prefix: `AIToolMetadata`, not `IAIToolMetadata`
+- Type aliases for unions: `Theme = 'light' | 'dark' | 'system'`
 
 ## Code Style
 
 **Formatting:**
 - Tool: Prettier with `@trivago/prettier-plugin-sort-imports`
-- Config: `.prettierrc`
-- Print width: 100 characters
-- Tab width: 2 spaces
-- Semicolons: Required
-- Single quotes: Yes
-- Trailing commas: ES5 style
+- Settings: `package.json` at project root
+  ```json
+  {
+    "semi": true,
+    "singleQuote": true,
+    "tabWidth": 2,
+    "trailingComma": "es5",
+    "printWidth": 100,
+    "bracketSpacing": true
+  }
+  ```
+- Import order: `^react`, `^wxt`, `^@`, `^[./]` (react first, then wxt, then @ aliases, then relative)
 
 **Linting:**
-- Tool: ESLint with `typescript-eslint`
-- Config: `eslint.config.js`
-- React Hooks rules enforced: `react-hooks/rules-of-hooks` (error), `react-hooks/exhaustive-deps` (warn)
-- No explicit `any` allowed: `@typescript-eslint/no-explicit-any` (error)
-- Unused variables: Warn with underscore ignore pattern
+- Tool: ESLint with `typescript-eslint` and `eslint-plugin-react-hooks`
+- Config: `eslint.config.js` at project root
+- Key rules enforced:
+  - `@typescript-eslint/no-explicit-any`: error (no implicit `any`)
+  - `@typescript-eslint/no-unused-vars`: warn (with `_` prefix allowance)
+  - `react-hooks/rules-of-hooks`: error
+  - `react-hooks/exhaustive-deps`: warn
 
-**Editor Config:**
-- `.editorconfig` at project root
-- UTF-8 charset
-- Space indent (2)
-- LF line endings
-- Trim trailing whitespace
-- Final newline in files (except .md)
+**Git Hooks:**
+- Pre-commit: `lint-staged` runs `eslint --fix` and `prettier --write`
+- Simple-git-hooks configured in `package.json`
 
 ## Import Organization
 
-**Order (enforced by Prettier plugin):**
-1. React imports (`^react`)
-2. WXT imports (`^wxt`)
-3. External packages (`^@`)
-4. Alias imports (`^@/`)
-5. Relative imports (`^[./]`)
-
 **Path Aliases:**
 - `@/*` maps to `src/*` (configured in `tsconfig.json`)
+- Example: `import { db } from '@/db'`, `import { logger } from '@/utils/logger'`
 
-**Examples:**
-```typescript
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { browser } from 'wxt/browser';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/utils/cn';
-import { logger } from '@/utils/logger';
-import { getSetting, updateSetting } from '@/lib/db/settings';
-import type { SyncPendingCounts } from '@/lib/sync/types';
-import { handleJenkinsMessage } from './background/handlers';
-```
+**Import Order (via Prettier plugin):**
+1. React: `^react`
+2. Wxt: `^wxt`
+3. @ aliases: `^@`
+4. Relative imports: `^[./]`
+
+**Barrel Files:**
+- Feature modules use `index.ts` for exports: `src/features/links/hooks/index.ts`
+- Handler modules export from `index.ts`: `src/entrypoints/background/handlers/index.ts`
 
 ## Error Handling
 
 **Patterns:**
 
-1. **Try-catch with specific handling:**
-```typescript
-// src/features/jenkins/api/build.ts
-try {
-  const res = await http(apiUrl, { ... });
-  if (successStatuses.includes(res.status)) {
-    return true;
-  }
-  logger.error(`Build failed: ${res.status} ${res.statusText}`);
-  return false;
-} catch (e) {
-  logger.error('Build error:', e);
-  return false;
-}
-```
+1. **Try-catch with error logging:**
+   ```typescript
+   try {
+     await someOperation();
+   } catch (e) {
+     logger.error('Failed to delete link:', error);
+     toast('删除失败', 'error');
+   }
+   ```
 
-2. **Async operations with .catch():**
-```typescript
-// src/entrypoints/background.ts
-browser.sidePanel
-  .setPanelBehavior({ openPanelOnActionClick: true })
-  .catch((error) => logger.error('Failed to set side panel behavior:', error));
-```
+2. **Error throwing for validation failures:**
+   ```typescript
+   if (!isValidUrl(args.url)) {
+     throw new Error(`URL 格式不正确，请以 http:// 或 https:// 开头`);
+   }
+   ```
 
-3. **Error type assertion:**
-```typescript
-// src/entrypoints/background/handlers/jenkins.ts
-const err = e as Error;
-logger.error(`Jenkins action ${message.type} failed:`, err);
-return { success: false, error: err.message || String(e) };
-```
+3. **Error type narrowing:**
+   ```typescript
+   const message = error instanceof Error ? error.message : '保存失败';
+   ```
 
-4. **React ErrorBoundary:**
-```typescript
-// src/components/ErrorBoundary.tsx
-export class ErrorBoundary extends React.Component<...> {
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    logger.error('Uncaught error:', error, errorInfo);
-  }
-}
-```
+4. **Silent catch for non-critical operations:**
+   ```typescript
+   browser.runtime.sendMessage({ type: 'AUTO_SYNC_TRIGGER_PUSH' }).catch(() => {});
+   ```
 
-5. **Result pattern for handlers:**
-```typescript
-// src/entrypoints/background/handlers/jenkins.ts
-export async function handleJenkinsMessage(message: JenkinsMessage): Promise<JenkinsResponse> {
-  try {
-    // ... operation
-    return { success: true, data };
-  } catch (e) {
-    const err = e as Error;
-    return { success: false, error: err.message || String(e) };
-  }
-}
-```
+5. **Class-based error boundary (React):**
+   ```typescript
+   export class ErrorBoundary extends React.Component {
+     static getDerivedStateFromError(error: Error) {
+       return { hasError: true, error };
+     }
+     componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+       logger.error('Uncaught error:', error, errorInfo);
+     }
+   }
+   ```
 
 ## Logging
 
 **Framework:** Custom logger at `src/utils/logger.ts`
 
-**Levels:**
-- `debug`: Development-only messages (filtered in production)
-- `info`: General information
-- `warn`: Warnings (non-blocking issues)
-- `error`: Errors (failures)
-
-**Prefix:** All logs prefixed with `[DPP]`
-
 **Usage:**
 ```typescript
 import { logger } from '@/utils/logger';
 
-logger.info('Background started');
-logger.debug('Invalid URL:', url, error);
-logger.warn('Failed to fetch crumb, proceeding without it:', e);
-logger.error('Build error:', e);
+logger.debug('Debug info:', data);  // Only in DEV mode
+logger.info('Operation completed');
+logger.warn('Potential issue:', details);
+logger.error('Operation failed:', error);
 ```
+
+**Implementation:**
+- Prefix: `[DPP]`
+- Dev-only debug: `if (level === 'debug' && !isDev) return;`
+- Console method mapping: debug -> log, info/warn/error -> respective methods
 
 ## Comments
 
-**JSDoc Style:**
+**When to Comment:**
+- JSDoc for public functions: `/** Validate URL format */`
+- Type documentation: `@param`, `@returns`
+- Complex business logic explanations
+- Chinese comments for user-facing strings
+
+**Examples:**
 ```typescript
-// src/lib/http.ts
 /**
- * Enhanced fetch with timeout and retry support
- *
- * @param url - The URL to fetch
- * @param options - HTTP options including timeout and retry configuration
- * @returns Promise resolving to Response
- * @throws Error if request fails after all retries
+ * Convert tag names to tag IDs
+ * Handles both tag names (from AI) and tag IDs (from UI)
  */
-export async function http(url: string, options: HttpOptions = {}): Promise<Response> { ... }
-```
+async function resolveTagNamesToIds(tagsInput: string[]): Promise<string[]>
 
-**Inline Comments:**
-- For complex business logic
-- To explain workarounds or non-obvious behavior
-- Use sparingly, prefer self-documenting code
-
-**Deprecation Notices:**
-```typescript
-// src/db/types.ts
-export interface LinkItem {
-  category: string; // Deprecated, keeping for type safety during migration
-}
+/**
+ * Unified synchronization lock to prevent concurrent push/pull operations
+ * This replaces the separate isSyncing and isPushing flags to prevent race conditions
+ */
+private syncLock = false;
 ```
 
 ## Function Design
 
-**Size:** Prefer smaller, focused functions. Complex functions are broken into helper functions.
+**Size:** Keep functions focused (one responsibility)
 
 **Parameters:**
-- Destructure objects for clarity when >2 parameters
-- Use named parameters pattern for complex function signatures:
-```typescript
-export async function listLinks(args: {
-  keyword?: string;
-  tags?: string[];
-  page?: number;
-  pageSize?: number;
-}): Promise<{ ... }>
-```
+- Use objects for functions with multiple args:
+  ```typescript
+  export async function listLinks(args: {
+    keyword?: string;
+    tags?: string[];
+    page?: number;
+    pageSize?: number;
+  })
+  ```
+- Destructure with defaults: `const page = args.page ?? 1;`
 
 **Return Values:**
-- Use named exports for utility functions
-- Use default exports only for page entry components (e.g., `App.tsx`)
-- Always return typed promises
-
-**Async/Await:**
-- Prefer async/await over raw Promise chains
-- Use `Promise.all()` for parallel operations
-
-## Component Design
-
-**Structure:**
-- Functional components with hooks
-- Named exports for components
-- Co-locate component files within feature directories
-
-**Naming:**
-- Components: PascalCase (e.g., `AIAssistantView`, `BuildDialog`)
-- Props interfaces: `ComponentNameProps` (e.g., `ButtonProps`)
-
-**Patterns:**
-```typescript
-// src/components/ui/button.tsx
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
-
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button';
-    return (
-      <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />
-    );
-  }
-);
-Button.displayName = 'Button';
-
-export { Button, buttonVariants };
-```
+- Consistent return objects: `{ success: boolean; message: string }`
+- Nullable returns: `Promise<LinkItem | null>`
+- Async/await preferred over raw promises
 
 ## Module Design
 
 **Exports:**
-- Barrel files (`index.ts`) for public APIs within modules
-- Named exports preferred for better refactoring
-- Re-export types explicitly: `export type { LinkItem, JobItem } from './types';`
+- Named exports preferred
+- Barrel files for feature modules
+- Type exports alongside implementation
 
-**State Management:**
-- Use `useLiveQuery` from `dexie-react-hooks` for reactive database queries
-- Local state with `useState`, derived state with `useMemo`
-- Custom hooks for complex state logic (e.g., `useGlobalSync.ts`, `useAIChat.ts`)
-
-## Database Operations
-
-**Pattern (via Dexie):**
+**Pattern:**
 ```typescript
-// src/db/index.ts
-export const db = new Dexie('DPPDB') as DPPDatabase;
+// src/features/links/hooks/useLinks.ts
+export function useLinks() {
+  // hook implementation
+}
 
-// Access via db.table() or generated types
-const links = await db.links.filter((l) => !l.deletedAt).toArray();
+// src/features/links/hooks/index.ts
+export { useLinks } from './useLinks';
 ```
 
-**Unified CRUD:**
-- All database operations via `src/lib/db/*.ts` modules
-- These are used by both AI tools and UI components
-
-## Testing for Automation
-
-**Test IDs:** All interactive elements have `data-testid` attributes
-
-**Examples from CLAUDE.md:**
-```html
-<button data-testid="settings-button">Settings</button>
-<div data-testid="tab-jenkins">Jenkins</div>
-<div data-testid="loading">Loading...</div>
-```
+**Class usage:** Rare; most logic uses functional patterns with hooks
 
 ---
 
-*Convention analysis: 2026-03-26*
+*Convention analysis: 2026-03-27*
