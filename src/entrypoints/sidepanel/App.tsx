@@ -18,16 +18,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
-// Tab 类型定义
-type TabId =
-  | 'links'
-  | 'jenkins'
-  | 'hotNews'
-  | 'recorder'
-  | 'blackboard'
-  | 'aiAssistant'
-  | 'playground';
-
 // 动态导入大型组件以减少初始体积
 const AIAssistantView = React.lazy(() =>
   import('@/features/aiAssistant/components/AIAssistantView').then((m) => ({

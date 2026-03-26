@@ -6,7 +6,10 @@ import { logger } from '@/utils/logger';
  * Returns the validated URL or null if invalid/unsafe
  */
 export function validateUrl(url: string): string | null {
-  if (!url) return null;
+  if (!url) {
+    logger.warn('[Security] Empty URL provided');
+    return null;
+  }
 
   let finalUrl = url.trim();
 

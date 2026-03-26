@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { updateSetting } from '@/lib/db/settings';
+import { getAIConfig, updateSetting } from '@/lib/db/settings';
 import { serializeHeaders } from '@/lib/pageAgent/utils';
 import { logger } from '@/utils/logger';
 
@@ -16,10 +16,8 @@ export type GeneralMessage =
 export function handleGeneralMessage(message: GeneralMessage): unknown {
   if (message.type === 'PAGE_AGENT_GET_CONFIG') {
     return (async () => {
-      const result = await browser.storage.session.get('__pageAgentConfig');
-      const config = result.__pageAgentConfig;
-      // 不再立即删除，让 content script 可以重试获取
-      // config 会在新配置写入时被覆盖
+      // 直接从数据库获取 AI 配置（包含解密后的 API Key）
+      const config = await getAIConfig();
       return { config };
     })();
   }

@@ -35,12 +35,16 @@ async function resolveTagNamesToIds(tagsInput: string[]): Promise<string[]> {
 
   return tagsInput
     .map((input) => {
-      // If it looks like a UUID (contains dashes), treat it as an ID
-      if (input.includes('-') && idSet.has(input)) {
-        return input;
+      // Trim whitespace to handle user input with accidental spaces
+      const trimmedInput = input.trim();
+      if (!trimmedInput) return null;
+
+      // First check if input is a valid tag ID (exact match after trim)
+      if (idSet.has(trimmedInput)) {
+        return trimmedInput;
       }
-      // Otherwise, treat it as a name and look it up
-      return tagMap.get(input.toLowerCase());
+      // Otherwise, treat it as a name and look it up (case-insensitive)
+      return tagMap.get(trimmedInput.toLowerCase());
     })
     .filter((id): id is string => !!id);
 }

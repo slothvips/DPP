@@ -105,10 +105,12 @@ export async function clearExistingAgent(tabId: number): Promise<void> {
 
 /**
  * 注入 PageAgent 到指定标签页
+ * 注意：不再将敏感配置存储在 session storage 中
+ * Content script 会通过消息传递直接获取配置
  */
 export async function injectPageAgent(
   tabId: number,
-  config: PageAgentConfig
+  _config: PageAgentConfig
 ): Promise<{ success: boolean; error?: string }> {
   // 防重入检查
   if (injectingTabs.has(tabId)) {
@@ -128,10 +130,8 @@ export async function injectPageAgent(
       await clearExistingAgent(tabId);
     }
 
-    // 注意：API key 会短暂存储在 session storage 中（标签页级别，关闭后自动清除）
-    // 这是因为 content script 需要获取配置但无法直接调用 background 函数
-    // 未来考虑重构为通过消息传递，避免敏感信息存储
-    await browser.storage.session.set({ __pageAgentConfig: config });
+    // 不再将配置存储在 session storage 中
+    // Content script 会在初始化时通过 PAGE_AGENT_GET_CONFIG 消息获取配置
 
     await browser.scripting.executeScript({
       target: { tabId },

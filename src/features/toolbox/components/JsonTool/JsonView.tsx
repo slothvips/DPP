@@ -18,6 +18,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { createProvider } from '@/lib/ai/provider';
 import type { AIProviderType, ChatMessage } from '@/lib/ai/types';
 import { getAIConfig } from '@/lib/db/settings';
+import { logger } from '@/utils/logger';
 
 // Monaco Worker 配置
 self.MonacoEnvironment = {
@@ -286,7 +287,7 @@ ${value}`;
           setError(null);
         }
       } else {
-        console.error('[JsonView] AI response:', fullContent);
+        logger.error('[JsonView] AI response:', fullContent);
         setAiError('无法从 AI 回复中提取有效的 JSON');
       }
     } catch (err) {
@@ -343,6 +344,7 @@ ${value}`;
     return () => {
       editorRef.current?.dispose();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 监听主题变化

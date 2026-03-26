@@ -168,14 +168,26 @@ export function JenkinsView() {
     let mounted = true;
     let timeoutId: NodeJS.Timeout;
     let visibilityHandler: (() => void) | null = null;
+    let isPollingInFlight = false;
 
     const poll = async () => {
+      // Skip if already polling (prevent concurrent requests)
+      if (isPollingInFlight) {
+        // Still schedule next poll to ensure polling continues
+        if (mounted) {
+          timeoutId = setTimeout(poll, JENKINS.POLL_INTERVAL_MS);
+        }
+        return;
+      }
+
       // Skip polling if document is not visible (page is in background)
       if (document.visibilityState === 'hidden') {
         // Schedule next poll with longer interval when hidden
         timeoutId = setTimeout(poll, JENKINS.POLL_INTERVAL_MS * 3);
         return;
       }
+
+      isPollingInFlight = true;
 
       try {
         setMyBuildsLoading(true);
@@ -187,6 +199,7 @@ export function JenkinsView() {
         logger.error('Auto-refresh My Builds failed', e);
         setMyBuildsLoading(false);
       } finally {
+        isPollingInFlight = false;
         if (mounted) {
           timeoutId = setTimeout(poll, JENKINS.POLL_INTERVAL_MS);
         }
@@ -196,8 +209,13 @@ export function JenkinsView() {
     // Handle visibility change to pause/resume polling
     visibilityHandler = () => {
       if (document.visibilityState === 'visible') {
-        // Immediately poll when page becomes visible
-        poll();
+        // Trigger poll if not already polling
+        // Note: We allow polling even if lastPollTime is recent because user expects
+        // fresh data when switching back. The isPollingInFlight check prevents
+        // concurrent requests, and the timer-based polling provides rate limiting.
+        if (!isPollingInFlight) {
+          poll();
+        }
       }
     };
     document.addEventListener('visibilitychange', visibilityHandler);

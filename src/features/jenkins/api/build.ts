@@ -47,10 +47,12 @@ export async function triggerBuild(
       timeout: 30000,
     });
 
-    if (res.status >= 200 && res.status < 300) {
+    // Jenkins typically returns 201 Created on successful build trigger,
+    // but can also return 200 or 302 (redirect) in some cases
+    const successStatuses = [200, 201, 202, 302];
+    if (successStatuses.includes(res.status)) {
       return true;
     }
-    // 201 Created is typical
     logger.error(`Build failed: ${res.status} ${res.statusText}`);
     return false;
   } catch (e) {

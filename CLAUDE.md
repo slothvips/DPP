@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+This project uses **pnpm** as the package manager.
+
 - **Development**:
   - `pnpm dev` - Start dev server for Chrome
   - `pnpm dev:firefox` - Start dev server for Firefox
@@ -40,6 +42,20 @@ The sync engine uses **Last Write Wins (LWW)** strategy for conflict resolution.
    - Line ~574: `getRecordTimestamp()` returns local `updatedAt`
 
 **Principle**: Always use local client timestamp for LWW conflict resolution. Do NOT use `serverTimestamp` for conflict resolution.
+
+### Sync Engine Hooks & Transaction Pattern
+
+The SyncEngine uses Dexie lifecycle hooks to capture database changes:
+
+- **Transaction source check**: All hooks check `tx.source === 'sync'` to skip operations initiated by sync itself, preventing infinite loops
+- **`creating` hook**: Records `updatedAt` timestamp and queues sync operation via `onsuccess` callback with `queueMicrotask`
+- **`updating` hook**: Merges `updatedAt` into modifications, queues sync via `queueMicrotask`
+- **`deleting` hook**: For soft-delete, intercepts the delete operation, uses `queueMicrotask` to re-put the record with `deletedAt` set, then returns `false` to prevent actual deletion
+
+**Important**: When adding database operations that should trigger sync:
+1. Ensure the operation goes through Dexie's normal CRUD API (not bypassing hooks)
+2. If using transactions, DO NOT set `source: 'sync'` unless the operation comes FROM a sync operation
+3. Use `db.transaction('rw', db.table, ...)` to batch multiple operations atomically
 
 ### Security & Sync Model
 
@@ -82,7 +98,7 @@ The extension uses `page-agent` library for in-page automation:
 ### Key Directories
 
 - `src/entrypoints/` - Extension entry points (background, popup, options, content scripts, sidepanel).
-- `src/features/` - Feature-based modules (jenkins, links, recorder, etc.).
+- `src/features/` - Feature-based modules (jenkins, links, recorder, toolbox, etc.).
 - `src/lib/` - Shared utilities, including `sync/`, `crypto/`, `ai/`, `db/`.
 - `src/lib/db/` - Unified database CRUD operations (links, tags, blackboard, etc.).
 - `src/db/` - Database schema (Dexie) and type definitions.
@@ -100,7 +116,6 @@ The extension uses WXT with multiple entrypoints:
 - `popup/App.tsx` - Browser action popup
 - `player/PlayerApp.tsx` - Recording playback page
 - `debug/main.tsx` - Debug utility page
-- `diff/index.html` + `diff/main.tsx` - Standalone diff tool
 
 ### Recorder & rrweb Integration
 

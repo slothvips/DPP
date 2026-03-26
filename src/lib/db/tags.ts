@@ -61,27 +61,32 @@ export async function listTags(): Promise<{
 }> {
   const tags = await db.tags.filter((t) => !t.deletedAt).toArray();
 
-  // Get link counts for each tag
-  const tagsWithCounts = await Promise.all(
-    tags.map(async (tag) => {
-      const linkTags = await db.linkTags
-        .filter((lt) => !lt.deletedAt && lt.tagId === tag.id)
-        .toArray();
-      const jobTags = await db.jobTags
-        .filter((jt) => !jt.deletedAt && jt.tagId === tag.id)
-        .toArray();
+  // Fetch all linkTags and jobTags in bulk to avoid N+1 queries
+  const [allLinkTags, allJobTags] = await Promise.all([
+    db.linkTags.filter((lt) => !lt.deletedAt).toArray(),
+    db.jobTags.filter((jt) => !jt.deletedAt).toArray(),
+  ]);
 
-      return {
-        id: tag.id,
-        name: tag.name,
-        color: tag.color,
-        linkCount: linkTags.length,
-        jobCount: jobTags.length,
-        createdAt: tag.updatedAt,
-        updatedAt: tag.updatedAt,
-      };
-    })
-  );
+  // Group and count by tagId
+  const linkCountByTagId = new Map<string, number>();
+  const jobCountByTagId = new Map<string, number>();
+
+  for (const lt of allLinkTags) {
+    linkCountByTagId.set(lt.tagId, (linkCountByTagId.get(lt.tagId) ?? 0) + 1);
+  }
+  for (const jt of allJobTags) {
+    jobCountByTagId.set(jt.tagId, (jobCountByTagId.get(jt.tagId) ?? 0) + 1);
+  }
+
+  const tagsWithCounts = tags.map((tag) => ({
+    id: tag.id,
+    name: tag.name,
+    color: tag.color,
+    linkCount: linkCountByTagId.get(tag.id) ?? 0,
+    jobCount: jobCountByTagId.get(tag.id) ?? 0,
+    createdAt: tag.updatedAt,
+    updatedAt: tag.updatedAt,
+  }));
 
   return {
     total: tags.length,
@@ -99,14 +104,6 @@ export async function addTag(args: {
   const now = Date.now();
   const id = crypto.randomUUID();
 
-  // Check if tag already exists
-  const existing = await db.tags
-    .filter((t) => !t.deletedAt && t.name.toLowerCase() === args.name.toLowerCase())
-    .first();
-  if (existing) {
-    throw new Error(`标签 "${args.name}" 已存在`);
-  }
-
   // Generate random color if not provided
   const color =
     args.color ??
@@ -114,18 +111,32 @@ export async function addTag(args: {
       .toString(16)
       .padStart(6, '0')}`;
 
-  await db.tags.add({
-    id,
-    name: args.name,
-    color,
-    updatedAt: now,
+  let result: { success: boolean; id: string; message: string };
+
+  await db.transaction('rw', db.tags, async () => {
+    // Check if tag already exists
+    const existing = await db.tags
+      .filter((t) => !t.deletedAt && t.name.toLowerCase() === args.name.toLowerCase())
+      .first();
+    if (existing) {
+      throw new Error(`标签 "${args.name}" 已存在`);
+    }
+
+    await db.tags.add({
+      id,
+      name: args.name,
+      color,
+      updatedAt: now,
+    });
+
+    result = {
+      success: true,
+      id,
+      message: `Tag "${args.name}" created successfully`,
+    };
   });
 
-  return {
-    success: true,
-    id,
-    message: `Tag "${args.name}" created successfully`,
-  };
+  return result!;
 }
 
 /**
@@ -142,12 +153,18 @@ export async function ensureTagsExist(names: string[]): Promise<Map<string, stri
       if (!name || name.trim() === '') continue;
       const trimmedName = name.trim();
 
-      const existing = await db.tags.where('name').equals(trimmedName).first();
+      // Use case-insensitive comparison for lookup
+      // Note: We don't filter by deletedAt - we want to find and reactivate deleted tags
+      const existing = await db.tags
+        .filter((t) => t.name.toLowerCase() === trimmedName.toLowerCase())
+        .first();
 
       if (existing) {
         if (existing.deletedAt) {
+          // Reactivate the deleted tag
           await db.tags.update(existing.id, { deletedAt: undefined, updatedAt: now });
         }
+        // Store with original input case to maintain lookup compatibility
         tagMap.set(trimmedName, existing.id);
       } else {
         const newId = crypto.randomUUID();
@@ -172,37 +189,50 @@ export async function createOrReactivateTag(args: {
   name: string;
 }): Promise<{ success: boolean; id: string; message: string; isExisting: boolean }> {
   const trimmedName = args.name.trim();
-  const existing = await db.tags.where('name').equals(trimmedName).first();
   const now = Date.now();
 
-  if (existing) {
-    if (existing.deletedAt) {
-      await db.tags.update(existing.id, { deletedAt: undefined, updatedAt: now });
-    }
-    return {
-      success: true,
-      id: existing.id,
-      message: existing.deletedAt
-        ? `Tag "${trimmedName}" reactivated`
-        : `Tag "${trimmedName}" already exists`,
-      isExisting: true,
-    };
-  }
+  let result: { success: boolean; id: string; message: string; isExisting: boolean };
 
-  const newId = crypto.randomUUID();
-  await db.tags.add({
-    id: newId,
-    name: trimmedName,
-    color: 'blue',
-    updatedAt: now,
+  await db.transaction('rw', db.tags, async () => {
+    // Use case-insensitive comparison for lookup
+    // Note: We don't filter by deletedAt - we want to find and reactivate deleted tags
+    const existing = await db.tags
+      .filter((t) => t.name.toLowerCase() === trimmedName.toLowerCase())
+      .first();
+
+    if (existing) {
+      if (existing.deletedAt) {
+        // Reactivate the deleted tag
+        await db.tags.update(existing.id, { deletedAt: undefined, updatedAt: now });
+      }
+      result = {
+        success: true,
+        id: existing.id,
+        message: existing.deletedAt
+          ? `Tag "${trimmedName}" reactivated`
+          : `Tag "${trimmedName}" already exists`,
+        isExisting: true,
+      };
+      return;
+    }
+
+    const newId = crypto.randomUUID();
+    await db.tags.add({
+      id: newId,
+      name: trimmedName,
+      color: 'blue',
+      updatedAt: now,
+    });
+
+    result = {
+      success: true,
+      id: newId,
+      message: `Tag "${trimmedName}" created successfully`,
+      isExisting: false,
+    };
   });
 
-  return {
-    success: true,
-    id: newId,
-    message: `Tag "${trimmedName}" created successfully`,
-    isExisting: false,
-  };
+  return result!;
 }
 
 /**

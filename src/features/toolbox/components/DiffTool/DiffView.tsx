@@ -8,6 +8,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { createProvider } from '@/lib/ai/provider';
 import type { AIProviderType, ChatMessage } from '@/lib/ai/types';
 import { getAIConfig } from '@/lib/db/settings';
+import { logger } from '@/utils/logger';
 
 // Monaco Worker 配置
 self.MonacoEnvironment = {
@@ -173,12 +174,13 @@ ${modifiedValue || '(空)'}`;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '编辑器初始化失败';
       setEditorError(errorMessage);
-      console.error('[DiffView] Monaco editor init error:', err);
+      logger.error('[DiffView] Monaco editor init error:', err);
     }
 
     return () => {
       editorRef.current?.dispose();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 监听主题变化

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { isInjectable } from '@/lib/pageAgent/injector';
 import { cn } from '@/utils/cn';
+import { logger } from '@/utils/logger';
 
 const TAB_ID_STORAGE_KEY = '__pageAgentTabId';
 
@@ -46,7 +47,7 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
         }))
       );
     } catch (error) {
-      console.error('[TabSelector] Failed to load tabs:', error);
+      logger.error('[TabSelector] Failed to load tabs:', error);
     } finally {
       setIsLoading(false);
     }
@@ -72,10 +73,10 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
     browser.storage.session
       .set({ [TAB_ID_STORAGE_KEY]: tabId })
       .then(() => {
-        console.log('[TabSelector] Tab ID 保存成功:', tabId);
+        logger.debug('[TabSelector] Tab ID saved:', tabId);
       })
       .catch((error) => {
-        console.error('[TabSelector] Tab ID 保存失败:', error);
+        logger.error('[TabSelector] Failed to save tab ID:', error);
       });
     setIsOpen(false);
   };
@@ -85,10 +86,10 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
     browser.storage.session
       .remove(TAB_ID_STORAGE_KEY)
       .then(() => {
-        console.log('[TabSelector] 已切换到始终为当前标签模式');
+        logger.debug('[TabSelector] Switched to always-current mode');
       })
       .catch((error) => {
-        console.error('[TabSelector] 保存失败:', error);
+        logger.error('[TabSelector] Failed to switch mode:', error);
       });
     setIsOpen(false);
   };

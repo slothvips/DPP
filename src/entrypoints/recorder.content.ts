@@ -178,10 +178,17 @@ export default defineContentScript({
 
       const indicator = document.createElement('div');
       indicator.className = 'indicator';
-      indicator.innerHTML = `
-        <div class="dot"></div>
-        <span class="timer">00:00</span>
-      `;
+
+      // Use DOM API instead of innerHTML to prevent XSS
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+
+      const timer = document.createElement('span');
+      timer.className = 'timer';
+      timer.textContent = '00:00'; // Safe: textContent escapes HTML
+
+      indicator.appendChild(dot);
+      indicator.appendChild(timer);
 
       const stopBtn = document.createElement('button');
       stopBtn.className = 'stop-btn';

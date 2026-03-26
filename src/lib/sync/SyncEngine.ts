@@ -230,18 +230,23 @@ export class SyncEngine {
         });
       });
 
+      // Hook for soft-delete: Set deletedAt and re-put the record instead of deleting
+      // This implements soft-delete by intercepting the delete and converting to an update
       // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
       table.hook('deleting', function (primKey, obj, transaction) {
         // Skip if engine has been destroyed
         if (!self._registered) return;
         const tx = transaction as SyncTransaction | undefined;
         if (tx?.source === 'sync') return;
-        const now = Date.now();
 
+        const now = Date.now();
+        const updated = { ...obj, deletedAt: now, updatedAt: now };
+
+        // Use queueMicrotask to perform soft-delete (re-put) and record operation
         queueMicrotask(async () => {
           if (!self._registered) return;
           try {
-            const updated = { ...obj, deletedAt: now, updatedAt: now };
+            // Re-put the record with deletedAt to implement soft-delete
             await table.put(updated);
             self.recordOperation(tableName, 'delete', primKey, updated);
           } catch (err) {
@@ -249,6 +254,8 @@ export class SyncEngine {
           }
         });
 
+        // Return false to prevent the actual deletion from happening
+        // The record will be "deleted" by setting deletedAt instead
         return false;
       });
     }
@@ -558,6 +565,13 @@ export class SyncEngine {
       const existingTimestamp = this.getRecordTimestamp(existing);
       const opTimestamp = op.timestamp;
       if (existingTimestamp && existingTimestamp > opTimestamp) {
+        // Log conflict for visibility - remote data has older timestamp
+        logger.info(
+          `[Sync] Conflict detected for ${op.table}[${op.key}]: ` +
+            `local timestamp (${existingTimestamp}) > remote timestamp (${opTimestamp}). ` +
+            `Remote ${op.type} operation skipped to preserve local data. ` +
+            `Consider reconciling manually if local data is stale.`
+        );
         return;
       }
     }
