@@ -10,8 +10,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Contrast Audit
 
 - [ ] **A11Y-01**: Grep audit of `muted-foreground/[0-9]+` opacity patterns across all components
-- [ ] **A11Y-02**: Grep audit of `dark:bg-[a-z]+/[0-9]+` dark mode modifier patterns
-- [ ] **A11Y-03**: Grep audit of hardcoded colors (`bg-[a-z]+-[0-9]+`) in feature components
+- [x] **A11Y-02**: Grep audit of `dark:bg-[a-z]+/[0-9]+` dark mode modifier patterns
+- [x] **A11Y-03**: Grep audit of hardcoded colors (`bg-[a-z]+-[0-9]+`) in feature components
 - [ ] **A11Y-04**: Document baseline contrast ratios for all CSS variable pairs in both themes
 
 ### Token Corrections
@@ -61,8 +61,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | A11Y-01 | Phase 1 | Pending |
-| A11Y-02 | Phase 1 | Pending |
-| A11Y-03 | Phase 1 | Pending |
+| A11Y-02 | Phase 1 | Complete |
+| A11Y-03 | Phase 1 | Complete |
 | A11Y-04 | Phase 1 | Pending |
 | A11Y-05 | Phase 2 | Pending |
 | A11Y-06 | Phase 2 | Pending |
