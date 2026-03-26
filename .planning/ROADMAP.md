@@ -37,7 +37,7 @@ Make developers more productive — unify Jenkins workflows, session recording, 
 **Plans:** 1/3 plans executed
 
 Plans:
-- [ ] 01-01-PLAN.md - Setup (color2k install) + A11Y-01 audit
+- [x] 01-01-PLAN.md - Setup (color2k install) + A11Y-01 audit
 - [x] 01-02-PLAN.md - A11Y-02 and A11Y-03 audits
 - [ ] 01-03-PLAN.md - A11Y-04 contrast ratios + phase summary
 
@@ -102,7 +102,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Audit and Measurement | 1/3 | In Progress|  |
+| 1. Audit and Measurement | 2/3 | In Progress|  |
 | 2. Token Value Corrections | 0/1 | Not started | - |
 | 3. Component Hardening | 0/1 | Not started | - |
 | 4. Verification and Polish | 0/1 | Not started | - |
