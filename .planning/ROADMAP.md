@@ -34,7 +34,12 @@ Make developers more productive — unify Jenkins workflows, session recording, 
 4. Baseline contrast ratios for all CSS variable pairs are documented for both light and dark themes
 5. Text hierarchy standards are documented (approved opacity values for each level)
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md - Setup (color2k install) + A11Y-01 audit
+- [ ] 01-02-PLAN.md - A11Y-02 and A11Y-03 audits
+- [ ] 01-03-PLAN.md - A11Y-04 contrast ratios + phase summary
 
 ---
 
@@ -97,7 +102,7 @@ Make developers more productive — unify Jenkins workflows, session recording, 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Audit and Measurement | 0/1 | Not started | - |
+| 1. Audit and Measurement | 0/3 | Not started | - |
 | 2. Token Value Corrections | 0/1 | Not started | - |
 | 3. Component Hardening | 0/1 | Not started | - |
 | 4. Verification and Polish | 0/1 | Not started | - |
