@@ -58,7 +58,10 @@ Plans:
 4. User sees `--card` background visually distinguishable from `--page/background` in dark mode
 5. User sees consistent, approved text hierarchy with documented opacity values across all components
 
-**Plans:** TBD
+**Plans:** 1/1 plans created
+
+Plans:
+- [ ] 02-01-PLAN.md — Fix --muted-foreground (A11Y-05), --card (A11Y-08), document text hierarchy (A11Y-09), verify border (A11Y-06) and ring (A11Y-07) visibility
 
 ---
 
