@@ -4,180 +4,177 @@
 
 ## Tech Debt
 
-**Sync Engine Complexity:**
-- Issue: `src/lib/sync/SyncEngine.ts` (896 lines) handles complex sync logic with LWW conflict resolution, batched operations, and retry logic
-- Files: `src/lib/sync/SyncEngine.ts`, `src/lib/sync/types.ts`
-- Impact: High risk of sync conflicts being incorrectly resolved; difficult to debug sync issues
-- Fix approach: Extract conflict resolution into separate strategy class, add comprehensive logging
+**MutationObserver Memory Leaks in Content Scripts:**
+- Issue: MutationObservers are created but never disconnected when pages navigate away
+- Files: `src/entrypoints/zentao.content.tsx` (lines 83-87, 244-252, 571-574), `src/entrypoints/recorder.content.ts`
+- Impact: Memory grows over time as content scripts accumulate observers
+- Fix approach: Store observer references and call `observer.disconnect()` on cleanup events or when script unloads
 
-**Large AI Chat Hook:**
-- Issue: `src/features/aiAssistant/hooks/useAIChat.ts` (1118 lines) handles chat state, tool calls, provider management, and streaming
-- Files: `src/features/aiAssistant/hooks/useAIChat.ts`
-- Impact: Difficult to test individual features; risk of state management bugs
-- Fix approach: Split into smaller hooks (useChatState, useToolCalls, useAIProvider)
+**setTimeout Accumulation in Content Scripts:**
+- Issue: Multiple setTimeout intervals are scheduled for retry patterns but never cleared when injection succeeds
+- Files: `src/entrypoints/zentao.content.tsx` (lines 77-80, 236-242, 566-569)
+- Impact: Timers continue firing even after injection is complete
+- Fix approach: Track timer IDs and clear them after successful injection
 
-**Network Interceptor Fragility:**
-- Issue: `src/entrypoints/network-interceptor.ts` (962 lines) overrides global fetch/XHR with extensive try/catch; silent failures throughout
-- Files: `src/entrypoints/network-interceptor.ts`, `src/entrypoints/console-interceptor.ts`
-- Impact: If interception fails, recording silently breaks without any error feedback; hard to diagnose
-- Fix approach: Add global error handler for interceptor failures, expose interceptor health status
+**setInterval Without Cleanup:**
+- Issue: Some setInterval timers are not cleared on component unmount
+- Files: `src/components/Tips.tsx` (line 28), `src/hooks/useGlobalSync.ts` (lines 67, 79)
+- Impact: Timer callbacks may fire after component is unmounted
+- Fix approach: Return cleanup functions from hooks that clear intervals
 
-**Type Safety Bypasses:**
-- Issue: Multiple `as unknown as` and `as any` casts throughout codebase
-- Files:
-  - `src/entrypoints/player/PlayerApp.tsx` (lines 158, 188, 196)
-  - `src/entrypoints/network-interceptor.ts` (line 16, 22, 902, 944, 954)
-  - `src/entrypoints/console-interceptor.ts` (line 15, 21, 188, 302, 315, 489)
-  - `src/lib/sync/SyncEngine.ts` (line 597)
-  - `src/lib/db/tags.ts` (lines 8, 12), `src/lib/db/links.ts` (lines 9)
-- Impact: Runtime type errors may go undetected; refactoring risks breaking functionality
-- Fix approach: Define proper TypeScript interfaces; eliminate unsafe casts
+**Iframe Event Listeners Not Removed:**
+- Issue: `iframe.addEventListener('load', ...)` is never removed
+- Files: `src/entrypoints/zentao.content.tsx` (line 553)
+- Impact: Listeners accumulate if iframes reload
+- Fix approach: Store listener references and remove them appropriately
 
-## Known Bugs
+## Known Issues
 
-**Potential Sync Race Condition:**
-- Symptoms: Occasional sync failures when multiple tabs are open; pending counts may become inconsistent
-- Files: `src/lib/globalSync.ts`, `src/hooks/useGlobalSync.ts`
-- Trigger: Opening multiple extension sidepanels simultaneously
-- Workaround: Close duplicate tabs before syncing
+**Silent Null Returns Masking Errors:**
+- Issue: Many functions return `null` or `[]` on error instead of throwing, making debugging difficult
+- Files: Multiple files including `src/lib/db/links.ts`, `src/lib/db/tags.ts`, `src/features/jenkins/api/client.ts`
+- Impact: Errors are silently swallowed, making it hard to diagnose failures
+- Fix approach: Consider using a Result/Either type pattern or logging errors before returning null
 
-**Content Script Injection Race:**
-- Symptoms: Network/console interception may not work on first page load
-- Files: `src/entrypoints/network-interceptor.ts`, `src/entrypoints/recorder.content.ts`
-- Trigger: Page loads before extension finishes initializing
-- Workaround: Refresh page after extension installation
+**Jenkins API Client Returns Null on HTTP Errors:**
+- Issue: `fetchApi()` returns `null` instead of throwing when HTTP requests fail
+- Files: `src/features/jenkins/api/client.ts` (line 43)
+- Impact: Calling code cannot distinguish between network errors, timeouts, and non-2xx responses
+- Fix approach: Throw typed errors that callers can handle appropriately
 
 ## Security Considerations
 
-**Credentials Stored in IndexedDB:**
-- Risk: API keys (AI providers), Jenkins tokens stored in IndexedDB settings table
-- Files: `src/lib/db/settings.ts`, `src/db/types.ts`
-- Current mitigation: Some keys encrypted via `encryptData`/`decryptData` (AES-GCM)
-- Recommendations:
-  - All API keys should be encrypted at rest (currently some are plaintext strings)
-  - Add key derivation for sync encryption key (PBKDF2 or similar)
-  - Implement secure key deletion when user logs out
+**Network Interceptor Captures All Headers:**
+- Issue: The network interceptor no longer redacts sensitive headers (auth tokens, cookies)
+- Files: `src/entrypoints/network-interceptor.ts` (lines 30-38 comment shows SENSITIVE_HEADERS was disabled)
+- Current mitigation: Headers are captured but only for local recording playback
+- Recommendations: Consider re-adding header redaction for production builds, or add a privacy mode
 
-**Token Exposure in Network Interceptor:**
-- Risk: Sensitive headers (Authorization, cookies) captured in network events
-- Files: `src/entrypoints/network-interceptor.ts`
-- Current mitigation: Commented out SENSITIVE_HEADERS list indicates awareness, but headers are preserved for debugging
-- Recommendations: Add option to redact sensitive headers in recordings
+**Sensitive Data in IndexedDB:**
+- Risk: Jenkins credentials are stored encrypted, but sync access tokens are stored in settings
+- Files: `src/db/index.ts`, `src/db/types.ts`
+- Current mitigation: Encryption key is derived from user password; sync uses E2EE
+- Recommendations: Ensure key derivation uses adequate work factors (PBKDF2/Argon2)
 
-**Basic Auth Encoding:**
-- Risk: Jenkins credentials encoded as Base64 in Basic Auth header
+**Jenkins Credentials Transmitted:**
+- Risk: Jenkins credentials are sent to Jenkins servers (required for API access)
 - Files: `src/features/jenkins/api/client.ts`
-- Impact: Credentials visible in network logs if not using HTTPS
-- Recommendations: Use token-based auth where possible; warn users about HTTP usage
+- Recommendations: Use token-based auth instead of username/password where possible
 
 ## Performance Bottlenecks
 
-**Large Link Lists with N+1 Query Pattern:**
-- Problem: `listLinks` in `src/lib/db/links.ts` batches data but complex queries may still be slow with thousands of links
-- Files: `src/lib/db/links.ts` (525 lines)
-- Cause: Dexie filtering + multiple joins for tag resolution
-- Improvement path: Add database indexes on frequently queried fields (url, createdAt)
+**Large Vendor Bundle (rrweb):**
+- Problem: `src/vendor/rrweb/rrweb.js` is 28,293 lines
+- Impact: Increases extension bundle size significantly
+- Cause: Bundled rrweb library for session recording
+- Improvement path: Consider tree-shaking or using only needed rrweb plugins
 
-**Tag Resolution in Bulk Operations:**
-- Problem: `resolveTagNamesToIds` loads all tags to resolve names
-- Files: `src/lib/db/links.ts` (lines 29-50)
-- Cause: No indexed lookup by tag name
-- Improvement path: Create tag name index in Dexie schema
+**Large AI Chat Hook:**
+- Problem: `src/features/aiAssistant/hooks/useAIChat.ts` is 1,118 lines
+- Impact: Initial load time for AI Assistant feature
+- Cause: Complex conversation management logic with streaming, tool calls, and session handling
+- Improvement path: Consider splitting into smaller hooks (useStreaming, useToolCalls, useSessions)
 
-**Global Sync Periodic Refresh:**
-- Problem: `useGlobalSync` sets interval to refresh counts every 30 seconds
-- Files: `src/hooks/useGlobalSync.ts` (line 79)
-- Cause: Polling instead of event-driven updates
-- Improvement path: Use Dexie liveQuery to react to database changes
+**Network Interceptor Complexity:**
+- Problem: `src/entrypoints/network-interceptor.ts` is 962 lines
+- Impact: Bundle size and parse time for content script
+- Cause: Comprehensive fetch/XHR/EventSource interception
+- Improvement path: Consider splitting into separate modules per protocol
 
-**Recording Memory Growth:**
-- Problem: Network/console interceptors store events in memory during recording
-- Files: `src/entrypoints/network-interceptor.ts`, `src/entrypoints/console-interceptor.ts`
-- Cause: Unlimited event storage until recording stops
-- Improvement path: Implement chunked storage or streaming to disk
+**Sync Engine Complexity:**
+- Problem: `src/lib/sync/SyncEngine.ts` is 896 lines
+- Impact: Hard to maintain and test
+- Cause: Handles hooks, retry logic, conflict resolution, event emitters
+- Improvement path: Extract conflict resolution and retry logic into separate classes
+
+**ArrayBuffer Cloning in Network Interceptor:**
+- Problem: Full ArrayBuffer data is cloned for every network response
+- Files: `src/entrypoints/network-interceptor.ts` (line 292)
+- Impact: Memory pressure for large responses
+- Cause: Capturing full response data for replay
+- Improvement path: Store reference instead of cloning, or limit size
 
 ## Fragile Areas
 
-**Content Script Injection:**
-- Files: `src/entrypoints/recorder.content.ts`, `src/entrypoints/pageAgent.content.ts`
-- Why fragile: Relies on `window` object being available; page script may conflict
-- Safe modification: Test on multiple websites; ensure idempotent injection guards
+**Sync LWW Conflict Resolution:**
+- Files: `src/lib/sync/SyncEngine.ts`, `src/lib/sync/types.ts`
+- Why fragile: LWW strategy means last write always wins - no merge capability. If clocks are unsynchronized, data can be lost silently.
+- Safe modification: When changing LWW logic, update BOTH the type definitions AND the conflict resolution in SyncEngine.ts
 - Test coverage: Manual testing only
 
-**Dexie Table Type Casting:**
-- Files: `src/lib/db/tags.ts` (lines 8, 12), `src/lib/db/links.ts` (line 9)
-- Why fragile: `as unknown as Table<...>` bypasses type safety; compound keys may not work
-- Safe modification: Verify Dexie compound key behavior; add runtime validation
-- Test coverage: No unit tests
+**Dexie Hook Transaction Source Checks:**
+- Files: `src/lib/sync/SyncEngine.ts` (multiple hook implementations)
+- Why fragile: All hooks check `tx.source === 'sync'` to prevent infinite loops. If this check is accidentally removed, sync will recurse infinitely.
+- Safe modification: Always verify `tx.source === 'sync'` is present when adding new hooks
+- Test coverage: Manual testing only
 
-**Legacy Key Migration:**
-- Files: `src/lib/crypto/encryption.ts` (lines 104-109)
-- Why fragile: Migration from browser.storage.local to IndexedDB happens once; if interrupted, key could be lost
-- Safe modification: Add atomic migration with rollback capability
-- Test coverage: Not tested
-
-**Sync Lock Mechanism:**
-- Files: `src/lib/sync/SyncEngine.ts` (lines 52, 61-63)
-- Why fragile: `syncLock` is a simple boolean; crash during sync leaves lock stuck
-- Safe modification: Uses 5-minute timeout safety check in `useGlobalSync.ts` (lines 54-71)
-- Test coverage: Implicit safety check only
+**Deep Clone in Console Interceptor:**
+- Files: `src/entrypoints/console-interceptor.ts` (lines 41-384)
+- Why fragile: 343-line deep clone function handles many edge cases. Adding new type handling requires understanding the full scope.
+- Safe modification: Test with circular references, Proxies, and detached DOM nodes
+- Test coverage: Manual testing only
 
 ## Scaling Limits
 
 **IndexedDB Storage:**
-- Current capacity: Browser-specific limits (typically 50MB-10GB)
-- Limit: No cleanup of old recordings; old sync operations accumulate
-- Scaling path: Implement recording archival/cleanup; add storage quota monitoring
+- Current capacity: Browser-dependent, typically 50MB-无限制 for extensions
+- Limit: No automatic cleanup of old recordings or operations
+- Scaling path: Implement storage usage monitoring and cleanup policies
 
-**Concurrent Sync Operations:**
-- Current capacity: Single sync lock prevents concurrent syncs
-- Limit: Cannot sync from multiple devices simultaneously without conflict
-- Scaling path: Implement proper CRDT-based merge for offline multi-device scenarios
+**Sync Operation Queue:**
+- Current capacity: Operations table grows indefinitely
+- Limit: No upper bound on pending operations
+- Scaling path: Implement operation archival or compaction after successful sync
 
-**Large Recording Playback:**
-- Current capacity: Entire recording loaded into memory
-- Limit: Recordings over 100MB may cause browser crashes
-- Scaling path: Implement chunked loading for playback
+**Hot News Cache:**
+- Current capacity: 3 days of news cached
+- Limit: Fixed at 3 dates
+- Scaling path: Configurable retention period
 
 ## Dependencies at Risk
 
-**rrweb Vendor Bundle:**
-- Risk: Large bundled vendor code (rrweb.d.ts is 548 lines)
-- Impact: If rrweb has security issues, all recorded data is at risk
-- Migration plan: Keep rrweb isolated; consider native Recording API alternative
+**rrweb (Alpha Version):**
+- Risk: Using `rrweb@2.0.0-alpha.20` - alpha versions may have breaking changes
+- Impact: Session recording and replay could break on updates
+- Migration plan: Wait for stable release, or pin to specific commit
 
-**Dexie Version:**
-- Risk: API may change between versions
-- Impact: Database schema migrations may break
-- Migration plan: Pin dexie version; test migrations thoroughly
+**WXT Framework:**
+- Risk: WXT is relatively new and may have breaking changes between minor versions
+- Impact: Extension may break on framework updates
+- Migration plan: Pin WXT version and review changelog before updating
 
 ## Missing Critical Features
 
-**No Unit/Integration Tests:**
-- Problem: Zero project-specific tests; only node_modules test files
-- Blocks: Safe refactoring; regression detection; CI/CD quality gates
-- Priority: HIGH
+**Automated Testing:**
+- What's missing: No unit tests or integration tests in `src/`
+- Blocks: Refactoring confidence, regression detection
+- Priority: High
 
-**No Error Boundaries:**
-- Problem: React component crashes propagate to browser extension context
-- Blocks: Stable operation after unexpected errors
-- Priority: HIGH
+**Error Boundaries for Individual Features:**
+- What's missing: Single global ErrorBoundary, no per-feature boundaries
+- Blocks: One feature error crashes entire side panel
+- Priority: Medium
 
-**No Offline Queue Visualization:**
-- Problem: Users cannot see pending sync operations count accurately
-- Blocks: Trust in sync system; debugging sync issues
-- Priority: MEDIUM
+**Storage Usage Monitoring:**
+- What's missing: No visibility into IndexedDB usage
+- Blocks: Users don't know when storage is running low
+- Priority: Low
 
 ## Test Coverage Gaps
 
 **Untested Areas:**
-- SyncEngine conflict resolution logic - Files: `src/lib/sync/SyncEngine.ts`
-- Database CRUD operations - Files: `src/lib/db/*.ts`
-- Content script injection - Files: `src/entrypoints/recorder.content.ts`
-- AI provider integration - Files: `src/lib/ai/provider.ts`
-- Token encryption/decryption - Files: `src/lib/crypto/encryption.ts`
-- Risk: Sync bugs, data corruption, and recording failures go undetected
-- Priority: HIGH
+- Sync conflict resolution - LWW logic has no automated tests
+- Dexie hook interactions - sync hooks tested manually only
+- Network interceptor - tested by recording real sessions
+- Console interceptor deep clone - edge cases tested manually
+- AI provider streaming - tested manually with live API calls
+
+**Files needing tests:**
+- `src/lib/sync/SyncEngine.ts` - conflict resolution
+- `src/lib/db/links.ts` - CRUD operations
+- `src/lib/db/tags.ts` - CRUD operations
+- `src/entrypoints/network-interceptor.ts` - interceptor logic
+- `src/entrypoints/console-interceptor.ts` - deep clone logic
 
 ---
 
