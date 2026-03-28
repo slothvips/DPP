@@ -15,11 +15,15 @@ const SORT_PATTERNS = ['sort', 'sortNo', 'sortno', 'order', 'seq', 'index'];
 
 function detectField(data: unknown[], patterns: string[]): string | null {
   if (!data || !Array.isArray(data) || data.length === 0) return null;
-  const sample = data[0];
-  if (typeof sample !== 'object' || sample === null) return null;
 
-  for (const pattern of patterns) {
-    if (pattern in sample) return pattern;
+  // 检查前N个元素，找到第一个匹配的模式
+  const checkCount = Math.min(data.length, 5);
+  for (let i = 0; i < checkCount; i++) {
+    const sample = data[i];
+    if (typeof sample !== 'object' || sample === null) continue;
+    for (const pattern of patterns) {
+      if (pattern in sample) return pattern;
+    }
   }
   return null;
 }
@@ -67,6 +71,10 @@ function flattenTreeData(
 
 function parseData(jsonText: string, childrenField: string): Record<string, unknown>[] {
   const parsed = JSON.parse(jsonText);
+  if (!Array.isArray(parsed)) {
+    // 非数组数据转为单元素数组
+    return [parsed] as Record<string, unknown>[];
+  }
   if (isTreeData(parsed, childrenField)) {
     return flattenTreeData(parsed, childrenField);
   }
@@ -91,8 +99,15 @@ function isKeyFieldChanged(
   return false;
 }
 
+// 检测任意字段是否有变化（用于判断 update 类型）
+function hasAnyChange(itemA: Record<string, unknown>, itemB: Record<string, unknown>): boolean {
+  return !isEqual(itemA, itemB);
+}
+
 function isEqual(obj1: unknown, obj2: unknown): boolean {
   if (obj1 === obj2) return true;
+  // 处理 NaN 的情况：NaN === NaN 应该返回 true
+  if (Number.isNaN(obj1) && Number.isNaN(obj2)) return true;
   if (obj1 == null || obj2 == null) return obj1 === obj2;
   if (typeof obj1 !== 'object' || typeof obj2 !== 'object') return obj1 === obj2;
 
@@ -133,7 +148,7 @@ function computeDiff(
     const itemA = mapA.get(itemB[idField] as string);
     if (!itemA) {
       diffResult.push({ ...itemB, type: 'insert' });
-    } else if (isKeyFieldChanged(itemA, itemB, keyFields)) {
+    } else if (isKeyFieldChanged(itemA, itemB, keyFields) || hasAnyChange(itemA, itemB)) {
       diffResult.push({ ...itemB, type: 'update' });
     }
   });
@@ -156,7 +171,7 @@ function processDiff(
   const diffResult = computeDiff(dataA, dataB, fields);
 
   const diffMap = new Map<string, string>();
-  diffResult.forEach((item) => diffMap.set(item[idField] as string, item.type));
+  diffResult.forEach((item) => diffMap.set(String(item[idField]), item.type));
 
   const dataBIds = new Set(dataB.map((m) => m[idField]));
   const allData = [...dataB];
@@ -190,20 +205,22 @@ function buildTree(
   const rootNodes: TreeNode[] = [];
 
   data.forEach((item) => {
+    const nodeId = String(item[idField]);
     const node: TreeNode = {
       ...item,
-      _id: item[idField] as string,
-      _pid: (item[pidField] as string) || 'root',
-      _sort: (item[sortField] as number) || 0,
+      _id: nodeId,
+      _pid: String(item[pidField] ?? 'root'),
+      _sort: parseInt(String(item[sortField] ?? 0), 10) || 0,
       _children: [],
-      _diffType: diffMap.get(item[idField] as string) || null,
+      _diffType: diffMap.get(nodeId) || null,
     };
-    nodeMap.set(item[idField] as string, node);
+    nodeMap.set(nodeId, node);
   });
 
   data.forEach((item) => {
-    const node = nodeMap.get(item[idField] as string)!;
-    const pid = (item[pidField] as string) || 'root';
+    const nodeId = String(item[idField]);
+    const node = nodeMap.get(nodeId)!;
+    const pid = String(item[pidField] ?? 'root');
 
     if (pid === 'root' || !nodeMap.has(pid)) {
       rootNodes.push(node);
@@ -212,11 +229,19 @@ function buildTree(
     }
   });
 
+  const visitingSet = new Set<string>();
+
   function sortChildren(node: TreeNode) {
+    // 检测环形引用，防止无限递归
+    if (visitingSet.has(node._id)) return;
+    visitingSet.add(node._id);
+
     if (node._children.length > 0) {
       node._children.sort((a, b) => (a._sort || 0) - (b._sort || 0));
-      node._children.forEach(sortChildren);
+      node._children.forEach((child: TreeNode) => sortChildren(child));
     }
+
+    visitingSet.delete(node._id);
   }
 
   rootNodes.sort((a, b) => (a._sort || 0) - (b._sort || 0));
@@ -417,7 +442,7 @@ export function DataDiffView({ onBack }: DataDiffViewProps) {
       const tree = buildTree(
         allData,
         fields,
-        new Map(result.map((r) => [r[fields.idField] as string, r.type]))
+        new Map(result.map((r) => [String(r[fields.idField]), r.type]))
       );
       setTreeData(tree);
 
@@ -437,20 +462,19 @@ export function DataDiffView({ onBack }: DataDiffViewProps) {
     (id: string) => {
       if (!currentFields) return;
 
-      const itemA = originalDataA.find((item) => item[currentFields.idField] === id);
-      const itemB = originalDataB.find((item) => item[currentFields.idField] === id);
+      const itemA = originalDataA.find((item) => String(item[currentFields.idField]) === id);
+      const itemB = originalDataB.find((item) => String(item[currentFields.idField]) === id);
 
       if (!itemA || !itemB) return;
 
-      // 只显示关键字段的变化
-      const keyFields = [
-        currentFields.nameField,
-        currentFields.pidField,
-        currentFields.childrenField,
-      ];
+      // 显示所有变化的字段
+      const allKeys = new Set([...Object.keys(itemA), ...Object.keys(itemB)]);
       const changedFields: UpdateDetail[] = [];
 
-      keyFields.forEach((key) => {
+      allKeys.forEach((key) => {
+        // 排除内部字段和 id 字段本身
+        if (['_id', '_pid', '_sort', '_children', '_diffType', currentFields.idField].includes(key))
+          return;
         if (!isEqual(itemA[key], itemB[key])) {
           changedFields.push({ key, oldVal: itemA[key], newVal: itemB[key] });
         }
@@ -606,27 +630,33 @@ export function DataDiffView({ onBack }: DataDiffViewProps) {
               <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary">
                 💡 <strong>提示：</strong>将 <strong>B 数据源（新值）</strong> 填写到对应系统
               </div>
-              <div className="space-y-3">
-                {updateDetails.map((detail) => (
-                  <div key={detail.key} className="p-3 rounded-lg border border-border bg-card">
-                    <div className="text-sm font-medium text-foreground mb-2">{detail.key}</div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-2 rounded bg-destructive/5 border border-destructive/20">
-                        <div className="text-xs font-medium text-destructive mb-1">旧值</div>
-                        <div className="font-mono text-xs text-foreground break-all">
-                          {formatValue(detail.oldVal)}
+              {updateDetails.length === 0 ? (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                  未检测到字段变化
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {updateDetails.map((detail) => (
+                    <div key={detail.key} className="p-3 rounded-lg border border-border bg-card">
+                      <div className="text-sm font-medium text-foreground mb-2">{detail.key}</div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-2 rounded bg-destructive/5 border border-destructive/20">
+                          <div className="text-xs font-medium text-destructive mb-1">旧值</div>
+                          <div className="font-mono text-xs text-foreground break-all">
+                            {formatValue(detail.oldVal)}
+                          </div>
                         </div>
-                      </div>
-                      <div className="p-2 rounded bg-success/5 border border-success/20">
-                        <div className="text-xs font-medium text-success mb-1">新值</div>
-                        <div className="font-mono text-xs text-foreground break-all">
-                          {formatValue(detail.newVal)}
+                        <div className="p-2 rounded bg-success/5 border border-success/20">
+                          <div className="text-xs font-medium text-success mb-1">新值</div>
+                          <div className="font-mono text-xs text-foreground break-all">
+                            {formatValue(detail.newVal)}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

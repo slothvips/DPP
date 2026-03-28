@@ -197,10 +197,16 @@ export function JsonView({ onBack }: { onBack?: () => void }) {
     }
 
     // 方法3: 去掉前后的非 JSON 字符
-    // 去掉开头的说明文字
+    // 去掉开头的说明文字，保留从第一个 { 或 [ 开始的内容
     cleaned = cleaned.replace(/^[\s\S]*?(?=\{|\[)/, '');
-    // 去掉结尾的说明文字
-    cleaned = cleaned.replace(/[^}\]][\s\S]*$/, '');
+    // 去掉结尾的说明文字：保留到最后一个 } 或 ] 之前
+    // 使用更精确的方式：找到最后一个有效的闭合括号
+    const lastBrace = cleaned.lastIndexOf('}');
+    const lastBracket = cleaned.lastIndexOf(']');
+    const lastEnd = Math.max(lastBrace, lastBracket);
+    if (lastEnd > 0) {
+      cleaned = cleaned.substring(0, lastEnd + 1);
+    }
     try {
       JSON.parse(cleaned);
       return cleaned;
