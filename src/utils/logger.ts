@@ -20,10 +20,10 @@ function createLogger(): Logger {
   };
 
   return {
-    debug: (...args) => log('debug', ...args),
-    info: (...args) => log('info', ...args),
-    warn: (...args) => log('warn', ...args),
-    error: (...args) => log('error', ...args),
+    debug: () => {},
+    info: () => {},
+    warn: () => {},
+    error: () => {},
   };
 }
 

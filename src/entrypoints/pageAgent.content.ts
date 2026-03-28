@@ -102,10 +102,6 @@ export default defineContentScript({
         window.__DPP_PAGE_AGENT__ = agent;
         currentAgent = agent;
       } catch (error) {
-        console.error(
-          '[PageAgent] 初始化失败:',
-          error instanceof Error ? error.message : '未知错误'
-        );
         // 清理可能的部分初始化状态
         delete window.__DPP_PAGE_AGENT__;
         currentAgent = null;
