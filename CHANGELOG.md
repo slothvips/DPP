@@ -1,5 +1,36 @@
 # 更新日志
 
+## v0.4.0 (2026-03-29)
+
+### ✨ 新功能
+
+- **YOLO 模式按钮**: 新增 AI 助手界面的 YOLO 模式开关
+  - 一键开启自动确认所有工具调用，无需逐个点击确认
+  - 包含安全警告提示，建议仅在安全场景使用
+  - 支持实时状态同步，跨组件状态一致
+
+- **工具箱增强**: 全面优化 Toolbox 各工具组件
+  - Monaco Editor Worker 配置优化，确保编辑器正确初始化
+  - DataDiffTool 改进数据差异对比体验
+  - TimestampTool 时间戳转换功能增强
+  - DiffTool/JsonTool 代码优化，提升稳定性
+
+### 🔧 依赖更新
+
+- **page-agent 升级**: 从 1.6.1 升级到 1.6.2
+
+### 🏗️ 构建优化
+
+- **Rollup 配置**: 添加 eval 警告过滤，消除 page-agent 依赖的构建警告
+- **Monaco Worker**: 新增独立 worker 配置文件 `src/lib/monaco/worker.ts`
+
+### 🔧 代码质量
+
+- **Logger 优化**: 增强日志工具功能
+- **AI Assistant UI**: 简化 TabSelector 组件
+
+---
+
 ## v0.3.9 (2026-03-24)
 
 ### ✨ 新功能
