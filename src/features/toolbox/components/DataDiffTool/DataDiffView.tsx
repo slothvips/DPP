@@ -139,13 +139,13 @@ function computeDiff(
   const diffResult: DiffItem[] = [];
 
   const mapA = new Map<string, Record<string, unknown>>();
-  dataA.forEach((item) => mapA.set(item[idField] as string, item));
+  dataA.forEach((item) => mapA.set(String(item[idField]), item));
 
   const mapB = new Map<string, Record<string, unknown>>();
-  dataB.forEach((item) => mapB.set(item[idField] as string, item));
+  dataB.forEach((item) => mapB.set(String(item[idField]), item));
 
   dataB.forEach((itemB) => {
-    const itemA = mapA.get(itemB[idField] as string);
+    const itemA = mapA.get(String(itemB[idField]));
     if (!itemA) {
       diffResult.push({ ...itemB, type: 'insert' });
     } else if (isKeyFieldChanged(itemA, itemB, keyFields) || hasAnyChange(itemA, itemB)) {
@@ -154,7 +154,7 @@ function computeDiff(
   });
 
   dataA.forEach((itemA) => {
-    if (!mapB.has(itemA[idField] as string)) {
+    if (!mapB.has(String(itemA[idField]))) {
       diffResult.push({ ...itemA, type: 'remove' });
     }
   });
@@ -173,10 +173,10 @@ function processDiff(
   const diffMap = new Map<string, string>();
   diffResult.forEach((item) => diffMap.set(String(item[idField]), item.type));
 
-  const dataBIds = new Set(dataB.map((m) => m[idField]));
+  const dataBIds = new Set(dataB.map((m) => String(m[idField])));
   const allData = [...dataB];
   dataA.forEach((item) => {
-    if (!dataBIds.has(item[idField] as string)) {
+    if (!dataBIds.has(String(item[idField]))) {
       allData.push(item);
     }
   });
