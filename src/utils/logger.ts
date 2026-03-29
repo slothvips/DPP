@@ -12,18 +12,27 @@ interface Logger {
 function createLogger(): Logger {
   const isDev = import.meta.env?.DEV ?? true;
 
-  const log = (level: LogLevel, ...args: unknown[]) => {
-    if (level === 'debug' && !isDev) return;
+  // 生产环境返回空函数，避免任何日志输出
+  if (!isDev) {
+    return {
+      debug: () => {},
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+    };
+  }
 
+  // 开发环境返回实际的日志函数
+  const log = (level: LogLevel, ...args: unknown[]) => {
     const method = level === 'debug' ? 'log' : level;
     console[method](PREFIX, ...args);
   };
 
   return {
-    debug: () => {},
-    info: () => {},
-    warn: () => {},
-    error: () => {},
+    debug: (...args) => log('debug', ...args),
+    info: (...args) => log('info', ...args),
+    warn: (...args) => log('warn', ...args),
+    error: (...args) => log('error', ...args),
   };
 }
 

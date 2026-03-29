@@ -1,9 +1,14 @@
 import { ChevronLeft } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+
+// ========== 数据量限制 ==========
+
+// 最大支持的记录数，超过此限制可能影响性能
+const MAX_RECORDS = 10000;
 
 // ========== 字段自动检测 ==========
 
@@ -83,33 +88,34 @@ function parseData(jsonText: string, childrenField: string): Record<string, unkn
 
 // ========== 差异对比 ==========
 
-function isKeyFieldChanged(
-  itemA: Record<string, unknown>,
-  itemB: Record<string, unknown>,
-  fields: { nameField: string; pidField: string; childrenField: string }
-): boolean {
-  const { nameField, pidField, childrenField } = fields;
-  const keyFields = [nameField, pidField, childrenField];
-
-  for (const key of keyFields) {
-    if (!isEqual(itemA[key], itemB[key])) {
-      return true;
-    }
-  }
-  return false;
-}
+// 最大递归深度，超过此深度使用浅比较
+const MAX_COMPARE_DEPTH = 20;
 
 // 检测任意字段是否有变化（用于判断 update 类型）
 function hasAnyChange(itemA: Record<string, unknown>, itemB: Record<string, unknown>): boolean {
   return !isEqual(itemA, itemB);
 }
 
-function isEqual(obj1: unknown, obj2: unknown): boolean {
+function isEqual(obj1: unknown, obj2: unknown, depth = 0): boolean {
   if (obj1 === obj2) return true;
   // 处理 NaN 的情况：NaN === NaN 应该返回 true
   if (Number.isNaN(obj1) && Number.isNaN(obj2)) return true;
   if (obj1 == null || obj2 == null) return obj1 === obj2;
   if (typeof obj1 !== 'object' || typeof obj2 !== 'object') return obj1 === obj2;
+
+  // 深度保护：超过最大深度时使用浅比较
+  if (depth >= MAX_COMPARE_DEPTH) {
+    // 浅比较：只比较引用和 JSON 字符串
+    return JSON.stringify(obj1) === JSON.stringify(obj2);
+  }
+
+  // 优化数组比较
+  if (Array.isArray(obj1) && Array.isArray(obj2)) {
+    if (obj1.length !== obj2.length) return false;
+    return obj1.every((item, index) => isEqual(item, obj2[index], depth + 1));
+  }
+  // 如果一个是数组另一个不是，不相等
+  if (Array.isArray(obj1) !== Array.isArray(obj2)) return false;
 
   const keys1 = Object.keys(obj1 as object);
   const keys2 = Object.keys(obj2 as object);
@@ -118,7 +124,13 @@ function isEqual(obj1: unknown, obj2: unknown): boolean {
 
   for (const key of keys1) {
     if (!keys2.includes(key)) return false;
-    if (!isEqual((obj1 as Record<string, unknown>)[key], (obj2 as Record<string, unknown>)[key]))
+    if (
+      !isEqual(
+        (obj1 as Record<string, unknown>)[key],
+        (obj2 as Record<string, unknown>)[key],
+        depth + 1
+      )
+    )
       return false;
   }
 
@@ -134,8 +146,7 @@ function computeDiff(
   dataB: Record<string, unknown>[],
   fields: { idField: string; nameField: string; pidField: string; childrenField: string }
 ): DiffItem[] {
-  const { idField, nameField, pidField, childrenField } = fields;
-  const keyFields = { nameField, pidField, childrenField };
+  const { idField } = fields;
   const diffResult: DiffItem[] = [];
 
   const mapA = new Map<string, Record<string, unknown>>();
@@ -148,7 +159,7 @@ function computeDiff(
     const itemA = mapA.get(String(itemB[idField]));
     if (!itemA) {
       diffResult.push({ ...itemB, type: 'insert' });
-    } else if (isKeyFieldChanged(itemA, itemB, keyFields) || hasAnyChange(itemA, itemB)) {
+    } else if (hasAnyChange(itemA, itemB)) {
       diffResult.push({ ...itemB, type: 'update' });
     }
   });
@@ -206,10 +217,14 @@ function buildTree(
 
   data.forEach((item) => {
     const nodeId = String(item[idField]);
+    // 明确处理 null/undefined，避免 "undefined" 字符串
+    const pidValue = item[pidField];
+    const pid = pidValue != null ? String(pidValue) : 'root';
+
     const node: TreeNode = {
       ...item,
       _id: nodeId,
-      _pid: String(item[pidField] ?? 'root'),
+      _pid: pid,
       _sort: parseInt(String(item[sortField] ?? 0), 10) || 0,
       _children: [],
       _diffType: diffMap.get(nodeId) || null,
@@ -220,7 +235,8 @@ function buildTree(
   data.forEach((item) => {
     const nodeId = String(item[idField]);
     const node = nodeMap.get(nodeId)!;
-    const pid = String(item[pidField] ?? 'root');
+    const pidValue = item[pidField];
+    const pid = pidValue != null ? String(pidValue) : 'root';
 
     if (pid === 'root' || !nodeMap.has(pid)) {
       rootNodes.push(node);
@@ -302,7 +318,47 @@ function nodeHasDiff(node: TreeNode): boolean {
   return node._children.some(nodeHasDiff);
 }
 
-function TreeNodeComponent({ node, level, fields, onUpdateClick, showDiffOnly }: TreeNodeProps) {
+// TreeNodeComponent 的自定义比较函数
+function arePropsEqual(prevProps: TreeNodeProps, nextProps: TreeNodeProps): boolean {
+  // 比较基本类型属性
+  if (
+    prevProps.level !== nextProps.level ||
+    prevProps.showDiffOnly !== nextProps.showDiffOnly ||
+    prevProps.fields.idField !== nextProps.fields.idField ||
+    prevProps.fields.nameField !== nextProps.fields.nameField
+  ) {
+    return false;
+  }
+
+  // 比较节点关键字段
+  const prevNode = prevProps.node;
+  const nextNode = nextProps.node;
+
+  if (
+    prevNode._id !== nextNode._id ||
+    prevNode._diffType !== nextNode._diffType ||
+    prevNode._children.length !== nextNode._children.length
+  ) {
+    return false;
+  }
+
+  // 比较 nameField 字段（最常变化的字段）
+  const nameField = nextProps.fields.nameField;
+  if (prevNode[nameField] !== nextNode[nameField]) {
+    return false;
+  }
+
+  return true;
+}
+
+// 使用 memo 优化递归组件性能，避免不必要的重渲染
+const TreeNodeComponent = memo(function TreeNodeComponent({
+  node,
+  level,
+  fields,
+  onUpdateClick,
+  showDiffOnly,
+}: TreeNodeProps) {
   const { idField, nameField } = fields;
   const indent = level * 20;
   const hasChildren = node._children.length > 0;
@@ -370,7 +426,7 @@ function TreeNodeComponent({ node, level, fields, onUpdateClick, showDiffOnly }:
       )}
     </div>
   );
-}
+}, arePropsEqual);
 
 interface UpdateDetail {
   key: string;
@@ -411,6 +467,20 @@ export function DataDiffView({ onBack }: DataDiffViewProps) {
   const [updateDetails, setUpdateDetails] = useState<UpdateDetail[]>([]);
   const [showModal, setShowModal] = useState(false);
 
+  // 处理 Modal 键盘事件（Escape 关闭）
+  useEffect(() => {
+    if (!showModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowModal(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showModal]);
+
   const handleCompare = useCallback(() => {
     setError(null);
 
@@ -429,6 +499,15 @@ export function DataDiffView({ onBack }: DataDiffViewProps) {
 
       const parsedDataA = parseData(dataA, childrenField);
       const parsedDataB = parseData(dataB, childrenField);
+
+      // 数据量检查：超过限制时警告用户
+      const totalRecords = parsedDataA.length + parsedDataB.length;
+      if (totalRecords > MAX_RECORDS) {
+        setError(
+          `数据量过大（${totalRecords} 条），可能影响性能。建议控制在 ${MAX_RECORDS} 条以内。`
+        );
+        return;
+      }
 
       setOriginalDataA(parsedDataA);
       setOriginalDataB(parsedDataB);

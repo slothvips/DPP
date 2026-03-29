@@ -52,6 +52,10 @@ function formatRelativeTime(date: Date, now: Date): string {
   return `${seconds} 秒${isPast ? '前' : '后'}`;
 }
 
+// JavaScript Date 的有效时间戳范围
+const MIN_TIMESTAMP = -8640000000000000;
+const MAX_TIMESTAMP = 8640000000000000;
+
 export function TimestampView({ onBack }: { onBack?: () => void }) {
   const [timestampInput, setTimestampInput] = useState('');
   const [timezone, setTimezone] = useState('local');
@@ -61,8 +65,6 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
   const [aiCorrectedInput, setAiCorrectedInput] = useState<string | null>(null);
   const [aiReasoning, setAiReasoning] = useState<string | null>(null);
 
-  const now = useMemo(() => new Date(), []);
-
   const parseToDate = useCallback((input: string): Date | null => {
     const trimmed = input.trim();
     if (!trimmed) return null;
@@ -70,17 +72,37 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
     // 尝试作为时间戳解析（毫秒或秒）
     const num = Number(trimmed);
     if (!isNaN(num)) {
-      // 如果是 10 位数，当作秒处理
-      if (trimmed.length <= 10) {
-        return new Date(num * 1000);
+      // 使用数值大小判断秒/毫秒：
+      // - 秒时间戳通常 < 1e12（约 2001-09-09 之前）
+      // - 毫秒时间戳通常 >= 1e12
+      // 同时处理负数时间戳（1970 年之前）
+      const absNum = Math.abs(num);
+      let msTimestamp: number;
+
+      if (absNum < 1e12) {
+        // 可能是秒时间戳
+        msTimestamp = num * 1000;
+      } else {
+        // 毫秒时间戳
+        msTimestamp = num;
       }
-      // 否则当作毫秒
-      return new Date(num);
+
+      // 边界检查：确保时间戳在 JavaScript Date 的有效范围内
+      if (msTimestamp < MIN_TIMESTAMP || msTimestamp > MAX_TIMESTAMP) {
+        return null;
+      }
+
+      return new Date(msTimestamp);
     }
 
     // 尝试作为日期字符串解析
     const parsed = new Date(input);
     if (!isNaN(parsed.getTime())) {
+      // 同样检查解析后的时间戳是否在有效范围内
+      const ts = parsed.getTime();
+      if (ts < MIN_TIMESTAMP || ts > MAX_TIMESTAMP) {
+        return null;
+      }
       return parsed;
     }
 
@@ -97,7 +119,8 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
     setAiReasoning(null);
 
     try {
-      const result = await correctTimestampWithAI(timestampInput, now, timezone);
+      // 使用当前时间作为基准（而非组件渲染时的时间）
+      const result = await correctTimestampWithAI(timestampInput, new Date(), timezone);
       if (result.success && result.correctedInput) {
         setAiCorrectedInput(originalInput);
         setAiReasoning(result.reasoning || null);
@@ -111,7 +134,7 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
     } finally {
       setIsAiFixing(false);
     }
-  }, [timestampInput, now, timezone]);
+  }, [timestampInput, timezone]);
 
   const dateFromTimestamp = parseToDate(timestampInput);
   const isInvalid = timestampInput.trim() && !dateFromTimestamp;
@@ -130,24 +153,81 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
     const tsSeconds = Math.floor(ts / 1000);
 
     // 获取指定时区的日期组件
-    const getTzDate = (tz: string) => {
-      if (tz === 'local') return dateFromTimestamp;
-      return new Date(dateFromTimestamp.toLocaleString('en-US', { timeZone: tz }));
+    // 使用 Intl.DateTimeFormat 精确获取时区日期，避免 toLocaleString 的精度损失
+    const getTzDateParts = (date: Date, tz: string) => {
+      if (tz === 'local') {
+        return {
+          year: date.getFullYear(),
+          month: date.getMonth() + 1,
+          day: date.getDate(),
+          hours: date.getHours(),
+          minutes: date.getMinutes(),
+          seconds: date.getSeconds(),
+          dayOfWeek: date.getDay(),
+        };
+      }
+
+      // 使用 Intl.DateTimeFormat 获取指定时区的日期组件
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false,
+        weekday: 'short',
+      });
+
+      const parts = formatter.formatToParts(date);
+      const getPart = (type: Intl.DateTimeFormatPartTypes) => {
+        const part = parts.find((p) => p.type === type);
+        return part ? part.value : '';
+      };
+
+      const weekdayMap: Record<string, number> = {
+        Sun: 0,
+        Mon: 1,
+        Tue: 2,
+        Wed: 3,
+        Thu: 4,
+        Fri: 5,
+        Sat: 6,
+      };
+
+      return {
+        year: parseInt(getPart('year'), 10),
+        month: parseInt(getPart('month'), 10),
+        day: parseInt(getPart('day'), 10),
+        hours: parseInt(getPart('hour'), 10),
+        minutes: parseInt(getPart('minute'), 10),
+        seconds: parseInt(getPart('second'), 10),
+        dayOfWeek: weekdayMap[getPart('weekday')] ?? 0,
+      };
     };
 
-    const tzDate = getTzDate(timezone);
-    const year = tzDate.getFullYear();
-    const month = tzDate.getMonth() + 1;
-    const day = tzDate.getDate();
-    const hours = tzDate.getHours();
-    const minutes = tzDate.getMinutes();
-    const seconds = tzDate.getSeconds();
-    const dayOfWeek = tzDate.getDay();
-    const dayOfYear = Math.floor((ts - new Date(year, 0, 1).getTime()) / 86400000) + 1;
+    const tzDateParts = getTzDateParts(dateFromTimestamp, timezone);
+    const { year, month, day, hours, minutes, seconds, dayOfWeek } = tzDateParts;
 
-    // 计算周数 (ISO week number)
-    const jan1 = new Date(year, 0, 1);
-    const weekNum = Math.ceil(((ts - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7);
+    // ISO 周数计算（ISO 8601 标准）
+    // 规则：第1周是包含该年第一个周四的那一周
+    const getISOWeek = (date: Date): number => {
+      const d = new Date(date.getTime());
+      // 设置到周四（ISO 周定义）
+      d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+      // 获取该年的开始
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      // 计算周数
+      return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    };
+
+    const weekNum = getISOWeek(dateFromTimestamp);
+
+    // 年中天数（使用 UTC 避免夏令时问题）
+    const utcYear = dateFromTimestamp.getUTCFullYear();
+    const dayOfYear =
+      Math.floor((dateFromTimestamp.getTime() - Date.UTC(utcYear, 0, 1)) / 86400000) + 1;
 
     // ISO 8601 格式 (总是 UTC)
     const isoString = dateFromTimestamp.toISOString();
@@ -174,7 +254,7 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
       isoString,
       localStr,
       utcStr,
-      relative: formatRelativeTime(dateFromTimestamp, now),
+      relative: formatRelativeTime(dateFromTimestamp, new Date()),
       padded: {
         month: String(month).padStart(2, '0'),
         day: String(day).padStart(2, '0'),
@@ -183,7 +263,7 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
         seconds: String(seconds).padStart(2, '0'),
       },
     };
-  }, [dateFromTimestamp, timezone, now]);
+  }, [dateFromTimestamp, timezone]);
 
   return (
     <div className="flex flex-col h-full" data-testid="timestamp-view">

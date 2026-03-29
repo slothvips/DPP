@@ -22,6 +22,16 @@ export default defineConfig({
     build: {
       // 提高警告阈值，消除 "chunk too large" 警告
       chunkSizeWarningLimit: 7000,
+      // 过滤掉第三方依赖的 eval 警告
+      rollupOptions: {
+        onwarn(warning, warn) {
+          // 忽略 page-agent 依赖中的 eval 警告
+          if (warning.code === 'EVAL' && warning.message.includes('@page-agent/page-controller')) {
+            return;
+          }
+          warn(warning);
+        },
+      },
     },
   }),
   webExt: {

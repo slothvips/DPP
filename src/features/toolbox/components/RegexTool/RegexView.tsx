@@ -335,7 +335,7 @@ const presets = [
     label: '日期',
     pattern: '\\d{4}[-/年]\\d{1,2}[-/月]\\d{1,2}[日]?',
     flag: 'g' as const,
-    desc: '日期格式',
+    desc: '日期格式（简化版，可能匹配无效日期）',
   },
   {
     label: '时间',
@@ -364,6 +364,11 @@ const presets = [
     flag: 'g' as const,
     desc: 'UUID 格式',
   },
-  { label: '端口号', pattern: '\\d{1,5}', flag: 'g' as const, desc: '端口号' },
+  {
+    label: '端口号',
+    pattern: '(?:[1-9]\\d{0,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])',
+    flag: 'g' as const,
+    desc: '端口号 (1-65535)',
+  },
   { label: '邮政编码', pattern: '[1-9]\\d{5}', flag: 'g' as const, desc: '中国大陆邮政编码' },
 ];

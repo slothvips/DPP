@@ -84,8 +84,8 @@ importers:
         specifier: ^0.55.1
         version: 0.55.1
       page-agent:
-        specifier: ^1.6.1
-        version: 1.6.1(zod@3.25.76)
+        specifier: ^1.6.2
+        version: 1.6.2(zod@3.25.76)
       react:
         specifier: ^19.2.3
         version: 19.2.4
@@ -227,12 +227,6 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-
-  slides:
-    dependencies:
-      pptxgenjs:
-        specifier: ^4.0.1
-        version: 4.0.1
 
 packages:
 
@@ -976,21 +970,21 @@ packages:
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
 
-  '@page-agent/core@1.6.1':
-    resolution: {integrity: sha512-+UcEuHnPke9eDIVdpzvXsiAHCzxcpVNCB50xuq91H27Xzs48eCmMt5OxvXP3x2cmebTpVOpUP8AsU1x/GkYsIQ==}
+  '@page-agent/core@1.6.2':
+    resolution: {integrity: sha512-SG63qGNN+7/fXQhR2zudsyNCsFJYWhnHqbqtmZcWQyray/ttC31swqd9YWXUixKnm9Nk4U5HDyM/Zs1jeHZ0IA==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  '@page-agent/llms@1.6.1':
-    resolution: {integrity: sha512-y0Fb2RwQ5NewyN4++QOA9aPvHbi5cRxAJpHos+fus7axkNgI8i4f2Xv+3iTVk3LZR7LI1KJfOwN5P/GWjXmYuQ==}
+  '@page-agent/llms@1.6.2':
+    resolution: {integrity: sha512-GnkqTg1fDnbDsQf3i2XOeIVwLlNcMRj+4VFQUgPzZI7cCOD2uvMNAzmjRsbHPS5vZiRNWlbvUEwdl73CjhOwUg==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
-  '@page-agent/page-controller@1.6.1':
-    resolution: {integrity: sha512-qD+MsOy968edFGHoCn5tUC13E8yGG9w+ELDsmBNkBkQxVWq7sB9wbO0ouvsuAC0taou1JruSwtRnfXT7KuiLZQ==}
+  '@page-agent/page-controller@1.6.2':
+    resolution: {integrity: sha512-H3Pxi7uNp8q0EeRTMjxrDkLhJ1n+EFo13ubSqK3BYZCKBcEqDIfZes/uWj9wA/GGxrM3BkRYeP074jl9WSzghA==}
 
-  '@page-agent/ui@1.6.1':
-    resolution: {integrity: sha512-Tc4Gj+3PWAv+eym82nl9j1VJTxxBUlv/UGCWCW1G23xdhQihEhb1ei+aHHYlTbYb2Z0vFYx3mQmtcxy2tpbpzw==}
+  '@page-agent/ui@1.6.2':
+    resolution: {integrity: sha512-jbdACSWv9dm1NVwwQ2hyjYeR52B+3ijcOHfyUrj0X/O/7xPXWoMNxGdfmnu9hhz4A8+9XmD94Ylz6YlJ+2W97w==}
 
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
@@ -2709,9 +2703,6 @@ packages:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
 
-  https@1.0.0:
-    resolution: {integrity: sha512-4EC57ddXrkaF0x83Oj8sM6SLQHAWXw90Skqu2M4AEWENZ3F02dFJE/GARA8igO79tcgYqGrD7ae4f5L3um2lgg==}
-
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
 
@@ -2722,11 +2713,6 @@ packages:
   ignore@7.0.5:
     resolution: {integrity: sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==}
     engines: {node: '>= 4'}
-
-  image-size@1.2.1:
-    resolution: {integrity: sha512-rH+46sQJ2dlwfjfhCyNx5thzrv+dtmBIhPHk0zgRUukHzZ/kRueTJXoYYsclBaKcSMBWuGbOFXtioLpzTb5euw==}
-    engines: {node: '>=16.x'}
-    hasBin: true
 
   immediate@3.0.6:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
@@ -3447,8 +3433,8 @@ packages:
   package-manager-detector@1.6.0:
     resolution: {integrity: sha512-61A5ThoTiDG/C8s8UMZwSorAGwMJ0ERVGj2OjoW5pAalsNOg15+iQiPzrLJ4jhZ1HJzmC2PIHT2oEiH3R5fzNA==}
 
-  page-agent@1.6.1:
-    resolution: {integrity: sha512-7OoqnnenxfPOBRrBMHSDgUqXsglAtdWc9yq3xiAU6WAPxRR6X6zEQfyQyAzjgrmZf/u8aS+rSZyyIww1CZBcEg==}
+  page-agent@1.6.2:
+    resolution: {integrity: sha512-USjF6CMSSe2MeFqVLMRS2aCI6zLdhBdnZd6OKCrCFHjZiK22jvlGL6HJON4THQjsCeMfG0Y2NDwJ7LUreezNEw==}
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
 
@@ -3542,9 +3528,6 @@ packages:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
 
-  pptxgenjs@4.0.1:
-    resolution: {integrity: sha512-TeJISr8wouAuXw4C1F/mC33xbZs/FuEG6nH9FG1Zj+nuPcGMP5YRHl6X+j3HSUnS1f3at6k75ZZXPMZlA5Lj9A==}
-
   prebuild-install@7.1.3:
     resolution: {integrity: sha512-8Mf2cbV7x1cXPUILADGI3wuhfqWvtiLA1iclTDbFRZkgRQS0NqsPZphna9V+HyTEadheuPmjaJMsbzKQFOzLug==}
     engines: {node: '>=10'}
@@ -3603,9 +3586,6 @@ packages:
 
   queue-microtask@1.2.3:
     resolution: {integrity: sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A==}
-
-  queue@6.0.2:
-    resolution: {integrity: sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA==}
 
   quick-format-unescaped@4.0.4:
     resolution: {integrity: sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg==}
@@ -5116,23 +5096,23 @@ snapshots:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
 
-  '@page-agent/core@1.6.1(zod@3.25.76)':
+  '@page-agent/core@1.6.2(zod@3.25.76)':
     dependencies:
-      '@page-agent/llms': 1.6.1(zod@3.25.76)
-      '@page-agent/page-controller': 1.6.1
+      '@page-agent/llms': 1.6.2(zod@3.25.76)
+      '@page-agent/page-controller': 1.6.2
       chalk: 5.6.2
       zod: 3.25.76
 
-  '@page-agent/llms@1.6.1(zod@3.25.76)':
+  '@page-agent/llms@1.6.2(zod@3.25.76)':
     dependencies:
       chalk: 5.6.2
       zod: 3.25.76
 
-  '@page-agent/page-controller@1.6.1':
+  '@page-agent/page-controller@1.6.2':
     dependencies:
       ai-motion: 0.4.8
 
-  '@page-agent/ui@1.6.1': {}
+  '@page-agent/ui@1.6.2': {}
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
@@ -5654,6 +5634,7 @@ snapshots:
   '@types/node@22.19.15':
     dependencies:
       undici-types: 6.21.0
+    optional: true
 
   '@types/parse-json@4.0.2': {}
 
@@ -6893,17 +6874,11 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  https@1.0.0: {}
-
   ieee754@1.2.1: {}
 
   ignore@5.3.2: {}
 
   ignore@7.0.5: {}
-
-  image-size@1.2.1:
-    dependencies:
-      queue: 6.0.2
 
   immediate@3.0.6: {}
 
@@ -7817,12 +7792,12 @@ snapshots:
 
   package-manager-detector@1.6.0: {}
 
-  page-agent@1.6.1(zod@3.25.76):
+  page-agent@1.6.2(zod@3.25.76):
     dependencies:
-      '@page-agent/core': 1.6.1(zod@3.25.76)
-      '@page-agent/llms': 1.6.1(zod@3.25.76)
-      '@page-agent/page-controller': 1.6.1
-      '@page-agent/ui': 1.6.1
+      '@page-agent/core': 1.6.2(zod@3.25.76)
+      '@page-agent/llms': 1.6.2(zod@3.25.76)
+      '@page-agent/page-controller': 1.6.2
+      '@page-agent/ui': 1.6.2
       chalk: 5.6.2
       zod: 3.25.76
 
@@ -7926,13 +7901,6 @@ snapshots:
 
   powershell-utils@0.1.0: {}
 
-  pptxgenjs@4.0.1:
-    dependencies:
-      '@types/node': 22.19.15
-      https: 1.0.0
-      image-size: 1.2.1
-      jszip: 3.10.1
-
   prebuild-install@7.1.3:
     dependencies:
       detect-libc: 2.1.2
@@ -7997,10 +7965,6 @@ snapshots:
   quansync@1.0.0: {}
 
   queue-microtask@1.2.3: {}
-
-  queue@6.0.2:
-    dependencies:
-      inherits: 2.0.4
 
   quick-format-unescaped@4.0.4: {}
 

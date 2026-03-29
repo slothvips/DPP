@@ -99,7 +99,8 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          className={cn('h-[44px] text-xs gap-1.5 px-3 items-center', className)}
+          size="sm"
+          className={cn('text-xs gap-1.5 items-center', className)}
           title="选择 Page Agent 工作标签页（仅支持 SPA）"
         >
           {isLoading ? (

@@ -18,32 +18,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { createProvider } from '@/lib/ai/provider';
 import type { AIProviderType, ChatMessage } from '@/lib/ai/types';
 import { getAIConfig } from '@/lib/db/settings';
+import { setupMonacoWorker } from '@/lib/monaco/worker';
 import { logger } from '@/utils/logger';
 
-// Monaco Worker 配置
-self.MonacoEnvironment = {
-  getWorker: function (_moduleId: string, label: string) {
-    const getWorkerModule = (moduleUrl: string, label: string) => {
-      return new Worker(self.MonacoEnvironment!.getWorkerUrl!(moduleUrl, label), {
-        name: label,
-        type: 'module',
-      });
-    };
-    switch (label) {
-      case 'json':
-      case 'css':
-      case 'scss':
-      case 'less':
-      case 'html':
-      case 'handlebars':
-      case 'razor':
-      case 'typescript':
-      case 'javascript':
-      default:
-        return getWorkerModule('/monaco-editor/esm/vs/editor/editor.worker?worker', label);
-    }
-  },
-};
+// 初始化 Monaco Worker
+setupMonacoWorker();
 
 export function JsonView({ onBack }: { onBack?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -166,10 +145,14 @@ export function JsonView({ onBack }: { onBack?: () => void }) {
   // 从文本中提取 JSON
   const extractJson = (text: string): string | null => {
     // 先去掉思考内容（Claude thinking 扩展等）
+    // 注意：thinking 标签可能是不闭合的，需要处理两种情况
     let cleaned = text
-      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '') // 闭合的 thinking 标签
+      .replace(/<thinking>[\s\S]*$/gi, '') // 未闭合的 thinking 标签（到末尾）
       .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '')
-      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      .replace(/<reasoning>[\s\S]*$/gi, '') // 未闭合的 reasoning 标签
+      .replace(/<think>[\s\S]*?<\/think>/gi, '') // 闭合的 think 标签
+      .replace(/<think>[\s\S]*$/gi, '') // 未闭合的 think 标签（Claude 格式）
       .trim();
 
     // 方法1: 提取代码块中的 JSON

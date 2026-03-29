@@ -8,32 +8,11 @@ import { useTheme } from '@/hooks/useTheme';
 import { createProvider } from '@/lib/ai/provider';
 import type { AIProviderType, ChatMessage } from '@/lib/ai/types';
 import { getAIConfig } from '@/lib/db/settings';
+import { setupMonacoWorker } from '@/lib/monaco/worker';
 import { logger } from '@/utils/logger';
 
-// Monaco Worker 配置
-self.MonacoEnvironment = {
-  getWorker: function (_moduleId: string, label: string) {
-    const getWorkerModule = (moduleUrl: string, label: string) => {
-      return new Worker(self.MonacoEnvironment!.getWorkerUrl!(moduleUrl, label), {
-        name: label,
-        type: 'module',
-      });
-    };
-    switch (label) {
-      case 'json':
-      case 'css':
-      case 'scss':
-      case 'less':
-      case 'html':
-      case 'handlebars':
-      case 'razor':
-      case 'typescript':
-      case 'javascript':
-      default:
-        return getWorkerModule('/monaco-editor/esm/vs/editor/editor.worker?worker', label);
-    }
-  },
-};
+// 初始化 Monaco Worker
+setupMonacoWorker();
 
 export function DiffView() {
   const containerRef = useRef<HTMLDivElement>(null);

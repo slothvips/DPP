@@ -101,7 +101,7 @@ export default defineContentScript({
         agent.panel.show();
         window.__DPP_PAGE_AGENT__ = agent;
         currentAgent = agent;
-      } catch (error) {
+      } catch (_error) {
         // 清理可能的部分初始化状态
         delete window.__DPP_PAGE_AGENT__;
         currentAgent = null;

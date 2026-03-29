@@ -8,14 +8,12 @@ import {
   Scissors,
   Settings,
   Trash2,
-  Zap,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { YoloButton } from '@/components/YoloButton';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
-import { cn } from '@/utils/cn';
-import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { useAIChat } from '../hooks/useAIChat';
 import { AIConfigDialog, isAIConfigConfigured } from './AIConfigDialog';
 import { AISessionList } from './AISessionList';
@@ -34,7 +32,6 @@ export function AIAssistantView() {
     pendingBuild,
     sessions,
     sessionId,
-    yoloMode,
     isRunning,
     sendMessage,
     stop,
@@ -49,11 +46,9 @@ export function AIAssistantView() {
     completeBuild,
     cancelBuild,
     summarizeSession,
-    setYoloMode,
   } = useAIChat();
 
   const { toast } = useToast();
-  const { confirm } = useConfirmDialog();
 
   const [isConfigMissing, setIsConfigMissing] = useState(false);
   const [selectedTabId, setSelectedTabId] = useState<number | null>(null);
@@ -199,6 +194,7 @@ export function AIAssistantView() {
           </Button>
         </div>
         <div className="flex items-center gap-1">
+          <YoloButton />
           <AIConfigDialog onSaved={handleConfigSaved}>
             <Button variant="ghost" size="sm" title="AI 设置" data-testid="ai-config-button">
               <Settings className="w-4 h-4" />
@@ -330,40 +326,15 @@ export function AIAssistantView() {
           placeholder="发送消息... (Shift+Enter 换行)"
           initialInput={presetPrompt}
           rightSlot={
-            <div className="flex gap-2 items-center">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">目标页面:</span>
-                <TabSelector selectedTabId={selectedTabId} onTabSelect={setSelectedTabId} />
-                <span
-                  className="text-[10px] text-orange-500 italic cursor-help"
-                  title="执行期间请保持页面在前台，不要切换或关闭标签页"
-                >
-                  (仅支持SPA，请保持页面始终处于前台)
-                </span>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  if (!yoloMode) {
-                    const ok = await confirm(
-                      'YOLO 模式会跳过所有确认对话框，自动执行工具操作，可能导致意外修改。\n\n建议仅在网页操作时开启，避免对数据造成不可逆的更改。\n\n确定要开启吗？',
-                      '开启 YOLO 模式',
-                      'danger'
-                    );
-                    if (!ok) return;
-                  }
-                  setYoloMode(!yoloMode);
-                }}
-                title="YOLO 模式：自动确认所有工具调用"
-                className={cn(
-                  'text-xs gap-1 transition-all duration-300 border border-border',
-                  yoloMode && 'yolo-button-active'
-                )}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">目标页面:</span>
+              <TabSelector selectedTabId={selectedTabId} onTabSelect={setSelectedTabId} />
+              <span
+                className="text-[10px] text-orange-500 italic cursor-help"
+                title="执行期间请保持页面在前台，不要切换或关闭标签页"
               >
-                <Zap className={cn('w-3.5 h-3.5', yoloMode && 'fill-primary text-primary')} />
-                <span className={yoloMode ? 'text-primary font-medium' : ''}>YOLO</span>
-              </Button>
+                (仅支持SPA，请保持页面始终处于前台)
+              </span>
             </div>
           }
           bottomSlot={

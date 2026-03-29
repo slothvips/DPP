@@ -4,39 +4,73 @@ import { JsonView } from './JsonTool/JsonView';
 import { RegexView } from './RegexTool/RegexView';
 import { TimestampView } from './TimestampTool/TimestampView';
 
-type ToolId = 'diff' | 'json' | 'regex' | 'timestamp' | 'tree-diff';
+// 工具类型定义：区分内部工具和外链工具
+type InternalToolId = 'diff' | 'json' | 'regex' | 'timestamp' | 'tree-diff';
+type ExternalToolId = 'react-playground' | 'vue-playground';
 
-const tools = [
+// 内部工具：在扩展内运行
+interface InternalTool {
+  id: InternalToolId;
+  name: string;
+  icon: React.ReactNode;
+  description: string;
+  openInNewTab: boolean;
+}
+
+// 外链工具：跳转到外部网站
+interface ExternalTool {
+  id: ExternalToolId;
+  name: string;
+  icon: React.ReactNode;
+  description: string;
+  url: string;
+}
+
+type Tool = InternalTool | ExternalTool;
+
+// 内部嵌入视图的工具ID（不打开新标签页）
+type EmbeddedToolId = 'json' | 'regex' | 'timestamp';
+
+// 新标签页打开的工具ID与页面路径映射
+const PAGE_MAP: Record<InternalToolId, string | undefined> = {
+  diff: '/diff.html',
+  'tree-diff': '/tree-diff.html',
+  json: undefined,
+  regex: undefined,
+  timestamp: undefined,
+};
+
+const tools: Tool[] = [
   {
-    id: 'diff' as ToolId,
+    id: 'diff',
     name: '文本差异对比工具',
     icon: <FileDiff className="h-4 w-4" />,
     description: 'VSCode 同款',
     openInNewTab: true,
   },
   {
-    id: 'json' as ToolId,
+    id: 'json',
     name: 'JSON 编辑器',
     icon: <FileBraces className="h-4 w-4" />,
     description: '格式化、压缩、验证',
     openInNewTab: false,
   },
   {
-    id: 'regex' as ToolId,
+    id: 'regex',
     name: '正则表达式测试器',
     icon: <Regex className="h-4 w-4" />,
     description: '实时匹配测试',
     openInNewTab: false,
   },
   {
-    id: 'timestamp' as ToolId,
+    id: 'timestamp',
     name: '时间戳转换器',
     icon: <Clock className="h-4 w-4" />,
     description: '时间戳与日期互转',
     openInNewTab: false,
   },
   {
-    id: 'tree-diff' as ToolId,
+    id: 'tree-diff',
     name: '树形数据对比',
     icon: <FileDiff className="h-4 w-4" />,
     description: '树形/扁平数据对比',
@@ -59,22 +93,22 @@ const tools = [
 ];
 
 export function ToolboxView() {
-  const [activeTool, setActiveTool] = useState<ToolId | null>(null);
+  const [activeTool, setActiveTool] = useState<EmbeddedToolId | null>(null);
 
-  const handleClick = (tool: (typeof tools)[0]) => {
+  const handleClick = (tool: Tool) => {
     if ('url' in tool) {
-      // 外链工具
+      // 外链工具：打开外部网站
       chrome.tabs.create({ url: tool.url });
     } else if (tool.openInNewTab) {
-      // 内部页面在新标签页打开
-      const pageMap: Record<string, string> = {
-        diff: '/diff.html',
-        'tree-diff': '/tree-diff.html',
-      };
-      const url = chrome.runtime.getURL(pageMap[tool.id] || '/diff.html');
-      chrome.tabs.create({ url });
+      // 内部工具在新标签页打开
+      const pagePath = PAGE_MAP[tool.id];
+      if (pagePath) {
+        const url = chrome.runtime.getURL(pagePath);
+        chrome.tabs.create({ url });
+      }
     } else {
-      setActiveTool(tool.id);
+      // 内部嵌入视图（类型断言：此时 tool.id 一定是 EmbeddedToolId）
+      setActiveTool(tool.id as EmbeddedToolId);
     }
   };
 
