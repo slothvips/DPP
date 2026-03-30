@@ -55,8 +55,16 @@ const SETTINGS_CATEGORIES = [
   {
     key: 'feature_toggles',
     label: '功能开关',
-    description: '资讯、链接等功能开关',
-    keys: ['feature_hotnews_enabled', 'feature_links_enabled'],
+    description: '标签页显示开关',
+    keys: [
+      'feature_hotnews_enabled',
+      'feature_links_enabled',
+      'feature_blackboard_enabled',
+      'feature_jenkins_enabled',
+      'feature_recorder_enabled',
+      'feature_ai_assistant_enabled',
+      'feature_playground_enabled',
+    ],
   },
   {
     key: 'jenkins_envs',
@@ -108,6 +116,11 @@ function OptionsApp() {
   const [featureToggles, setFeatureToggles] = useState({
     hotNews: true,
     links: true,
+    blackboard: true,
+    jenkins: true,
+    recorder: true,
+    aiAssistant: true,
+    playground: true,
   });
 
   // Export state
@@ -141,9 +154,19 @@ function OptionsApp() {
       // Feature toggles (default to true if not set)
       const hotNewsEnabled = settings.find((s) => s.key === 'feature_hotnews_enabled');
       const linksEnabled = settings.find((s) => s.key === 'feature_links_enabled');
+      const blackboardEnabled = settings.find((s) => s.key === 'feature_blackboard_enabled');
+      const jenkinsEnabled = settings.find((s) => s.key === 'feature_jenkins_enabled');
+      const recorderEnabled = settings.find((s) => s.key === 'feature_recorder_enabled');
+      const aiAssistantEnabled = settings.find((s) => s.key === 'feature_ai_assistant_enabled');
+      const playgroundEnabled = settings.find((s) => s.key === 'feature_playground_enabled');
       setFeatureToggles({
         hotNews: hotNewsEnabled?.value !== false,
         links: linksEnabled?.value !== false,
+        blackboard: blackboardEnabled?.value !== false,
+        jenkins: jenkinsEnabled?.value !== false,
+        recorder: recorderEnabled?.value !== false,
+        aiAssistant: aiAssistantEnabled?.value !== false,
+        playground: playgroundEnabled?.value !== false,
       });
     })();
   }, []);
@@ -369,14 +392,39 @@ function OptionsApp() {
     }
   };
 
-  const toggleFeature = async (feature: 'hotNews' | 'links', enabled: boolean) => {
-    const key = feature === 'hotNews' ? 'feature_hotnews_enabled' : 'feature_links_enabled';
+  const toggleFeature = async (
+    feature:
+      | 'hotNews'
+      | 'links'
+      | 'blackboard'
+      | 'jenkins'
+      | 'recorder'
+      | 'aiAssistant'
+      | 'playground',
+    enabled: boolean
+  ) => {
+    const keyMap = {
+      hotNews: 'feature_hotnews_enabled',
+      links: 'feature_links_enabled',
+      blackboard: 'feature_blackboard_enabled',
+      jenkins: 'feature_jenkins_enabled',
+      recorder: 'feature_recorder_enabled',
+      aiAssistant: 'feature_ai_assistant_enabled',
+      playground: 'feature_playground_enabled',
+    };
+    const labelMap = {
+      hotNews: '资讯',
+      links: '链接',
+      blackboard: '黑板',
+      jenkins: 'Jenkins',
+      recorder: '录制',
+      aiAssistant: 'D仔',
+      playground: '游乐园',
+    };
+    const key = keyMap[feature];
     await updateSetting(key, enabled);
     setFeatureToggles((prev) => ({ ...prev, [feature]: enabled }));
-    toast(
-      `${feature === 'hotNews' ? '资讯' : '链接'}功能已${enabled ? '启用' : '禁用'}`,
-      'success'
-    );
+    toast(`${labelMap[feature]}功能已${enabled ? '启用' : '禁用'}`, 'success');
   };
 
   return (
@@ -405,18 +453,30 @@ function OptionsApp() {
           <section className="space-y-4 border p-4 rounded-lg">
             <h2 className="text-xl font-semibold">功能开关</h2>
             <p className="text-sm text-muted-foreground">控制在主界面中显示哪些功能标签页</p>
-            <div className="space-y-3" data-testid="feature-toggles">
-              <div className="flex items-center space-x-3">
-                <Checkbox
-                  id="feature-hotnews"
-                  data-testid="checkbox-feature-hotnews"
-                  checked={featureToggles.hotNews}
-                  onCheckedChange={(checked) => toggleFeature('hotNews', !!checked)}
-                />
-                <Label htmlFor="feature-hotnews" className="text-sm font-medium cursor-pointer">
-                  资讯
-                </Label>
-              </div>
+            <div className="grid grid-cols-2 gap-4" data-testid="feature-toggles">
+              {[
+                { key: 'blackboard', label: '黑板' },
+                { key: 'jenkins', label: 'Jenkins' },
+                { key: 'links', label: '链接' },
+                { key: 'recorder', label: '录制' },
+                { key: 'hotNews', label: '资讯' },
+                { key: 'aiAssistant', label: 'D仔' },
+                { key: 'playground', label: '游乐园' },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center space-x-3">
+                  <Checkbox
+                    id={`feature-${key}`}
+                    data-testid={`checkbox-feature-${key}`}
+                    checked={featureToggles[key as keyof typeof featureToggles]}
+                    onCheckedChange={(checked) =>
+                      toggleFeature(key as Parameters<typeof toggleFeature>[0], !!checked)
+                    }
+                  />
+                  <Label htmlFor={`feature-${key}`} className="text-sm font-medium cursor-pointer">
+                    {label}
+                  </Label>
+                </div>
+              ))}
             </div>
           </section>
 

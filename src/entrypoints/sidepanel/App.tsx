@@ -41,11 +41,29 @@ export function App() {
   const featureToggles = useLiveQuery(async () => {
     const hotNews = await db.settings.get('feature_hotnews_enabled');
     const links = await db.settings.get('feature_links_enabled');
+    const blackboard = await db.settings.get('feature_blackboard_enabled');
+    const jenkins = await db.settings.get('feature_jenkins_enabled');
+    const recorder = await db.settings.get('feature_recorder_enabled');
+    const aiAssistant = await db.settings.get('feature_ai_assistant_enabled');
+    const playground = await db.settings.get('feature_playground_enabled');
     return {
       hotNews: hotNews?.value !== false,
       links: links?.value !== false,
+      blackboard: blackboard?.value !== false,
+      jenkins: jenkins?.value !== false,
+      recorder: recorder?.value !== false,
+      aiAssistant: aiAssistant?.value !== false,
+      playground: playground?.value !== false,
     };
-  }) ?? { hotNews: true, links: true };
+  }) ?? {
+    hotNews: true,
+    links: true,
+    blackboard: true,
+    jenkins: true,
+    recorder: true,
+    aiAssistant: true,
+    playground: true,
+  };
 
   const serverUrl = useLiveQuery(async () => {
     const setting = await db.settings.get('custom_server_url');
@@ -54,6 +72,7 @@ export function App() {
 
   const showSyncButton = !!serverUrl;
   const hasJenkins = (jenkinsEnvironments?.length ?? 0) > 0;
+  const showJenkinsTab = hasJenkins && featureToggles.jenkins;
 
   const params = new URLSearchParams(window.location.search);
   const isMinimalMode = !!params.get('buildJobUrl');
@@ -192,16 +211,18 @@ export function App() {
           {/* Tabs */}
           {!isMinimalMode && (
             <div className="flex border-b" data-testid="tab-container">
-              <button
-                type="button"
-                data-testid="tab-blackboard"
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('blackboard')}
-              >
-                <MessageSquare className="h-4 w-4" />
-                <span>黑板</span>
-              </button>
-              {hasJenkins && (
+              {featureToggles.blackboard && (
+                <button
+                  type="button"
+                  data-testid="tab-blackboard"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => handleTabChange('blackboard')}
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  <span>黑板</span>
+                </button>
+              )}
+              {showJenkinsTab && (
                 <button
                   type="button"
                   data-testid="tab-jenkins"
@@ -223,15 +244,17 @@ export function App() {
                   <span>链接</span>
                 </button>
               )}
-              <button
-                type="button"
-                data-testid="tab-recorder"
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('recorder')}
-              >
-                <Video className="h-4 w-4" />
-                <span>录制</span>
-              </button>
+              {featureToggles.recorder && (
+                <button
+                  type="button"
+                  data-testid="tab-recorder"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => handleTabChange('recorder')}
+                >
+                  <Video className="h-4 w-4" />
+                  <span>录制</span>
+                </button>
+              )}
               {featureToggles.hotNews && (
                 <button
                   type="button"
@@ -243,24 +266,28 @@ export function App() {
                   <span>资讯</span>
                 </button>
               )}
-              <button
-                type="button"
-                data-testid="tab-ai-assistant"
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('aiAssistant')}
-              >
-                <Sparkles className="h-4 w-4" />
-                <span>D仔</span>
-              </button>
-              <button
-                type="button"
-                data-testid="tab-playground"
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'playground' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                onClick={() => handleTabChange('playground')}
-              >
-                <Box className="h-4 w-4" />
-                <span>游乐园</span>
-              </button>
+              {featureToggles.aiAssistant && (
+                <button
+                  type="button"
+                  data-testid="tab-ai-assistant"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => handleTabChange('aiAssistant')}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>D仔</span>
+                </button>
+              )}
+              {featureToggles.playground && (
+                <button
+                  type="button"
+                  data-testid="tab-playground"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'playground' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+                  onClick={() => handleTabChange('playground')}
+                >
+                  <Box className="h-4 w-4" />
+                  <span>游乐园</span>
+                </button>
+              )}
             </div>
           )}
 
@@ -280,9 +307,9 @@ export function App() {
             <div
               className="absolute inset-0 p-2 transition-opacity duration-150"
               style={{
-                opacity: activeTab === 'jenkins' && hasJenkins ? 1 : 0,
-                visibility: activeTab === 'jenkins' && hasJenkins ? 'visible' : 'hidden',
-                pointerEvents: activeTab === 'jenkins' && hasJenkins ? 'auto' : 'none',
+                opacity: activeTab === 'jenkins' && showJenkinsTab ? 1 : 0,
+                visibility: activeTab === 'jenkins' && showJenkinsTab ? 'visible' : 'hidden',
+                pointerEvents: activeTab === 'jenkins' && showJenkinsTab ? 'auto' : 'none',
               }}
             >
               <JenkinsView />
@@ -290,9 +317,11 @@ export function App() {
             <div
               className="absolute inset-0 p-2 transition-opacity duration-150"
               style={{
-                opacity: activeTab === 'recorder' ? 1 : 0,
-                visibility: activeTab === 'recorder' ? 'visible' : 'hidden',
-                pointerEvents: activeTab === 'recorder' ? 'auto' : 'none',
+                opacity: activeTab === 'recorder' && featureToggles.recorder ? 1 : 0,
+                visibility:
+                  activeTab === 'recorder' && featureToggles.recorder ? 'visible' : 'hidden',
+                pointerEvents:
+                  activeTab === 'recorder' && featureToggles.recorder ? 'auto' : 'none',
               }}
             >
               <Suspense
@@ -304,9 +333,11 @@ export function App() {
             <div
               className="absolute inset-0 p-2 transition-opacity duration-150"
               style={{
-                opacity: activeTab === 'blackboard' ? 1 : 0,
-                visibility: activeTab === 'blackboard' ? 'visible' : 'hidden',
-                pointerEvents: activeTab === 'blackboard' ? 'auto' : 'none',
+                opacity: activeTab === 'blackboard' && featureToggles.blackboard ? 1 : 0,
+                visibility:
+                  activeTab === 'blackboard' && featureToggles.blackboard ? 'visible' : 'hidden',
+                pointerEvents:
+                  activeTab === 'blackboard' && featureToggles.blackboard ? 'auto' : 'none',
               }}
             >
               <BlackboardView />
@@ -325,9 +356,11 @@ export function App() {
             <div
               className="absolute inset-0 p-2 transition-opacity duration-150"
               style={{
-                opacity: activeTab === 'aiAssistant' ? 1 : 0,
-                visibility: activeTab === 'aiAssistant' ? 'visible' : 'hidden',
-                pointerEvents: activeTab === 'aiAssistant' ? 'auto' : 'none',
+                opacity: activeTab === 'aiAssistant' && featureToggles.aiAssistant ? 1 : 0,
+                visibility:
+                  activeTab === 'aiAssistant' && featureToggles.aiAssistant ? 'visible' : 'hidden',
+                pointerEvents:
+                  activeTab === 'aiAssistant' && featureToggles.aiAssistant ? 'auto' : 'none',
               }}
             >
               <AIAssistantView />
@@ -335,9 +368,11 @@ export function App() {
             <div
               className="absolute inset-0 p-2 transition-opacity duration-150"
               style={{
-                opacity: activeTab === 'playground' ? 1 : 0,
-                visibility: activeTab === 'playground' ? 'visible' : 'hidden',
-                pointerEvents: activeTab === 'playground' ? 'auto' : 'none',
+                opacity: activeTab === 'playground' && featureToggles.playground ? 1 : 0,
+                visibility:
+                  activeTab === 'playground' && featureToggles.playground ? 'visible' : 'hidden',
+                pointerEvents:
+                  activeTab === 'playground' && featureToggles.playground ? 'auto' : 'none',
               }}
             >
               <ToolboxView />
