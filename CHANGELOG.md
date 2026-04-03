@@ -1,5 +1,28 @@
 # 更新日志
 
+## v0.4.1 (2026-04-03)
+
+### ✨ 新功能
+
+- **JSON 编辑器折叠功能**: Monaco Editor 折叠按钮现已正常工作
+  - 修复 Worker 配置问题，改用 `getWorkerUrl` API
+  - 切换折叠策略为 `indentation`（基于缩进），不依赖 Worker
+  - 添加 Monaco 必需 CSS（Codicon 字体）
+  - 折叠按钮始终显示，无需 hover
+  - 深浅色主题自动适配
+
+### 🐛 问题修复
+
+- **Monaco Worker**: 修复 `getWorkerUrl is not a function` 错误
+- **Tab 拖拽排序**: 修复 `handleDragEnd` 闭包捕获 stale 状态问题
+
+### 🔧 代码优化
+
+- **App.tsx**: 使用 `useRef` 避免拖拽排序的闭包问题
+- **worker.ts**: 简化 Worker URL 生成逻辑
+
+---
+
 ## v0.4.0 (2026-03-29)
 
 ### ✨ 新功能

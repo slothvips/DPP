@@ -12,6 +12,8 @@ import {
   Zap,
 } from 'lucide-react';
 import * as monaco from 'monaco-editor';
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
+import 'monaco-editor/min/vs/editor/editor.main.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/hooks/useTheme';
@@ -23,6 +25,21 @@ import { logger } from '@/utils/logger';
 
 // 初始化 Monaco Worker
 setupMonacoWorker();
+
+// 强制显示折叠按钮（始终显示，不等待鼠标 hover）
+const forceShowFoldIcons = () => {
+  const style = document.createElement('style');
+  style.id = 'monaco-fold-force-show';
+  style.textContent = `
+    .monaco-editor .margin-view-overlays .codicon {
+      opacity: 1 !important;
+    }
+  `;
+  if (!document.getElementById('monaco-fold-force-show')) {
+    document.head.appendChild(style);
+  }
+};
+forceShowFoldIcons();
 
 export function JsonView({ onBack }: { onBack?: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -309,7 +326,7 @@ ${value}`;
       formatOnPaste: true,
       formatOnType: true,
       folding: true,
-      foldingStrategy: 'auto',
+      foldingStrategy: 'indentation',
       foldingHighlight: true,
       showFoldingControls: 'always',
       bracketPairColorization: { enabled: true },
@@ -433,6 +450,7 @@ ${value}`;
         <Button size="sm" variant="outline" onClick={handleMinify} disabled={!!error || aiFixing}>
           压缩
         </Button>
+        <div className="h-4 w-px bg-border mx-1" />
         <Button size="sm" variant="outline" onClick={handleAIFix} disabled={aiFixing}>
           {aiFixing ? (
             <Loader2 className="h-3 w-3 mr-1 animate-spin" />

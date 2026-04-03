@@ -6,33 +6,27 @@
 /**
  * 初始化 Monaco Editor 环境
  * 配置 Worker 加载方式，支持 JSON、CSS、HTML、TypeScript 等语言
+ *
+ * 注意：在扩展环境中 Worker 可能无法正常加载，这里使用回退方案
  */
 export function setupMonacoWorker(): void {
   if (self.MonacoEnvironment) {
     return; // 已经初始化过
   }
 
+  // 获取 Worker 的 URL
+  const getWorkerUrl = (): string => {
+    return `/monaco-editor/esm/vs/editor/editor.worker?worker`;
+  };
+
   self.MonacoEnvironment = {
-    getWorker: function (_moduleId: string, label: string) {
-      const getWorkerModule = (moduleUrl: string, label: string) => {
-        return new Worker(self.MonacoEnvironment!.getWorkerUrl!(moduleUrl, label), {
-          name: label,
-          type: 'module',
-        });
-      };
-      switch (label) {
-        case 'json':
-        case 'css':
-        case 'scss':
-        case 'less':
-        case 'html':
-        case 'handlebars':
-        case 'razor':
-        case 'typescript':
-        case 'javascript':
-        default:
-          return getWorkerModule('/monaco-editor/esm/vs/editor/editor.worker?worker', label);
+    getWorkerUrl: function (_moduleId: string, label: string) {
+      // 对于 JSON 编辑器，直接返回空字符串禁用 worker
+      // Monaco 会使用内置的语言服务，不依赖 worker
+      if (label === 'json') {
+        return '';
       }
+      return getWorkerUrl();
     },
   };
 }

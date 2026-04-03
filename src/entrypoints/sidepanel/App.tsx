@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Box, Flame, Link, MessageSquare, Settings, Sparkles, Video } from 'lucide-react';
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { GlobalSyncButton } from '@/components/GlobalSyncButton';
 import { Tips } from '@/components/Tips';
@@ -17,6 +17,82 @@ import { ToolboxView } from '@/features/toolbox/components/ToolboxView';
 import { useTheme } from '@/hooks/useTheme';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
+
+type TabId =
+  | 'links'
+  | 'jenkins'
+  | 'hotNews'
+  | 'recorder'
+  | 'blackboard'
+  | 'aiAssistant'
+  | 'playground';
+
+const DEFAULT_TAB_ORDER: TabId[] = [
+  'blackboard',
+  'jenkins',
+  'links',
+  'recorder',
+  'hotNews',
+  'aiAssistant',
+  'playground',
+];
+
+// Tab 配置
+const TAB_CONFIG: Record<
+  TabId,
+  {
+    label: string;
+    testid: string;
+    icon: React.ReactNode;
+    getVisible: (props: {
+      featureToggles: Record<string, boolean>;
+      showJenkinsTab: boolean;
+    }) => boolean;
+  }
+> = {
+  blackboard: {
+    label: '黑板',
+    testid: 'tab-blackboard',
+    icon: <MessageSquare className="h-4 w-4" />,
+    getVisible: ({ featureToggles }) => featureToggles.blackboard,
+  },
+  jenkins: {
+    label: 'Jenkins',
+    testid: 'tab-jenkins',
+    icon: <JenkinsIcon className="h-4 w-4" />,
+    getVisible: ({ showJenkinsTab }) => showJenkinsTab,
+  },
+  links: {
+    label: '链接',
+    testid: 'tab-links',
+    icon: <Link className="h-4 w-4" />,
+    getVisible: ({ featureToggles }) => featureToggles.links,
+  },
+  recorder: {
+    label: '录制',
+    testid: 'tab-recorder',
+    icon: <Video className="h-4 w-4" />,
+    getVisible: ({ featureToggles }) => featureToggles.recorder,
+  },
+  hotNews: {
+    label: '资讯',
+    testid: 'tab-hotnews',
+    icon: <Flame className="h-4 w-4" />,
+    getVisible: ({ featureToggles }) => featureToggles.hotNews,
+  },
+  aiAssistant: {
+    label: 'D仔',
+    testid: 'tab-ai-assistant',
+    icon: <Sparkles className="h-4 w-4" />,
+    getVisible: ({ featureToggles }) => featureToggles.aiAssistant,
+  },
+  playground: {
+    label: '游乐园',
+    testid: 'tab-playground',
+    icon: <Box className="h-4 w-4" />,
+    getVisible: ({ featureToggles }) => featureToggles.playground,
+  },
+};
 
 // 动态导入大型组件以减少初始体积
 const AIAssistantView = React.lazy(() =>
@@ -77,55 +153,37 @@ export function App() {
   const params = new URLSearchParams(window.location.search);
   const isMinimalMode = !!params.get('buildJobUrl');
 
-  const [activeTab, setActiveTab] = useState<
-    'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'playground'
-  >(() => {
+  // Tab 顺序 state，支持拖拽排序
+  const [tabOrder, setTabOrder] = useState<TabId[]>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('dpp_tab_order');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved) as TabId[];
+          // 验证所有默认 tab 都在，并过滤掉未知值
+          const validTabs = parsed.filter((t): t is TabId => DEFAULT_TAB_ORDER.includes(t));
+          if (validTabs.length === DEFAULT_TAB_ORDER.length) {
+            return validTabs;
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+    return DEFAULT_TAB_ORDER;
+  });
+
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
     // Check URL params first for deep linking
     const tabParam = params.get('tab');
-    if (
-      tabParam &&
-      [
-        'links',
-        'jenkins',
-        'hotNews',
-        'recorder',
-        'blackboard',
-        'aiAssistant',
-        'playground',
-      ].includes(tabParam)
-    ) {
-      return tabParam as
-        | 'links'
-        | 'jenkins'
-        | 'hotNews'
-        | 'recorder'
-        | 'blackboard'
-        | 'aiAssistant'
-        | 'playground';
+    if (tabParam && DEFAULT_TAB_ORDER.includes(tabParam as TabId)) {
+      return tabParam as TabId;
     }
 
     const saved =
       typeof localStorage !== 'undefined' ? localStorage.getItem('dpp_active_tab') : null;
-    if (
-      saved &&
-      [
-        'links',
-        'jenkins',
-        'hotNews',
-        'recorder',
-        'blackboard',
-        'aiAssistant',
-        'playground',
-      ].includes(saved)
-    ) {
-      return saved as
-        | 'links'
-        | 'jenkins'
-        | 'hotNews'
-        | 'recorder'
-        | 'blackboard'
-        | 'aiAssistant'
-        | 'playground';
+    if (saved && DEFAULT_TAB_ORDER.includes(saved as TabId)) {
+      return saved as TabId;
     }
     return 'blackboard';
   });
@@ -163,9 +221,46 @@ export function App() {
     };
   }, []);
 
-  const handleTabChange = (
-    tab: 'links' | 'jenkins' | 'hotNews' | 'recorder' | 'blackboard' | 'aiAssistant' | 'playground'
-  ) => {
+  // 拖拽排序处理
+  const [draggedTab, setDraggedTab] = useState<TabId | null>(null);
+
+  // 使用 ref 保存最新的 tabOrder，避免闭包问题
+  const tabOrderRef = useRef(tabOrder);
+  tabOrderRef.current = tabOrder;
+
+  const handleDragStart = useCallback((tabId: TabId) => {
+    setDraggedTab(tabId);
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, targetTab: TabId) => {
+      e.preventDefault();
+      if (!draggedTab || draggedTab === targetTab) return;
+
+      setTabOrder((prev) => {
+        const newOrder = [...prev];
+        const draggedIndex = newOrder.indexOf(draggedTab);
+        const targetIndex = newOrder.indexOf(targetTab);
+        if (draggedIndex === -1 || targetIndex === -1) return prev;
+
+        // 移除被拖拽的 tab，在目标位置插入
+        newOrder.splice(draggedIndex, 1);
+        newOrder.splice(targetIndex, 0, draggedTab);
+        return newOrder;
+      });
+    },
+    [draggedTab]
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedTab(null);
+    // 使用 ref 获取最新的 tabOrder
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('dpp_tab_order', JSON.stringify(tabOrderRef.current));
+    }
+  }, []);
+
+  const handleTabChange = (tab: TabId) => {
     setActiveTab(tab);
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('dpp_active_tab', tab);
@@ -211,83 +306,34 @@ export function App() {
           {/* Tabs */}
           {!isMinimalMode && (
             <div className="flex border-b" data-testid="tab-container">
-              {featureToggles.blackboard && (
-                <button
-                  type="button"
-                  data-testid="tab-blackboard"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'blackboard' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => handleTabChange('blackboard')}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span>黑板</span>
-                </button>
-              )}
-              {showJenkinsTab && (
-                <button
-                  type="button"
-                  data-testid="tab-jenkins"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'jenkins' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => handleTabChange('jenkins')}
-                >
-                  <JenkinsIcon className="h-4 w-4" />
-                  <span>Jenkins</span>
-                </button>
-              )}
-              {featureToggles.links && (
-                <button
-                  type="button"
-                  data-testid="tab-links"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'links' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => handleTabChange('links')}
-                >
-                  <Link className="h-4 w-4" />
-                  <span>链接</span>
-                </button>
-              )}
-              {featureToggles.recorder && (
-                <button
-                  type="button"
-                  data-testid="tab-recorder"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'recorder' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => handleTabChange('recorder')}
-                >
-                  <Video className="h-4 w-4" />
-                  <span>录制</span>
-                </button>
-              )}
-              {featureToggles.hotNews && (
-                <button
-                  type="button"
-                  data-testid="tab-hotnews"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'hotNews' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => handleTabChange('hotNews')}
-                >
-                  <Flame className="h-4 w-4" />
-                  <span>资讯</span>
-                </button>
-              )}
-              {featureToggles.aiAssistant && (
-                <button
-                  type="button"
-                  data-testid="tab-ai-assistant"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'aiAssistant' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => handleTabChange('aiAssistant')}
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span>D仔</span>
-                </button>
-              )}
-              {featureToggles.playground && (
-                <button
-                  type="button"
-                  data-testid="tab-playground"
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium ${activeTab === 'playground' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground hover:text-foreground'}`}
-                  onClick={() => handleTabChange('playground')}
-                >
-                  <Box className="h-4 w-4" />
-                  <span>游乐园</span>
-                </button>
-              )}
+              {tabOrder
+                .filter((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles, showJenkinsTab }))
+                .map((tabId) => {
+                  const config = TAB_CONFIG[tabId];
+                  const isActive = activeTab === tabId;
+                  const isDragging = draggedTab === tabId;
+
+                  return (
+                    <button
+                      key={tabId}
+                      type="button"
+                      draggable
+                      data-testid={config.testid}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-xs font-medium cursor-grab active:cursor-grabbing select-none transition-opacity ${
+                        isActive
+                          ? 'border-b-2 border-primary text-primary'
+                          : 'text-muted-foreground hover:text-foreground'
+                      } ${isDragging ? 'opacity-50' : ''}`}
+                      onClick={() => handleTabChange(tabId)}
+                      onDragStart={() => handleDragStart(tabId)}
+                      onDragOver={(e) => handleDragOver(e, tabId)}
+                      onDragEnd={handleDragEnd}
+                    >
+                      {config.icon}
+                      <span>{config.label}</span>
+                    </button>
+                  );
+                })}
             </div>
           )}
 
