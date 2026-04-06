@@ -1,8 +1,5 @@
 // Simple AI helper for timestamp correction
-import { DEFAULT_CONFIGS, createProvider } from '@/lib/ai/provider';
-import type { AIProviderType } from '@/lib/ai/types';
-import { decryptData, loadKey } from '@/lib/crypto/encryption';
-import { getSettingByKey } from '@/lib/db/settings';
+import { createConfiguredProvider } from '@/lib/ai/config';
 import { logger } from '@/utils/logger';
 
 interface CorrectionResult {
@@ -63,60 +60,21 @@ export async function correctTimestampWithAI(
   const prompt = buildPrompt(timeStr, tzName);
 
   try {
-    const providerTypeSetting = await getSettingByKey('ai_provider_type');
-    const providerType = (providerTypeSetting?.value as AIProviderType) || 'ollama';
-
-    const baseUrlKey = `ai_${providerType}_base_url`;
-    const modelKey = `ai_${providerType}_model`;
-    const apiKeyKey = `ai_${providerType}_api_key`;
-
-    const defaults = DEFAULT_CONFIGS[providerType];
-    const baseUrlSetting = await getSettingByKey(baseUrlKey);
-    const modelSetting = await getSettingByKey(modelKey);
-    const apiKeySetting = await getSettingByKey(apiKeyKey);
-
-    const baseUrl = (baseUrlSetting?.value as string) || (defaults?.baseUrl as string) || '';
-    const model = (modelSetting?.value as string) || (defaults?.model as string) || '';
-
-    let apiKey = '';
-    const apiKeyValue = apiKeySetting?.value;
-    if (apiKeyValue) {
-      // 检查是否是加密对象格式
-      const isEncryptedFormat =
-        apiKeyValue && typeof apiKeyValue === 'object' && 'ciphertext' in apiKeyValue;
-      if (isEncryptedFormat) {
-        try {
-          const encryptionKey = await loadKey();
-          if (encryptionKey) {
-            const decrypted = await decryptData(
-              apiKeyValue as { ciphertext: string; iv: string },
-              encryptionKey
-            );
-            apiKey = decrypted as string;
-          }
-        } catch {
-          // 解密失败时跳过，不使用 API Key
-          apiKey = '';
-        }
-      } else if (typeof apiKeyValue === 'string') {
-        // 兼容旧版明文存储
-        apiKey = apiKeyValue;
-      }
-    }
-
-    const hasValidConfig = baseUrl || model;
+    const configured = await createConfiguredProvider({
+      includeLegacyFallback: false,
+      logPrefix: '[TimestampAI]',
+    });
+    const hasValidConfig = configured.baseUrl || configured.model;
     if (!hasValidConfig) {
       return { success: false, error: '请先在设置中配置 AI' };
     }
-
-    const provider = createProvider(providerType, baseUrl, model, apiKey);
 
     const messages = [
       { role: 'system' as const, content: prompt },
       { role: 'user' as const, content: `用户输入：${input}` },
     ];
 
-    const response = await provider.chat(messages, { stream: false });
+    const response = await configured.provider.chat(messages, { stream: false });
 
     const content = response.message.content.trim();
 

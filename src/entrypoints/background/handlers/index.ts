@@ -1,5 +1,6 @@
 // Export all handlers
-export { handleJenkinsMessage, getJenkinsCredentials } from './jenkins';
+export { handleJenkinsMessage } from './jenkins';
+export { getJenkinsCredentials } from '@/lib/db/jenkins';
 export type { JenkinsMessage, JenkinsResponse } from './jenkins';
 
 export { handleRecorderMessage } from './recorder';

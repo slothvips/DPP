@@ -1,14 +1,12 @@
 // AI Chat hook - Core conversation logic
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
-// Import AI module to trigger tool registration
-import '@/lib/ai';
+import { ensureAIToolsRegistered } from '@/lib/ai';
+import { createConfiguredProvider } from '@/lib/ai/config';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
-import { DEFAULT_CONFIGS, createProvider } from '@/lib/ai/provider';
 import { containsToolCall, parseResponse } from '@/lib/ai/response-parser';
 import { YOLO_MODE_KEY, toolRegistry } from '@/lib/ai/tools';
 import type { AIProviderType, ModelProvider } from '@/lib/ai/types';
-import { decryptData, loadKey } from '@/lib/crypto/encryption';
 import {
   addMessage,
   clearSessionMessages,
@@ -20,7 +18,6 @@ import {
   listSessions,
   updateSessionTitle,
 } from '@/lib/db/ai';
-import { getSettingByKey } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 import type { AISession, ChatMessage } from '../types';
 
@@ -113,6 +110,10 @@ function generateId(): string {
  * AI Chat hook - handles conversation, tool calls, and confirmation flow
  */
 export function useAIChat(): UseAIChatReturn {
+  useEffect(() => {
+    ensureAIToolsRegistered();
+  }, []);
+
   // State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<AIChatStatus>('idle');
@@ -162,6 +163,7 @@ export function useAIChat(): UseAIChatReturn {
   const providerRef = useRef<ModelProvider | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const accumulatedContentRef = useRef<string>('');
+  const hasStreamedChunkRef = useRef(false);
   const isFirstMessageRef = useRef<boolean>(true);
   // Store messages in ref to avoid sendMessage depending on messages state
   const messagesRef = useRef<ChatMessage[]>(messages);
@@ -186,60 +188,12 @@ export function useAIChat(): UseAIChatReturn {
       return providerRef.current;
     }
 
-    // Get config from settings
-    const providerTypeSetting = await getSettingByKey('ai_provider_type');
-    const providerType = (providerTypeSetting?.value as AIProviderType) || 'ollama';
-
-    // Update current provider for UI warnings
-    setCurrentProvider(providerType);
-
-    // Use provider-specific keys
-    const baseUrlKey = `ai_${providerType}_base_url`;
-    const modelKey = `ai_${providerType}_model`;
-    const apiKeyKey = `ai_${providerType}_api_key`;
-
-    // Fallback to legacy keys for backwards compatibility
-    const baseUrlSetting = await getSettingByKey(baseUrlKey);
-    const legacyBaseUrlSetting = await getSettingByKey('ai_base_url');
-    const modelSetting = await getSettingByKey(modelKey);
-    const legacyModelSetting = await getSettingByKey('ai_model');
-    const apiKeySetting = await getSettingByKey(apiKeyKey);
-    const legacyApiKeySetting = await getSettingByKey('ai_api_key');
-
-    const defaults = DEFAULT_CONFIGS[providerType];
-    const baseUrl =
-      (baseUrlSetting?.value as string) ||
-      (legacyBaseUrlSetting?.value as string) ||
-      (defaults?.baseUrl as string) ||
-      '';
-    const model =
-      (modelSetting?.value as string) ||
-      (legacyModelSetting?.value as string) ||
-      (defaults?.model as string) ||
-      '';
-
-    // Decrypt API key if present (use provider-specific key, fallback to legacy)
-    let apiKey = '';
-    const apiKeyValue = apiKeySetting?.value || legacyApiKeySetting?.value;
-    if (apiKeyValue) {
-      try {
-        const encryptionKey = await loadKey();
-        if (encryptionKey) {
-          const decrypted = await decryptData(
-            apiKeyValue as { ciphertext: string; iv: string },
-            encryptionKey
-          );
-          apiKey = decrypted as string;
-        } else {
-          // Fallback: use raw value
-          apiKey = apiKeyValue as string;
-        }
-      } catch (err) {
-        logger.error('[AIChat] Failed to decrypt API key:', err);
-      }
-    }
-
-    providerRef.current = createProvider(providerType, baseUrl, model, apiKey);
+    const configured = await createConfiguredProvider({
+      includeLegacyFallback: true,
+      logPrefix: '[AIChat]',
+    });
+    setCurrentProvider(configured.providerType);
+    providerRef.current = configured.provider;
 
     return providerRef.current;
   }, []);
@@ -351,6 +305,7 @@ export function useAIChat(): UseAIChatReturn {
 
       // Reset accumulated content
       accumulatedContentRef.current = '';
+      hasStreamedChunkRef.current = false;
 
       // Save user message to database
       if (sessionId) {
@@ -387,6 +342,10 @@ export function useAIChat(): UseAIChatReturn {
           stream: true,
           signal: abortControllerRef.current.signal,
           onChunk: (chunk) => {
+            if (!hasStreamedChunkRef.current) {
+              hasStreamedChunkRef.current = true;
+              setStatus('streaming');
+            }
             // Accumulate content for tool call detection
             accumulatedContentRef.current += chunk;
 
@@ -410,8 +369,6 @@ export function useAIChat(): UseAIChatReturn {
           },
         });
 
-        setStatus('streaming');
-
         // Save assistant message to database after streaming completes
         // Use accumulatedContentRef which has the complete response
         if (sessionId && accumulatedContentRef.current) {
@@ -425,6 +382,10 @@ export function useAIChat(): UseAIChatReturn {
         // Check accumulated content for tool calls
         await processToolCall(accumulatedContentRef.current, userMessage.id);
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          setStatus('idle');
+          return;
+        }
         logger.error('[AIChat] Chat error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
         setStatus('error');
@@ -635,6 +596,7 @@ export function useAIChat(): UseAIChatReturn {
     async (allMessages: ChatMessage[]) => {
       // Reset accumulated content for the next response
       accumulatedContentRef.current = '';
+      hasStreamedChunkRef.current = false;
 
       try {
         const provider = await getProvider();
@@ -654,6 +616,10 @@ export function useAIChat(): UseAIChatReturn {
           stream: true,
           signal: abortControllerRef.current.signal,
           onChunk: (chunk) => {
+            if (!hasStreamedChunkRef.current) {
+              hasStreamedChunkRef.current = true;
+              setStatus('streaming');
+            }
             // Accumulate content
             accumulatedContentRef.current += chunk;
 
@@ -688,6 +654,10 @@ export function useAIChat(): UseAIChatReturn {
         // Check for tool calls in accumulated content
         await processToolCall(accumulatedContentRef.current, '');
       } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          setStatus('idle');
+          return;
+        }
         logger.error('[AIChat] Continue conversation error:', err);
         setError(err instanceof Error ? err.message : 'Unknown error');
         setStatus('error');
@@ -851,6 +821,7 @@ export function useAIChat(): UseAIChatReturn {
     setPendingToolCall(null);
     setPendingToolCalls(null);
     accumulatedContentRef.current = '';
+    hasStreamedChunkRef.current = false;
     isFirstMessageRef.current = true;
   }, [sessionId]);
 

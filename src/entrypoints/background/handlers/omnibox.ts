@@ -1,6 +1,5 @@
 // Omnibox search handlers for background script
 import { browser } from 'wxt/browser';
-import type { JenkinsEnvironment } from '@/db';
 import { openLink } from '@/features/links/utils';
 import { getAllJobs, getJob } from '@/lib/db/jenkins';
 import { getAllActiveLinkTags, getAllActiveLinks } from '@/lib/db/links';
@@ -25,7 +24,7 @@ export async function searchOmnibox(text: string): Promise<Suggestion[]> {
       getAllJobTags(),
       getAllActiveTags(),
       getAllJobs(),
-      getSetting<JenkinsEnvironment[]>('jenkins_environments').then((envs) => envs || []),
+      getSetting('jenkins_environments').then((envs) => envs || []),
     ]);
 
     // Build tags map

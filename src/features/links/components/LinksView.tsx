@@ -103,7 +103,7 @@ export function LinksView() {
     isInitializedRef.current = true;
 
     const loadSort = async () => {
-      const saved = await getSetting<SortOption>('links_sort_by');
+      const saved = await getSetting('links_sort_by');
       if (saved) {
         setSortBy(saved);
       }

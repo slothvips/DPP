@@ -23,19 +23,19 @@ export function useGlobalSync(): GlobalSyncState {
 
   const isSyncing =
     useLiveQuery(async () => {
-      const status = await getSetting<string>('global_sync_status');
+      const status = await getSetting('global_sync_status');
       return status === 'syncing';
     }) ?? false;
 
   const error =
     useLiveQuery(async () => {
-      const err = await getSetting<string>('global_sync_error');
+      const err = await getSetting('global_sync_error');
       return err || null;
     }) ?? null;
 
   const lastSyncTime =
     useLiveQuery(async () => {
-      const setting = await getSetting<number>('last_global_sync');
+      const setting = await getSetting('last_global_sync');
       return setting || null;
     }) ?? null;
 
@@ -56,7 +56,7 @@ export function useGlobalSync(): GlobalSyncState {
     if (!isSyncing) return;
 
     const checkStuck = async () => {
-      const startTime = (await getSetting<number>('global_sync_start_time')) || 0;
+      const startTime = (await getSetting('global_sync_start_time')) || 0;
       if (startTime > 0 && Date.now() - startTime > 5 * 60 * 1000) {
         logger.warn('[useGlobalSync] Sync appears stuck (timeout). Resetting to error.');
         await updateSetting('global_sync_status', 'error');

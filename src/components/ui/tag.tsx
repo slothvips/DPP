@@ -1,23 +1,34 @@
+import { transparentize } from 'color2k';
 import React from 'react';
 import { cn } from '@/utils/cn';
 
 interface TagProps {
   name: string;
-  color?: string; // e.g. "red", "#f00", "bg-red-500" - currently unused but kept for interface compatibility
-  size?: 'sm' | 'md'; // 'sm' for compact lists
-  onRemove?: () => void;
+  color?: string;
+  size?: 'sm' | 'md';
   className?: string;
   onClick?: () => void;
 }
 
-export function Tag({
-  name,
-  color: _color,
-  size = 'md',
-  onRemove: _onRemove,
-  className,
-  onClick,
-}: TagProps) {
+function getTagStyle(color?: string): React.CSSProperties | undefined {
+  if (!color) {
+    return undefined;
+  }
+
+  try {
+    return {
+      backgroundColor: transparentize(color, 0.82),
+      borderColor: transparentize(color, 0.65),
+      color,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+export function Tag({ name, color, size = 'md', className, onClick }: TagProps) {
+  const tagStyle = getTagStyle(color);
+
   return (
     <span
       className={cn(
@@ -26,6 +37,7 @@ export function Tag({
         onClick && 'cursor-pointer hover:bg-info/30 dark:hover:bg-info/40',
         className
       )}
+      style={tagStyle}
       title={name}
       onClick={onClick}
       onKeyDown={(e) => {
@@ -38,18 +50,6 @@ export function Tag({
       tabIndex={onClick ? 0 : undefined}
     >
       <span className="truncate">{name}</span>
-      {/* {onRemove && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="ml-1 shrink-0 text-info hover:text-info-foreground hover:bg-info rounded-full p-0.5 transition-colors"
-        >
-          <X className="w-3 h-3" />
-        </button>
-      )} */}
     </span>
   );
 }

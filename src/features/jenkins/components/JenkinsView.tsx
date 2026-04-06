@@ -22,6 +22,7 @@ import { MyBuildRow } from '@/features/jenkins/components/MyBuildRow';
 import { RefreshCountdown } from '@/features/jenkins/components/RefreshCountdown';
 import { JenkinsService } from '@/features/jenkins/service';
 import { buildJobTree } from '@/features/jenkins/utils';
+import { syncLegacyJenkinsSettings } from '@/lib/db/jenkins';
 import { updateSetting } from '@/lib/db/settings';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
@@ -41,10 +42,13 @@ export function JenkinsView() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [shouldCloseOnSuccess, setShouldCloseOnSuccess] = useState(false);
 
-  const settings = useLiveQuery(() => db.settings.toArray()) || [];
+  const settings = useLiveQuery(() => db.settings.toArray(), [], []);
 
-  const environments =
-    (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [];
+  const environments = useMemo(
+    () =>
+      (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [],
+    [settings]
+  );
   const currentEnvId = settings.find((s) => s.key === 'jenkins_current_env')?.value as string;
 
   const currentEnv = environments.find((e) => e.id === currentEnvId);
@@ -141,7 +145,15 @@ export function JenkinsView() {
       const targetEnvId = params.get('envId');
 
       if (targetEnvId && targetEnvId !== currentEnvId) {
+        const targetEnv = environments.find((env) => env.id === targetEnvId);
         await updateSetting('jenkins_current_env', targetEnvId);
+        if (targetEnv) {
+          await syncLegacyJenkinsSettings({
+            host: targetEnv.host,
+            user: targetEnv.user,
+            token: targetEnv.token,
+          });
+        }
         // toast('已自动切换到目标环境', 'success'); // Silent switch for better UX
       }
 
@@ -160,7 +172,7 @@ export function JenkinsView() {
       }
     };
     checkDeepLink();
-  }, [currentEnvId]);
+  }, [currentEnvId, environments]);
 
   useEffect(() => {
     if (!jenkinsHost || !jenkinsUser || !jenkinsToken) return;
@@ -251,7 +263,15 @@ export function JenkinsView() {
 
   const handleEnvChange = async (envId: string) => {
     try {
+      const targetEnv = environments.find((env) => env.id === envId);
       await updateSetting('jenkins_current_env', envId);
+      if (targetEnv) {
+        await syncLegacyJenkinsSettings({
+          host: targetEnv.host,
+          user: targetEnv.user,
+          token: targetEnv.token,
+        });
+      }
       setRefreshKey((prev) => prev + 1);
       toast('已切换环境', 'success');
     } catch (e) {

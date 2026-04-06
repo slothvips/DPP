@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
-import { getAIConfig, updateSetting } from '@/lib/db/settings';
+import { syncJenkinsCredentials } from '@/lib/db/jenkins';
+import { getAIConfig } from '@/lib/db/settings';
 import { serializeHeaders } from '@/lib/pageAgent/utils';
 import { logger } from '@/utils/logger';
 
@@ -100,9 +101,7 @@ export function handleGeneralMessage(message: GeneralMessage): unknown {
 
     return (async () => {
       try {
-        await updateSetting('jenkins_host', host);
-        await updateSetting('jenkins_user', user);
-        await updateSetting('jenkins_token', token);
+        await syncJenkinsCredentials({ host, user, token });
         logger.debug('Jenkins settings saved');
         return { success: true };
       } catch (e) {

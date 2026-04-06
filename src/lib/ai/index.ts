@@ -1,5 +1,4 @@
 // Register all AI tools
-import { registerAgentTools } from './tools/agent';
 import { registerBlackboardTools } from './tools/blackboard';
 import { registerBrowserTools } from './tools/browser';
 import { registerHotNewsTools } from './tools/hotnews';
@@ -24,15 +23,23 @@ export * from './tools/recorder';
 export * from './tools/blackboard';
 export * from './tools/recentActivities';
 export * from './tools/pageAgent';
-export * from './tools/agent';
 
-registerBrowserTools();
-registerLinksTools();
-registerTagsTools();
-registerHotNewsTools();
-registerJenkinsTools();
-registerRecorderTools();
-registerBlackboardTools();
-registerRecentActivitiesTools();
-registerPageAgentTools();
-registerAgentTools();
+let aiToolsRegistered = false;
+
+export function ensureAIToolsRegistered(): void {
+  if (aiToolsRegistered) {
+    return;
+  }
+
+  registerBrowserTools();
+  registerLinksTools();
+  registerTagsTools();
+  registerHotNewsTools();
+  registerJenkinsTools();
+  registerRecorderTools();
+  registerBlackboardTools();
+  registerRecentActivitiesTools();
+  registerPageAgentTools();
+
+  aiToolsRegistered = true;
+}

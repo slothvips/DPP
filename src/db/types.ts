@@ -2,6 +2,7 @@ import type Dexie from 'dexie';
 import type { EntityTable } from 'dexie';
 import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
+import type { AIProviderType } from '@/lib/ai/types';
 import type { SyncMetadata, SyncOperation } from '@/lib/sync/types';
 
 export interface DeferredOp {
@@ -78,50 +79,9 @@ export interface JobTagItem {
   deletedAt?: number;
 }
 
-export type SettingKey =
-  | 'theme'
-  | 'last_sync_time'
-  | 'last_sync_status'
-  | 'global_sync_status'
-  | 'global_sync_error'
-  | 'last_global_sync'
-  | 'jenkins_host'
-  | 'jenkins_user'
-  | 'jenkins_token'
-  | 'jenkins_environments'
-  | 'jenkins_current_env'
-  | 'custom_server_url'
-  | 'sync_access_token'
-  | 'sync_encryption_key'
-  | 'feature_hotnews_enabled'
-  | 'feature_links_enabled'
-  | 'feature_blackboard_enabled'
-  | 'feature_jenkins_enabled'
-  | 'feature_recorder_enabled'
-  | 'feature_ai_assistant_enabled'
-  | 'feature_playground_enabled'
-  | 'sync_client_id'
-  | 'global_sync_start_time'
-  | 'show_others_builds'
-  | 'auto_sync_enabled'
-  | 'auto_sync_interval'
-  | 'ai_provider_type'
-  | 'ai_base_url'
-  | 'ai_model'
-  | 'ai_api_key'
-  | 'ai_ollama_base_url'
-  | 'ai_ollama_model'
-  | 'ai_ollama_api_key'
-  | 'ai_anthropic_base_url'
-  | 'ai_anthropic_model'
-  | 'ai_anthropic_api_key'
-  | 'ai_custom_base_url'
-  | 'ai_custom_model'
-  | 'ai_custom_api_key';
-
-export interface Setting {
-  key: SettingKey;
-  value: unknown;
+export interface StoredEncryptedValue {
+  ciphertext: string;
+  iv: string;
 }
 
 export interface MyBuildItem {
@@ -176,6 +136,58 @@ export interface RemoteActivityLog {
   timestamp: number;
   payload?: unknown;
   receivedAt: number;
+}
+
+export interface SettingMap {
+  theme: 'light' | 'dark' | 'system';
+  last_sync_time: number;
+  last_sync_status: string;
+  global_sync_status: 'idle' | 'syncing' | 'partial' | 'error';
+  global_sync_error: string;
+  last_global_sync: number;
+  jenkins_host: string;
+  jenkins_user: string;
+  jenkins_token: string;
+  jenkins_environments: JenkinsEnvironment[];
+  jenkins_current_env: string;
+  custom_server_url: string;
+  sync_access_token: string;
+  sync_encryption_key: string;
+  feature_hotnews_enabled: boolean;
+  feature_links_enabled: boolean;
+  feature_blackboard_enabled: boolean;
+  feature_jenkins_enabled: boolean;
+  feature_recorder_enabled: boolean;
+  feature_ai_assistant_enabled: boolean;
+  feature_playground_enabled: boolean;
+  sync_client_id: string;
+  global_sync_start_time: number;
+  show_others_builds: boolean;
+  auto_sync_enabled: boolean;
+  auto_sync_interval: number;
+  ai_provider_type: AIProviderType;
+  ai_base_url: string;
+  ai_model: string;
+  ai_api_key: string | StoredEncryptedValue;
+  ai_ollama_base_url: string;
+  ai_ollama_model: string;
+  ai_ollama_api_key: string | StoredEncryptedValue;
+  ai_anthropic_base_url: string;
+  ai_anthropic_model: string;
+  ai_anthropic_api_key: string | StoredEncryptedValue;
+  ai_custom_base_url: string;
+  ai_custom_model: string;
+  ai_custom_api_key: string | StoredEncryptedValue;
+  links_sort_by: 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt';
+}
+
+export type SettingKey = keyof SettingMap;
+
+export type SettingValue<K extends SettingKey> = SettingMap[K];
+
+export interface Setting<K extends SettingKey = SettingKey> {
+  key: K;
+  value: SettingValue<K>;
 }
 
 export type DPPDatabase = Dexie & {

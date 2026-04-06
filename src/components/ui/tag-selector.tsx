@@ -53,12 +53,7 @@ export function TagSelector({
       {availableTags
         .filter((t) => selectedTagIds.has(t.id))
         .map((tag) => (
-          <Tag
-            key={tag.id}
-            name={tag.name}
-            color={tag.color}
-            onRemove={() => onToggleTag(tag.id)}
-          />
+          <Tag key={tag.id} name={tag.name} color={tag.color} />
         ))}
 
       {/* Add Button & Popover */}

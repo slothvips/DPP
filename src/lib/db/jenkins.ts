@@ -9,6 +9,188 @@ import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 
+export interface JenkinsCredentials {
+  host: string;
+  user: string;
+  token: string;
+  envId: string;
+}
+
+interface ResolvedJenkinsConfig {
+  credentials: JenkinsCredentials | null;
+  environments: JenkinsEnvironment[];
+  currentEnvId: string;
+}
+
+export async function resolveJenkinsConfig(targetEnvId?: string): Promise<ResolvedJenkinsConfig> {
+  const [environments = [], currentEnvId = '', legacyHost, legacyUser, legacyToken] =
+    await Promise.all([
+      getSetting('jenkins_environments'),
+      getSetting('jenkins_current_env'),
+      getSetting('jenkins_host'),
+      getSetting('jenkins_user'),
+      getSetting('jenkins_token'),
+    ]);
+
+  const targetEnv =
+    (targetEnvId ? environments.find((env) => env.id === targetEnvId) : undefined) ??
+    (currentEnvId ? environments.find((env) => env.id === currentEnvId) : undefined);
+
+  if (targetEnv) {
+    return {
+      credentials: {
+        host: targetEnv.host,
+        user: targetEnv.user,
+        token: targetEnv.token,
+        envId: targetEnv.id,
+      },
+      environments,
+      currentEnvId,
+    };
+  }
+
+  if (legacyHost && legacyUser && legacyToken) {
+    return {
+      credentials: {
+        host: legacyHost,
+        user: legacyUser,
+        token: legacyToken,
+        envId: 'default',
+      },
+      environments,
+      currentEnvId,
+    };
+  }
+
+  return {
+    credentials: null,
+    environments,
+    currentEnvId,
+  };
+}
+
+export async function getJenkinsCredentials(targetEnvId?: string): Promise<JenkinsCredentials> {
+  const { credentials, environments } = await resolveJenkinsConfig(targetEnvId);
+
+  if (credentials) {
+    return credentials;
+  }
+
+  if (targetEnvId && environments.length > 0) {
+    throw new Error(`Jenkins environment not found: ${targetEnvId}`);
+  }
+
+  throw new Error('Jenkins credentials not configured');
+}
+
+export async function syncLegacyJenkinsSettings(args: {
+  host: string;
+  user: string;
+  token: string;
+}): Promise<void> {
+  const [currentHost, currentUser, currentToken] = await Promise.all([
+    getSetting('jenkins_host'),
+    getSetting('jenkins_user'),
+    getSetting('jenkins_token'),
+  ]);
+
+  const updates: Promise<void>[] = [];
+
+  if (currentHost !== args.host) {
+    updates.push(updateSetting('jenkins_host', args.host));
+  }
+
+  if (currentUser !== args.user) {
+    updates.push(updateSetting('jenkins_user', args.user));
+  }
+
+  if (currentToken !== args.token) {
+    updates.push(updateSetting('jenkins_token', args.token));
+  }
+
+  await Promise.all(updates);
+}
+
+export async function clearLegacyJenkinsSettings(): Promise<void> {
+  const updates: Promise<void>[] = [];
+
+  if ((await getSetting('jenkins_host')) !== undefined) {
+    updates.push(updateSetting('jenkins_host', ''));
+  }
+
+  if ((await getSetting('jenkins_user')) !== undefined) {
+    updates.push(updateSetting('jenkins_user', ''));
+  }
+
+  if ((await getSetting('jenkins_token')) !== undefined) {
+    updates.push(updateSetting('jenkins_token', ''));
+  }
+
+  await Promise.all(updates);
+}
+
+export async function syncCurrentJenkinsEnvironment(args: {
+  host: string;
+  user: string;
+  token: string;
+}): Promise<void> {
+  const [environments = [], currentEnvId] = await Promise.all([
+    getSetting('jenkins_environments'),
+    getSetting('jenkins_current_env'),
+  ]);
+
+  if (environments.length === 0) {
+    return;
+  }
+
+  let targetIndex = -1;
+
+  if (currentEnvId) {
+    targetIndex = environments.findIndex(
+      (env) => env.id === currentEnvId && env.host === args.host
+    );
+  }
+
+  if (targetIndex === -1) {
+    targetIndex = environments.findIndex((env) => env.host === args.host && env.user === args.user);
+  }
+
+  if (targetIndex === -1) {
+    targetIndex = environments.findIndex((env) => env.host === args.host);
+  }
+
+  if (targetIndex === -1) {
+    return;
+  }
+
+  const targetEnv = environments[targetIndex];
+  if (
+    targetEnv.host === args.host &&
+    targetEnv.user === args.user &&
+    targetEnv.token === args.token
+  ) {
+    return;
+  }
+
+  const updatedEnvironments = [...environments];
+  updatedEnvironments[targetIndex] = {
+    ...targetEnv,
+    host: args.host,
+    user: args.user,
+    token: args.token,
+  };
+
+  await updateSetting('jenkins_environments', updatedEnvironments);
+}
+
+export async function syncJenkinsCredentials(args: {
+  host: string;
+  user: string;
+  token: string;
+}): Promise<void> {
+  await Promise.all([syncCurrentJenkinsEnvironment(args), syncLegacyJenkinsSettings(args)]);
+}
+
 /**
  * 保存 Jenkins 任务
  * @param jobs - 任务列表
@@ -51,8 +233,8 @@ export async function syncJenkins(args: { envId?: string }): Promise<{
 }> {
   try {
     const [environments = [], currentEnvId] = await Promise.all([
-      getSetting<JenkinsEnvironment[]>('jenkins_environments'),
-      getSetting<string>('jenkins_current_env'),
+      getSetting('jenkins_environments'),
+      getSetting('jenkins_current_env'),
     ]);
 
     // 确定要使用的环境 ID
@@ -125,7 +307,7 @@ export async function switchJenkinsEnv(args: { envId: string }): Promise<{
       };
     }
 
-    const environments = (await getSetting<JenkinsEnvironment[]>('jenkins_environments')) || [];
+    const environments = (await getSetting('jenkins_environments')) || [];
 
     // 验证环境是否存在
     const env = environments.find((e) => e.id === envId);

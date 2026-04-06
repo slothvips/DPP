@@ -20,7 +20,8 @@ export async function addRemoteActivities(operations: SyncOperation[]): Promise<
     receivedAt,
   }));
 
-  await db.remoteActivityLog.bulkAdd(logs);
+  // Activity archiving must be idempotent so repeated pulls do not wedge sync on duplicate IDs.
+  await db.remoteActivityLog.bulkPut(logs);
 }
 
 /**

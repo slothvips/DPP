@@ -3,7 +3,7 @@ import { getSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 
 export async function syncDatabase() {
-  const serverUrl = await getSetting<string>('custom_server_url');
+  const serverUrl = await getSetting('custom_server_url');
 
   if (!serverUrl) {
     logger.debug('[GlobalSync] Sync server URL not configured, skipping');

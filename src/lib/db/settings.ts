@@ -1,31 +1,40 @@
 import { db } from '@/db';
-import type { Setting, SettingKey } from '@/db/types';
-import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
+import type { Setting, SettingKey, SettingValue } from '@/db/types';
+import { loadAIProviderConfig } from '@/lib/ai/config';
 import type { AIProviderType } from '@/lib/ai/types';
-import { decryptData, loadKey } from '@/lib/crypto/encryption';
-import { logger } from '@/utils/logger';
 
-export async function getSetting<T>(key: string): Promise<T | undefined> {
+export async function getSetting<K extends SettingKey>(
+  key: K
+): Promise<SettingValue<K> | undefined>;
+export async function getSetting<T>(key: string): Promise<T | undefined>;
+export async function getSetting(key: string): Promise<unknown> {
   const setting = await db.settings.get(key as SettingKey);
-  return setting?.value as T | undefined;
+  return setting?.value;
 }
 
 /**
  * Get a setting by key, returns the full Setting object
  */
+export async function getSettingByKey<K extends SettingKey>(
+  key: K
+): Promise<Setting<K> | undefined>;
+export async function getSettingByKey(key: string): Promise<Setting | undefined>;
 export async function getSettingByKey(key: string): Promise<Setting | undefined> {
-  return db.settings.where('key').equals(key).first() as Promise<Setting | undefined>;
+  return db.settings.get(key as SettingKey) as Promise<Setting | undefined>;
 }
 
-export async function updateSetting(key: string, value: unknown): Promise<void> {
-  await db.settings.put({ key: key as SettingKey, value });
+export async function updateSetting<K extends SettingKey>(
+  key: K,
+  value: SettingValue<K>
+): Promise<void> {
+  await db.settings.put({ key, value });
 }
 
 /**
  * Delete a setting by key
  */
-export async function deleteSetting(key: string): Promise<void> {
-  await db.settings.delete(key as SettingKey);
+export async function deleteSetting<K extends SettingKey>(key: K): Promise<void> {
+  await db.settings.delete(key);
 }
 
 /**
@@ -49,44 +58,17 @@ function isAnthropicProvider(provider: AIProviderType, _baseUrl: string): boolea
  */
 export async function getAIConfig(): Promise<AIConfigResult | null> {
   try {
-    const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
-    const provider = (providerSetting?.value as AIProviderType) || 'custom';
-
-    const baseUrlKey = `ai_${provider}_base_url`;
-    const modelKey = `ai_${provider}_model`;
-    const apiKeyKey = `ai_${provider}_api_key`;
-
-    const baseUrlSetting = await db.settings.where('key').equals(baseUrlKey).first();
-    const modelSetting = await db.settings.where('key').equals(modelKey).first();
-    const apiKeySetting = await db.settings.where('key').equals(apiKeyKey).first();
-
-    const baseUrl = (baseUrlSetting?.value as string) || DEFAULT_CONFIGS[provider]?.baseUrl || '';
-    const model = (modelSetting?.value as string) || DEFAULT_CONFIGS[provider]?.model || '';
-
-    let apiKey = '';
-    if (apiKeySetting?.value) {
-      try {
-        const encryptionKey = await loadKey();
-        if (encryptionKey) {
-          apiKey = (await decryptData(
-            apiKeySetting.value as { ciphertext: string; iv: string },
-            encryptionKey
-          )) as string;
-        } else {
-          apiKey = apiKeySetting.value as string;
-        }
-      } catch (err) {
-        logger.error('[Settings] Failed to decrypt API key:', err);
-        return null;
-      }
-    }
+    const config = await loadAIProviderConfig({
+      includeLegacyFallback: false,
+      logPrefix: '[Settings]',
+    });
 
     return {
-      provider,
-      baseUrl,
-      model,
-      apiKey,
-      isAnthropicProvider: isAnthropicProvider(provider, baseUrl),
+      provider: config.providerType,
+      baseUrl: config.baseUrl,
+      model: config.model,
+      apiKey: config.apiKey,
+      isAnthropicProvider: isAnthropicProvider(config.providerType, config.baseUrl),
     };
   } catch {
     return null;

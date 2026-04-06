@@ -56,7 +56,10 @@ export async function handleJenkinsApiRequest(
 
     clearTimeout(timeoutId);
 
-    const data = await response.json();
+    const contentType = response.headers.get('content-type') || '';
+    const data = contentType.includes('application/json')
+      ? await response.json()
+      : await response.text();
     return { success: true, status: response.status, data };
   } catch (e) {
     logger.error('JENKINS_API_REQUEST failed:', e);

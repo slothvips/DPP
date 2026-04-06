@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { ToastProvider, useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
+import type { JenkinsEnvironment, Setting, SettingKey } from '@/db/types';
 import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 import { SyncKeyManager } from '@/features/settings/components/SyncKeyManager';
 import { useTheme } from '@/hooks/useTheme';
@@ -34,7 +35,7 @@ import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 import '@unocss/reset/tailwind.css';
 
-const EXCLUDED_SETTINGS = [
+const EXCLUDED_SETTINGS: SettingKey[] = [
   'sync_client_id',
   'last_sync_time',
   'last_sync_status',
@@ -45,7 +46,12 @@ const EXCLUDED_SETTINGS = [
 ];
 
 // Settings categories for granular export/import
-const SETTINGS_CATEGORIES = [
+const SETTINGS_CATEGORIES: Array<{
+  key: string;
+  label: string;
+  description: string;
+  keys: SettingKey[];
+}> = [
   {
     key: 'theme',
     label: '主题设置',
@@ -105,6 +111,47 @@ const SETTINGS_CATEGORIES = [
   },
 ];
 
+function getSettingValue<K extends SettingKey>(
+  settings: Setting[],
+  key: K
+): Setting<K>['value'] | undefined {
+  const setting = settings.find((item) => item.key === key);
+  return setting?.value as Setting<K>['value'] | undefined;
+}
+
+interface ImportedSetting {
+  key: SettingKey;
+  value: unknown;
+}
+
+const VALID_SETTING_KEYS = new Set<SettingKey>([
+  ...EXCLUDED_SETTINGS,
+  ...SETTINGS_CATEGORIES.flatMap((category) => category.keys),
+  'auto_sync_enabled',
+  'auto_sync_interval',
+  'links_sort_by',
+  'jenkins_host',
+  'jenkins_user',
+  'jenkins_token',
+  'ai_base_url',
+  'ai_model',
+  'ai_api_key',
+  'ai_ollama_api_key',
+]);
+
+function isSettingKey(value: unknown): value is SettingKey {
+  return typeof value === 'string' && VALID_SETTING_KEYS.has(value as SettingKey);
+}
+
+function isImportedSetting(value: unknown): value is ImportedSetting {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as { key?: unknown };
+  return isSettingKey(candidate.key);
+}
+
 function OptionsApp() {
   useTheme();
   const { toast } = useToast();
@@ -135,38 +182,29 @@ function OptionsApp() {
       // General Settings
       const settings = await db.settings.toArray();
 
-      const lastSync = settings.find((s) => s.key === 'last_sync_time')?.value as number;
+      const lastSync = getSettingValue(settings, 'last_sync_time');
       if (lastSync) setLastSyncTime(lastSync);
 
       setCustomConfig({
-        serverUrl: (settings.find((s) => s.key === 'custom_server_url')?.value as string) || '',
+        serverUrl: getSettingValue(settings, 'custom_server_url') || '',
       });
 
-      setAccessToken((settings.find((s) => s.key === 'sync_access_token')?.value as string) || '');
+      setAccessToken(getSettingValue(settings, 'sync_access_token') || '');
 
-      const autoSyncEnabled = settings.find((s) => s.key === 'auto_sync_enabled');
-      const autoSyncInterval = settings.find((s) => s.key === 'auto_sync_interval');
       setAutoSync({
-        enabled: autoSyncEnabled ? Boolean(autoSyncEnabled.value) : true,
-        interval: autoSyncInterval ? Number(autoSyncInterval.value) : 30,
+        enabled: getSettingValue(settings, 'auto_sync_enabled') ?? true,
+        interval: getSettingValue(settings, 'auto_sync_interval') ?? 30,
       });
 
       // Feature toggles (default to true if not set)
-      const hotNewsEnabled = settings.find((s) => s.key === 'feature_hotnews_enabled');
-      const linksEnabled = settings.find((s) => s.key === 'feature_links_enabled');
-      const blackboardEnabled = settings.find((s) => s.key === 'feature_blackboard_enabled');
-      const jenkinsEnabled = settings.find((s) => s.key === 'feature_jenkins_enabled');
-      const recorderEnabled = settings.find((s) => s.key === 'feature_recorder_enabled');
-      const aiAssistantEnabled = settings.find((s) => s.key === 'feature_ai_assistant_enabled');
-      const playgroundEnabled = settings.find((s) => s.key === 'feature_playground_enabled');
       setFeatureToggles({
-        hotNews: hotNewsEnabled?.value !== false,
-        links: linksEnabled?.value !== false,
-        blackboard: blackboardEnabled?.value !== false,
-        jenkins: jenkinsEnabled?.value !== false,
-        recorder: recorderEnabled?.value !== false,
-        aiAssistant: aiAssistantEnabled?.value !== false,
-        playground: playgroundEnabled?.value !== false,
+        hotNews: getSettingValue(settings, 'feature_hotnews_enabled') !== false,
+        links: getSettingValue(settings, 'feature_links_enabled') !== false,
+        blackboard: getSettingValue(settings, 'feature_blackboard_enabled') !== false,
+        jenkins: getSettingValue(settings, 'feature_jenkins_enabled') !== false,
+        recorder: getSettingValue(settings, 'feature_recorder_enabled') !== false,
+        aiAssistant: getSettingValue(settings, 'feature_ai_assistant_enabled') !== false,
+        playground: getSettingValue(settings, 'feature_playground_enabled') !== false,
       });
     })();
   }, []);
@@ -218,7 +256,9 @@ function OptionsApp() {
 
     try {
       const allSettings = await db.settings.toArray();
-      const safeSettings = allSettings.filter((s) => !EXCLUDED_SETTINGS.includes(s.key));
+      const safeSettings = allSettings.filter(
+        (s) => !EXCLUDED_SETTINGS.includes(s.key as SettingKey)
+      );
 
       // Filter by selected categories
       const allowedKeys = new Set(
@@ -288,13 +328,16 @@ function OptionsApp() {
           throw new Error('无效的备份文件格式');
         }
 
-        if (!parsed.data.settings?.length) {
+        if (!Array.isArray(parsed.data.settings) || parsed.data.settings.length === 0) {
           throw new Error('文件中没有应用设置数据');
         }
 
-        const hasKey = parsed.data.settings.some(
-          (s: { key: string }) => s.key === 'sync_encryption_key'
-        );
+        const importedSettings: ImportedSetting[] = parsed.data.settings.filter(isImportedSetting);
+        if (importedSettings.length === 0) {
+          throw new Error('文件中没有可识别的设置项');
+        }
+
+        const hasKey = importedSettings.some((s) => s.key === 'sync_encryption_key');
         const confirmed = await confirm(
           `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}\n⚠️ 这将清空所有本地数据，导入后请重新同步！`,
           '确认导入'
@@ -307,29 +350,25 @@ function OptionsApp() {
         await db.open();
 
         await db.transaction('rw', db.settings, async () => {
-          let settings = parsed.data.settings.filter(
-            (s: { key: string }) => !EXCLUDED_SETTINGS.includes(s.key)
-          );
+          let settings = importedSettings.filter((s) => !EXCLUDED_SETTINGS.includes(s.key));
 
-          const hasEnvironments = settings.some(
-            (s: { key: string }) => s.key === 'jenkins_environments'
-          );
-          const host = settings.find((s: { key: string }) => s.key === 'jenkins_host');
-          const user = settings.find((s: { key: string }) => s.key === 'jenkins_user');
-          const token = settings.find((s: { key: string }) => s.key === 'jenkins_token');
+          const hasEnvironments = settings.some((s) => s.key === 'jenkins_environments');
+          const host = settings.find((s) => s.key === 'jenkins_host');
+          const user = settings.find((s) => s.key === 'jenkins_user');
+          const token = settings.find((s) => s.key === 'jenkins_token');
 
           if (!hasEnvironments && (host || user || token)) {
-            const defaultEnv = {
+            const defaultEnv: JenkinsEnvironment = {
               id: crypto.randomUUID(),
               name: 'Default',
-              host: (host?.value as string) || '',
-              user: (user?.value as string) || '',
-              token: (token?.value as string) || '',
+              host: typeof host?.value === 'string' ? host.value : '',
+              user: typeof user?.value === 'string' ? user.value : '',
+              token: typeof token?.value === 'string' ? token.value : '',
               order: 0,
             };
             settings.push({ key: 'jenkins_environments', value: [defaultEnv] });
 
-            if (!settings.some((s: { key: string }) => s.key === 'jenkins_current_env')) {
+            if (!settings.some((s) => s.key === 'jenkins_current_env')) {
               settings.push({ key: 'jenkins_current_env', value: defaultEnv.id });
             }
 
@@ -337,8 +376,7 @@ function OptionsApp() {
           }
 
           settings = settings.filter(
-            (s: { key: string }) =>
-              !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(s.key)
+            (s) => !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(s.key)
           );
 
           await db.settings.bulkAdd(settings as Parameters<typeof db.settings.bulkAdd>[0]);
@@ -411,7 +449,7 @@ function OptionsApp() {
       recorder: 'feature_recorder_enabled',
       aiAssistant: 'feature_ai_assistant_enabled',
       playground: 'feature_playground_enabled',
-    };
+    } as const satisfies Record<string, SettingKey>;
     const labelMap = {
       hotNews: '资讯',
       links: '链接',

@@ -14,7 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import type { JenkinsEnvironment } from '@/db';
-import { deleteJenkinsEnv } from '@/lib/db/jenkins';
+import {
+  clearLegacyJenkinsSettings,
+  deleteJenkinsEnv,
+  syncLegacyJenkinsSettings,
+} from '@/lib/db/jenkins';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { http } from '@/lib/http';
 import { cn } from '@/utils/cn';
@@ -29,12 +33,13 @@ export function JenkinsEnvManager() {
   const [editingEnv, setEditingEnv] = useState<JenkinsEnvironment | null>(null);
 
   const environments = useLiveQuery(async () => {
-    return (await getSetting<JenkinsEnvironment[]>('jenkins_environments')) || [];
+    return (await getSetting('jenkins_environments')) || [];
   }, []);
 
-  const currentEnvId = useLiveQuery(async () => {
-    return (await getSetting<string>('jenkins_current_env')) || '';
-  });
+  const currentEnvId =
+    useLiveQuery(async () => {
+      return (await getSetting('jenkins_current_env')) || '';
+    }) || '';
 
   const handleDelete = async (id: string) => {
     const confirmed = await confirm('确定要删除此环境吗？', '确认删除', 'danger');
@@ -50,6 +55,15 @@ export function JenkinsEnvManager() {
       if (currentEnvId === id) {
         const nextEnv = newEnvs[0];
         await updateSetting('jenkins_current_env', nextEnv ? nextEnv.id : '');
+        if (nextEnv) {
+          await syncLegacyJenkinsSettings({
+            host: nextEnv.host,
+            user: nextEnv.user,
+            token: nextEnv.token,
+          });
+        } else {
+          await clearLegacyJenkinsSettings();
+        }
       }
 
       toast('环境已删除', 'success');
@@ -71,7 +85,15 @@ export function JenkinsEnvManager() {
 
   const handleSetCurrent = async (id: string) => {
     try {
+      const targetEnv = environments?.find((env) => env.id === id);
       await updateSetting('jenkins_current_env', id);
+      if (targetEnv) {
+        await syncLegacyJenkinsSettings({
+          host: targetEnv.host,
+          user: targetEnv.user,
+          token: targetEnv.token,
+        });
+      }
       toast('已切换当前环境', 'success');
     } catch (e) {
       logger.error(e);
@@ -157,6 +179,7 @@ export function JenkinsEnvManager() {
         onOpenChange={setIsDialogOpen}
         initialData={editingEnv}
         existingEnvs={environments || []}
+        currentEnvId={currentEnvId}
       />
     </div>
   );
@@ -167,9 +190,16 @@ interface EnvDialogProps {
   onOpenChange: (open: boolean) => void;
   initialData: JenkinsEnvironment | null;
   existingEnvs: JenkinsEnvironment[];
+  currentEnvId: string;
 }
 
-function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogProps) {
+function EnvDialog({
+  open,
+  onOpenChange,
+  initialData,
+  existingEnvs,
+  currentEnvId,
+}: EnvDialogProps) {
   const { toast } = useToast();
   const [formData, setFormData] = useState<Partial<JenkinsEnvironment>>({
     name: '',
@@ -236,9 +266,19 @@ function EnvDialog({ open, onOpenChange, initialData, existingEnvs }: EnvDialogP
 
       await updateSetting('jenkins_environments', newEnvs);
 
+      const shouldSyncLegacy = existingEnvs.length === 0 || initialData?.id === currentEnvId;
+
       // If this is the first environment, make it active
       if (existingEnvs.length === 0) {
         await updateSetting('jenkins_current_env', newEnv.id);
+      }
+
+      if (shouldSyncLegacy) {
+        await syncLegacyJenkinsSettings({
+          host: newEnv.host,
+          user: newEnv.user,
+          token: newEnv.token,
+        });
       }
 
       toast(initialData ? '环境已更新' : '环境已添加', 'success');

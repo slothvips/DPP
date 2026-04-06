@@ -98,7 +98,7 @@ export async function storeKey(key: CryptoKey): Promise<void> {
 }
 
 export async function loadKey(): Promise<CryptoKey | null> {
-  let base64Key = await getSetting<string>('sync_encryption_key');
+  let base64Key = await getSetting('sync_encryption_key');
 
   if (!base64Key) {
     const legacyResult = await browser.storage.local.get('sync_encryption_key');
