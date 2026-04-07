@@ -132,9 +132,7 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
           <span className="text-muted-foreground">/</span>
           <span className="text-primary">{statusCounts.active}</span>
           <span className="text-muted-foreground">/</span>
-          <span className="text-muted-foreground/70 dark:text-muted-foreground/60">
-            {statusCounts.future}
-          </span>
+          <span className="text-muted-foreground">{statusCounts.future}</span>
         </div>
       </div>
 
@@ -174,10 +172,7 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       )}
                     >
                       <div
-                        className={cn(
-                          'truncate text-xs',
-                          isFuture && 'text-muted-foreground/70 dark:text-muted-foreground/60'
-                        )}
+                        className={cn('truncate text-xs', isFuture && 'text-muted-foreground')}
                         title={req.url}
                       >
                         <div className="flex items-center gap-1">
@@ -205,9 +200,7 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'font-mono text-xs',
-                          isFuture
-                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
-                            : getMethodColor(req.method)
+                          isFuture ? 'text-muted-foreground' : getMethodColor(req.method)
                         )}
                       >
                         {req.method}
@@ -215,9 +208,7 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'font-mono text-xs',
-                          isFuture
-                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
-                            : getStatusColor(req.status)
+                          isFuture ? 'text-muted-foreground' : getStatusColor(req.status)
                         )}
                       >
                         {isFuture
@@ -227,9 +218,7 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'font-mono text-xs',
-                          isFuture
-                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
-                            : 'text-muted-foreground'
+                          isFuture ? 'text-muted-foreground' : 'text-muted-foreground'
                         )}
                       >
                         {formatTimePoint(req.eventTimestamp)}
@@ -237,9 +226,7 @@ export function NetworkPanel({ events, currentTime }: NetworkPanelProps) {
                       <div
                         className={cn(
                           'text-right text-xs',
-                          isFuture
-                            ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
-                            : 'text-muted-foreground'
+                          isFuture ? 'text-muted-foreground' : 'text-muted-foreground'
                         )}
                       >
                         {isFuture
@@ -301,7 +288,7 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <div className="w-12 h-12 mb-4 rounded-full bg-muted/50 flex items-center justify-center">
           <svg
-            className="w-6 h-6 text-muted-foreground/70 dark:text-muted-foreground/60"
+            className="w-6 h-6 text-muted-foreground"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -314,12 +301,8 @@ function RequestDetail({ request, isFuture }: RequestDetailProps) {
             />
           </svg>
         </div>
-        <p className="text-muted-foreground/70 dark:text-muted-foreground/60 text-sm">
-          此请求尚未发生
-        </p>
-        <p className="text-muted-foreground/70 dark:text-muted-foreground/60 text-xs mt-1">
-          播放到对应时间点后可查看详情
-        </p>
+        <p className="text-muted-foreground text-sm">此请求尚未发生</p>
+        <p className="text-muted-foreground text-xs mt-1">播放到对应时间点后可查看详情</p>
       </div>
     );
   }
@@ -636,7 +619,7 @@ function StreamChunksSection({ chunks }: { chunks: StreamChunk[] }) {
                   <span className="text-xs text-muted-foreground">{formatSize(chunk.size)}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground/70 truncate max-w-[200px]">
+                  <span className="text-xs text-muted-foreground truncate max-w-[200px]">
                     {previewData}
                   </span>
                   <svg

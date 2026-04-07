@@ -54,7 +54,7 @@ export function Tips() {
         )}
       >
         <Icon className={cn('w-4 h-4 shrink-0', tip.color)} />
-        <span className="truncate text-foreground/80 font-medium tracking-wide">{tip.text}</span>
+        <span className="truncate text-foreground font-medium tracking-wide">{tip.text}</span>
       </div>
     </div>
   );

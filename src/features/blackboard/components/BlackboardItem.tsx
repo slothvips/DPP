@@ -186,7 +186,7 @@ export function BlackboardItemView({
                   li: ({ node: _node, ...props }) => <li className="pl-1" {...props} />,
                   blockquote: ({ node: _node, ...props }) => (
                     <blockquote
-                      className="border-l-4 border-muted-foreground/30 pl-3 italic my-2 text-muted-foreground dark:border-muted-foreground/50 dark:text-muted-foreground/80"
+                      className="border-l-4 border-border pl-3 italic my-2 text-muted-foreground"
                       {...props}
                     />
                   ),

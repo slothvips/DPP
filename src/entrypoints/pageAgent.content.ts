@@ -4,6 +4,7 @@ import { PageAgent } from 'page-agent';
 import { browser } from 'wxt/browser';
 import type { PageAgentConfig, PageAgentInstance } from '@/lib/pageAgent/types';
 import { serializeHeaders } from '@/lib/pageAgent/utils';
+import { logger } from '@/utils/logger';
 
 export default defineContentScript({
   // 此脚本通过 browser.scripting.executeScript 动态注入

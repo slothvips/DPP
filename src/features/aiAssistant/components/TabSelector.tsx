@@ -120,7 +120,7 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
                 <Globe className="w-3.5 h-3.5" />
               )}
               <span className="max-w-[80px] truncate">{selectedTab.title}</span>
-              <span className="text-muted-foreground/50 text-[10px]">#{selectedTabId}</span>
+              <span className="text-muted-foreground text-[10px]">#{selectedTabId}</span>
             </>
           ) : selectedTabId === null ? (
             <>

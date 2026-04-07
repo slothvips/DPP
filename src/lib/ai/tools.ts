@@ -1,7 +1,6 @@
 // AI Tools - Tool registry and conversion utilities
-import { browser } from 'wxt/browser';
 import { logger } from '@/utils/logger';
-import type { ToolParameter } from './types';
+import type { OpenAIToolDefinition, ToolParameter } from './types';
 
 export const YOLO_MODE_KEY = '__dpp_yolo_mode';
 
@@ -60,40 +59,37 @@ class ToolRegistry {
   }
 
   /**
+   * Convert registry tools to OpenAI tool definitions
+   */
+  getOpenAITools(): OpenAIToolDefinition[] {
+    return this.getAll().map((tool) => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      },
+    }));
+  }
+
+  /**
    * Execute a tool by name
    */
   async execute<T = unknown>(name: string, args: Record<string, unknown>): Promise<T> {
-    const tool = this.tools.get(name);
+    const trimmedName = name.trim();
+    const tool = this.tools.get(trimmedName);
     if (!tool) {
-      throw new Error(`Tool ${name} not found`);
+      throw new Error(`Tool ${trimmedName} not found`);
     }
+
     return tool.handler(args) as Promise<T>;
   }
 
   /**
-   * Check if a tool requires confirmation (considers YOLO mode)
+   * Check if a tool requires confirmation
    */
-  async requiresConfirmation(name: string): Promise<boolean> {
-    // Check YOLO mode first
-    const isYolo = await this.isYoloMode();
-    if (isYolo) {
-      return false;
-    }
-
-    const tool = this.tools.get(name);
-    return tool?.requiresConfirmation ?? false;
-  }
-
-  /**
-   * Check if YOLO mode is enabled
-   */
-  async isYoloMode(): Promise<boolean> {
-    try {
-      const result = await browser.storage.session.get(YOLO_MODE_KEY);
-      return result[YOLO_MODE_KEY] === true;
-    } catch {
-      return false;
-    }
+  requiresConfirmation(name: string): boolean {
+    return this.tools.get(name)?.requiresConfirmation ?? false;
   }
 
   /**

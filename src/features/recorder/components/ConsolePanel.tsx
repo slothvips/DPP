@@ -149,9 +149,7 @@ export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
             <span className="text-muted-foreground">/</span>
             <span className="text-primary">{statusCounts.active}</span>
             <span className="text-muted-foreground">/</span>
-            <span className="text-muted-foreground/70 dark:text-muted-foreground/60">
-              {statusCounts.future}
-            </span>
+            <span className="text-muted-foreground">{statusCounts.future}</span>
           </div>
         </div>
 
@@ -165,13 +163,13 @@ export function ConsolePanel({ events, currentTime }: ConsolePanelProps) {
                 'px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1',
                 levelFilter.size === 0 || levelFilter.has(level)
                   ? getLevelButtonStyle(level)
-                  : 'bg-muted/50 text-muted-foreground/70 dark:text-muted-foreground/60'
+                  : 'bg-muted/50 text-muted-foreground'
               )}
             >
               <span>{getLevelIcon(level)}</span>
               <span>{level}</span>
               {levelCounts[level] > 0 && (
-                <span className="ml-0.5 opacity-70">({levelCounts[level]})</span>
+                <span className="ml-0.5 text-muted-foreground">({levelCounts[level]})</span>
               )}
             </button>
           ))}
@@ -248,9 +246,7 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
         <span
           className={cn(
             'flex-shrink-0 w-4 text-center',
-            isFuture
-              ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
-              : getLevelColor(log.level)
+            isFuture ? 'text-muted-foreground' : getLevelColor(log.level)
           )}
           title={log.level}
         >
@@ -261,9 +257,7 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
         <span
           className={cn(
             'flex-shrink-0 font-mono text-xs',
-            isFuture
-              ? 'text-muted-foreground/70 dark:text-muted-foreground/60'
-              : 'text-muted-foreground'
+            isFuture ? 'text-muted-foreground' : 'text-muted-foreground'
           )}
         >
           {timeLabel}
@@ -274,7 +268,7 @@ function ConsoleLogItem({ log, status, timeLabel }: ConsoleLogItemProps) {
           <div
             className={cn(
               'font-mono text-xs break-all',
-              isFuture && 'text-muted-foreground/70 dark:text-muted-foreground/60',
+              isFuture && 'text-muted-foreground',
               !expanded && needsExpand && 'line-clamp-3'
             )}
           >
@@ -352,7 +346,7 @@ interface FormattedValueProps {
 }
 
 function FormattedValue({ value, isFuture, expanded }: FormattedValueProps) {
-  const baseClass = isFuture ? 'text-muted-foreground/50' : '';
+  const baseClass = isFuture ? 'text-muted-foreground' : '';
 
   // null
   if (value === null) {

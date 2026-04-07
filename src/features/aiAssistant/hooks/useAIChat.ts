@@ -1,12 +1,11 @@
 // AI Chat hook - Core conversation logic
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { ensureAIToolsRegistered } from '@/lib/ai';
 import { createConfiguredProvider } from '@/lib/ai/config';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
-import { containsToolCall, parseResponse } from '@/lib/ai/response-parser';
 import { YOLO_MODE_KEY, toolRegistry } from '@/lib/ai/tools';
-import type { AIProviderType, ModelProvider } from '@/lib/ai/types';
+import type { AIProviderType, ModelProvider, OpenAIToolCall } from '@/lib/ai/types';
 import {
   addMessage,
   clearSessionMessages,
@@ -21,52 +20,31 @@ import {
 import { logger } from '@/utils/logger';
 import type { AISession, ChatMessage } from '../types';
 
-/**
- * Tool call representation for internal use
- */
-export interface ToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string | Record<string, unknown>;
-  };
+export type ToolCall = OpenAIToolCall;
+
+interface PreparedToolCall {
+  toolCall: ToolCall;
+  arguments: Record<string, unknown>;
 }
 
-/**
- * AI Chat state
- */
 export type AIChatStatus = 'idle' | 'loading' | 'streaming' | 'error' | 'confirming';
 
-/**
- * Pending tool call that requires confirmation
- */
 export interface PendingToolCall {
   toolCall: ToolCall;
   arguments: Record<string, unknown>;
 }
 
-/**
- * Multiple pending tool calls that require confirmation
- */
 export interface PendingToolCalls {
   toolCalls: ToolCall[];
   argumentsList: Record<string, unknown>[];
 }
 
-/**
- * Pending build that requires BuildDialog
- */
 export interface PendingBuild {
   jobUrl: string;
   jobName: string;
 }
 
-/**
- * useAIChat hook return type
- */
 export interface UseAIChatReturn {
-  // State
   messages: ChatMessage[];
   status: AIChatStatus;
   error: string | null;
@@ -75,15 +53,10 @@ export interface UseAIChatReturn {
   pendingBuild: PendingBuild | null;
   sessionId: string | null;
   sessions: AISession[];
-  // Current provider type for UI warnings
   currentProvider: AIProviderType | null;
-  // YOLO mode - auto-confirm all tools
   yoloMode: boolean;
   setYoloMode: (value: boolean) => void;
-  // Running state for stop button
   isRunning: boolean;
-
-  // Actions
   sendMessage: (content: string) => Promise<void>;
   stop: () => void;
   confirmToolCall: () => Promise<void>;
@@ -99,45 +72,53 @@ export interface UseAIChatReturn {
   summarizeSession: () => Promise<string | null>;
 }
 
-/**
- * Generate a unique message ID
- */
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-/**
- * AI Chat hook - handles conversation, tool calls, and confirmation flow
- */
+function parseToolCallArguments(toolCall: ToolCall): Record<string, unknown> {
+  const rawArgs = toolCall.function.arguments.trim();
+  if (!rawArgs) {
+    return {};
+  }
+
+  const parsed = JSON.parse(rawArgs) as unknown;
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Tool ${toolCall.function.name} arguments must be a JSON object`);
+  }
+
+  return parsed as Record<string, unknown>;
+}
+
+function prepareToolCalls(toolCalls: ToolCall[]): PreparedToolCall[] {
+  return toolCalls.map((toolCall) => ({
+    toolCall,
+    arguments: parseToolCallArguments(toolCall),
+  }));
+}
+
 export function useAIChat(): UseAIChatReturn {
   useEffect(() => {
     ensureAIToolsRegistered();
   }, []);
 
-  // State
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [status, setStatus] = useState<AIChatStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [pendingToolCall, setPendingToolCall] = useState<PendingToolCall | null>(null);
   const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
   const [pendingBuild, setPendingBuild] = useState<PendingBuild | null>(null);
   const buildCompletedRef = useRef(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AISession[]>([]);
-  // Current provider type for UI
   const [currentProvider, setCurrentProvider] = useState<AIProviderType | null>(null);
 
-  // YOLO mode - auto-confirm all tool calls without asking
   const [yoloMode, setYoloMode] = useState(false);
-  // Store yoloMode in ref to avoid dependency issues in callbacks
   const yoloModeRef = useRef(yoloMode);
   useEffect(() => {
     yoloModeRef.current = yoloMode;
   }, [yoloMode]);
 
-  // Initialize YOLO mode from storage and listen for changes
   useEffect(() => {
-    // Initial read
     browser.storage.session
       .get(YOLO_MODE_KEY)
       .then((result) => {
@@ -147,7 +128,6 @@ export function useAIChat(): UseAIChatReturn {
       })
       .catch(() => {});
 
-    // Listen for changes (when AI uses agent_setYoloMode)
     const listener = (changes: Record<string, { newValue?: unknown }>) => {
       if (changes[YOLO_MODE_KEY]) {
         setYoloMode(changes[YOLO_MODE_KEY].newValue === true);
@@ -159,29 +139,50 @@ export function useAIChat(): UseAIChatReturn {
     };
   }, []);
 
-  // Refs
   const providerRef = useRef<ModelProvider | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const accumulatedContentRef = useRef<string>('');
   const hasStreamedChunkRef = useRef(false);
   const isFirstMessageRef = useRef<boolean>(true);
-  // Store messages in ref to avoid sendMessage depending on messages state
   const messagesRef = useRef<ChatMessage[]>(messages);
 
-  // Keep messagesRef in sync with messages state
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
-  const executeToolCallRef = useRef<
-    ((toolCall: ToolCall, userMessageId: string) => Promise<void>) | null
-  >(null);
-  const executeToolCallsRef = useRef<
-    ((toolCalls: ToolCall[], userMessageId: string) => Promise<void>) | null
-  >(null);
   const continueConversationRef = useRef<((allMessages: ChatMessage[]) => Promise<void>) | null>(
     null
   );
+
+  const pendingToolCall = useMemo(
+    () =>
+      pendingToolCalls
+        ? {
+            toolCall: pendingToolCalls.toolCalls[0],
+            arguments: pendingToolCalls.argumentsList[0] || {},
+          }
+        : null,
+    [pendingToolCalls]
+  );
+
+  const setMessagesWithRef = useCallback((updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+    setMessages((prev) => {
+      const next = updater(prev);
+      messagesRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const appendMessages = useCallback((newMessages: ChatMessage[]) => {
+    if (newMessages.length === 0) {
+      return messagesRef.current;
+    }
+
+    const nextMessages = [...messagesRef.current, ...newMessages];
+    messagesRef.current = nextMessages;
+    setMessages(nextMessages);
+    return nextMessages;
+  }, []);
 
   const getProvider = useCallback(async (): Promise<ModelProvider> => {
     if (providerRef.current) {
@@ -198,99 +199,294 @@ export function useAIChat(): UseAIChatReturn {
     return providerRef.current;
   }, []);
 
-  /**
-   * Convert feature ChatMessage to lib ChatMessage format
-   */
   const toLibChatMessage = useCallback((msg: ChatMessage): import('@/lib/ai/types').ChatMessage => {
     return {
-      role: msg.role === 'tool' ? 'user' : msg.role,
+      role: msg.role,
       content: msg.content,
+      name: msg.name,
+      toolCallId: msg.toolCallId,
+      toolCalls: msg.toolCalls,
     };
   }, []);
 
-  /**
-   * Process accumulated content to check for tool calls
-   */
-  const processToolCall = useCallback(async (content: string, userMessageId: string) => {
-    // Check if content contains any tool calls
-    if (!containsToolCall(content)) {
-      setStatus('idle');
-      return;
+  const createAssistantPlaceholder = useCallback(() => {
+    setMessagesWithRef((prev) => {
+      const lastMsg = prev[prev.length - 1];
+      if (lastMsg?.role === 'assistant') {
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          id: generateId(),
+          role: 'assistant',
+          content: '',
+          createdAt: Date.now(),
+        },
+      ];
+    });
+  }, [setMessagesWithRef]);
+
+  const saveUserMessage = useCallback(
+    async (message: ChatMessage) => {
+      if (!sessionId) {
+        return;
+      }
+      try {
+        await addMessage({
+          sessionId,
+          role: 'user',
+          content: message.content,
+        });
+      } catch (err) {
+        logger.error('[AIChat] Failed to save user message:', err);
+      }
+    },
+    [sessionId]
+  );
+
+  const saveAssistantMessage = useCallback(
+    async (message: ChatMessage) => {
+      if (!sessionId) {
+        return;
+      }
+      try {
+        await addMessage({
+          sessionId,
+          role: 'assistant',
+          content: message.content,
+          name: message.name,
+          toolCalls: message.toolCalls,
+        });
+      } catch (err) {
+        logger.error('[AIChat] Failed to save assistant message:', err);
+      }
+    },
+    [sessionId]
+  );
+
+  const saveToolMessages = useCallback(
+    async (toolMessages: ChatMessage[]) => {
+      if (!sessionId || toolMessages.length === 0) {
+        return;
+      }
+
+      await Promise.all(
+        toolMessages.map(async (message) => {
+          try {
+            await addMessage({
+              sessionId,
+              role: 'tool',
+              content: message.content,
+              name: message.name,
+              toolCallId: message.toolCallId,
+            });
+          } catch (err) {
+            logger.error('[AIChat] Failed to save tool result:', err);
+          }
+        })
+      );
+    },
+    [sessionId]
+  );
+
+  const executePreparedToolCalls = useCallback(async (preparedToolCalls: PreparedToolCall[]) => {
+    ensureAIToolsRegistered();
+
+    const toolMessages: ChatMessage[] = [];
+
+    for (const preparedToolCall of preparedToolCalls) {
+      const { toolCall, arguments: args } = preparedToolCall;
+
+      try {
+        logger.info(`[AIChat] Executing tool: ${toolCall.function.name}`, {
+          args,
+          availableTools: toolRegistry.getAll().map((tool) => tool.name),
+        });
+        const result = await toolRegistry.execute(toolCall.function.name, args);
+        const resultObj = result as { action?: string; jobUrl?: string; jobName?: string };
+
+        if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
+          return {
+            toolMessages,
+            pendingBuild: {
+              jobUrl: resultObj.jobUrl,
+              jobName: resultObj.jobName,
+            },
+          };
+        }
+
+        toolMessages.push({
+          id: generateId(),
+          role: 'tool',
+          name: toolCall.function.name,
+          toolCallId: toolCall.id,
+          content: JSON.stringify(result, null, 2),
+          createdAt: Date.now(),
+        });
+      } catch (err) {
+        logger.error('[AIChat] Tool execution error:', err);
+        toolMessages.push({
+          id: generateId(),
+          role: 'tool',
+          name: toolCall.function.name,
+          toolCallId: toolCall.id,
+          content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          createdAt: Date.now(),
+        });
+      }
     }
 
-    const parsed = parseResponse(content);
+    return {
+      toolMessages,
+      pendingBuild: null,
+    };
+  }, []);
 
-    if (parsed.toolCalls && parsed.toolCalls.length > 0) {
-      // Separate tool calls into those needing confirmation and those that can execute directly
-      const toolCallsToConfirm: { toolCall: ToolCall; arguments: Record<string, unknown> }[] = [];
-      const toolCallsToExecute: ToolCall[] = [];
+  const processAssistantResponse = useCallback(
+    async (assistantMessage: ChatMessage) => {
+      const toolCalls = assistantMessage.toolCalls || [];
+      if (toolCalls.length === 0) {
+        setStatus('idle');
+        return;
+      }
 
-      for (const { name, arguments: args } of parsed.toolCalls) {
-        const toolCall: ToolCall = {
-          id: generateId(),
-          type: 'function',
-          function: {
-            name,
-            arguments: args,
+      const toolCallsToConfirm: PreparedToolCall[] = [];
+      const toolCallsToExecute: PreparedToolCall[] = [];
+
+      for (const preparedToolCall of prepareToolCalls(toolCalls)) {
+        const toolName = preparedToolCall.toolCall.function.name.trim();
+        const resolvedTool = toolRegistry.get(toolName);
+        if (!resolvedTool) {
+          throw new Error(`Tool ${toolName} not found`);
+        }
+
+        const normalizedToolCall = {
+          ...preparedToolCall,
+          toolCall: {
+            ...preparedToolCall.toolCall,
+            function: {
+              ...preparedToolCall.toolCall.function,
+              name: resolvedTool.name,
+            },
           },
         };
 
-        // Check if confirmation is required (skip if YOLO mode is enabled)
-        if (!yoloModeRef.current && (await toolRegistry.requiresConfirmation(name))) {
-          toolCallsToConfirm.push({ toolCall, arguments: args });
+        if (!yoloModeRef.current && toolRegistry.requiresConfirmation(resolvedTool.name)) {
+          toolCallsToConfirm.push(normalizedToolCall);
         } else {
-          toolCallsToExecute.push(toolCall);
+          toolCallsToExecute.push(normalizedToolCall);
         }
       }
 
-      // If there are tool calls needing confirmation
-      if (toolCallsToConfirm.length > 0) {
-        if (toolCallsToExecute.length > 0) {
-          // Execute non-confirming tools first (all results sent together), then set pending for confirming tools
-          await executeToolCallsRef.current?.(toolCallsToExecute, userMessageId);
-        }
+      if (toolCallsToExecute.length > 0) {
+        setStatus('loading');
+        const { toolMessages, pendingBuild: executablePendingBuild } =
+          await executePreparedToolCalls(toolCallsToExecute);
 
+        appendMessages(toolMessages);
+        await saveToolMessages(toolMessages);
+
+        if (executablePendingBuild) {
+          setPendingBuild(executablePendingBuild);
+          setStatus('confirming');
+          return;
+        }
+      }
+
+      if (toolCallsToConfirm.length > 0) {
         setPendingToolCalls({
-          toolCalls: toolCallsToConfirm.map((t) => t.toolCall),
-          argumentsList: toolCallsToConfirm.map((t) => t.arguments),
-        });
-        setPendingToolCall({
-          toolCall: toolCallsToConfirm[0].toolCall,
-          arguments: toolCallsToConfirm[0].arguments,
+          toolCalls: toolCallsToConfirm.map(({ toolCall }) => toolCall),
+          argumentsList: toolCallsToConfirm.map(({ arguments: args }) => args),
         });
         setStatus('confirming');
-      } else {
-        // No confirmation needed, execute all tool calls and send results together
-        await executeToolCallsRef.current?.(toolCallsToExecute, userMessageId);
+        return;
       }
-    } else {
-      setStatus('idle');
-    }
-  }, []);
 
-  /**
-   * Load session data
-   */
+      await continueConversationRef.current?.(messagesRef.current);
+    },
+    [appendMessages, executePreparedToolCalls, saveToolMessages]
+  );
+
   const loadSession = useCallback(async (id: string) => {
     const loadedMessages = await getMessagesBySession(id);
     setMessages(loadedMessages);
     setSessionId(id);
   }, []);
 
-  /**
-   * Load sessions list
-   */
   const loadSessions = useCallback(async () => {
     const loadedSessions = await listSessions();
     setSessions(loadedSessions);
   }, []);
 
-  /**
-   * Send a message and get AI response
-   */
+  const runChatCompletion = useCallback(
+    async (apiMessages: import('@/lib/ai/types').ChatMessage[]) => {
+      const provider = await getProvider();
+      const systemPrompt = generateSystemPrompt();
+      const tools = toolRegistry.getOpenAITools();
+
+      accumulatedContentRef.current = '';
+      hasStreamedChunkRef.current = false;
+      createAssistantPlaceholder();
+
+      abortControllerRef.current = new AbortController();
+
+      const response = await provider.chat(
+        [{ role: 'system', content: systemPrompt }, ...apiMessages],
+        {
+          stream: true,
+          signal: abortControllerRef.current.signal,
+          tools,
+          toolChoice: tools.length ? 'auto' : 'none',
+          onChunk: (chunk) => {
+            if (!hasStreamedChunkRef.current) {
+              hasStreamedChunkRef.current = true;
+              setStatus('streaming');
+            }
+            accumulatedContentRef.current += chunk;
+            setMessagesWithRef((prev) => {
+              const lastMsg = prev[prev.length - 1];
+              if (lastMsg?.role !== 'assistant') {
+                return [
+                  ...prev,
+                  {
+                    id: generateId(),
+                    role: 'assistant',
+                    content: chunk,
+                    createdAt: Date.now(),
+                  },
+                ];
+              }
+              return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + chunk }];
+            });
+          },
+        }
+      );
+
+      const assistantMessage: ChatMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: response.message.content || accumulatedContentRef.current,
+        toolCalls: response.message.toolCalls,
+        createdAt: Date.now(),
+      };
+
+      setMessagesWithRef((prev) => {
+        const lastMsg = prev[prev.length - 1];
+        if (lastMsg?.role === 'assistant') {
+          return [...prev.slice(0, -1), { ...lastMsg, ...assistantMessage, id: lastMsg.id }];
+        }
+        return [...prev, assistantMessage];
+      });
+
+      await saveAssistantMessage(assistantMessage);
+      return assistantMessage;
+    },
+    [createAssistantPlaceholder, getProvider, saveAssistantMessage, setMessagesWithRef]
+  );
+
   const sendMessage = useCallback(
     async (content: string) => {
-      // Create user message
       const userMessage: ChatMessage = {
         id: generateId(),
         role: 'user',
@@ -298,89 +494,24 @@ export function useAIChat(): UseAIChatReturn {
         createdAt: Date.now(),
       };
 
-      // Add user message to state
-      setMessages((prev) => [...prev, userMessage]);
+      const nextMessages = appendMessages([userMessage]);
       setStatus('loading');
       setError(null);
 
-      // Reset accumulated content
-      accumulatedContentRef.current = '';
-      hasStreamedChunkRef.current = false;
+      await saveUserMessage(userMessage);
 
-      // Save user message to database
-      if (sessionId) {
-        await addMessage({
-          sessionId,
-          role: 'user',
-          content,
-        });
-
-        // Update session title on first message
-        if (isFirstMessageRef.current) {
-          await updateSessionTitle(sessionId, content);
-          isFirstMessageRef.current = false;
-          await loadSessions();
-        }
+      if (sessionId && isFirstMessageRef.current) {
+        await updateSessionTitle(sessionId, content);
+        isFirstMessageRef.current = false;
+        await loadSessions();
       }
 
       try {
-        const provider = await getProvider();
-
-        // Prepare messages for API (tools are now in the system prompt)
-        const systemPrompt = generateSystemPrompt();
-        const apiMessages: import('@/lib/ai/types').ChatMessage[] = [
-          { role: 'system', content: systemPrompt },
-          ...messagesRef.current.map(toLibChatMessage),
+        const assistantMessage = await runChatCompletion([
+          ...nextMessages.slice(0, -1).map(toLibChatMessage),
           toLibChatMessage(userMessage),
-        ];
-
-        // Create abort controller for potential cancellation
-        abortControllerRef.current = new AbortController();
-
-        // For streaming response (tool calls are parsed from content, not API response)
-        await provider.chat(apiMessages, {
-          stream: true,
-          signal: abortControllerRef.current.signal,
-          onChunk: (chunk) => {
-            if (!hasStreamedChunkRef.current) {
-              hasStreamedChunkRef.current = true;
-              setStatus('streaming');
-            }
-            // Accumulate content for tool call detection
-            accumulatedContentRef.current += chunk;
-
-            // Update the last assistant message with streaming content
-            setMessages((prev) => {
-              const lastMsg = prev[prev.length - 1];
-              if (lastMsg?.role === 'assistant') {
-                return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + chunk }];
-              }
-              // Create new assistant message
-              return [
-                ...prev,
-                {
-                  id: generateId(),
-                  role: 'assistant',
-                  content: chunk,
-                  createdAt: Date.now(),
-                },
-              ];
-            });
-          },
-        });
-
-        // Save assistant message to database after streaming completes
-        // Use accumulatedContentRef which has the complete response
-        if (sessionId && accumulatedContentRef.current) {
-          addMessage({
-            sessionId,
-            role: 'assistant',
-            content: accumulatedContentRef.current,
-          }).catch((err) => logger.error('[AIChat] Failed to save assistant message:', err));
-        }
-
-        // Check accumulated content for tool calls
-        await processToolCall(accumulatedContentRef.current, userMessage.id);
+        ]);
+        await processAssistantResponse(assistantMessage);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           setStatus('idle');
@@ -391,268 +522,25 @@ export function useAIChat(): UseAIChatReturn {
         setStatus('error');
       }
     },
-    [sessionId, getProvider, toLibChatMessage, processToolCall, loadSessions]
+    [
+      appendMessages,
+      loadSessions,
+      processAssistantResponse,
+      runChatCompletion,
+      saveUserMessage,
+      sessionId,
+      toLibChatMessage,
+    ]
   );
 
-  /**
-   * Execute a single tool call
-   */
-  const executeToolCall = useCallback(
-    async (toolCall: ToolCall, _userMessageId: string) => {
-      setStatus('loading');
-
-      try {
-        // Get arguments - already parsed from JSON format
-        const args =
-          typeof toolCall.function.arguments === 'string'
-            ? JSON.parse(toolCall.function.arguments)
-            : toolCall.function.arguments;
-
-        logger.info(`[AIChat] Executing tool: ${toolCall.function.name}`, args);
-
-        // Execute the tool
-        const result = await toolRegistry.execute(
-          toolCall.function.name,
-          args as Record<string, unknown>
-        );
-
-        // Check if this is a build dialog action
-        const resultObj = result as { action?: string; jobUrl?: string; jobName?: string };
-        if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
-          // Set pending build to open BuildDialog
-          setPendingBuild({
-            jobUrl: resultObj.jobUrl,
-            jobName: resultObj.jobName,
-          });
-          setStatus('confirming');
-          return;
-        }
-
-        // Create tool result message
-        const toolResultMessage: ChatMessage = {
-          id: generateId(),
-          role: 'tool',
-          name: toolCall.function.name,
-          content: JSON.stringify(result, null, 2),
-          createdAt: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, toolResultMessage]);
-
-        // Save tool result to database
-        if (sessionId) {
-          addMessage({
-            sessionId,
-            role: 'tool',
-            content: toolResultMessage.content,
-            name: toolCall.function.name,
-          }).catch((err) => logger.error('[AIChat] Failed to save tool result:', err));
-        }
-
-        // Send result back to AI for final response
-        await continueConversationRef.current?.([...messagesRef.current, toolResultMessage]);
-      } catch (err) {
-        logger.error('[AIChat] Tool execution error:', err);
-
-        // Create error tool result message
-        const errorMessage: ChatMessage = {
-          id: generateId(),
-          role: 'user',
-          content: `[${toolCall.function.name}] Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          createdAt: Date.now(),
-        };
-
-        setMessages((prev) => [...prev, errorMessage]);
-
-        // Save error to database
-        if (sessionId) {
-          addMessage({
-            sessionId,
-            role: 'user',
-            content: errorMessage.content,
-          }).catch((err) => logger.error('[AIChat] Failed to save error:', err));
-        }
-
-        // Continue with error
-        await continueConversationRef.current?.([...messagesRef.current, errorMessage]);
-      }
-    },
-    [sessionId, continueConversationRef]
-  );
-
-  executeToolCallRef.current = executeToolCall;
-
-  /**
-   * Execute multiple tool calls in sequence and collect all results
-   */
-  const executeToolCalls = useCallback(
-    async (toolCalls: ToolCall[], _userMessageId: string) => {
-      setStatus('loading');
-      const toolResultMessages: ChatMessage[] = [];
-
-      // Execute each tool call in sequence and collect results
-      for (const toolCall of toolCalls) {
-        try {
-          const args =
-            typeof toolCall.function.arguments === 'string'
-              ? JSON.parse(toolCall.function.arguments)
-              : toolCall.function.arguments;
-
-          logger.info(`[AIChat] Executing tool: ${toolCall.function.name}`, args);
-
-          // Execute the tool
-          const result = await toolRegistry.execute(
-            toolCall.function.name,
-            args as Record<string, unknown>
-          );
-
-          // Check if this is a build dialog action
-          const resultObj = result as { action?: string; jobUrl?: string; jobName?: string };
-          if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
-            // Set pending build to open BuildDialog
-            // First add any collected messages
-            if (toolResultMessages.length > 0) {
-              setMessages((prev) => [...prev, ...toolResultMessages]);
-              if (sessionId) {
-                await Promise.all(
-                  toolResultMessages.map((msg) =>
-                    addMessage({
-                      sessionId,
-                      role: msg.role,
-                      content: msg.content,
-                    }).catch((err) => logger.error('[AIChat] Failed to save tool result:', err))
-                  )
-                );
-              }
-            }
-            setPendingBuild({
-              jobUrl: resultObj.jobUrl,
-              jobName: resultObj.jobName,
-            });
-            setStatus('confirming');
-            return;
-          }
-
-          // Create tool result message
-          const toolResultMessage: ChatMessage = {
-            id: generateId(),
-            role: 'tool',
-            name: toolCall.function.name,
-            content: JSON.stringify(result, null, 2),
-            createdAt: Date.now(),
-          };
-
-          toolResultMessages.push(toolResultMessage);
-        } catch (err) {
-          logger.error('[AIChat] Tool execution error:', err);
-
-          // Create error tool result message
-          const errorMessage: ChatMessage = {
-            id: generateId(),
-            role: 'tool',
-            name: toolCall.function.name,
-            content: `Error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-            createdAt: Date.now(),
-          };
-
-          toolResultMessages.push(errorMessage);
-        }
-      }
-
-      const combinedContent = toolResultMessages
-        .map((msg) => `### ${msg.name}\n${msg.content}`)
-        .join('\n\n---\n\n');
-
-      const combinedMessage: ChatMessage = {
-        id: generateId(),
-        role: 'tool',
-        name: 'multiple_tools',
-        content: combinedContent,
-        createdAt: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, combinedMessage]);
-
-      if (sessionId) {
-        addMessage({
-          sessionId,
-          role: 'tool',
-          content: combinedMessage.content,
-          name: 'multiple_tools',
-        }).catch((err) => logger.error('[AIChat] Failed to save combined tool result:', err));
-      }
-
-      await continueConversationRef.current?.([...messagesRef.current, combinedMessage]);
-    },
-    [sessionId, continueConversationRef]
-  );
-
-  executeToolCallsRef.current = executeToolCalls;
-
-  /**
-   * Continue conversation after tool execution
-   */
   const continueConversation = useCallback(
     async (allMessages: ChatMessage[]) => {
-      // Reset accumulated content for the next response
       accumulatedContentRef.current = '';
       hasStreamedChunkRef.current = false;
 
       try {
-        const provider = await getProvider();
-
-        // Prepare messages (tools are in system prompt)
-        const systemPrompt = generateSystemPrompt();
-        const apiMessages: import('@/lib/ai/types').ChatMessage[] = [
-          { role: 'system', content: systemPrompt },
-          ...allMessages.map(toLibChatMessage),
-        ];
-
-        // Create abort controller for potential cancellation
-        abortControllerRef.current = new AbortController();
-
-        // Get response (tool calls are parsed from content, not API response)
-        await provider.chat(apiMessages, {
-          stream: true,
-          signal: abortControllerRef.current.signal,
-          onChunk: (chunk) => {
-            if (!hasStreamedChunkRef.current) {
-              hasStreamedChunkRef.current = true;
-              setStatus('streaming');
-            }
-            // Accumulate content
-            accumulatedContentRef.current += chunk;
-
-            // Update or create assistant message
-            setMessages((prev) => {
-              const lastMsg = prev[prev.length - 1];
-              if (lastMsg?.role === 'assistant') {
-                return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + chunk }];
-              }
-              return [
-                ...prev,
-                {
-                  id: generateId(),
-                  role: 'assistant',
-                  content: chunk,
-                  createdAt: Date.now(),
-                },
-              ];
-            });
-          },
-        });
-
-        // Save assistant message to database after streaming completes
-        if (sessionId && accumulatedContentRef.current) {
-          addMessage({
-            sessionId,
-            role: 'assistant',
-            content: accumulatedContentRef.current,
-          }).catch((err) => logger.error('[AIChat] Failed to save assistant message:', err));
-        }
-
-        // Check for tool calls in accumulated content
-        await processToolCall(accumulatedContentRef.current, '');
+        const assistantMessage = await runChatCompletion(allMessages.map(toLibChatMessage));
+        await processAssistantResponse(assistantMessage);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           setStatus('idle');
@@ -663,171 +551,136 @@ export function useAIChat(): UseAIChatReturn {
         setStatus('error');
       }
     },
-    [getProvider, toLibChatMessage, processToolCall, sessionId]
+    [processAssistantResponse, runChatCompletion, toLibChatMessage]
   );
 
   continueConversationRef.current = continueConversation;
 
-  /**
-   * Confirm and execute pending tool call
-   */
   const confirmToolCall = useCallback(async () => {
-    if (!pendingToolCall) return;
-
-    const { toolCall } = pendingToolCall;
-    setPendingToolCall(null);
-
-    // Add user confirmation message
-    const confirmMessage: ChatMessage = {
-      id: generateId(),
-      role: 'user',
-      content: `Confirmed: Execute ${toolCall.function.name}`,
-      createdAt: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, confirmMessage]);
-
-    // Save confirmation to database
-    if (sessionId) {
-      addMessage({
-        sessionId,
-        role: 'user',
-        content: confirmMessage.content,
-      }).catch((err) => logger.error('[AIChat] Failed to save confirmation:', err));
+    if (!pendingToolCalls || pendingToolCalls.toolCalls.length === 0) {
+      return;
     }
 
-    // Execute the tool
-    await executeToolCall(toolCall, confirmMessage.id);
-  }, [pendingToolCall, sessionId, executeToolCall]);
+    const [currentToolCall, ...remainingToolCalls] = pendingToolCalls.toolCalls;
+    const [currentArgs, ...remainingArguments] = pendingToolCalls.argumentsList;
 
-  /**
-   * Confirm and execute all pending tool calls
-   */
-  const confirmAllToolCalls = useCallback(async () => {
-    if (!pendingToolCalls) return;
-
-    const { toolCalls } = pendingToolCalls;
-
-    // Add user confirmation message
-    const confirmMessage: ChatMessage = {
-      id: generateId(),
-      role: 'user',
-      content: `Confirmed: Execute ${toolCalls.length} tool call(s)`,
-      createdAt: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, confirmMessage]);
-
-    // Save confirmation to database
-    if (sessionId) {
-      addMessage({
-        sessionId,
-        role: 'user',
-        content: confirmMessage.content,
-      }).catch((err) => logger.error('[AIChat] Failed to save confirmation:', err));
-    }
-
-    // Clear pending tool calls
     setPendingToolCalls(null);
-    setPendingToolCall(null);
+    setStatus('loading');
 
-    // Execute all tools in sequence
-    await executeToolCalls(toolCalls, confirmMessage.id);
-  }, [pendingToolCalls, sessionId, executeToolCalls]);
+    const { toolMessages, pendingBuild: confirmedPendingBuild } = await executePreparedToolCalls([
+      {
+        toolCall: currentToolCall,
+        arguments: currentArgs || {},
+      },
+    ]);
 
-  /**
-   * Cancel pending tool call(s)
-   */
+    appendMessages(toolMessages);
+    await saveToolMessages(toolMessages);
+
+    if (confirmedPendingBuild) {
+      setPendingBuild(confirmedPendingBuild);
+      setStatus('confirming');
+      return;
+    }
+
+    if (remainingToolCalls.length > 0) {
+      setPendingToolCalls({
+        toolCalls: remainingToolCalls,
+        argumentsList: remainingArguments,
+      });
+      setStatus('confirming');
+      return;
+    }
+
+    await continueConversationRef.current?.(messagesRef.current);
+  }, [appendMessages, executePreparedToolCalls, pendingToolCalls, saveToolMessages]);
+
+  const confirmAllToolCalls = useCallback(async () => {
+    if (!pendingToolCalls) {
+      return;
+    }
+
+    const preparedToolCalls = pendingToolCalls.toolCalls.map((toolCall, index) => ({
+      toolCall,
+      arguments: pendingToolCalls.argumentsList[index] || {},
+    }));
+
+    setPendingToolCalls(null);
+    setStatus('loading');
+
+    const { toolMessages, pendingBuild: confirmedPendingBuild } =
+      await executePreparedToolCalls(preparedToolCalls);
+
+    appendMessages(toolMessages);
+    await saveToolMessages(toolMessages);
+
+    if (confirmedPendingBuild) {
+      setPendingBuild(confirmedPendingBuild);
+      setStatus('confirming');
+      return;
+    }
+
+    await continueConversationRef.current?.(messagesRef.current);
+  }, [appendMessages, executePreparedToolCalls, pendingToolCalls, saveToolMessages]);
+
   const cancelToolCall = useCallback(() => {
-    const toolCall = pendingToolCall?.toolCall || pendingToolCalls?.toolCalls[0];
+    if (!pendingToolCall) {
+      return;
+    }
 
-    if (!toolCall) return;
-
-    // Add cancellation message
     const cancelMessage: ChatMessage = {
       id: generateId(),
       role: 'user',
-      content: `Cancelled: ${toolCall.function.name}${pendingToolCalls && pendingToolCalls.toolCalls.length > 1 ? ` and ${pendingToolCalls.toolCalls.length - 1} other(s)` : ''}`,
+      content: `已取消执行工具：${pendingToolCall.toolCall.function.name}${pendingToolCalls && pendingToolCalls.toolCalls.length > 1 ? `（以及另外 ${pendingToolCalls.toolCalls.length - 1} 个）` : ''}`,
       createdAt: Date.now(),
     };
 
-    setMessages((prev) => [...prev, cancelMessage]);
-
-    // Save cancellation to database
-    if (sessionId) {
-      addMessage({
-        sessionId,
-        role: 'user',
-        content: cancelMessage.content,
-      }).catch((err) => logger.error('[AIChat] Failed to save cancellation:', err));
-    }
-
-    setPendingToolCall(null);
+    appendMessages([cancelMessage]);
+    void saveUserMessage(cancelMessage);
     setPendingToolCalls(null);
     setStatus('idle');
-  }, [pendingToolCall, pendingToolCalls, sessionId]);
+  }, [appendMessages, pendingToolCall, pendingToolCalls, saveUserMessage]);
 
-  /**
-   * Stop the current AI task (abort the request)
-   */
   const stop = useCallback(() => {
-    // Abort the current AI request if running
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
 
-    // Add stop message
     const stopMessage: ChatMessage = {
       id: generateId(),
       role: 'user',
-      content: '【任务已终止】',
+      content: '任务已终止。',
       createdAt: Date.now(),
     };
 
-    setMessages((prev) => [...prev, stopMessage]);
+    appendMessages([stopMessage]);
+    void saveUserMessage(stopMessage);
 
-    // Save to database
-    if (sessionId) {
-      addMessage({
-        sessionId,
-        role: 'user',
-        content: stopMessage.content,
-      }).catch((err) => logger.error('[AIChat] Failed to save stop message:', err));
-    }
-
-    // Clear any pending tool calls or builds
-    setPendingToolCall(null);
     setPendingToolCalls(null);
     setPendingBuild(null);
-
-    // Reset status to idle
+    buildCompletedRef.current = false;
     setStatus('idle');
     setError(null);
 
     logger.info('[AIChat] AI task stopped by user');
-  }, [sessionId]);
+  }, [appendMessages, saveUserMessage]);
 
-  /**
-   * Clear all messages in current session
-   */
   const clearMessages = useCallback(() => {
     if (sessionId) {
-      clearSessionMessages(sessionId);
+      void clearSessionMessages(sessionId);
     }
-    setMessages([]);
+    setMessagesWithRef(() => []);
     setStatus('idle');
     setError(null);
-    setPendingToolCall(null);
     setPendingToolCalls(null);
+    setPendingBuild(null);
+    buildCompletedRef.current = false;
     accumulatedContentRef.current = '';
     hasStreamedChunkRef.current = false;
     isFirstMessageRef.current = true;
-  }, [sessionId]);
+  }, [sessionId, setMessagesWithRef]);
 
-  /**
-   * Create a new session and switch to it
-   */
   const createNewSession = useCallback(async () => {
     const session = await createSession('新会话');
     await loadSessions();
@@ -835,59 +688,48 @@ export function useAIChat(): UseAIChatReturn {
     isFirstMessageRef.current = true;
   }, [loadSession, loadSessions]);
 
-  /**
-   * Switch to an existing session
-   */
   const switchSession = useCallback(
     async (id: string) => {
+      setPendingToolCalls(null);
+      setPendingBuild(null);
+      buildCompletedRef.current = false;
+      setError(null);
+      setStatus('idle');
       await loadSession(id);
     },
     [loadSession]
   );
 
-  /**
-   * Delete a session
-   */
   const deleteSessionHandler = useCallback(
     async (id: string) => {
       await dbDeleteSession(id);
       await loadSessions();
 
-      // If deleting current session, switch to another or create new
       if (sessionId === id) {
         const remainingSessions = await listSessions();
         if (remainingSessions.length > 0) {
           await loadSession(remainingSessions[0].id);
         } else {
-          // Create new session if no sessions remain
           await createNewSession();
         }
       }
     },
-    [sessionId, loadSession, loadSessions, createNewSession]
+    [createNewSession, loadSession, loadSessions, sessionId]
   );
 
-  /**
-   * Reset the provider cache so it will be recreated on next use
-   * This allows switching providers mid-conversation
-   */
   const resetProvider = useCallback(() => {
     providerRef.current = null;
-    // Reset current provider so warning will update when new provider is used
     setCurrentProvider(null);
     logger.info('[AIChat] Provider cache reset');
   }, []);
 
-  /**
-   * Complete build - called when BuildDialog succeeds
-   */
   const completeBuild = useCallback(() => {
-    if (!pendingBuild) return;
+    if (!pendingBuild) {
+      return;
+    }
 
-    // Mark build as completed to prevent cancelBuild from running
     buildCompletedRef.current = true;
 
-    // Add success message
     const successMessage: ChatMessage = {
       id: generateId(),
       role: 'user',
@@ -895,37 +737,25 @@ export function useAIChat(): UseAIChatReturn {
       createdAt: Date.now(),
     };
 
-    setMessages((prev) => [...prev, successMessage]);
-
-    // Save to database
-    if (sessionId) {
-      addMessage({
-        sessionId,
-        role: 'user',
-        content: successMessage.content,
-      }).catch((err) => logger.error('[AIChat] Failed to save build success:', err));
-    }
+    appendMessages([successMessage]);
+    void saveUserMessage(successMessage);
 
     setPendingBuild(null);
     setStatus('idle');
 
-    // Continue conversation with success result
-    continueConversationRef.current?.([...messagesRef.current, successMessage]);
-  }, [pendingBuild, sessionId]);
+    void continueConversationRef.current?.(messagesRef.current);
+  }, [appendMessages, pendingBuild, saveUserMessage]);
 
-  /**
-   * Cancel build - called when BuildDialog is closed
-   */
   const cancelBuild = useCallback(() => {
-    // Skip if build was already completed
     if (buildCompletedRef.current) {
       buildCompletedRef.current = false;
       return;
     }
 
-    if (!pendingBuild) return;
+    if (!pendingBuild) {
+      return;
+    }
 
-    // Add cancellation message
     const cancelMessage: ChatMessage = {
       id: generateId(),
       role: 'user',
@@ -933,25 +763,13 @@ export function useAIChat(): UseAIChatReturn {
       createdAt: Date.now(),
     };
 
-    setMessages((prev) => [...prev, cancelMessage]);
-
-    // Save to database
-    if (sessionId) {
-      addMessage({
-        sessionId,
-        role: 'user',
-        content: cancelMessage.content,
-      }).catch((err) => logger.error('[AIChat] Failed to save build cancellation:', err));
-    }
+    appendMessages([cancelMessage]);
+    void saveUserMessage(cancelMessage);
 
     setPendingBuild(null);
     setStatus('idle');
-  }, [pendingBuild, sessionId]);
+  }, [appendMessages, pendingBuild, saveUserMessage]);
 
-  /**
-   * Summarize current session and create a new session with the summary
-   * Returns the new session ID if successful, null otherwise
-   */
   const summarizeSession = useCallback(async (): Promise<string | null> => {
     if (!sessionId) {
       logger.warn('[AIChat] Cannot compress: no session ID');
@@ -1014,19 +832,18 @@ ${compressedMessages.slice(0, 2000)}${compressedMessages.length > 2000 ? '\n\n(�
       logger.error('[AIChat] Failed to compress session:', err);
       return null;
     }
-  }, [sessionId, loadSessions]);
+  }, [loadSessions, sessionId]);
 
-  // Initialize sessions on mount - only run once per page load
   useEffect(() => {
     let mounted = true;
 
     const init = async () => {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
 
-      // Check sessionStorage for saved session ID (persists during tab switches)
       const savedSessionId = sessionStorage.getItem('ai_current_session_id');
       if (savedSessionId) {
-        // Verify the session still exists
         const session = await getSession(savedSessionId);
         if (session && mounted) {
           await loadSession(savedSessionId);
@@ -1037,21 +854,21 @@ ${compressedMessages.slice(0, 2000)}${compressedMessages.length > 2000 ? '\n\n(�
       await loadSessions();
 
       const recentSession = await getMostRecentSession();
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       if (recentSession) {
-        // Load the most recent session (regardless of whether it has messages)
         await loadSession(recentSession.id);
       } else {
-        // Create initial session if none exists
         await createNewSession();
       }
     };
-    init();
+
+    void init();
     return () => {
       mounted = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [createNewSession, loadSession, loadSessions]);
 
   useEffect(() => {
     if (sessionId) {

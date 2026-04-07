@@ -58,6 +58,10 @@ db.version(3).stores({
   remoteActivityLog: 'id, clientId, table, type, timestamp, receivedAt',
 });
 
+db.version(4).stores({
+  aiMessages: 'id, sessionId, createdAt, toolCallId',
+});
+
 // Helper to validate and get the sync server URL
 async function getSyncServerUrl(): Promise<{ apiUrl: string; endpoint: string }> {
   const setting = await db.settings.get('custom_server_url');

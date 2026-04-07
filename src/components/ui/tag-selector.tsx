@@ -80,8 +80,8 @@ export function TagSelector({
                     key={tag.id}
                     className={`flex items-center justify-between px-2 py-1 rounded text-xs border group/tag transition-colors cursor-default ${
                       selectedTagIds.has(tag.id)
-                        ? 'bg-info/10 border-info/20 text-info'
-                        : 'bg-background border-border hover:bg-accent hover:text-accent-foreground'
+                        ? 'bg-info/15 border-info/40 text-foreground dark:bg-info/25 dark:border-info/50'
+                        : 'bg-background border-border text-foreground hover:bg-accent hover:text-accent-foreground'
                     }`}
                   >
                     <button

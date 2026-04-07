@@ -253,7 +253,7 @@ export function SyncKeyManager({
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                       <div className="space-y-1 font-medium">
                         <p className="font-bold">⚠️ 高风险操作：将重置同步状态</p>
-                        <ul className="list-disc list-inside space-y-1 opacity-90 text-[11px] leading-tight">
+                        <ul className="list-disc list-inside space-y-1 text-[11px] leading-tight">
                           <li>
                             <span className="font-semibold">同步中断：</span>
                             团队其他成员必须手动更换为相同的密钥，否则将无法继续同步。

@@ -18,6 +18,13 @@ import type {
 export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
 export const DEFAULT_OLLAMA_MODEL = 'llama3.2';
 
+export function stripThinkingContent(content: string): string {
+  return content
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think>[\s\S]*$/gi, '')
+    .trim();
+}
+
 /**
  * Ollama provider implementation
  */
@@ -46,6 +53,9 @@ export class OllamaProvider implements ModelProvider {
     return {
       role: message.role,
       content: message.content,
+      name: message.name,
+      tool_call_id: message.toolCallId,
+      tool_calls: message.toolCalls,
     };
   }
 
@@ -62,6 +72,10 @@ export class OllamaProvider implements ModelProvider {
       messages: ollamaMessages,
       stream: options?.stream ?? false,
     };
+
+    if (options?.tools && options.tools.length > 0) {
+      requestBody.tools = options.tools;
+    }
 
     logger.debug(`[Ollama] Sending chat request to ${url}`);
 
@@ -109,6 +123,32 @@ export class OllamaProvider implements ModelProvider {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullContent = '';
+    let buffer = '';
+    let finalToolCalls: ChatResponse['message']['toolCalls'];
+    let done = false;
+
+    const processLine = (line: string) => {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        return;
+      }
+
+      try {
+        const data = JSON.parse(trimmed) as OllamaChatResponse;
+        if (data.message?.content) {
+          fullContent += data.message.content;
+          onChunk(data.message.content);
+        }
+        if (data.message?.tool_calls?.length) {
+          finalToolCalls = data.message.tool_calls;
+        }
+        if (data.done) {
+          done = true;
+        }
+      } catch (error) {
+        logger.debug('Failed to parse Ollama response:', error);
+      }
+    };
 
     try {
       while (true) {
@@ -118,23 +158,20 @@ export class OllamaProvider implements ModelProvider {
           break;
         }
 
-        const { done, value } = await reader.read();
-        if (done) break;
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n').filter((line) => line.trim());
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
         for (const line of lines) {
-          try {
-            const data = JSON.parse(line);
-            if (data.message?.content) {
-              fullContent += data.message.content;
-              onChunk(data.message.content);
-            }
-          } catch (error) {
-            logger.debug('Failed to parse Ollama response:', error);
-          }
+          processLine(line);
         }
+      }
+
+      if (buffer.trim()) {
+        processLine(buffer);
       }
     } finally {
       reader.releaseLock();
@@ -143,9 +180,11 @@ export class OllamaProvider implements ModelProvider {
     return {
       message: {
         role: 'assistant',
-        content: fullContent,
+        content: stripThinkingContent(fullContent),
+        toolCalls: finalToolCalls,
       },
-      done: true,
+      done,
+      finishReason: finalToolCalls?.length ? 'tool_calls' : 'stop',
     };
   }
 
@@ -156,9 +195,11 @@ export class OllamaProvider implements ModelProvider {
     return {
       message: {
         role: response.message.role,
-        content: response.message.content,
+        content: stripThinkingContent(response.message.content),
+        toolCalls: response.message.tool_calls,
       },
       done: response.done,
+      finishReason: response.message.tool_calls?.length ? 'tool_calls' : 'stop',
     };
   }
 

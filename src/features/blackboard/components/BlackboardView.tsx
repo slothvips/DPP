@@ -131,7 +131,7 @@ export function BlackboardView() {
 
         {/* Empty State */}
         {items !== undefined && sortedItems?.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-50">
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <div className="border-2 border-dashed border-current rounded-lg p-8 mb-4">
               <Plus className="w-12 h-12" />
             </div>

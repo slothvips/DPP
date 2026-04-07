@@ -299,7 +299,7 @@ export function LinksView() {
                 </LinkWithCopy>
                 {import.meta.env.DEV && (
                   <div
-                    className="flex items-center gap-0.5 text-xs text-muted-foreground/70 dark:text-muted-foreground/60 bg-muted/40 dark:bg-muted/30 px-1 rounded"
+                    className="flex items-center gap-0.5 text-xs text-muted-foreground bg-muted/40 px-1 rounded"
                     title={`使用次数：${link.usageCount}`}
                   >
                     <Eye className="h-3 w-3" />

@@ -2,7 +2,7 @@ import type Dexie from 'dexie';
 import type { EntityTable } from 'dexie';
 import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
-import type { AIProviderType } from '@/lib/ai/types';
+import type { AIProviderType, OpenAIToolCall } from '@/lib/ai/types';
 import type { SyncMetadata, SyncOperation } from '@/lib/sync/types';
 
 export interface DeferredOp {
@@ -125,6 +125,8 @@ export interface AIMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   name?: string;
+  toolCallId?: string;
+  toolCalls?: OpenAIToolCall[];
   createdAt: number;
 }
 

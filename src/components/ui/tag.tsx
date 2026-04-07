@@ -17,9 +17,8 @@ function getTagStyle(color?: string): React.CSSProperties | undefined {
 
   try {
     return {
-      backgroundColor: transparentize(color, 0.82),
-      borderColor: transparentize(color, 0.65),
-      color,
+      backgroundColor: transparentize(color, 0.9),
+      borderColor: transparentize(color, 0.72),
     };
   } catch {
     return undefined;
@@ -32,9 +31,9 @@ export function Tag({ name, color, size = 'md', className, onClick }: TagProps) 
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded font-medium bg-info/20 dark:bg-info/30 text-info border border-info/30 dark:border-info/40 max-w-[120px] group/tag relative transition-colors',
+        'inline-flex items-center gap-1.5 rounded font-medium border bg-muted/80 text-foreground border-border max-w-[120px] group/tag relative transition-colors shadow-sm',
         size === 'sm' ? 'px-1 py-0 text-[10px] h-4' : 'px-2 py-0.5 text-xs',
-        onClick && 'cursor-pointer hover:bg-info/30 dark:hover:bg-info/40',
+        onClick && 'cursor-pointer hover:bg-muted',
         className
       )}
       style={tagStyle}
@@ -49,6 +48,16 @@ export function Tag({ name, color, size = 'md', className, onClick }: TagProps) 
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
     >
+      {color && (
+        <span
+          className={cn(
+            'shrink-0 rounded-full border border-background/80 ring-1 ring-border/60',
+            size === 'sm' ? 'h-1.5 w-1.5' : 'h-2 w-2'
+          )}
+          style={{ backgroundColor: color }}
+          aria-hidden="true"
+        />
+      )}
       <span className="truncate">{name}</span>
     </span>
   );

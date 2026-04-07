@@ -52,7 +52,7 @@ function getConfirmationContent(toolName: string, args: Record<string, unknown>)
       return {
         title: '确认触发构建',
         description: '此操作将触发 Jenkins 构建任务，可能需要一些时间完成。',
-        impact: `将触发构建 job: ${args.job || '未知'}`,
+        impact: `将触发 Jenkins 构建任务: ${args.jobUrl || '未知任务'}`,
         confirmText: '确认构建',
         isDestructive: false,
       };

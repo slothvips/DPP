@@ -349,12 +349,11 @@ export function TimestampView({ onBack }: { onBack?: () => void }) {
                 <Sparkles className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <div className="text-foreground">
-                    AI 修正: <span className="line-through opacity-60">{aiCorrectedInput}</span> →
+                    AI 修正:{' '}
+                    <span className="line-through text-muted-foreground">{aiCorrectedInput}</span> →
                     <span className="font-mono font-medium">{timestampInput}</span>
                   </div>
-                  {aiReasoning && (
-                    <div className="text-muted-foreground opacity-70">{aiReasoning}</div>
-                  )}
+                  {aiReasoning && <div className="text-muted-foreground">{aiReasoning}</div>}
                 </div>
               </div>
             )}

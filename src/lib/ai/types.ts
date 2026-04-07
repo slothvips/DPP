@@ -5,6 +5,31 @@
  */
 export type AIProviderType = 'ollama' | 'anthropic' | 'custom';
 
+// Tool parameter schema (used by tool registry)
+export interface ToolParameter {
+  type: 'object';
+  properties: Record<string, { type: string; description: string; enum?: string[] }>;
+  required?: string[];
+}
+
+export interface OpenAIToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+export interface OpenAIToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: ToolParameter;
+  };
+}
+
 export interface ModelProvider {
   name: string;
   baseUrl: string;
@@ -17,8 +42,11 @@ export interface ModelProvider {
 }
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  name?: string;
+  toolCallId?: string;
+  toolCalls?: OpenAIToolCall[];
 }
 
 export interface ChatOptions {
@@ -26,6 +54,8 @@ export interface ChatOptions {
   stream?: boolean;
   signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
+  tools?: OpenAIToolDefinition[];
+  toolChoice?: 'auto' | 'none';
 }
 
 // WebLLM loading progress callback
@@ -37,8 +67,10 @@ export interface ChatResponse {
   message: {
     role: 'assistant';
     content: string;
+    toolCalls?: OpenAIToolCall[];
   };
   done: boolean;
+  finishReason?: string | null;
 }
 
 export interface Model {
@@ -47,22 +79,19 @@ export interface Model {
   size?: number;
 }
 
-// Tool parameter schema (used by tool registry)
-export interface ToolParameter {
-  type: 'object';
-  properties: Record<string, { type: string; description: string; enum?: string[] }>;
-  required?: string[];
-}
-
 // Ollama API types
 export interface OllamaMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: OpenAIToolCall[];
 }
 
 export interface OllamaChatRequest {
   model: string;
   messages: OllamaMessage[];
+  tools?: OpenAIToolDefinition[];
   stream?: boolean;
 }
 
@@ -70,6 +99,7 @@ export interface OllamaChatResponse {
   message: {
     role: 'assistant';
     content: string;
+    tool_calls?: OpenAIToolCall[];
   };
   done: boolean;
 }
@@ -80,13 +110,18 @@ export interface OllamaModelListResponse {
 
 // OpenAI-compatible API types
 export interface OpenAIChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  name?: string;
+  tool_call_id?: string;
+  tool_calls?: OpenAIToolCall[];
 }
 
 export interface OpenAIChatRequest {
   model: string;
   messages: OpenAIChatMessage[];
+  tools?: OpenAIToolDefinition[];
+  tool_choice?: 'auto' | 'none';
   stream?: boolean;
   temperature?: number;
 }
@@ -98,7 +133,8 @@ export interface OpenAIChatResponse {
     index: number;
     message: {
       role: 'assistant';
-      content: string;
+      content: string | null;
+      tool_calls?: OpenAIToolCall[];
     };
     finish_reason: string | null;
   }[];
@@ -122,17 +158,10 @@ export interface OpenAIModelsResponse {
 }
 
 // Anthropic API types
-export interface AnthropicChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-export interface AnthropicChatRequest {
-  model: string;
-  messages: AnthropicChatMessage[];
-  max_tokens: number;
-  stream?: boolean;
-  system?: string;
+export interface AnthropicToolDefinition {
+  name: string;
+  description: string;
+  input_schema: ToolParameter;
 }
 
 export interface AnthropicTextBlock {
@@ -145,13 +174,48 @@ export interface AnthropicThinkingBlock {
   thinking: string;
 }
 
-export type AnthropicContentBlock = AnthropicTextBlock | AnthropicThinkingBlock;
+export interface AnthropicToolUseBlock {
+  type: 'tool_use';
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+export interface AnthropicToolResultBlock {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+}
+
+export type AnthropicMessageContentBlock =
+  | AnthropicTextBlock
+  | AnthropicToolUseBlock
+  | AnthropicToolResultBlock;
+
+export type AnthropicResponseContentBlock =
+  | AnthropicTextBlock
+  | AnthropicThinkingBlock
+  | AnthropicToolUseBlock;
+
+export interface AnthropicChatMessage {
+  role: 'user' | 'assistant';
+  content: string | AnthropicMessageContentBlock[];
+}
+
+export interface AnthropicChatRequest {
+  model: string;
+  messages: AnthropicChatMessage[];
+  max_tokens: number;
+  stream?: boolean;
+  system?: string;
+  tools?: AnthropicToolDefinition[];
+}
 
 export interface AnthropicChatResponse {
   id: string;
   type: string;
   role: 'assistant';
-  content: AnthropicContentBlock[];
+  content: AnthropicResponseContentBlock[];
   model: string;
   stop_reason: string | null;
   usage: {

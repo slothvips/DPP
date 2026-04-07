@@ -70,7 +70,7 @@ export function PlayerSidePanel({
                 activeTab === tab.id
                   ? 'bg-primary text-primary-foreground'
                   : tab.disabled
-                    ? 'text-muted-foreground/70 dark:text-muted-foreground/60 cursor-not-allowed'
+                    ? 'text-muted-foreground cursor-not-allowed'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
               )}
             >
