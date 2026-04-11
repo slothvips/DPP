@@ -1,469 +1,44 @@
-import { AlertTriangle, Download, FileText, Github, Upload } from 'lucide-react';
 import 'virtual:uno.css';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { ToastProvider, useToast } from '@/components/ui/toast';
-import { db, getSyncEngine } from '@/db';
-import type { JenkinsEnvironment, Setting, SettingKey } from '@/db/types';
-import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
-import { SyncKeyManager } from '@/features/settings/components/SyncKeyManager';
+import { ToastProvider } from '@/components/ui/toast';
 import { useTheme } from '@/hooks/useTheme';
-import { updateSetting } from '@/lib/db/settings';
-import { ConfirmDialogProvider, useConfirmDialog } from '@/utils/confirm-dialog';
-import { logger } from '@/utils/logger';
-import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
+import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import '@unocss/reset/tailwind.css';
-
-const EXCLUDED_SETTINGS: SettingKey[] = [
-  'sync_client_id',
-  'last_sync_time',
-  'last_sync_status',
-  'last_global_sync',
-  'global_sync_status',
-  'global_sync_error',
-  'global_sync_start_time',
-];
-
-// Settings categories for granular export/import
-const SETTINGS_CATEGORIES: Array<{
-  key: string;
-  label: string;
-  description: string;
-  keys: SettingKey[];
-}> = [
-  {
-    key: 'theme',
-    label: '主题设置',
-    description: '深色/浅色主题',
-    keys: ['theme'],
-  },
-  {
-    key: 'feature_toggles',
-    label: '功能开关',
-    description: '标签页显示开关',
-    keys: [
-      'feature_hotnews_enabled',
-      'feature_links_enabled',
-      'feature_blackboard_enabled',
-      'feature_jenkins_enabled',
-      'feature_recorder_enabled',
-      'feature_ai_assistant_enabled',
-      'feature_playground_enabled',
-    ],
-  },
-  {
-    key: 'jenkins_envs',
-    label: 'Jenkins 环境',
-    description: 'Jenkins 服务器配置',
-    keys: ['jenkins_environments', 'jenkins_current_env'],
-  },
-  {
-    key: 'sync_settings',
-    label: '同步设置',
-    description: '服务器地址、访问令牌、加密密钥',
-    keys: ['custom_server_url', 'sync_access_token', 'sync_encryption_key'],
-  },
-  {
-    key: 'ai_settings',
-    label: 'AI 设置',
-    description: 'D仔服务商、模型配置',
-    keys: [
-      'ai_provider_type',
-      // Ollama
-      'ai_ollama_base_url',
-      'ai_ollama_model',
-      // Anthropic
-      'ai_anthropic_base_url',
-      'ai_anthropic_model',
-      'ai_anthropic_api_key',
-      // Custom
-      'ai_custom_base_url',
-      'ai_custom_model',
-      'ai_custom_api_key',
-    ],
-  },
-  {
-    key: 'display_prefs',
-    label: '显示偏好',
-    description: '其他显示相关设置',
-    keys: ['show_others_builds'],
-  },
-];
-
-function getSettingValue<K extends SettingKey>(
-  settings: Setting[],
-  key: K
-): Setting<K>['value'] | undefined {
-  const setting = settings.find((item) => item.key === key);
-  return setting?.value as Setting<K>['value'] | undefined;
-}
-
-interface ImportedSetting {
-  key: SettingKey;
-  value: unknown;
-}
-
-const VALID_SETTING_KEYS = new Set<SettingKey>([
-  ...EXCLUDED_SETTINGS,
-  ...SETTINGS_CATEGORIES.flatMap((category) => category.keys),
-  'auto_sync_enabled',
-  'auto_sync_interval',
-  'links_sort_by',
-  'jenkins_host',
-  'jenkins_user',
-  'jenkins_token',
-  'ai_base_url',
-  'ai_model',
-  'ai_api_key',
-  'ai_ollama_api_key',
-]);
-
-function isSettingKey(value: unknown): value is SettingKey {
-  return typeof value === 'string' && VALID_SETTING_KEYS.has(value as SettingKey);
-}
-
-function isImportedSetting(value: unknown): value is ImportedSetting {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const candidate = value as { key?: unknown };
-  return isSettingKey(candidate.key);
-}
+import { AppearanceSection } from './AppearanceSection';
+import { DangerZoneSection } from './DangerZoneSection';
+import { DataManagementSection } from './DataManagementSection';
+import { ExportSettingsDialog } from './ExportSettingsDialog';
+import { FeatureTogglesSection } from './FeatureTogglesSection';
+import { FooterLinks } from './FooterLinks';
+import { JenkinsSection } from './JenkinsSection';
+import { SyncSettingsSection } from './SyncSettingsSection';
+import { useOptionsPage } from './useOptionsPage';
 
 function OptionsApp() {
   useTheme();
-  const { toast } = useToast();
-  const { confirm } = useConfirmDialog();
-  const [customConfig, setCustomConfig] = useState({ serverUrl: '' });
-  const [accessToken, setAccessToken] = useState('');
-  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
-  const [autoSync, setAutoSync] = useState({ enabled: true, interval: 30 });
-  const [featureToggles, setFeatureToggles] = useState({
-    hotNews: true,
-    links: true,
-    blackboard: true,
-    jenkins: true,
-    recorder: true,
-    aiAssistant: true,
-    playground: true,
-  });
 
-  // Export state
-  const [showExportDialog, setShowExportDialog] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    SETTINGS_CATEGORIES.map((c) => c.key)
-  );
-
-  // Load existing config
-  useEffect(() => {
-    (async () => {
-      // General Settings
-      const settings = await db.settings.toArray();
-
-      const lastSync = getSettingValue(settings, 'last_sync_time');
-      if (lastSync) setLastSyncTime(lastSync);
-
-      setCustomConfig({
-        serverUrl: getSettingValue(settings, 'custom_server_url') || '',
-      });
-
-      setAccessToken(getSettingValue(settings, 'sync_access_token') || '');
-
-      setAutoSync({
-        enabled: getSettingValue(settings, 'auto_sync_enabled') ?? true,
-        interval: getSettingValue(settings, 'auto_sync_interval') ?? 30,
-      });
-
-      // Feature toggles (default to true if not set)
-      setFeatureToggles({
-        hotNews: getSettingValue(settings, 'feature_hotnews_enabled') !== false,
-        links: getSettingValue(settings, 'feature_links_enabled') !== false,
-        blackboard: getSettingValue(settings, 'feature_blackboard_enabled') !== false,
-        jenkins: getSettingValue(settings, 'feature_jenkins_enabled') !== false,
-        recorder: getSettingValue(settings, 'feature_recorder_enabled') !== false,
-        aiAssistant: getSettingValue(settings, 'feature_ai_assistant_enabled') !== false,
-        playground: getSettingValue(settings, 'feature_playground_enabled') !== false,
-      });
-    })();
-  }, []);
-
-  const saveDataSourceConfig = async () => {
-    // 验证服务器URL长度
-    const urlValidation = validateLength(
-      customConfig.serverUrl,
-      VALIDATION_LIMITS.SYNC_SERVER_URL_MAX,
-      '服务器地址'
-    );
-    if (!urlValidation.valid) {
-      toast(urlValidation.error ?? '服务器地址长度超出限制', 'error');
-      return;
-    }
-
-    // 验证访问令牌长度
-    const tokenValidation = validateLength(
-      accessToken,
-      VALIDATION_LIMITS.SYNC_ACCESS_TOKEN_MAX,
-      '访问令牌'
-    );
-    if (!tokenValidation.valid) {
-      toast(tokenValidation.error ?? '访问令牌长度超出限制', 'error');
-      return;
-    }
-
-    try {
-      await updateSetting('custom_server_url', customConfig.serverUrl);
-      await updateSetting('sync_access_token', accessToken);
-      await updateSetting('auto_sync_enabled', autoSync.enabled);
-      await updateSetting('auto_sync_interval', autoSync.interval);
-      await browser.runtime
-        .sendMessage({ type: 'AUTO_SYNC_SETTINGS_CHANGED' })
-        .catch((e) => logger.error('Failed to send settings change:', e));
-
-      toast('配置已保存', 'success');
-    } catch (e) {
-      logger.error(e);
-      toast('保存失败', 'error');
-    }
-  };
-
-  const handleExport = async () => {
-    if (selectedCategories.length === 0) {
-      toast('请至少选择一种设置类型', 'error');
-      return;
-    }
-
-    try {
-      const allSettings = await db.settings.toArray();
-      const safeSettings = allSettings.filter(
-        (s) => !EXCLUDED_SETTINGS.includes(s.key as SettingKey)
-      );
-
-      // Filter by selected categories
-      const allowedKeys = new Set(
-        SETTINGS_CATEGORIES.filter((c) => selectedCategories.includes(c.key)).flatMap((c) => c.keys)
-      );
-      const filteredSettings = safeSettings.filter((s) => allowedKeys.has(s.key));
-
-      // Check for encryption key in settings
-      const hasEncryptionKey = filteredSettings.some((s) => s.key === 'sync_encryption_key');
-
-      if (hasEncryptionKey) {
-        const confirmed = await confirm(
-          '安全提示：\n\n导出文件中将包含您的【同步加密密钥】。\n\n请务必妥善保管导出文件，不要分享给不可信的人，否则可能导致您的加密数据泄露。\n\n是否继续？',
-          '确认导出'
-        );
-        if (!confirmed) {
-          setShowExportDialog(false);
-          return;
-        }
-      }
-
-      const exportObj = {
-        version: '1.3',
-        exportDate: new Date().toISOString(),
-        data: {
-          settings: filteredSettings,
-        },
-      };
-
-      const jsonStr = JSON.stringify(exportObj, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      // 生成包含分类信息的文件名
-      const categoryLabels = SETTINGS_CATEGORIES.filter((c) => selectedCategories.includes(c.key))
-        .map((c) => c.label.replace(/\s+/g, ''))
-        .join('+');
-      a.download = `dpp-config-${categoryLabels}-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setShowExportDialog(false);
-      toast('配置导出成功！', 'success');
-    } catch (e) {
-      logger.error('Export error:', e);
-      toast('导出失败，请查看控制台', 'error');
-    }
-  };
-
-  const handleSelectFile = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json';
-
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const parsed = JSON.parse(text);
-
-        if (!parsed.version || !parsed.data) {
-          throw new Error('无效的备份文件格式');
-        }
-
-        if (!Array.isArray(parsed.data.settings) || parsed.data.settings.length === 0) {
-          throw new Error('文件中没有应用设置数据');
-        }
-
-        const importedSettings: ImportedSetting[] = parsed.data.settings.filter(isImportedSetting);
-        if (importedSettings.length === 0) {
-          throw new Error('文件中没有可识别的设置项');
-        }
-
-        const hasKey = importedSettings.some((s) => s.key === 'sync_encryption_key');
-        const confirmed = await confirm(
-          `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}\n⚠️ 这将清空所有本地数据，导入后请重新同步！`,
-          '确认导入'
-        );
-
-        if (!confirmed) return;
-
-        // Clear all data first
-        await db.delete();
-        await db.open();
-
-        await db.transaction('rw', db.settings, async () => {
-          let settings = importedSettings.filter((s) => !EXCLUDED_SETTINGS.includes(s.key));
-
-          const hasEnvironments = settings.some((s) => s.key === 'jenkins_environments');
-          const host = settings.find((s) => s.key === 'jenkins_host');
-          const user = settings.find((s) => s.key === 'jenkins_user');
-          const token = settings.find((s) => s.key === 'jenkins_token');
-
-          if (!hasEnvironments && (host || user || token)) {
-            const defaultEnv: JenkinsEnvironment = {
-              id: crypto.randomUUID(),
-              name: 'Default',
-              host: typeof host?.value === 'string' ? host.value : '',
-              user: typeof user?.value === 'string' ? user.value : '',
-              token: typeof token?.value === 'string' ? token.value : '',
-              order: 0,
-            };
-            settings.push({ key: 'jenkins_environments', value: [defaultEnv] });
-
-            if (!settings.some((s) => s.key === 'jenkins_current_env')) {
-              settings.push({ key: 'jenkins_current_env', value: defaultEnv.id });
-            }
-
-            logger.info('Migrated legacy Jenkins settings during import');
-          }
-
-          settings = settings.filter(
-            (s) => !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(s.key)
-          );
-
-          await db.settings.bulkAdd(settings as Parameters<typeof db.settings.bulkAdd>[0]);
-        });
-
-        toast('配置导入成功！即将刷新页面...', 'success');
-        setTimeout(() => window.location.reload(), 1500);
-      } catch (e) {
-        logger.error('Import error:', e);
-        toast(`导入失败: ${e instanceof Error ? e.message : String(e)}`, 'error');
-      }
-    };
-
-    input.click();
-  };
-
-  const clearData = async () => {
-    const confirmed = await confirm('确定要清空所有数据并重置吗？', '确认清空', 'danger');
-    if (confirmed) {
-      await db.delete();
-      await db.open();
-      toast('数据已清空', 'info');
-      setTimeout(() => window.location.reload(), 1000);
-    }
-  };
-
-  const rebuildLocalData = async () => {
-    const confirmed = await confirm(
-      '此操作将清空本地同步数据并从服务器重新拉取，未同步到服务器的本地数据将会丢失。\n\n正常来讲，你永远不会用到这个功能。\n\n⚠️ 请仅在数据异常时使用（至少与两名团队成员数据不一致）。',
-      '确认重建本地数据',
-      'danger'
-    );
-
-    if (confirmed) {
-      try {
-        toast('正在重建数据...', 'info');
-
-        const engine = await getSyncEngine();
-        if (!engine) {
-          throw new Error('同步引擎初始化失败');
-        }
-        await engine.clearAllData();
-        await engine.pull();
-
-        toast('数据重建成功', 'success');
-        setTimeout(() => window.location.reload(), 1500);
-      } catch (error) {
-        logger.error('[DataRebuild] Failed:', error);
-        toast('数据重建失败: ' + (error as Error).message, 'error');
-      }
-    }
-  };
-
-  const toggleFeature = async (
-    feature:
-      | 'hotNews'
-      | 'links'
-      | 'blackboard'
-      | 'jenkins'
-      | 'recorder'
-      | 'aiAssistant'
-      | 'playground',
-    enabled: boolean
-  ) => {
-    const keyMap = {
-      hotNews: 'feature_hotnews_enabled',
-      links: 'feature_links_enabled',
-      blackboard: 'feature_blackboard_enabled',
-      jenkins: 'feature_jenkins_enabled',
-      recorder: 'feature_recorder_enabled',
-      aiAssistant: 'feature_ai_assistant_enabled',
-      playground: 'feature_playground_enabled',
-    } as const satisfies Record<string, SettingKey>;
-    const labelMap = {
-      hotNews: '资讯',
-      links: '链接',
-      blackboard: '黑板',
-      jenkins: 'Jenkins',
-      recorder: '录制',
-      aiAssistant: 'D仔',
-      playground: '游乐园',
-    };
-    const key = keyMap[feature];
-    await updateSetting(key, enabled);
-    setFeatureToggles((prev) => ({ ...prev, [feature]: enabled }));
-    toast(`${labelMap[feature]}功能已${enabled ? '启用' : '禁用'}`, 'success');
-  };
+  const {
+    accessToken,
+    autoSync,
+    clearData,
+    customConfig,
+    featureToggles,
+    handleExport,
+    handleSelectFile,
+    lastSyncTime,
+    rebuildLocalData,
+    saveDataSourceConfig,
+    selectedCategories,
+    setAccessToken,
+    setAutoSync,
+    setCustomConfig,
+    setSelectedCategories,
+    setShowExportDialog,
+    showExportDialog,
+    toggleFeature,
+  } = useOptionsPage();
 
   return (
     <div className="min-h-screen bg-background text-foreground" data-testid="options-page">
@@ -480,266 +55,40 @@ function OptionsApp() {
         </div>
 
         <div className="space-y-8">
-          <section className="space-y-4 border p-4 rounded-lg" data-testid="section-appearance">
-            <h2 className="text-xl font-semibold">外观</h2>
-            <div className="space-y-2">
-              <div className="text-sm font-medium">主题</div>
-              <ThemeToggle />
-            </div>
-          </section>
+          <AppearanceSection />
 
-          <section className="space-y-4 border p-4 rounded-lg">
-            <h2 className="text-xl font-semibold">功能开关</h2>
-            <p className="text-sm text-muted-foreground">控制在主界面中显示哪些功能标签页</p>
-            <div className="grid grid-cols-2 gap-4" data-testid="feature-toggles">
-              {[
-                { key: 'blackboard', label: '黑板' },
-                { key: 'jenkins', label: 'Jenkins' },
-                { key: 'links', label: '链接' },
-                { key: 'recorder', label: '录制' },
-                { key: 'hotNews', label: '资讯' },
-                { key: 'aiAssistant', label: 'D仔' },
-                { key: 'playground', label: '游乐园' },
-              ].map(({ key, label }) => (
-                <div key={key} className="flex items-center space-x-3">
-                  <Checkbox
-                    id={`feature-${key}`}
-                    data-testid={`checkbox-feature-${key}`}
-                    checked={featureToggles[key as keyof typeof featureToggles]}
-                    onCheckedChange={(checked) =>
-                      toggleFeature(key as Parameters<typeof toggleFeature>[0], !!checked)
-                    }
-                  />
-                  <Label htmlFor={`feature-${key}`} className="text-sm font-medium cursor-pointer">
-                    {label}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </section>
+          <FeatureTogglesSection featureToggles={featureToggles} onToggle={toggleFeature} />
 
-          {/* Jenkins Section */}
-          <section className="space-y-4 border p-4 rounded-lg">
-            <h2 className="text-xl font-semibold flex items-center gap-2">Jenkins 环境管理</h2>
-            <JenkinsEnvManager />
-          </section>
+          <JenkinsSection />
 
-          {/* Data Source Section */}
-          <section className="space-y-4 border p-4 rounded-lg">
-            <h2 className="text-xl font-semibold">数据同步配置</h2>
+          <SyncSettingsSection
+            accessToken={accessToken}
+            autoSync={autoSync}
+            customConfig={customConfig}
+            lastSyncTime={lastSyncTime}
+            onAccessTokenChange={setAccessToken}
+            onAutoSyncChange={setAutoSync}
+            onCustomConfigChange={setCustomConfig}
+            onSave={saveDataSourceConfig}
+          />
 
-            {lastSyncTime && (
-              <div className="text-xs text-muted-foreground mb-4">
-                上次同步: {new Date(lastSyncTime).toLocaleString()}
-              </div>
-            )}
+          <DataManagementSection
+            onExport={() => setShowExportDialog(true)}
+            onImport={handleSelectFile}
+            onRebuild={rebuildLocalData}
+          />
 
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="i-lucide-server text-primary" />
-                <span className="font-semibold text-sm">同步服务器</span>
-              </div>
-              <p className="text-xs text-muted-foreground mb-4">
-                连接到您自己部署的 DPP 服务器，实现跨设备数据同步、标签云端备份、多端实时协作。
-              </p>
-              <div className="space-y-2">
-                <Label htmlFor="custom-url">服务器地址</Label>
-                <Input
-                  id="custom-url"
-                  data-testid="input-server-url"
-                  value={customConfig.serverUrl}
-                  onChange={(e) => setCustomConfig({ ...customConfig, serverUrl: e.target.value })}
-                  placeholder="http://localhost:3000"
-                  maxLength={VALIDATION_LIMITS.SYNC_SERVER_URL_MAX}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="access-token">访问令牌 (可选)</Label>
-                <Input
-                  id="access-token"
-                  data-testid="input-access-token"
-                  type="password"
-                  value={accessToken}
-                  onChange={(e) => setAccessToken(e.target.value)}
-                  placeholder="your-secret-token"
-                  maxLength={VALIDATION_LIMITS.SYNC_ACCESS_TOKEN_MAX}
-                />
-              </div>
+          <DangerZoneSection onClearData={clearData} />
 
-              <SyncKeyManager />
+          <ExportSettingsDialog
+            open={showExportDialog}
+            selectedCategories={selectedCategories}
+            onConfirm={handleExport}
+            onOpenChange={setShowExportDialog}
+            onSelectedCategoriesChange={setSelectedCategories}
+          />
 
-              <div className="space-y-4 pt-4 border-t border-border">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="auto-sync"
-                    checked={autoSync.enabled}
-                    onCheckedChange={(checked) =>
-                      setAutoSync({ ...autoSync, enabled: checked as boolean })
-                    }
-                  />
-                  <Label htmlFor="auto-sync">开启自动同步</Label>
-                </div>
-                {autoSync.enabled && (
-                  <div className="space-y-2 pl-6">
-                    <Label htmlFor="auto-sync-interval">同步间隔</Label>
-                    <Select
-                      value={autoSync.interval.toString()}
-                      onValueChange={(value) =>
-                        setAutoSync({ ...autoSync, interval: Number(value) })
-                      }
-                    >
-                      <SelectTrigger id="auto-sync-interval" className="w-[180px]">
-                        <SelectValue placeholder="选择间隔时间" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">每 5 分钟</SelectItem>
-                        <SelectItem value="15">每 15 分钟</SelectItem>
-                        <SelectItem value="30">每 30 分钟</SelectItem>
-                        <SelectItem value="60">每 1 小时</SelectItem>
-                        <SelectItem value="120">每 2 小时</SelectItem>
-                        <SelectItem value="240">每 4 小时</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </div>
-
-              <Button
-                onClick={saveDataSourceConfig}
-                data-testid="button-save-sync"
-                className="bg-primary hover:bg-primary/90 w-full"
-              >
-                保存
-              </Button>
-            </div>
-          </section>
-
-          {/* Data Management */}
-          <section className="space-y-4 border p-4 rounded-lg">
-            <h2 className="text-xl font-semibold">数据管理</h2>
-            <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">
-                导出仅包含关键配置项，链接和任务数据请通过远程同步获取。
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => setShowExportDialog(true)}
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-export"
-                >
-                  <Download className="w-4 h-4" />
-                  导出配置
-                </Button>
-                <Button
-                  onClick={handleSelectFile}
-                  variant="outline"
-                  className="gap-2"
-                  data-testid="button-import"
-                >
-                  <Upload className="w-4 h-4" />
-                  导入配置
-                </Button>
-                <Button
-                  onClick={rebuildLocalData}
-                  variant="outline"
-                  className="gap-2 text-warning border-warning hover:bg-warning/10"
-                  data-testid="button-rebuild"
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  重建本地数据
-                </Button>
-              </div>
-            </div>
-          </section>
-
-          {/* Danger Zone */}
-          <section
-            className="space-y-4 border p-4 rounded-lg border-destructive/30"
-            data-testid="danger-zone"
-          >
-            <h2 className="text-xl font-semibold text-destructive">危险区域</h2>
-            <Button variant="destructive" onClick={clearData} data-testid="button-clear-data">
-              清空所有数据并重置
-            </Button>
-          </section>
-
-          {/* Export Dialog */}
-          <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>导出应用设置</DialogTitle>
-                <DialogDescription>选择要导出的设置类型</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-3 py-4">
-                {SETTINGS_CATEGORIES.map((category) => (
-                  <div key={category.key} className="flex items-center space-x-3">
-                    <Checkbox
-                      id={`export-${category.key}`}
-                      checked={selectedCategories.includes(category.key)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedCategories([...selectedCategories, category.key]);
-                        } else {
-                          setSelectedCategories(
-                            selectedCategories.filter((k) => k !== category.key)
-                          );
-                        }
-                      }}
-                    />
-                    <Label
-                      htmlFor={`export-${category.key}`}
-                      className="text-sm font-medium cursor-pointer"
-                    >
-                      {category.label}
-                      <span className="text-muted-foreground text-xs ml-2">
-                        {category.description}
-                      </span>
-                    </Label>
-                  </div>
-                ))}
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowExportDialog(false)}>
-                  取消
-                </Button>
-                <Button onClick={handleExport}>导出</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
-          <div className="flex flex-col items-center justify-center pt-8 pb-4 opacity-50 hover:opacity-100 transition-opacity gap-2">
-            <a
-              href="https://github.com/slothvips/DPP"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Github className="w-3 h-3" />
-              Open Source on GitHub
-            </a>
-            <a
-              href={
-                (browser.runtime?.getURL as (path: string) => string)?.('/changelog.html') ||
-                '/changelog.html'
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <FileText className="w-3 h-3" />
-              更新日志
-            </a>
-            <br />
-            <a
-              href="javascript:;"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              powered by vibe coding.
-            </a>
-          </div>
+          <FooterLinks />
         </div>
       </div>
     </div>

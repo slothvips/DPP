@@ -27,6 +27,11 @@ export async function updateSetting<K extends SettingKey>(
   key: K,
   value: SettingValue<K>
 ): Promise<void> {
+  const existing = await db.settings.get(key);
+  if (existing && Object.is(existing.value, value)) {
+    return;
+  }
+
   await db.settings.put({ key, value });
 }
 

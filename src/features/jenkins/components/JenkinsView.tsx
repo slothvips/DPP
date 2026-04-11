@@ -1,482 +1,82 @@
-import { useLiveQuery } from 'dexie-react-hooks';
-import { ChevronDown, ChevronRight, History, Layers, RefreshCw, Search } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { useToast } from '@/components/ui/toast';
-import { JENKINS } from '@/config/constants';
-import { type JenkinsEnvironment, db } from '@/db';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
-import { JobRow } from '@/features/jenkins/components/JobRow';
-import { JobTreeNode } from '@/features/jenkins/components/JobTreeNode';
-import { MyBuildRow } from '@/features/jenkins/components/MyBuildRow';
-import { RefreshCountdown } from '@/features/jenkins/components/RefreshCountdown';
-import { JenkinsService } from '@/features/jenkins/service';
-import { buildJobTree } from '@/features/jenkins/utils';
-import { syncLegacyJenkinsSettings } from '@/lib/db/jenkins';
-import { updateSetting } from '@/lib/db/settings';
-import { useConfirmDialog } from '@/utils/confirm-dialog';
-import { logger } from '@/utils/logger';
+import { JenkinsBuildHistorySection } from '@/features/jenkins/components/JenkinsBuildHistorySection';
+import { JenkinsEmptyState } from '@/features/jenkins/components/JenkinsEmptyState';
+import { JenkinsJobContent } from '@/features/jenkins/components/JenkinsJobContent';
+import { JenkinsToolbar } from '@/features/jenkins/components/JenkinsToolbar';
+import { useJenkinsView } from '@/features/jenkins/components/useJenkinsView';
 
 export function JenkinsView() {
-  const { toast } = useToast();
-  const { confirm } = useConfirmDialog();
-  const [loading, setLoading] = useState(false);
-  const [filter, setFilter] = useState('');
-  const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
-  const [buildJob, setBuildJob] = useState<{ url: string; name: string; envId?: string } | null>(
-    null
-  );
+  const {
+    buildJob,
+    closeBuildDialog,
+    currentEnvId,
+    displayedBuilds,
+    environments,
+    expandedUrls,
+    filter,
+    filteredJobs,
+    handleBuildSuccess,
+    handleCancelBuild,
+    handleEnvChange,
+    handleSync,
+    handleToggleShowOthers,
+    jobTagsMap,
+    jobTree,
+    jobs,
+    loading,
+    myBuildsLoading,
+    nextRefreshTime,
+    openBuildDialog,
+    setFilter,
+    showEmptyState,
+    showOthersBuilds,
+    tags,
+    toggleExpand,
+  } = useJenkinsView();
 
-  const [myBuildsLoading, setMyBuildsLoading] = useState(false);
-  const [nextRefreshTime, setNextRefreshTime] = useState<number | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [shouldCloseOnSuccess, setShouldCloseOnSuccess] = useState(false);
-
-  const settings = useLiveQuery(() => db.settings.toArray(), [], []);
-
-  const environments = useMemo(
-    () =>
-      (settings.find((s) => s.key === 'jenkins_environments')?.value as JenkinsEnvironment[]) || [],
-    [settings]
-  );
-  const currentEnvId = settings.find((s) => s.key === 'jenkins_current_env')?.value as string;
-
-  const currentEnv = environments.find((e) => e.id === currentEnvId);
-
-  const showOthersBuilds =
-    (settings.find((s) => s.key === 'show_others_builds')?.value as boolean) ?? false;
-
-  // Combine all queries into a single useLiveQuery to avoid multiple re-renders
-  const { jobs, jobTags, tags, myBuilds, othersBuilds } = useLiveQuery(
-    async () => {
-      if (!currentEnvId) {
-        return { jobs: [], jobTags: [], tags: [], myBuilds: [], othersBuilds: [] };
-      }
-
-      const [allJobs, allJobTags, allTags, allMyBuilds, allOthersBuilds] = await Promise.all([
-        db.jobs.where('env').equals(currentEnvId).toArray(),
-        db.jobTags.filter((jt) => !jt.deletedAt).toArray(),
-        db.tags.filter((t) => !t.deletedAt).toArray(),
-        db.myBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp'),
-        db.othersBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp'),
-      ]);
-
-      return {
-        jobs: allJobs.sort((a, b) => a.name.localeCompare(b.name)),
-        jobTags: allJobTags,
-        tags: allTags,
-        myBuilds: allMyBuilds,
-        othersBuilds: allOthersBuilds,
-      };
-    },
-    [refreshKey, currentEnvId],
-    { jobs: [], jobTags: [], tags: [], myBuilds: [], othersBuilds: [] }
-  );
-
-  const displayedBuilds = useMemo(() => {
-    let builds = [...(myBuilds || [])];
-    if (showOthersBuilds) {
-      builds = [...builds, ...(othersBuilds || [])];
-    }
-    return builds.sort((a, b) => b.timestamp - a.timestamp);
-  }, [myBuilds, othersBuilds, showOthersBuilds]);
-
-  // Create a map of jobUrl to tags for O(1) lookup
-  const jobTagsMap = useMemo(() => {
-    const map = new Map<string, typeof tags>();
-    for (const jt of jobTags) {
-      const tag = tags.find((t) => t.id === jt.tagId);
-      if (tag) {
-        const existing = map.get(jt.jobUrl) || [];
-        map.set(jt.jobUrl, [...existing, tag]);
-      }
-    }
-    return map;
-  }, [jobTags, tags]);
-
-  const filteredJobs = useMemo(() => {
-    if (!jobs || jobs.length === 0) return [];
-    if (!filter) return jobs;
-
-    const keywords = filter.toLowerCase().split(' ').filter(Boolean);
-    if (keywords.length === 0) return jobs;
-
-    return jobs.filter((j) => {
-      const name = j.name.toLowerCase();
-      const fullName = (j.fullName || j.name).toLowerCase();
-
-      const jobTagIds = jobTags.filter((jt) => jt.jobUrl === j.url).map((jt) => jt.tagId);
-      const jobTagNames = tags
-        .filter((t) => t.id && jobTagIds.includes(t.id))
-        .map((t) => t.name.toLowerCase());
-
-      return keywords.every(
-        (kw) =>
-          name.includes(kw) ||
-          fullName.includes(kw) ||
-          jobTagNames.some((tagName) => tagName.includes(kw))
-      );
-    });
-  }, [jobs, jobTags, tags, filter]);
-
-  const jobTree = useMemo(() => {
-    if (filter || !jobs) return [];
-    return buildJobTree(jobs);
-  }, [jobs, filter]);
-
-  const jenkinsHost = currentEnv?.host;
-  const jenkinsUser = currentEnv?.user;
-  const jenkinsToken = currentEnv?.token;
-
-  useEffect(() => {
-    const checkDeepLink = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const buildJobUrl = params.get('buildJobUrl');
-      const targetEnvId = params.get('envId');
-
-      if (targetEnvId && targetEnvId !== currentEnvId) {
-        const targetEnv = environments.find((env) => env.id === targetEnvId);
-        await updateSetting('jenkins_current_env', targetEnvId);
-        if (targetEnv) {
-          await syncLegacyJenkinsSettings({
-            host: targetEnv.host,
-            user: targetEnv.user,
-            token: targetEnv.token,
-          });
-        }
-        // toast('已自动切换到目标环境', 'success'); // Silent switch for better UX
-      }
-
-      if (buildJobUrl) {
-        const job = await db.jobs.get(buildJobUrl);
-        if (job) {
-          setBuildJob({ url: job.url, name: job.name, envId: job.env });
-          setShouldCloseOnSuccess(true);
-          // Optional: Clear params so it doesn't reopen on refresh
-          const newUrl = new URL(window.location.href);
-          newUrl.searchParams.delete('buildJobUrl');
-          newUrl.searchParams.delete('envId');
-          newUrl.searchParams.delete('tab');
-          window.history.replaceState({}, '', newUrl.toString());
-        }
-      }
-    };
-    checkDeepLink();
-  }, [currentEnvId, environments]);
-
-  useEffect(() => {
-    if (!jenkinsHost || !jenkinsUser || !jenkinsToken) return;
-
-    let mounted = true;
-    let timeoutId: NodeJS.Timeout;
-    let visibilityHandler: (() => void) | null = null;
-    let isPollingInFlight = false;
-
-    const poll = async () => {
-      // Skip if already polling (prevent concurrent requests)
-      if (isPollingInFlight) {
-        // Still schedule next poll to ensure polling continues
-        if (mounted) {
-          timeoutId = setTimeout(poll, JENKINS.POLL_INTERVAL_MS);
-        }
-        return;
-      }
-
-      // Skip polling if document is not visible (page is in background)
-      if (document.visibilityState === 'hidden') {
-        // Schedule next poll with longer interval when hidden
-        timeoutId = setTimeout(poll, JENKINS.POLL_INTERVAL_MS * 3);
-        return;
-      }
-
-      isPollingInFlight = true;
-
-      try {
-        setMyBuildsLoading(true);
-        await JenkinsService.fetchMyBuilds();
-        setMyBuildsLoading(false);
-        setRefreshKey((prev) => prev + 1);
-        setNextRefreshTime(Date.now() + JENKINS.POLL_INTERVAL_MS);
-      } catch (e) {
-        logger.error('Auto-refresh My Builds failed', e);
-        setMyBuildsLoading(false);
-      } finally {
-        isPollingInFlight = false;
-        if (mounted) {
-          timeoutId = setTimeout(poll, JENKINS.POLL_INTERVAL_MS);
-        }
-      }
-    };
-
-    // Handle visibility change to pause/resume polling
-    visibilityHandler = () => {
-      if (document.visibilityState === 'visible') {
-        // Trigger poll if not already polling
-        // Note: We allow polling even if lastPollTime is recent because user expects
-        // fresh data when switching back. The isPollingInFlight check prevents
-        // concurrent requests, and the timer-based polling provides rate limiting.
-        if (!isPollingInFlight) {
-          poll();
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', visibilityHandler);
-
-    poll();
-
-    return () => {
-      mounted = false;
-      clearTimeout(timeoutId);
-      if (visibilityHandler) {
-        document.removeEventListener('visibilitychange', visibilityHandler);
-      }
-    };
-  }, [jenkinsHost, jenkinsUser, jenkinsToken]);
-
-  const handleSync = async () => {
-    if (!jenkinsHost || !jenkinsUser || !jenkinsToken) {
-      toast('请先在设置中配置 Jenkins', 'error');
-      return;
-    }
-    setLoading(true);
-    try {
-      const jobCount = await JenkinsService.fetchAllJobs();
-      setRefreshKey((prev) => prev + 1);
-      toast(`采集完成，Job: ${jobCount}`, 'success');
-    } catch (e) {
-      logger.error('Sync failed', e);
-      toast('采集失败，请检查控制台', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEnvChange = async (envId: string) => {
-    try {
-      const targetEnv = environments.find((env) => env.id === envId);
-      await updateSetting('jenkins_current_env', envId);
-      if (targetEnv) {
-        await syncLegacyJenkinsSettings({
-          host: targetEnv.host,
-          user: targetEnv.user,
-          token: targetEnv.token,
-        });
-      }
-      setRefreshKey((prev) => prev + 1);
-      toast('已切换环境', 'success');
-    } catch (e) {
-      logger.error('Failed to switch env:', e);
-      toast('切换环境失败', 'error');
-    }
-  };
-
-  const toggleShowOthers = async (checked: boolean) => {
-    try {
-      await updateSetting('show_others_builds', checked);
-    } catch (e) {
-      logger.error('Failed to toggle show others builds:', e);
-      toast('设置保存失败', 'error');
-    }
-  };
-
-  const toggleExpand = (url: string) => {
-    const next = new Set(expandedUrls);
-    if (next.has(url)) next.delete(url);
-    else next.add(url);
-    setExpandedUrls(next);
-  };
-
-  if (!jenkinsToken && environments.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 space-y-4">
-        <p className="text-muted-foreground">请先在设置页配置 Jenkins</p>
-        <Button
-          variant="outline"
-          onClick={() => browser.tabs.create({ url: browser.runtime.getURL('/options.html') })}
-        >
-          去设置
-        </Button>
-      </div>
-    );
+  if (showEmptyState) {
+    return <JenkinsEmptyState />;
   }
 
   return (
     <div className="flex flex-col h-full space-y-4">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          {environments.length > 0 && (
-            <Select value={currentEnvId} onValueChange={handleEnvChange}>
-              <SelectTrigger className="w-[180px] h-8 text-xs">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-muted-foreground" />
-                  <SelectValue placeholder="选择环境" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                {environments
-                  .sort((a, b) => a.order - b.order)
-                  .map((env) => (
-                    <SelectItem key={env.id} value={env.id} className="text-xs">
-                      {env.name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-          )}
+      <JenkinsToolbar
+        currentEnvId={currentEnvId}
+        environments={environments}
+        filter={filter}
+        loading={loading}
+        onEnvChange={handleEnvChange}
+        onFilterChange={setFilter}
+        onSync={handleSync}
+      />
 
-          <div className="relative flex-1">
-            <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="搜索 Job..."
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="h-8 pl-8"
-            />
-          </div>
-
-          <Button onClick={handleSync} disabled={loading} size="sm" className="h-8 text-xs gap-1.5">
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? '采集中' : '采集'}
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-auto border rounded-md">
-        {!jobs || jobs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            {loading ? '正在从 Jenkins 获取数据...' : '暂无数据，请点击采集'}
-          </div>
-        ) : filter ? (
-          <div className="divide-y">
-            {filteredJobs.map((job) => (
-              <JobRow
-                key={job.url}
-                job={job}
-                onBuild={() => setBuildJob({ url: job.url, name: job.name, envId: job.env })}
-                availableTags={tags}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="p-2">
-            {/* Build History Section */}
-            <div className="mb-2">
-              <button
-                type="button"
-                className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer select-none group w-full text-left bg-transparent border-0"
-                onClick={() => toggleExpand('__build_history__')}
-              >
-                <span className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0 flex items-center justify-center">
-                  {expandedUrls.has('__build_history__') ? (
-                    <ChevronDown className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
-                </span>
-                <div className="shrink-0 text-primary relative">
-                  <History className="w-4 h-4" />
-                </div>
-                <span className="text-sm font-medium">构建历史</span>
-                <div
-                  className="flex items-center gap-1.5 ml-4"
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  role="presentation"
-                >
-                  <Checkbox
-                    id="show-others-inline"
-                    checked={showOthersBuilds}
-                    onCheckedChange={(checked) => toggleShowOthers(checked as boolean)}
-                    className="h-3.5 w-3.5"
-                  />
-                  <Label
-                    htmlFor="show-others-inline"
-                    className="text-xs text-muted-foreground cursor-pointer font-normal"
-                  >
-                    显示他人
-                  </Label>
-                </div>
-                <div className="flex-1" />
-                {myBuildsLoading ? (
-                  <span className="text-xs text-muted-foreground mr-2 animate-pulse">
-                    刷新中...
-                  </span>
-                ) : (
-                  <div className="flex items-center gap-2 mr-2">
-                    {nextRefreshTime && <RefreshCountdown targetTime={nextRefreshTime} />}
-                    <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded-full">
-                      {displayedBuilds.length}
-                    </span>
-                  </div>
-                )}
-              </button>
-              {expandedUrls.has('__build_history__') && (
-                <div className="pl-6">
-                  {displayedBuilds.length === 0 ? (
-                    <div className="p-2 text-xs text-muted-foreground">暂无构建记录</div>
-                  ) : (
-                    <div className="space-y-1">
-                      {displayedBuilds.map((build) => (
-                        <MyBuildRow
-                          key={build.id}
-                          build={build}
-                          onBuild={() =>
-                            setBuildJob({
-                              url: build.jobUrl,
-                              name: build.jobName,
-                              envId: build.env,
-                            })
-                          }
-                          onCancel={async () => {
-                            const confirmed = await confirm(
-                              `确定要取消 "${build.jobName} #${build.number}" 吗？`,
-                              '确认取消构建',
-                              'danger'
-                            );
-                            if (!confirmed) return;
-                            try {
-                              await JenkinsService.cancelBuild(
-                                build.jobUrl,
-                                build.number,
-                                build.env
-                              );
-                              toast('取消构建请求已发送', 'success');
-                            } catch (e) {
-                              logger.error('Cancel build failed', e);
-                              toast('取消构建失败', 'error');
-                            }
-                          }}
-                          tags={jobTagsMap.get(build.jobUrl)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {jobTree.map((node) => (
-              <JobTreeNode
-                key={node.job.url}
-                node={node}
-                expandedUrls={expandedUrls}
-                onToggle={toggleExpand}
-                onBuild={(job) => setBuildJob({ url: job.url, name: job.name, envId: job.env })}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      <JenkinsJobContent
+        buildHistorySection={
+          <JenkinsBuildHistorySection
+            displayedBuilds={displayedBuilds}
+            expanded={expandedUrls.has('__build_history__')}
+            jobTagsMap={jobTagsMap}
+            loading={myBuildsLoading}
+            nextRefreshTime={nextRefreshTime}
+            onBuild={(build) =>
+              openBuildDialog({ url: build.jobUrl, name: build.jobName, envId: build.env })
+            }
+            onCancel={handleCancelBuild}
+            onToggle={() => toggleExpand('__build_history__')}
+            onToggleShowOthers={handleToggleShowOthers}
+            showOthersBuilds={showOthersBuilds}
+          />
+        }
+        expandedUrls={expandedUrls}
+        filter={filter}
+        filteredJobs={filteredJobs}
+        jobTree={jobTree}
+        jobs={jobs}
+        loading={loading}
+        onBuild={(job) => openBuildDialog({ url: job.url, name: job.name, envId: job.env })}
+        onToggle={toggleExpand}
+        tags={tags}
+      />
 
       {buildJob && (
         <BuildDialog
@@ -484,15 +84,8 @@ export function JenkinsView() {
           jobUrl={buildJob.url}
           jobName={buildJob.name}
           envId={buildJob.envId}
-          onClose={() => setBuildJob(null)}
-          onBuildSuccess={() => {
-            if (shouldCloseOnSuccess) {
-              toast('构建已触发，窗口即将关闭...', 'success');
-              setTimeout(() => {
-                window.close();
-              }, 2000);
-            }
-          }}
+          onClose={closeBuildDialog}
+          onBuildSuccess={handleBuildSuccess}
         />
       )}
     </div>

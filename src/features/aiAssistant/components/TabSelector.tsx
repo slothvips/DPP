@@ -1,21 +1,9 @@
 // TabSelector - 选择 PageAgent 工作标签页
 import { Globe, Loader2, Zap } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { isInjectable } from '@/lib/pageAgent/injector';
 import { cn } from '@/utils/cn';
-import { logger } from '@/utils/logger';
-
-const TAB_ID_STORAGE_KEY = '__pageAgentTabId';
-
-interface TabInfo {
-  id: number;
-  title: string;
-  url: string;
-  favIconUrl?: string;
-  active?: boolean;
-}
+import { useTabSelector } from './useTabSelector';
 
 interface TabSelectorProps {
   selectedTabId: number | null;
@@ -23,76 +11,16 @@ interface TabSelectorProps {
   className?: string;
 }
 
-// 表示"始终为当前标签"的特殊值
-const ALWAYS_ACTIVE_TAB_ID = null;
-
 export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [tabs, setTabs] = useState<TabInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const loadTabs = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const allTabs = await browser.tabs.query({});
-      // 过滤可注入的标签页
-      const injectableTabs = allTabs.filter((tab) => tab.url && isInjectable(tab.url));
-      setTabs(
-        injectableTabs.map((tab) => ({
-          id: tab.id!,
-          title: tab.title || '无标题',
-          url: tab.url || '',
-          favIconUrl: tab.favIconUrl,
-          active: tab.active,
-        }))
-      );
-    } catch (error) {
-      logger.error('[TabSelector] Failed to load tabs:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // 初始化时加载 tabs
-  useEffect(() => {
-    loadTabs();
-  }, [loadTabs]);
-
-  // 打开 Popover 时刷新 tabs
-  useEffect(() => {
-    if (isOpen) {
-      loadTabs();
-    }
-  }, [isOpen, loadTabs]);
-
-  const selectedTab = tabs.find((tab) => tab.id === selectedTabId);
-
-  const handleTabClick = (tabId: number) => {
-    onTabSelect(tabId);
-    // 保存到 session storage 让工具函数可以访问
-    browser.storage.session
-      .set({ [TAB_ID_STORAGE_KEY]: tabId })
-      .then(() => {
-        logger.debug('[TabSelector] Tab ID saved:', tabId);
-      })
-      .catch((error) => {
-        logger.error('[TabSelector] Failed to save tab ID:', error);
-      });
-    setIsOpen(false);
-  };
-
-  const handleAlwaysCurrentClick = () => {
-    onTabSelect(ALWAYS_ACTIVE_TAB_ID);
-    browser.storage.session
-      .remove(TAB_ID_STORAGE_KEY)
-      .then(() => {
-        logger.debug('[TabSelector] Switched to always-current mode');
-      })
-      .catch((error) => {
-        logger.error('[TabSelector] Failed to switch mode:', error);
-      });
-    setIsOpen(false);
-  };
+  const {
+    handleAlwaysCurrentClick,
+    handleTabClick,
+    isLoading,
+    isOpen,
+    selectedTab,
+    setIsOpen,
+    tabs,
+  } = useTabSelector({ selectedTabId, onTabSelect });
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>

@@ -1,74 +1,53 @@
-import Dexie, { type Table, type Transaction } from 'dexie';
-import type { IndexableType } from 'dexie';
-import { browser } from 'wxt/browser';
-import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
-// Import directly from the module file to avoid circular dependency with lib/db/index.ts
-// while still using the封装层
-import { addRemoteActivities } from '@/lib/db/remoteActivityLog';
-import { decryptOperation } from '@/lib/sync/crypto-helpers';
-import { logger } from '@/utils/logger';
+import Dexie from 'dexie';
+import { applySyncOperation } from './SyncEngine.apply';
+import {
+  clearAllSyncData,
+  getSyncPendingCounts,
+  processDeferredOperations,
+  regenerateSyncOperations,
+  resetSyncState,
+} from './SyncEngine.maintenance';
+import {
+  recordSyncOperation,
+  registerSyncEngine,
+  runSyncCommand,
+} from './SyncEngine.orchestration';
+import {
+  SyncEventBus,
+  type SyncEventCallback,
+  type SyncEventType,
+  applySyncStatus,
+  ensureSyncClientId,
+  runWithSyncRetry,
+} from './SyncEngine.runtime';
+import { runPullFlow, runPushFlow } from './SyncEngine.sync';
 import type {
   OperationType,
-  SyncMetadata,
   SyncOperation,
   SyncPendingCounts,
   SyncProvider,
   SyncStatus,
 } from './types';
 
-// Extend Dexie Transaction type to include custom source property
-interface SyncTransaction extends Transaction {
-  source?: 'sync';
-}
-
 export interface SyncEngineOptions {
   maxRetries?: number;
   baseRetryDelay?: number;
-}
-
-type SyncEventType = 'status-change' | 'sync-error' | 'sync-complete';
-type SyncEventCallback = (data: unknown) => void;
-
-function generateUUID(): string {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
 }
 
 export class SyncEngine {
   private db: Dexie;
   private tables: string[];
   private provider: SyncProvider;
-
-  /**
-   * Unified synchronization lock to prevent concurrent push/pull operations
-   * This replaces the separate isSyncing and isPushing flags to prevent race conditions
-   */
   private syncLock = false;
-
   private clientId: string | null = null;
-
   private maxRetries: number;
   private baseRetryDelay: number;
-
-  private eventListeners: Map<SyncEventType, Set<SyncEventCallback>> = new Map();
-
+  private eventBus = new SyncEventBus();
   private _status: SyncStatus = 'idle';
   private _lastError: string | null = null;
   private _lastSyncTime: number | null = null;
-
-  // Split large pushes into smaller chunks to improve reliability on poor networks
   private readonly PUSH_BATCH_SIZE = 50;
-
-  // Max number of consecutive pull batches to prevent infinite loops
   private readonly MAX_PULL_LOOPS = 100;
-
-  // Track whether hooks have been registered to prevent duplicate registration
   private _registered = false;
 
   constructor(
@@ -101,796 +80,194 @@ export class SyncEngine {
   }
 
   private async ensureClientId(): Promise<string> {
-    if (this.clientId) {
-      return this.clientId;
-    }
-
-    const setting = await this.db.table('settings').get('sync_client_id');
-    if (setting?.value) {
-      this.clientId = setting.value as string;
-      return this.clientId;
-    }
-
-    const newClientId = generateUUID();
-    await this.db.table('settings').put({ key: 'sync_client_id', value: newClientId });
-    this.clientId = newClientId;
-    return this.clientId;
+    return ensureSyncClientId({
+      db: this.db,
+      currentClientId: this.clientId,
+      setClientId: (value) => {
+        this.clientId = value;
+      },
+    });
   }
 
   public on(event: SyncEventType, callback: SyncEventCallback): () => void {
-    if (!this.eventListeners.has(event)) {
-      this.eventListeners.set(event, new Set());
-    }
-    const listeners = this.eventListeners.get(event);
-    listeners?.add(callback);
-
-    return () => {
-      this.eventListeners.get(event)?.delete(callback);
-    };
+    return this.eventBus.on(event, callback);
   }
 
   private emit(event: SyncEventType, data: unknown) {
-    const listeners = this.eventListeners.get(event);
-    if (listeners) {
-      for (const cb of listeners) {
-        cb(data);
-      }
-    }
+    this.eventBus.emit(event, data);
   }
 
   private setStatus(status: SyncStatus, error?: string) {
-    this._status = status;
-    if (error) {
-      this._lastError = error;
-    } else if (status === 'idle') {
-      this._lastError = null;
-    }
-    this.emit('status-change', { status, error });
+    applySyncStatus({
+      status,
+      error,
+      lastError: this._lastError,
+      setLastError: (value) => {
+        this._lastError = value;
+      },
+      setStatus: (value) => {
+        this._status = value;
+      },
+      emit: (event, data) => this.emit(event, data),
+    });
+  }
+
+  private setSyncLock(value: boolean) {
+    this.syncLock = value;
+  }
+
+  private resetRuntimeState() {
+    this._lastSyncTime = null;
+    this._lastError = null;
   }
 
   private async withRetry<T>(operation: () => Promise<T>, operationName: string): Promise<T> {
-    let lastError: Error | null = null;
-
-    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
-      try {
-        return await operation();
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        const delay = this.baseRetryDelay * 2 ** attempt;
-
-        logger.warn(
-          `[Sync] ${operationName} failed (attempt ${attempt + 1}/${this.maxRetries}), ` +
-            `retrying in ${delay}ms:`,
-          lastError.message
-        );
-
-        if (attempt < this.maxRetries - 1) {
-          await this.sleep(delay);
-        }
-      }
-    }
-
-    throw lastError;
-  }
-
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return runWithSyncRetry({
+      operation,
+      operationName,
+      maxRetries: this.maxRetries,
+      baseRetryDelay: this.baseRetryDelay,
+    });
   }
 
   public register() {
-    // Prevent duplicate registration of hooks
-    if (this._registered) {
-      logger.warn('[Sync] Hooks already registered, skipping duplicate registration');
-      return;
-    }
-    this._registered = true;
-
-    // Trigger deferred operations processing on startup
-    this.processDeferredOperations().catch((e) => {
-      logger.error('[Sync] Failed to process deferred operations on startup:', e);
+    registerSyncEngine({
+      db: this.db,
+      tables: this.tables,
+      isRegistered: () => this._registered,
+      setRegistered: (value) => {
+        this._registered = value;
+      },
+      processDeferredOperations: () => this.processDeferredOperations(),
+      recordOperation: (table, type, key, payload) =>
+        this.recordOperation(table, type, key, payload),
     });
-
-    for (const tableName of this.tables) {
-      const table = this.db.table(tableName);
-
-      // eslint-disable-next-line @typescript-eslint/no-this-alias
-      const self = this;
-
-      // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
-      table.hook('creating', function (_primKey, obj, transaction) {
-        // Skip if engine has been destroyed
-        if (!self._registered) return;
-        const tx = transaction as SyncTransaction | undefined;
-        if (tx?.source === 'sync') return;
-        const now = Date.now();
-        const objWithTimestamp = { ...obj, updatedAt: now };
-        // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for this.onsuccess binding
-        this.onsuccess = function (resultKey: unknown) {
-          queueMicrotask(() => {
-            if (!self._registered) return;
-            let payload = objWithTimestamp;
-            if (_primKey === undefined && resultKey !== undefined) {
-              payload = { ...objWithTimestamp, id: resultKey };
-            }
-            self.recordOperation(tableName, 'create', resultKey, payload);
-          });
-        };
-      });
-
-      table.hook('updating', (modifications, primKey, obj, transaction) => {
-        // Skip if engine has been destroyed
-        if (!this._registered) return;
-        const tx = transaction as SyncTransaction | undefined;
-        if (tx?.source === 'sync') return;
-        const now = Date.now();
-        const newObj = { ...obj, ...modifications, updatedAt: now };
-        queueMicrotask(() => {
-          if (!this._registered) return;
-          this.recordOperation(tableName, 'update', primKey, newObj);
-        });
-      });
-
-      // Hook for soft-delete: Set deletedAt and re-put the record instead of deleting
-      // This implements soft-delete by intercepting the delete and converting to an update
-      // biome-ignore lint/complexity/useArrowFunction: Dexie hook requires function for async operations
-      table.hook('deleting', function (primKey, obj, transaction) {
-        // Skip if engine has been destroyed
-        if (!self._registered) return;
-        const tx = transaction as SyncTransaction | undefined;
-        if (tx?.source === 'sync') return;
-
-        const now = Date.now();
-        const updated = { ...obj, deletedAt: now, updatedAt: now };
-
-        // Use queueMicrotask to perform soft-delete (re-put) and record operation
-        queueMicrotask(async () => {
-          if (!self._registered) return;
-          try {
-            // Re-put the record with deletedAt to implement soft-delete
-            await table.put(updated);
-            self.recordOperation(tableName, 'delete', primKey, updated);
-          } catch (err) {
-            logger.error('[SyncEngine] Failed to record delete operation:', err);
-          }
-        });
-
-        // Return false to prevent the actual deletion from happening
-        // The record will be "deleted" by setting deletedAt instead
-        return false;
-      });
-    }
   }
 
   public async recordOperation(table: string, type: OperationType, key: unknown, payload: unknown) {
-    const clientId = await this.ensureClientId();
-    const op: SyncOperation = {
-      id: generateUUID(),
-      clientId,
+    await recordSyncOperation({
+      db: this.db,
+      ensureClientId: () => this.ensureClientId(),
       table,
       type,
       key,
       payload,
-      timestamp: Date.now(),
-      synced: 0,
-    };
-
-    try {
-      await this.db.table('operations').add(op);
-      if (typeof browser !== 'undefined' && browser.runtime) {
-        browser.runtime.sendMessage({ type: 'AUTO_SYNC_TRIGGER_PUSH' }).catch(() => {});
-      }
-    } catch (e) {
-      logger.error(`[Sync] Failed to record operation for ${table}:`, e);
-    }
+    });
   }
 
-  /**
-   * Push local operations to the server
-   * Uses unified syncLock to prevent concurrent sync operations
-   *
-   * Intelligently updates syncMetadata cursor based on push result:
-   * - If serverCursor === currentCursor + batchSize: Safe to update (optimization)
-   * - If serverCursor > currentCursor + batchSize: Remote changes exist, skip update
-   * - If serverCursor < currentCursor + batchSize: Anomaly, skip update (logged as debug)
-   */
   public async push() {
-    // Check if any sync operation is in progress
-    if (this.syncLock) {
-      logger.warn('[Sync] Sync already in progress, skipping push');
-      return;
-    }
-
-    try {
-      this.syncLock = true;
-      this.setStatus('pushing');
-
-      const clientId = await this.ensureClientId();
-
-      // Sort by timestamp to ensure operations are pushed in chronological order
-      const ops = (await this.db
-        .table('operations')
-        .where('synced')
-        .equals(0)
-        .sortBy('timestamp')) as SyncOperation[];
-
-      if (ops.length === 0) {
-        this.setStatus('idle');
-        return;
-      }
-
-      // Process in batches
-      for (let i = 0; i < ops.length; i += this.PUSH_BATCH_SIZE) {
-        const batch = ops.slice(i, i + this.PUSH_BATCH_SIZE);
-        const result = await this.withRetry(
-          () => this.provider.push(batch, clientId),
-          `Push batch ${Math.floor(i / this.PUSH_BATCH_SIZE) + 1}`
-        );
-
-        const updates = batch.map((op) => ({ ...op, synced: 1 }));
-        await this.db.table('operations').bulkPut(updates);
-
-        // Intelligent cursor update with safety checks
-        if (result?.cursor !== undefined && result.cursor !== null) {
-          await this.db.transaction('rw', this.db.table('syncMetadata'), async () => {
-            const currentMeta = await this.db.table('syncMetadata').get('global');
-            const currentCursor = Number(currentMeta?.lastServerCursor || 0);
-            const serverReturnedCursor = Number(result.cursor);
-            const expectedCursor = currentCursor + batch.length;
-
-            if (serverReturnedCursor === expectedCursor) {
-              // Safe optimization: Server state matches exactly (current state + my ops)
-              // This prevents re-pulling our own just-pushed changes
-              await this.db.table('syncMetadata').put({
-                id: 'global',
-                lastServerCursor: serverReturnedCursor,
-                lastSyncTimestamp: Date.now(),
-              });
-              logger.debug(
-                `[Sync] Push optimization: Updated cursor ${currentCursor} → ${serverReturnedCursor}`
-              );
-            } else if (serverReturnedCursor > expectedCursor) {
-              // Gap detected: Remote changes exist (from other clients)
-              // Do NOT update cursor; rely on subsequent pull to fetch intervening changes
-              logger.debug(
-                `[Sync] Push optimization skipped: remote gap detected (server=${serverReturnedCursor} > expected=${expectedCursor}). Will pull to catch up.`
-              );
-            } else {
-              // serverReturnedCursor < expectedCursor: Anomaly (server behind?)
-              // Log for debugging but don't update; let pull catch up
-              logger.debug(
-                `[Sync] Push anomaly: server cursor behind expected (server=${serverReturnedCursor} < expected=${expectedCursor}, current=${currentCursor}). Skipping cursor update.`
-              );
-            }
-          });
-        }
-      }
-
-      this._lastSyncTime = Date.now();
-      this.setStatus('idle');
-      this.emit('sync-complete', { type: 'push', count: ops.length });
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      logger.error('[Sync] Push failed after retries:', errorMsg);
-      this.setStatus('error', errorMsg);
-      this.emit('sync-error', { type: 'push', error: errorMsg });
-    } finally {
-      this.syncLock = false;
-    }
+    await runSyncCommand({
+      syncLock: this.syncLock,
+      action: 'push',
+      status: 'pushing',
+      setSyncLock: (value) => {
+        this.syncLock = value;
+      },
+      setStatus: (status, error) => this.setStatus(status, error),
+      execute: () =>
+        runPushFlow({
+          db: this.db,
+          provider: this.provider,
+          ensureClientId: () => this.ensureClientId(),
+          withRetry: (operation, operationName) => this.withRetry(operation, operationName),
+          pushBatchSize: this.PUSH_BATCH_SIZE,
+        }),
+      shouldEmitComplete: (pushedCount) => pushedCount > 0,
+      getCompleteCount: (pushedCount) => pushedCount,
+      setLastSyncTime: (value) => {
+        this._lastSyncTime = value;
+      },
+      emit: (event, data) => this.emit(event, data),
+    });
   }
 
-  /**
-   * Pull remote operations from the server
-   * Uses unified syncLock to prevent concurrent sync operations
-   */
   public async pull() {
-    // Check if any sync operation is in progress
-    if (this.syncLock) {
-      logger.warn('[Sync] Sync already in progress, skipping pull');
-      return;
-    }
-
-    try {
-      this.syncLock = true;
-      this.setStatus('pulling');
-
-      const clientId = await this.ensureClientId();
-      let keyCache: { key: CryptoKey; keyHash: string } | null = null;
-
-      const ensureKey = async () => {
-        if (keyCache) return keyCache;
-        const key = await loadKey();
-        if (!key) {
-          throw new Error('[Sync] Encryption key not found. Cannot decrypt pulled operations.');
-        }
-        keyCache = { key, keyHash: await getKeyHash(key) };
-        return keyCache;
-      };
-
-      let totalPulled = 0;
-      let loopCount = 0;
-      let hasMore = true;
-
-      while (hasMore && loopCount < this.MAX_PULL_LOOPS) {
-        loopCount++;
-        const state = (await this.db.table('syncMetadata').get('global')) as
-          | SyncMetadata
-          | undefined;
-        const cursor = state?.lastServerCursor;
-
-        const { ops, nextCursor } = await this.withRetry(
-          () => this.provider.pull(cursor, clientId),
-          'Pull'
-        );
-
-        if (ops.length === 0) {
-          hasMore = false;
-          break;
-        }
-
-        const remoteOps = ops.filter((op) => op.clientId !== clientId);
-
-        if (remoteOps.length > 0) {
-          const { key, keyHash: currentKeyHash } = await ensureKey();
-
-          const decryptedOps = await Promise.all(
-            remoteOps.map(async (op) => {
-              if (op.keyHash && op.keyHash !== currentKeyHash) {
-                logger.debug(
-                  `[Sync] Skipping op ${op.id} due to keyHash mismatch (expected ${currentKeyHash}, got ${op.keyHash})`
-                );
-                return null;
-              }
-
-              // If no keyHash (legacy data), try to decrypt anyway (might fail)
-              try {
-                return await decryptOperation(op, key);
-              } catch (e) {
-                logger.warn(`[Sync] Failed to decrypt op ${op.id}, skipping:`, e);
-                return null;
-              }
-            })
-          );
-
-          // Filter out nulls and sort by timestamp to apply in chronological order
-          const validOps = decryptedOps
-            .filter((op): op is SyncOperation => op !== null)
-            .sort((a, b) => a.timestamp - b.timestamp);
-
-          await this.db.transaction(
-            'rw',
-            [
-              ...this.tables.map((t) => this.db.table(t)),
-              this.db.table('syncMetadata'),
-              this.db.table('remoteActivityLog'),
-            ],
-            async (tx) => {
-              (tx as SyncTransaction).source = 'sync';
-
-              for (const op of validOps) {
-                await this.applyOperation(op);
-              }
-
-              await this.db.table('syncMetadata').put({
-                id: 'global',
-                lastServerCursor: nextCursor,
-                lastSyncTimestamp: Date.now(),
-              });
-
-              // Archive remote operations for activity tracking (lowest priority)
-              if (validOps.length > 0) {
-                await addRemoteActivities(validOps);
-              }
-            }
-          );
-          totalPulled += validOps.length;
-        } else {
-          // Even if no ops (e.g. filtered out echoes), update cursor to advance
-          await this.db.table('syncMetadata').put({
-            id: 'global',
-            lastServerCursor: nextCursor,
-            lastSyncTimestamp: Date.now(),
-          });
-        }
-
-        // Safety check: if cursor didn't move, assume we're done or server is stuck
-        if (nextCursor === cursor) {
-          hasMore = false;
-        }
-      }
-
-      if (loopCount >= this.MAX_PULL_LOOPS) {
-        logger.warn(`[Sync] Pull reached max loops (${this.MAX_PULL_LOOPS}), stopping.`);
-      }
-
-      if (totalPulled > 0 || loopCount > 0) {
-        this._lastSyncTime = Date.now();
-        this.setStatus('idle');
-        this.emit('sync-complete', { type: 'pull', count: totalPulled });
-      } else {
-        this.setStatus('idle');
-      }
-    } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : String(e);
-      logger.error('[Sync] Pull failed after retries:', errorMsg);
-      this.setStatus('error', errorMsg);
-      this.emit('sync-error', { type: 'pull', error: errorMsg });
-    } finally {
-      this.syncLock = false;
-    }
+    await runSyncCommand({
+      syncLock: this.syncLock,
+      action: 'pull',
+      status: 'pulling',
+      setSyncLock: (value) => {
+        this.syncLock = value;
+      },
+      setStatus: (status, error) => this.setStatus(status, error),
+      execute: () =>
+        runPullFlow({
+          db: this.db,
+          tables: this.tables,
+          provider: this.provider,
+          ensureClientId: () => this.ensureClientId(),
+          withRetry: (operation, operationName) => this.withRetry(operation, operationName),
+          maxPullLoops: this.MAX_PULL_LOOPS,
+          applyOperation: (operation) => this.applyOperation(operation),
+        }),
+      shouldEmitComplete: ({ totalPulled, loopCount }) => totalPulled > 0 || loopCount > 0,
+      getCompleteCount: ({ totalPulled }) => totalPulled,
+      setLastSyncTime: (value) => {
+        this._lastSyncTime = value;
+      },
+      emit: (event, data) => this.emit(event, data),
+    });
   }
 
   private async applyOperation(op: SyncOperation) {
-    if (!this.tables.includes(op.table)) {
-      await this.deferOperation(op);
-      return;
-    }
-
-    const table = this.db.table(op.table) as Table<unknown, IndexableType>;
-
-    if (op.type === 'delete') {
-      await this.applyDeleteOperation(table, op);
-    } else if (op.type === 'create' || op.type === 'update') {
-      await this.applyCreateOrUpdateOperation(table, op);
-    }
-  }
-
-  private async deferOperation(op: SyncOperation) {
-    try {
-      await this.db.table('deferred_ops').add({
-        table: op.table,
-        op,
-        timestamp: op.timestamp,
-        receivedAt: Date.now(),
-      });
-      logger.info(`[Sync] Deferred operation for unknown table: ${op.table}`);
-    } catch (e) {
-      logger.error(`[Sync] Failed to defer operation for ${op.table}:`, e);
-    }
-  }
-
-  private async applyDeleteOperation(table: Table<unknown, IndexableType>, op: SyncOperation) {
-    const payload = op.payload as Record<string, unknown>;
-    if (payload && typeof payload === 'object') {
-      await table.put(payload);
-    }
-  }
-
-  private async applyCreateOrUpdateOperation(
-    table: Table<unknown, IndexableType>,
-    op: SyncOperation
-  ) {
-    const existing = await table.get(op.key as IndexableType);
-
-    if (existing) {
-      const existingTimestamp = this.getRecordTimestamp(existing);
-      const opTimestamp = op.timestamp;
-      if (existingTimestamp && existingTimestamp > opTimestamp) {
-        // Log conflict for visibility - remote data has older timestamp
-        logger.info(
-          `[Sync] Conflict detected for ${op.table}[${op.key}]: ` +
-            `local timestamp (${existingTimestamp}) > remote timestamp (${opTimestamp}). ` +
-            `Remote ${op.type} operation skipped to preserve local data. ` +
-            `Consider reconciling manually if local data is stale.`
-        );
-        return;
-      }
-    }
-
-    const payload = this.resolvePayloadKey(table, op);
-    await this.putWithConstraintRecovery(table, op, payload);
-  }
-
-  private resolvePayloadKey(
-    table: Table<unknown, IndexableType>,
-    op: SyncOperation
-  ): Record<string, unknown> {
-    let payload = op.payload as Record<string, unknown>;
-    const keyPath = table.schema.primKey.keyPath;
-
-    if (!keyPath) return payload;
-
-    if (typeof keyPath === 'string') {
-      if (payload[keyPath] === undefined && op.key !== undefined) {
-        payload = { ...payload, [keyPath]: op.key };
-      }
-    } else if (Array.isArray(keyPath)) {
-      const keyArray = op.key as unknown[];
-      if (Array.isArray(keyArray)) {
-        for (let i = 0; i < keyPath.length; i++) {
-          const path = keyPath[i];
-          if (payload[path] === undefined && keyArray[i] !== undefined) {
-            payload = { ...payload, [path]: keyArray[i] };
-          }
-        }
-      }
-    }
-
-    return payload;
-  }
-
-  private async putWithConstraintRecovery(
-    table: Table<unknown, IndexableType>,
-    op: SyncOperation,
-    payload: Record<string, unknown>
-  ) {
-    try {
-      await table.put(payload);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'ConstraintError') {
-        await this.resolveConstraintError(table, op, payload);
-        await table.put(payload);
-      } else {
-        throw err;
-      }
-    }
-  }
-
-  private async resolveConstraintError(
-    table: Table<unknown, IndexableType>,
-    op: SyncOperation,
-    payload: Record<string, unknown>
-  ) {
-    for (const index of table.schema.indexes) {
-      if (!index.unique) continue;
-      const indexKeyPath = index.keyPath;
-      if (!indexKeyPath || typeof indexKeyPath !== 'string') continue;
-      const value = payload[indexKeyPath];
-      if (value === undefined) continue;
-
-      const conflict = await table
-        .where(indexKeyPath)
-        .equals(value as IndexableType)
-        .first();
-      if (!conflict) continue;
-
-      const pkPath = table.schema.primKey.keyPath;
-      if (typeof pkPath === 'string') {
-        const conflictKey = (conflict as Record<string, unknown>)[pkPath];
-        if (conflictKey !== op.key && conflictKey !== undefined) {
-          logger.info(
-            `[Sync] Deleting conflicting record in ${op.table} (${indexKeyPath}=${value})`
-          );
-          await table.delete(conflictKey as IndexableType);
-        }
-      }
-    }
-  }
-
-  private getRecordTimestamp(record: unknown): number | null {
-    if (typeof record === 'object' && record !== null) {
-      const r = record as Record<string, unknown>;
-      if (typeof r.updatedAt === 'number') return r.updatedAt;
-    }
-    return null;
+    await applySyncOperation(
+      {
+        db: this.db,
+        tables: this.tables,
+      },
+      op
+    );
   }
 
   public destroy() {
-    // Mark as unregistered so hooks will skip processing
-    this._registered = false;
-    this.eventListeners.clear();
+    this.eventBus.clear();
   }
 
   public async getPendingCounts(): Promise<SyncPendingCounts> {
-    // Skip if sync is in progress to avoid interfering
-    if (this.syncLock) {
-      return { push: 0, pull: 0 };
-    }
-
-    const pushCount = await this.db.table('operations').where('synced').equals(0).count();
-
-    let pullCount = 0;
-    if (this.provider.getPendingCount) {
-      try {
-        const clientId = await this.ensureClientId();
-        const state = (await this.db.table('syncMetadata').get('global')) as
-          | SyncMetadata
-          | undefined;
-        const cursor = state?.lastServerCursor;
-        pullCount = await this.provider.getPendingCount(cursor, clientId);
-      } catch (e) {
-        logger.warn('[Sync] Failed to get remote pending count:', e);
-      }
-    }
-
-    return { push: pushCount, pull: pullCount };
+    return getSyncPendingCounts({
+      db: this.db,
+      provider: this.provider,
+      syncLock: this.syncLock,
+      ensureClientId: () => this.ensureClientId(),
+    });
   }
 
-  /**
-   * Reset sync state (clear metadata and operations).
-   * This is used when the encryption key changes.
-   */
   public async resetSyncState() {
-    // 1. Stop any ongoing sync
-    if (this.syncLock) {
-      throw new Error('Cannot reset sync while sync is in progress');
-    }
-
-    try {
-      this.syncLock = true;
-      this.setStatus('idle'); // Ensure status is clear
-
-      // 2. Clear sync metadata and existing operations
-      await this.db.transaction(
-        'rw',
-        this.db.table('syncMetadata'),
-        this.db.table('operations'),
-        this.db.table('deferred_ops'),
-        async () => {
-          await this.db.table('syncMetadata').clear();
-          await this.db.table('operations').clear();
-          await this.db.table('deferred_ops').clear();
-
-          // Reset local cursor state in memory if needed (though it's read from DB)
-          this._lastSyncTime = null;
-          this._lastError = null;
-        }
-      );
-
-      logger.info('[Sync] Sync state reset.');
-    } catch (e) {
-      logger.error('[Sync] Failed to reset sync state:', e);
-      throw e;
-    } finally {
-      this.syncLock = false;
-    }
+    await resetSyncState({
+      db: this.db,
+      syncLock: this.syncLock,
+      setSyncLock: (value) => this.setSyncLock(value),
+      setStatus: (status) => this.setStatus(status),
+      resetRuntimeState: () => this.resetRuntimeState(),
+    });
   }
 
-  /**
-   * Clear all local data and sync state.
-   * Used when a normal user imports a new key and needs to resync from server.
-   */
   public async clearAllData() {
-    if (this.syncLock) {
-      throw new Error('Cannot clear data while sync is in progress');
-    }
-
-    try {
-      this.syncLock = true;
-      this.setStatus('idle');
-
-      const tablesToClear = ['syncMetadata', 'operations', 'deferred_ops', ...this.tables];
-
-      await this.db.transaction(
-        'rw',
-        tablesToClear.map((t) => this.db.table(t)),
-        async (tx) => {
-          (tx as SyncTransaction).source = 'sync';
-          for (const table of tablesToClear) {
-            await this.db.table(table).clear();
-          }
-          this._lastSyncTime = null;
-          this._lastError = null;
-        }
-      );
-
-      logger.info('[Sync] All local data and sync state cleared.');
-    } catch (e) {
-      logger.error('[Sync] Failed to clear all data:', e);
-      throw e;
-    } finally {
-      this.syncLock = false;
-    }
+    await clearAllSyncData({
+      db: this.db,
+      tables: this.tables,
+      syncLock: this.syncLock,
+      setSyncLock: (value) => this.setSyncLock(value),
+      setStatus: (status) => this.setStatus(status),
+      resetRuntimeState: () => this.resetRuntimeState(),
+    });
   }
 
-  /**
-   * Regenerate create operations for all local data.
-   * Used by the "Authority" when changing the key to re-upload existing data.
-   */
   public async regenerateOperations() {
-    if (this.syncLock) {
-      throw new Error('Cannot regenerate operations while sync is in progress');
-    }
-
-    try {
-      this.syncLock = true;
-
-      for (const tableName of this.tables) {
-        const table = this.db.table(tableName);
-        const items = await table.toArray();
-        const primKeyPath = table.schema.primKey.keyPath;
-
-        const ops: SyncOperation[] = [];
-
-        for (const item of items) {
-          let key: unknown;
-          if (typeof primKeyPath === 'string') {
-            key = item[primKeyPath as keyof typeof item];
-          } else if (Array.isArray(primKeyPath)) {
-            key = primKeyPath.map((k) => item[k as keyof typeof item]);
-          }
-
-          const op: SyncOperation = {
-            id: generateUUID(),
-            clientId: await this.ensureClientId(),
-            table: tableName,
-            type: 'create',
-            key,
-            payload: item,
-            timestamp: Date.now(),
-            synced: 0,
-          };
-          ops.push(op);
-        }
-
-        if (ops.length > 0) {
-          await this.db.table('operations').bulkAdd(ops);
-          logger.info(`[Sync] Regenerated ${ops.length} operations for table ${tableName}`);
-        }
-      }
-
-      logger.info('[Sync] Operations regeneration complete.');
-    } catch (e) {
-      logger.error('[Sync] Failed to regenerate operations:', e);
-      throw e;
-    } finally {
-      this.syncLock = false;
-    }
+    await regenerateSyncOperations({
+      db: this.db,
+      tables: this.tables,
+      syncLock: this.syncLock,
+      setSyncLock: (value) => this.setSyncLock(value),
+      ensureClientId: () => this.ensureClientId(),
+    });
   }
 
-  /**
-   * Process any deferred operations for tables that are now supported
-   * This handles the case where data was received before the schema was updated
-   */
   public async processDeferredOperations() {
-    try {
-      // Get all table names that have deferred operations
-      const deferredTables = await this.db.table('deferred_ops').orderBy('table').uniqueKeys();
-
-      // Filter for tables that are now known/supported
-      const tablesToProcess = deferredTables.filter((tableName) =>
-        this.tables.includes(tableName as string)
-      );
-
-      if (tablesToProcess.length === 0) return;
-
-      logger.info(
-        `[Sync] Processing deferred operations for new tables: ${tablesToProcess.join(', ')}`
-      );
-
-      for (const tableName of tablesToProcess) {
-        // Process each table in its own transaction to prevent one bad table from blocking others
-        // and to avoid massive transactions that could lock the DB
-        try {
-          await this.db.transaction(
-            'rw',
-            [this.db.table('deferred_ops'), this.db.table(tableName as string)],
-            async (tx) => {
-              (tx as SyncTransaction).source = 'sync';
-
-              // Get ops sorted by timestamp to ensure correct replay order
-              const entries = await this.db
-                .table('deferred_ops')
-                .where('table')
-                .equals(tableName)
-                .sortBy('timestamp');
-
-              for (const entry of entries) {
-                try {
-                  // Apply the original operation
-                  await this.applyOperation(entry.op);
-                } catch (opError) {
-                  // Poison pill protection: if a specific operation fails, log it and continue.
-                  // This ensures that one bad record doesn't block the entire queue forever.
-                  logger.error(
-                    `[Sync] Failed to apply deferred op for ${tableName} (id: ${entry.op.id}), skipping:`,
-                    opError
-                  );
-                }
-              }
-
-              // Clean up processed operations for this table
-              // We delete them even if some failed individually (poison pills),
-              // because we don't want to retry them forever on every startup.
-              await this.db.table('deferred_ops').where('table').equals(tableName).delete();
-            }
-          );
-          logger.info(`[Sync] Successfully processed deferred operations for ${tableName}`);
-        } catch (tableError) {
-          logger.error(`[Sync] Failed to process deferred table ${tableName}:`, tableError);
-        }
-      }
-    } catch (e) {
-      logger.error('[Sync] Failed to process deferred operations:', e);
-    }
+    await processDeferredOperations({
+      db: this.db,
+      tables: this.tables,
+      applyOperation: (operation) => this.applyOperation(operation),
+    });
   }
 }

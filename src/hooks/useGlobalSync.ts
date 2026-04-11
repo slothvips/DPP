@@ -6,6 +6,11 @@ import { getSetting, updateSetting } from '@/lib/db/settings';
 import type { SyncPendingCounts } from '@/lib/sync/types';
 import { logger } from '@/utils/logger';
 
+interface SyncMessageResponse {
+  success: boolean;
+  error?: string;
+}
+
 export interface GlobalSyncState {
   isSyncing: boolean;
   lastSyncTime: number | null;
@@ -20,6 +25,16 @@ export interface GlobalSyncState {
 export function useGlobalSync(): GlobalSyncState {
   const [pendingCounts, setPendingCounts] = useState<SyncPendingCounts>({ push: 0, pull: 0 });
   const { toast } = useToast();
+
+  const sendSyncMessage = useCallback(
+    async (type: 'GLOBAL_SYNC_START' | 'GLOBAL_SYNC_PUSH' | 'GLOBAL_SYNC_PULL') => {
+      const response = (await browser.runtime.sendMessage({ type })) as SyncMessageResponse;
+      if (!response?.success) {
+        throw new Error(response?.error || '同步请求失败');
+      }
+    },
+    []
+  );
 
   const isSyncing =
     useLiveQuery(async () => {
@@ -90,42 +105,35 @@ export function useGlobalSync(): GlobalSyncState {
     if (isSyncing) return;
 
     try {
-      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PUSH' });
+      await sendSyncMessage('GLOBAL_SYNC_PUSH');
+      await sendSyncMessage('GLOBAL_SYNC_PULL');
+      await sendSyncMessage('GLOBAL_SYNC_START');
+      await refreshCounts();
     } catch (e) {
-      logger.error('[useGlobalSync] Push failed:', e);
-      toast('同步失败：无法发送推送请求', 'error');
+      logger.error('[useGlobalSync] Sync failed:', e);
+      toast(e instanceof Error ? `同步失败：${e.message}` : '同步失败，请重试', 'error');
     }
-
-    try {
-      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PULL' });
-    } catch (e) {
-      logger.error('[useGlobalSync] Pull failed:', e);
-      toast('同步失败：无法获取远程数据', 'error');
-    }
-
-    await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_START' });
-    await refreshCounts();
-  }, [isSyncing, refreshCounts, toast]);
+  }, [isSyncing, refreshCounts, sendSyncMessage, toast]);
 
   const push = useCallback(async () => {
     try {
-      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PUSH' });
+      await sendSyncMessage('GLOBAL_SYNC_PUSH');
       await refreshCounts();
     } catch (e) {
       logger.error('[useGlobalSync] Push failed:', e);
-      toast('推送失败，请重试', 'error');
+      toast(e instanceof Error ? `推送失败：${e.message}` : '推送失败，请重试', 'error');
     }
-  }, [refreshCounts, toast]);
+  }, [refreshCounts, sendSyncMessage, toast]);
 
   const pull = useCallback(async () => {
     try {
-      await browser.runtime.sendMessage({ type: 'GLOBAL_SYNC_PULL' });
+      await sendSyncMessage('GLOBAL_SYNC_PULL');
       await refreshCounts();
     } catch (e) {
       logger.error('[useGlobalSync] Pull failed:', e);
-      toast('拉取失败，请重试', 'error');
+      toast(e instanceof Error ? `拉取失败：${e.message}` : '拉取失败，请重试', 'error');
     }
-  }, [refreshCounts, toast]);
+  }, [refreshCounts, sendSyncMessage, toast]);
 
   return {
     isSyncing,

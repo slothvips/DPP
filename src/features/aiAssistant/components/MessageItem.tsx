@@ -16,7 +16,7 @@ export const MessageItem = memo(
     return (
       <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
         <div
-          className={`max-w-[85%] rounded-lg px-3 py-2 ${
+          className={`min-w-0 max-w-[85%] overflow-hidden rounded-lg px-3 py-2 ${
             message.role === 'user'
               ? 'bg-primary text-primary-foreground'
               : message.name
@@ -32,8 +32,8 @@ export const MessageItem = memo(
           <div
             className={
               message.role === 'user'
-                ? 'prose prose-sm prose-invert'
-                : 'text-sm prose prose-sm dark:prose-invert'
+                ? 'prose prose-sm prose-invert max-w-none break-words [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
+                : 'text-sm prose prose-sm max-w-none break-words dark:prose-invert [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
             }
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>

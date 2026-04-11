@@ -1,6 +1,6 @@
 // AI Config Dialog - Settings for AI Assistant
 import { Settings } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,148 +10,37 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { db } from '@/db';
-import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
-import type { AIProviderType } from '@/lib/ai/types';
-import { decryptData, encryptData, loadKey } from '@/lib/crypto/encryption';
-import { updateSetting } from '@/lib/db/settings';
-import { logger } from '@/utils/logger';
+import { useAIConfigDialog } from '../hooks/useAIConfigDialog';
+import { isAIConfigConfigured } from '../lib/aiConfigStorage';
+import { AIConfigFormFields } from './AIConfigFormFields';
+import { AIConfigProviderNotice } from './AIConfigProviderNotice';
 
 interface AIConfigDialogProps {
   children?: React.ReactNode;
   onSaved?: () => void;
 }
 
-const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
-  { value: 'ollama', label: 'Ollama (本地)' },
-  { value: 'anthropic', label: 'Anthropic 兼容' },
-  { value: 'custom', label: 'OpenAI 兼容' },
-];
-
 export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
   const [open, setOpen] = useState(false);
-  const [provider, setProvider] = useState<AIProviderType>('custom');
-  const [baseUrl, setBaseUrl] = useState<string>(DEFAULT_CONFIGS.custom.baseUrl);
-  const [model, setModel] = useState<string>(DEFAULT_CONFIGS.custom.model);
-  const [apiKey, setApiKey] = useState('');
-  const [loading, setLoading] = useState(false);
+  const {
+    provider,
+    baseUrl,
+    model,
+    apiKey,
+    loading,
+    setBaseUrl,
+    setModel,
+    setApiKey,
+    handleProviderChange,
+    handleSave,
+  } = useAIConfigDialog(open, onSaved);
 
-  // Load existing config when dialog opens
-  useEffect(() => {
-    if (open) {
-      loadConfig();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  const loadConfig = async () => {
-    setLoading(true);
-    try {
-      // Load provider type
-      const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
-      const savedProvider = (providerSetting?.value as AIProviderType) || 'custom';
-      setProvider(savedProvider);
-
-      // Load provider-specific config
-      await loadProviderConfig(savedProvider);
-    } catch (err) {
-      logger.error('[AIConfig] Failed to load config:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleProviderChange = (newProvider: AIProviderType) => {
-    setProvider(newProvider);
-    // Load saved config for the new provider
-    loadProviderConfig(newProvider);
-  };
-
-  // Load config for a specific provider
-  const loadProviderConfig = async (providerType: AIProviderType) => {
-    const baseUrlKey = `ai_${providerType}_base_url` as const;
-    const modelKey = `ai_${providerType}_model` as const;
-    const apiKeyKey = `ai_${providerType}_api_key` as const;
-
-    const savedBaseUrl = await db.settings.where('key').equals(baseUrlKey).first();
-    const savedModel = await db.settings.where('key').equals(modelKey).first();
-    const savedApiKey = await db.settings.where('key').equals(apiKeyKey).first();
-
-    setBaseUrl((savedBaseUrl?.value as string) || DEFAULT_CONFIGS[providerType].baseUrl || '');
-    setModel((savedModel?.value as string) || DEFAULT_CONFIGS[providerType].model || '');
-
-    // Load and decrypt API key
-    if (savedApiKey?.value) {
-      try {
-        const encryptionKey = await loadKey();
-        if (encryptionKey) {
-          const decrypted = await decryptData(
-            savedApiKey.value as { ciphertext: string; iv: string },
-            encryptionKey
-          );
-          setApiKey(decrypted as string);
-        } else {
-          setApiKey(savedApiKey.value as string);
-        }
-      } catch (err) {
-        logger.error('[AIConfig] Failed to decrypt API key:', err);
-        setApiKey('');
-      }
-    } else {
-      setApiKey('');
-    }
-  };
-
-  const handleSave = async () => {
-    setLoading(true);
-    try {
-      // Save provider type
-      await updateSetting('ai_provider_type', provider);
-
-      // Save provider-specific config
-      const baseUrlKey = `ai_${provider}_base_url` as const;
-      const modelKey = `ai_${provider}_model` as const;
-      const apiKeyKey = `ai_${provider}_api_key` as const;
-
-      await updateSetting(baseUrlKey, baseUrl);
-      await updateSetting(modelKey, model);
-
-      // Encrypt and save API key (if provided)
-      if (apiKey) {
-        const encryptionKey = await loadKey();
-        if (encryptionKey) {
-          const encrypted = await encryptData(apiKey, encryptionKey);
-          await updateSetting(apiKeyKey, encrypted);
-        } else {
-          // Fallback: store without encryption if no key available
-          await updateSetting(apiKeyKey, apiKey);
-        }
-      } else {
-        // Clear API key if empty
-        await updateSetting(apiKeyKey, '');
-      }
-
+  const handleSaveAndClose = async () => {
+    const saved = await handleSave();
+    if (saved) {
       setOpen(false);
-      onSaved?.();
-    } catch (err) {
-      logger.error('[AIConfig] Failed to save config:', err);
-    } finally {
-      setLoading(false);
     }
   };
-
-  const showApiKey = provider !== 'ollama';
-  const showBaseUrl = true;
-  const showModelField = true;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -167,94 +56,24 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
           <DialogTitle>给 D仔 接入外置大脑</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          {provider === 'anthropic' && (
-            <div className="rounded-md bg-amber-50 dark:bg-amber-950 p-3 text-xs text-amber-800 dark:text-amber-200">
-              <p className="font-medium">⚠️ Page Agent 兼容性提示</p>
-              <p className="mt-1">
-                Page Agent 仅支持 OpenAI 兼容格式的 API。Anthropic 供应商使用 Anthropic
-                格式端点，无法使用 Page Agent。如需使用 Page Agent，请切换到其他供应商或使用 OpenAI
-                兼容代理。
-              </p>
-            </div>
-          )}
+          <AIConfigProviderNotice provider={provider} />
 
-          {/* Provider Selection */}
-          <div className="grid gap-2">
-            <Label htmlFor="ai-provider">服务商</Label>
-            <Select
-              value={provider}
-              onValueChange={(v) => handleProviderChange(v as AIProviderType)}
-            >
-              <SelectTrigger id="ai-provider">
-                <SelectValue placeholder="选择服务商" />
-              </SelectTrigger>
-              <SelectContent>
-                {PROVIDER_OPTIONS.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* API Key (for non-Ollama) */}
-          {showApiKey && (
-            <div className="grid gap-2">
-              <Label htmlFor="ai-api-key">API Key</Label>
-              <Input
-                id="ai-api-key"
-                type="password"
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
-              />
-            </div>
-          )}
-
-          {/* Base URL */}
-          {showBaseUrl && (
-            <div className="grid gap-2">
-              <Label htmlFor="ai-base-url">服务地址</Label>
-              <Input
-                id="ai-base-url"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder={
-                  provider === 'ollama'
-                    ? 'http://localhost:11434'
-                    : provider === 'anthropic'
-                      ? 'https://api.anthropic.com'
-                      : 'https://api.example.com/v1'
-                }
-              />
-            </div>
-          )}
-
-          {/* Model */}
-          {showModelField && (
-            <div className="grid gap-2">
-              <Label htmlFor="ai-model">模型</Label>
-              <Input
-                id="ai-model"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder={
-                  provider === 'ollama'
-                    ? 'llama3.2'
-                    : provider === 'anthropic'
-                      ? 'claude-3-5-sonnet-20241022'
-                      : 'gpt-4o-mini'
-                }
-              />
-            </div>
-          )}
+          <AIConfigFormFields
+            provider={provider}
+            baseUrl={baseUrl}
+            model={model}
+            apiKey={apiKey}
+            onProviderChange={handleProviderChange}
+            onBaseUrlChange={setBaseUrl}
+            onModelChange={setModel}
+            onApiKeyChange={setApiKey}
+          />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             取消
           </Button>
-          <Button onClick={handleSave} disabled={loading}>
+          <Button onClick={handleSaveAndClose} disabled={loading}>
             {loading ? '保存中...' : '保存'}
           </Button>
         </DialogFooter>
@@ -263,12 +82,4 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
   );
 }
 
-/**
- * Check if AI config is configured (has values in settings)
- */
-export async function isAIConfigConfigured(): Promise<boolean> {
-  const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
-  const baseUrlSetting = await db.settings.where('key').equals('ai_base_url').first();
-  const modelSetting = await db.settings.where('key').equals('ai_model').first();
-  return !!(providerSetting?.value || baseUrlSetting?.value || modelSetting?.value);
-}
+export { isAIConfigConfigured };

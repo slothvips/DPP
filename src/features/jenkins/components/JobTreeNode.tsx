@@ -60,19 +60,21 @@ export function JobTreeNode({
           {jobIsFolder ? null : <Terminal className="w-4 h-4" />}
         </div>
 
-        <div
+        <button
+          type="button"
           className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 text-foreground cursor-pointer"
-          onClick={() => jobIsFolder && onToggle(job.url)}
-          onKeyDown={(e) => e.key === 'Enter' && jobIsFolder && onToggle(job.url)}
+          onClick={() => {
+            browser.tabs.create({ url: job.url });
+          }}
+          onKeyDown={(e) => e.key === 'Enter' && browser.tabs.create({ url: job.url })}
           title={
             job.lastStatus && job.lastStatus !== 'Unknown'
               ? `${translateStatus(job.lastStatus)} ${
                   job.lastBuildTime ? ` - ${new Date(job.lastBuildTime).toLocaleString()}` : ''
                 }`
-              : undefined
+              : job.url
           }
-          role={jobIsFolder ? 'button' : 'none'}
-          tabIndex={jobIsFolder ? 0 : -1}
+          tabIndex={0}
         >
           <span className="text-sm font-medium break-words align-middle mr-2 leading-relaxed">
             {job.name}
@@ -89,7 +91,7 @@ export function JobTreeNode({
           <div className="inline-block align-middle">
             <JobTagSelector jobUrl={job.url} />
           </div>
-        </div>
+        </button>
 
         {!jobIsFolder && (
           <Button

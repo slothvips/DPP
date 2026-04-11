@@ -1,10 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  addRecording,
   clearRecordings as dbClearRecordings,
   deleteRecording as dbDeleteRecording,
   updateRecordingTitle as dbUpdateRecordingTitle,
+  exportRecordingAsJson,
   getAllRecordings,
+  importRecordingFromJson,
 } from '@/lib/db/recorder';
 import { logger } from '@/utils/logger';
 import type { Recording } from '../types';
@@ -38,46 +39,29 @@ export function useRecordings() {
 
   const importRecording = async (file: File) => {
     const text = await file.text();
-    const events = JSON.parse(text);
+    const events = JSON.parse(text) as unknown[];
+    const title = file.name.replace(/\.rrweb\.json$/i, '').replace(/\.json$/i, '');
 
-    if (!Array.isArray(events) || events.length === 0) {
-      throw new Error('Invalid recording file: content must be a non-empty array of events');
+    const result = await importRecordingFromJson({ events, title });
+    if (!result.success) {
+      throw new Error(result.message);
     }
 
-    if (typeof events[0].timestamp !== 'number') {
-      throw new Error('Invalid recording format: missing timestamps');
-    }
-
-    const startTime = events[0].timestamp;
-    const endTime = events[events.length - 1].timestamp;
-    const duration = endTime - startTime;
-
-    const recording: Recording = {
-      id: crypto.randomUUID(),
-      title: file.name.replace(/\.rrweb\.json$/i, '').replace(/\.json$/i, ''),
-      url: '',
-      createdAt: Date.now(),
-      duration: duration > 0 ? duration : 0,
-      eventsCount: events.length,
-      fileSize: file.size,
-      events,
-    };
-
-    await addRecording(recording);
-    return recording.id;
+    return result.id;
   };
 
-  const exportRecording = (recording: Recording) => {
-    const safeTitle = recording.title.replace(/[^a-z0-9\u4e00-\u9fa5]/gi, '_'); // Allow Chinese characters
-    const dateStr = new Date(recording.createdAt).toISOString().replace(/[:.]/g, '-');
-    const filename = `${safeTitle}-${dateStr}.rrweb.json`;
+  const exportRecording = async (recording: Recording) => {
+    const result = await exportRecordingAsJson({ id: recording.id });
+    if (!result.success || !result.data) {
+      throw new Error(result.message);
+    }
 
-    const blob = new Blob([JSON.stringify(recording.events)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(result.data)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = result.filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

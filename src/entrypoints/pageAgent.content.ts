@@ -80,10 +80,13 @@ export default defineContentScript({
         delete window.__DPP_PAGE_AGENT__;
       }
 
-      const response = await browser.runtime.sendMessage({ type: 'PAGE_AGENT_GET_CONFIG' });
-      const config = response?.config as PageAgentConfig | undefined;
+      const response = (await browser.runtime.sendMessage({
+        type: 'PAGE_AGENT_GET_CONFIG',
+      })) as { success?: boolean; config?: PageAgentConfig; error?: string };
+      const config = response?.config;
 
-      if (!config) {
+      if (!response?.success || !config) {
+        logger.warn('[PageAgent] 配置不可用:', response?.error || 'missing config');
         return;
       }
 

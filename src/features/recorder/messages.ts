@@ -33,10 +33,16 @@ export interface RecordingCompleteMessage {
   duration: number;
 }
 
-export interface RecordingStatusResponse {
+export interface RecordingStatusData {
   isRecording: boolean;
   startTime?: number;
   tabId?: number;
+}
+
+export interface RecordingStatusResponse {
+  success: boolean;
+  data?: RecordingStatusData;
+  error?: string;
 }
 
 export interface RecordingSavedMessage {
@@ -74,7 +80,7 @@ export interface RecordingMeta {
 
 export interface GetAllRecordingsResponse {
   success: boolean;
-  recordings?: RecordingMeta[];
+  data?: RecordingMeta[];
   error?: string;
 }
 
@@ -85,7 +91,7 @@ export interface GetRecordingByIdMessage {
 
 export interface GetRecordingByIdResponse {
   success: boolean;
-  recording?: import('./types').Recording;
+  data?: import('./types').Recording;
   error?: string;
 }
 

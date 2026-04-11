@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -19,11 +19,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/toast';
-import type { BuildParameter } from '@/features/jenkins/api/build';
-import { JenkinsService } from '@/features/jenkins/service';
-import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS } from '@/utils/validation';
+import { useBuildDialog } from './useBuildDialog';
 
 interface Props {
   jobUrl: string;
@@ -35,79 +32,13 @@ interface Props {
 }
 
 export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSuccess }: Props) {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [building, setBuilding] = useState(false);
-  const [params, setParams] = useState<BuildParameter[]>([]);
-  const [formValues, setFormValues] = useState<Record<string, string | boolean | number>>({});
-
-  useEffect(() => {
-    const loadParams = async () => {
-      try {
-        const details = (await JenkinsService.getJobDetails(jobUrl, envId)) as {
-          property?: { _class: string; parameterDefinitions?: BuildParameter[] }[];
-          actions?: { _class: string; parameterDefinitions?: BuildParameter[] }[];
-        };
-
-        // Jenkins parameters can be in 'property' (Pipeline) or 'actions' (Freestyle)
-        let property = details.property?.find(
-          (p: { _class: string; parameterDefinitions?: BuildParameter[] }) =>
-            p._class === 'hudson.model.ParametersDefinitionProperty'
-        );
-
-        if (!property && details.actions) {
-          property = details.actions.find(
-            (a: { _class: string; parameterDefinitions?: BuildParameter[] }) =>
-              a._class === 'hudson.model.ParametersDefinitionProperty'
-          );
-        }
-
-        if (property?.parameterDefinitions) {
-          const definitions = property.parameterDefinitions;
-          setParams(definitions);
-
-          // Initialize default values
-          const defaults: Record<string, string | boolean | number> = {};
-          for (const p of definitions) {
-            if (p.defaultParameterValue?.value !== undefined) {
-              defaults[p.name] = p.defaultParameterValue.value;
-            }
-          }
-          setFormValues(defaults);
-        }
-      } catch (e) {
-        logger.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (isOpen) {
-      setLoading(true);
-      setParams([]);
-      setFormValues({});
-      loadParams();
-    }
-  }, [isOpen, jobUrl, envId]);
-
-  const handleBuild = async () => {
-    setBuilding(true);
-    try {
-      const success = await JenkinsService.triggerBuild(jobUrl, formValues, envId);
-      if (success) {
-        toast('构建已触发！', 'success');
-        onClose();
-        onBuildSuccess?.();
-      } else {
-        toast('触发构建失败，请检查网络或权限', 'error');
-      }
-    } catch (e) {
-      logger.error(e);
-      toast('构建出错', 'error');
-    } finally {
-      setBuilding(false);
-    }
-  };
+  const { building, formValues, handleBuild, loading, params, updateFormValue } = useBuildDialog({
+    jobUrl,
+    envId,
+    isOpen,
+    onClose,
+    onBuildSuccess,
+  });
 
   if (!isOpen) return null;
 
@@ -141,9 +72,7 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
                     <Checkbox
                       id={p.name}
                       checked={formValues[p.name] === true}
-                      onCheckedChange={(checked) =>
-                        setFormValues((prev) => ({ ...prev, [p.name]: checked === true }))
-                      }
+                      onCheckedChange={(checked) => updateFormValue(p.name, checked === true)}
                     />
                     <label
                       htmlFor={p.name}
@@ -155,7 +84,7 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
                 ) : p.type === 'ChoiceParameterDefinition' ? (
                   <Select
                     value={String(formValues[p.name] ?? '')}
-                    onValueChange={(val) => setFormValues((prev) => ({ ...prev, [p.name]: val }))}
+                    onValueChange={(val) => updateFormValue(p.name, val)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select..." />
@@ -173,9 +102,7 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
                     <Textarea
                       id={p.name}
                       value={String(formValues[p.name] || '')}
-                      onChange={(e) =>
-                        setFormValues((prev) => ({ ...prev, [p.name]: e.target.value }))
-                      }
+                      onChange={(e) => updateFormValue(p.name, e.target.value)}
                       className="font-mono text-xs"
                       rows={5}
                       maxLength={VALIDATION_LIMITS.JENKINS_BUILD_PARAM_MAX}

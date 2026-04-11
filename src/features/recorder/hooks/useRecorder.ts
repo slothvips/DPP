@@ -64,9 +64,10 @@ export function useRecorder() {
         tabId,
       })) as RecordingStatusResponse;
 
-      if (status?.isRecording && status.startTime) {
+      const state = status?.data;
+      if (status?.success && state?.isRecording && state.startTime) {
         setIsRecording(true);
-        setStartTime(status.startTime);
+        setStartTime(state.startTime);
       }
     };
     checkStatus();

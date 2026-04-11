@@ -1,20 +1,11 @@
-// Register all AI tools
-import { registerBlackboardTools } from './tools/blackboard';
-import { registerBrowserTools } from './tools/browser';
-import { registerHotNewsTools } from './tools/hotnews';
-import { registerJenkinsTools } from './tools/jenkins';
-import { registerLinksTools } from './tools/links';
-import { registerPageAgentTools } from './tools/pageAgent';
-import { registerRecentActivitiesTools } from './tools/recentActivities';
-import { registerRecorderTools } from './tools/recorder';
-import { registerTagsTools } from './tools/tags';
-
 // AI library exports
 
 export * from './types';
 export * from './ollama';
+export * from './provider';
 export * from './tools';
 export * from './prompt';
+export * from './toolsRegistration';
 export * from './tools/links';
 export * from './tools/tags';
 export * from './tools/hotnews';
@@ -23,23 +14,3 @@ export * from './tools/recorder';
 export * from './tools/blackboard';
 export * from './tools/recentActivities';
 export * from './tools/pageAgent';
-
-let aiToolsRegistered = false;
-
-export function ensureAIToolsRegistered(): void {
-  if (aiToolsRegistered) {
-    return;
-  }
-
-  registerBrowserTools();
-  registerLinksTools();
-  registerTagsTools();
-  registerHotNewsTools();
-  registerJenkinsTools();
-  registerRecorderTools();
-  registerBlackboardTools();
-  registerRecentActivitiesTools();
-  registerPageAgentTools();
-
-  aiToolsRegistered = true;
-}

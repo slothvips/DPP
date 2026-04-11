@@ -1,8 +1,8 @@
 import { browser } from 'wxt/browser';
 import { syncJenkinsCredentials } from '@/lib/db/jenkins';
-import { getAIConfig } from '@/lib/db/settings';
 import { serializeHeaders } from '@/lib/pageAgent/utils';
 import { logger } from '@/utils/logger';
+import { validateAIConfig } from './pageAgentConfig';
 
 export type GeneralMessage =
   | { type: 'PAGE_AGENT_GET_CONFIG' }
@@ -16,11 +16,7 @@ export type GeneralMessage =
 
 export function handleGeneralMessage(message: GeneralMessage): unknown {
   if (message.type === 'PAGE_AGENT_GET_CONFIG') {
-    return (async () => {
-      // 直接从数据库获取 AI 配置（包含解密后的 API Key）
-      const config = await getAIConfig();
-      return { config };
-    })();
+    return validateAIConfig();
   }
 
   if (message.type === 'PAGE_AGENT_FETCH') {

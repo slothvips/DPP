@@ -1,5 +1,4 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { type LinkItem, type TagItem } from '@/db';
 import {
   addLink,
   bulkAddLinks as bulkAddLinksDB,
@@ -12,13 +11,10 @@ import {
   toggleLinkPin,
   updateLink,
 } from '@/lib/db';
+import type { LinkFormData, PartialLinkFormData } from './useLinks.types';
+import { buildLinksWithStats } from './useLinksData';
 
-export interface LinkWithStats extends LinkItem {
-  usageCount: number;
-  lastUsedAt: number;
-  pinnedAt?: number;
-  tags: TagItem[];
-}
+export type { LinkWithStats } from './useLinks.types';
 
 export function useLinks() {
   const links = useLiveQuery(async () => {
@@ -29,26 +25,7 @@ export function useLinks() {
       getAllActiveTags(),
     ]);
 
-    const statsMap = new Map(allStats.map((s) => [s.id, s]));
-    const tagsMap = new Map(allTags.map((t) => [t.id, t]));
-
-    const linkTagsMap = new Map<string, TagItem[]>();
-    for (const lt of allLinkTags) {
-      const tag = tagsMap.get(lt.tagId);
-      if (tag) {
-        const current = linkTagsMap.get(lt.linkId) || [];
-        current.push(tag);
-        linkTagsMap.set(lt.linkId, current);
-      }
-    }
-
-    return allLinks.map((link) => ({
-      ...link,
-      usageCount: statsMap.get(link.id)?.usageCount || 0,
-      lastUsedAt: statsMap.get(link.id)?.lastUsedAt || 0,
-      pinnedAt: statsMap.get(link.id)?.pinnedAt,
-      tags: linkTagsMap.get(link.id) || [],
-    }));
+    return buildLinksWithStats(allLinks, allStats, allLinkTags, allTags);
   }, []);
 
   const recordVisit = async (id: string) => {
@@ -59,9 +36,7 @@ export function useLinks() {
     await toggleLinkPin({ id });
   };
 
-  const addLinkData = async (
-    data: Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
-  ) => {
+  const addLinkData = async (data: LinkFormData) => {
     // Use unified addLink function - pass tag IDs directly
     const result = await addLink({
       name: data.name,
@@ -72,11 +47,7 @@ export function useLinks() {
     return result.id;
   };
 
-  const bulkAddLinks = async (
-    items: Array<
-      Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'> & { tags?: string[] }
-    >
-  ) => {
+  const bulkAddLinks = async (items: LinkFormData[]) => {
     await bulkAddLinksDB({
       links: items.map((data) => ({
         name: data.name,
@@ -87,12 +58,7 @@ export function useLinks() {
     });
   };
 
-  const updateLinkData = async (
-    id: string,
-    data: Partial<Omit<LinkItem, 'id' | 'updatedAt' | 'category' | 'createdAt'>> & {
-      tags?: string[];
-    }
-  ) => {
+  const updateLinkData = async (id: string, data: PartialLinkFormData) => {
     // Use unified updateLink function - pass tag IDs directly
     await updateLink({
       id,

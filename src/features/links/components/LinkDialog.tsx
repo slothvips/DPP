@@ -1,6 +1,4 @@
 import { Loader2 } from 'lucide-react';
-import type React from 'react';
-import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,22 +11,10 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/components/ui/toast';
 import type { LinkItem, TagItem } from '@/db';
-import { logger } from '@/utils/logger';
-import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
+import { VALIDATION_LIMITS } from '@/utils/validation';
 import { LinkTagSelector } from './LinkTagSelector';
-
-// URL 合法性校验
-function isValidUrl(url: string): boolean {
-  if (!url.trim()) return true; // 空值不校验，由 required 处理
-  try {
-    const parsed = new URL(url);
-    return ['http:', 'https:', 'ftp:', 'file:'].includes(parsed.protocol);
-  } catch {
-    return false;
-  }
-}
+import { useLinkDialogForm } from './useLinkDialogForm';
 
 interface LinkDialogProps {
   isOpen: boolean;
@@ -40,91 +26,22 @@ interface LinkDialogProps {
 }
 
 export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogProps) {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    name: '',
-    url: '',
-    note: '',
+  const {
+    formData,
+    loading,
+    selectedTagIds,
+    urlError,
+    handleNameChange,
+    handleNoteChange,
+    handleSubmit,
+    handleTogglePendingTag,
+    handleUrlChange,
+  } = useLinkDialogForm({
+    isOpen,
+    onClose,
+    initialData,
+    onSave,
   });
-  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
-  const [urlError, setUrlError] = useState('');
-
-  useEffect(() => {
-    if (isOpen) {
-      if (initialData) {
-        setFormData({
-          name: initialData.name,
-          url: initialData.url,
-          note: initialData.note || '',
-        });
-        setSelectedTagIds(new Set(initialData.tags?.map((t) => t.id) || []));
-      } else {
-        setFormData({
-          name: '',
-          url: '',
-          note: '',
-        });
-        setSelectedTagIds(new Set());
-      }
-      setUrlError('');
-    }
-  }, [isOpen, initialData]);
-
-  // URL 实时校验
-  const handleUrlChange = (value: string) => {
-    setFormData({ ...formData, url: value });
-    if (value && !isValidUrl(value)) {
-      setUrlError('请输入有效的 URL（以 http:// 或 https:// 开头）');
-    } else {
-      setUrlError('');
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name || !formData.url) return;
-
-    // URL 合法性校验
-    if (!isValidUrl(formData.url)) {
-      setUrlError('请输入有效的 URL（以 http:// 或 https:// 开头）');
-      return;
-    }
-
-    // 验证字段长度
-    const nameValidation = validateLength(formData.name, VALIDATION_LIMITS.LINK_NAME_MAX, '名称');
-    if (!nameValidation.valid) {
-      toast(nameValidation.error ?? '名称长度超出限制', 'error');
-      return;
-    }
-
-    const urlValidation = validateLength(formData.url, VALIDATION_LIMITS.LINK_URL_MAX, 'URL');
-    if (!urlValidation.valid) {
-      toast(urlValidation.error ?? 'URL长度超出限制', 'error');
-      return;
-    }
-
-    const noteValidation = validateLength(formData.note, VALIDATION_LIMITS.LINK_NOTE_MAX, '备注');
-    if (!noteValidation.valid) {
-      toast(noteValidation.error ?? '备注长度超出限制', 'error');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await onSave({
-        name: formData.name.trim(),
-        url: formData.url.trim(),
-        note: formData.note.trim(),
-        tags: Array.from(selectedTagIds),
-      });
-      setLoading(false);
-      onClose();
-    } catch (error) {
-      logger.error('Failed to save link:', error);
-      setLoading(false);
-    }
-  };
 
   const hasError = !!urlError;
 
@@ -143,7 +60,7 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
             <Input
               id="name"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(event) => handleNameChange(event.target.value)}
               placeholder="e.g. GitHub"
               maxLength={VALIDATION_LIMITS.LINK_NAME_MAX}
               required
@@ -157,7 +74,7 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
             <Input
               id="url"
               value={formData.url}
-              onChange={(e) => handleUrlChange(e.target.value)}
+              onChange={(event) => handleUrlChange(event.target.value)}
               placeholder="https://..."
               maxLength={VALIDATION_LIMITS.LINK_URL_MAX}
               className={urlError ? 'border-destructive' : ''}
@@ -176,15 +93,7 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
             <LinkTagSelector
               linkId={initialData?.id || ''}
               selectedTagIds={selectedTagIds}
-              onTogglePending={(tagId) => {
-                const next = new Set(selectedTagIds);
-                if (next.has(tagId)) {
-                  next.delete(tagId);
-                } else {
-                  next.add(tagId);
-                }
-                setSelectedTagIds(next);
-              }}
+              onTogglePending={handleTogglePendingTag}
             />
           </div>
           <div className="grid gap-2">
@@ -192,7 +101,7 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
             <Textarea
               id="note"
               value={formData.note}
-              onChange={(e) => setFormData({ ...formData, note: e.target.value })}
+              onChange={(event) => handleNoteChange(event.target.value)}
               placeholder="备注信息..."
               maxLength={VALIDATION_LIMITS.LINK_NOTE_MAX}
             />
