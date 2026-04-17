@@ -4,10 +4,33 @@ import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 
+type JenkinsRefreshSettingKey =
+  | 'jenkins_builds_last_refresh_by_env'
+  | 'jenkins_jobs_last_refresh_by_env';
+
 export async function saveJobs(jobs: JobItem[]): Promise<void> {
   if (jobs.length > 0) {
     await db.jobs.bulkPut(jobs);
   }
+}
+
+export async function updateJenkinsRefreshTime(
+  settingKey: JenkinsRefreshSettingKey,
+  envId: string,
+  timestamp = Date.now()
+): Promise<void> {
+  await db.transaction('rw', db.settings, async () => {
+    const currentSetting = await db.settings.get(settingKey);
+    const currentValue = (currentSetting?.value as Record<string, number> | undefined) || {};
+
+    await db.settings.put({
+      key: settingKey,
+      value: {
+        ...currentValue,
+        [envId]: timestamp,
+      },
+    });
+  });
 }
 
 export async function saveBuilds(
@@ -15,12 +38,17 @@ export async function saveBuilds(
   myBuilds: MyBuildItem[],
   othersBuilds: OthersBuildItem[]
 ): Promise<void> {
-  await db.transaction('rw', db.myBuilds, db.othersBuilds, async () => {
-    await db.myBuilds.where('env').equals(envId).delete();
-    await db.myBuilds.bulkPut(myBuilds);
+  const nextMyBuilds = myBuilds.map((build) => ({ ...build, env: envId }));
+  const nextOthersBuilds = othersBuilds.map((build) => ({ ...build, env: envId }));
 
-    await db.othersBuilds.where('env').equals(envId).delete();
-    await db.othersBuilds.bulkPut(othersBuilds);
+  await db.transaction('rw', db.myBuilds, db.othersBuilds, async () => {
+    if (nextMyBuilds.length > 0) {
+      await db.myBuilds.bulkPut(nextMyBuilds);
+    }
+
+    if (nextOthersBuilds.length > 0) {
+      await db.othersBuilds.bulkPut(nextOthersBuilds);
+    }
   });
 }
 

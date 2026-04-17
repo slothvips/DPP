@@ -5,6 +5,7 @@ import { logger } from '@/utils/logger';
 
 interface UseJenkinsBuildPollingOptions {
   enabled: boolean;
+  onError: (error: Error) => void;
   onLoadingChange: (loading: boolean) => void;
   onNextRefreshTimeChange: (value: number | null) => void;
   onRefresh: () => void;
@@ -12,6 +13,7 @@ interface UseJenkinsBuildPollingOptions {
 
 export function useJenkinsBuildPolling({
   enabled,
+  onError,
   onLoadingChange,
   onNextRefreshTimeChange,
   onRefresh,
@@ -46,6 +48,7 @@ export function useJenkinsBuildPolling({
       } catch (error) {
         logger.error('Auto-refresh My Builds failed', error);
         onLoadingChange(false);
+        onError(error instanceof Error ? error : new Error(String(error)));
       } finally {
         isPollingInFlight = false;
         if (mounted) {
@@ -56,6 +59,7 @@ export function useJenkinsBuildPolling({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && !isPollingInFlight) {
+        clearTimeout(timeoutId);
         void poll();
       }
     };
@@ -68,5 +72,5 @@ export function useJenkinsBuildPolling({
       clearTimeout(timeoutId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [enabled, onLoadingChange, onNextRefreshTimeChange, onRefresh]);
+  }, [enabled, onError, onLoadingChange, onNextRefreshTimeChange, onRefresh]);
 }

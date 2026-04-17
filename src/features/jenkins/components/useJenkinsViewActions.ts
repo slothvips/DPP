@@ -16,8 +16,8 @@ interface UseJenkinsViewActionsOptions {
   shouldCloseOnSuccess: boolean;
   onBuildJobChange: (job: BuildJobState | null) => void;
   onExpandedUrlsChange: (value: Set<string>) => void;
+  onJobsRefreshErrorChange: (error: string | null) => void;
   onLoadingChange: (loading: boolean) => void;
-  onRefresh: () => void;
 }
 
 export function useJenkinsViewActions({
@@ -29,8 +29,8 @@ export function useJenkinsViewActions({
   shouldCloseOnSuccess,
   onBuildJobChange,
   onExpandedUrlsChange,
+  onJobsRefreshErrorChange,
   onLoadingChange,
-  onRefresh,
 }: UseJenkinsViewActionsOptions) {
   const { toast } = useToast();
   const { confirm } = useConfirmDialog();
@@ -44,10 +44,11 @@ export function useJenkinsViewActions({
     onLoadingChange(true);
     try {
       const jobCount = await JenkinsService.fetchAllJobs();
-      onRefresh();
+      onJobsRefreshErrorChange(null);
       toast(`采集完成，Job: ${jobCount}`, 'success');
     } catch (e) {
       logger.error('Sync failed', e);
+      onJobsRefreshErrorChange(e instanceof Error ? e.message : String(e));
       toast('采集失败，请检查控制台', 'error');
     } finally {
       onLoadingChange(false);
@@ -65,7 +66,6 @@ export function useJenkinsViewActions({
           token: targetEnv.token,
         });
       }
-      onRefresh();
       toast('已切换环境', 'success');
     } catch (e) {
       logger.error('Failed to switch env:', e);

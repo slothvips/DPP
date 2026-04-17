@@ -31,6 +31,8 @@ export interface SettingMap {
   sync_client_id: string;
   global_sync_start_time: number;
   show_others_builds: boolean;
+  jenkins_builds_last_refresh_by_env: Record<string, number>;
+  jenkins_jobs_last_refresh_by_env: Record<string, number>;
   auto_sync_enabled: boolean;
   auto_sync_interval: number;
   ai_provider_type: AIProviderType;

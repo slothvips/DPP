@@ -3,21 +3,28 @@ import { useMemo } from 'react';
 import { type JenkinsEnvironment, db } from '@/db';
 import { buildJobTree } from '@/features/jenkins/utils';
 
-export function useJenkinsViewData(filter: string, refreshKey: number) {
+export function useJenkinsViewData(filter: string) {
   const settings = useLiveQuery(() => db.settings.toArray(), [], []);
-  const currentEnvId = settings.find((setting) => setting.key === 'jenkins_current_env')?.value as
-    | string
-    | undefined;
-
-  const environments = useMemo(
-    () =>
-      (settings.find((setting) => setting.key === 'jenkins_environments')
-        ?.value as JenkinsEnvironment[]) || [],
+  const settingsMap = useMemo(
+    () => new Map(settings.map((setting) => [setting.key, setting.value])),
     [settings]
   );
+
+  const currentEnvId = settingsMap.get('jenkins_current_env') as string | undefined;
+  const environments =
+    (settingsMap.get('jenkins_environments') as JenkinsEnvironment[] | undefined) || [];
   const currentEnv = environments.find((environment) => environment.id === currentEnvId);
-  const showOthersBuilds =
-    (settings.find((setting) => setting.key === 'show_others_builds')?.value as boolean) ?? false;
+  const showOthersBuilds = (settingsMap.get('show_others_builds') as boolean | undefined) ?? false;
+  const lastBuildsRefreshByEnv =
+    (settingsMap.get('jenkins_builds_last_refresh_by_env') as Record<string, number> | undefined) ||
+    {};
+  const lastJobsRefreshByEnv =
+    (settingsMap.get('jenkins_jobs_last_refresh_by_env') as Record<string, number> | undefined) ||
+    {};
+  const lastBuildsRefreshTime = currentEnvId
+    ? (lastBuildsRefreshByEnv[currentEnvId] ?? null)
+    : null;
+  const lastJobsRefreshTime = currentEnvId ? (lastJobsRefreshByEnv[currentEnvId] ?? null) : null;
 
   const { jobs, jobTags, tags, myBuilds, othersBuilds } = useLiveQuery(
     async () => {
@@ -41,7 +48,7 @@ export function useJenkinsViewData(filter: string, refreshKey: number) {
         othersBuilds: allOthersBuilds,
       };
     },
-    [refreshKey, currentEnvId],
+    [currentEnvId],
     { jobs: [], jobTags: [], tags: [], myBuilds: [], othersBuilds: [] }
   );
 
@@ -50,15 +57,17 @@ export function useJenkinsViewData(filter: string, refreshKey: number) {
     return builds.sort((a, b) => b.timestamp - a.timestamp);
   }, [myBuilds, othersBuilds, showOthersBuilds]);
 
+  const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
+
   const jobTagsMap = useMemo(() => {
     const map = new Map<string, typeof tags>();
     for (const jobTag of jobTags) {
-      const tag = tags.find((currentTag) => currentTag.id === jobTag.tagId);
+      const tag = tagsById.get(jobTag.tagId);
       if (!tag) continue;
       map.set(jobTag.jobUrl, [...(map.get(jobTag.jobUrl) || []), tag]);
     }
     return map;
-  }, [jobTags, tags]);
+  }, [jobTags, tagsById]);
 
   const filteredJobs = useMemo(() => {
     if (jobs.length === 0 || !filter) return jobs;
@@ -69,10 +78,7 @@ export function useJenkinsViewData(filter: string, refreshKey: number) {
     return jobs.filter((job) => {
       const name = job.name.toLowerCase();
       const fullName = (job.fullName || job.name).toLowerCase();
-      const jobTagNames = jobTags
-        .filter((jobTag) => jobTag.jobUrl === job.url)
-        .map((jobTag) => tags.find((tag) => tag.id === jobTag.tagId)?.name.toLowerCase())
-        .filter(Boolean);
+      const jobTagNames = (jobTagsMap.get(job.url) || []).map((tag) => tag.name.toLowerCase());
 
       return keywords.every(
         (keyword) =>
@@ -81,7 +87,7 @@ export function useJenkinsViewData(filter: string, refreshKey: number) {
           jobTagNames.some((tagName) => tagName?.includes(keyword))
       );
     });
-  }, [filter, jobTags, jobs, tags]);
+  }, [filter, jobTagsMap, jobs]);
 
   const jobTree = useMemo(() => {
     if (filter || jobs.length === 0) return [];
@@ -97,6 +103,8 @@ export function useJenkinsViewData(filter: string, refreshKey: number) {
     jobTagsMap,
     jobTree,
     jobs,
+    lastBuildsRefreshTime,
+    lastJobsRefreshTime,
     showOthersBuilds,
     tags,
   };

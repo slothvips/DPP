@@ -1,5 +1,5 @@
 import { type JobItem } from '@/db';
-import { saveJobs } from '@/lib/db/jenkins';
+import { saveJobs, updateJenkinsRefreshTime } from '@/lib/db/jenkins';
 import { logger } from '@/utils/logger';
 import { createJenkinsClient } from './client';
 
@@ -106,6 +106,7 @@ export async function fetchAllJobs(
   await traverse(client.rootUrl);
 
   await saveJobs(jobs);
+  await updateJenkinsRefreshTime('jenkins_jobs_last_refresh_by_env', envId);
 
   return jobs.length;
 }

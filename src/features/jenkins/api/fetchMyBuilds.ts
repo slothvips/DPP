@@ -1,5 +1,5 @@
 import { type MyBuildItem, type OthersBuildItem } from '@/db';
-import { saveBuilds } from '@/lib/db/jenkins';
+import { saveBuilds, updateJenkinsRefreshTime } from '@/lib/db/jenkins';
 import { createJenkinsClient } from './client';
 import {
   JENKINS_MY_BUILDS_TREE,
@@ -46,6 +46,7 @@ export async function fetchMyBuilds(
   const recentOthersBuilds = uniqueOthersBuilds.slice(0, 50);
 
   await saveBuilds(envId, uniqueMyBuilds, recentOthersBuilds);
+  await updateJenkinsRefreshTime('jenkins_builds_last_refresh_by_env', envId);
 
   return uniqueMyBuilds.length;
 }
