@@ -1,9 +1,10 @@
 import { ArrowLeft, FileText, Loader2, RefreshCw } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import 'virtual:uno.css';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import ReactMarkdown from 'react-markdown';
+import { browser } from 'wxt/browser';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/hooks/useTheme';
@@ -17,6 +18,7 @@ function ChangelogApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
+  const currentVersion = useMemo(() => browser.runtime.getManifest().version, []);
 
   const fetchChangelog = async (showRefreshing = false) => {
     if (!CHANGELOG_URL) {
@@ -69,6 +71,7 @@ function ChangelogApp() {
               <ArrowLeft className="w-4 h-4" />
               返回设置
             </Button>
+            <span className="text-sm text-muted-foreground">当前版本 v{currentVersion}</span>
           </div>
           <div className="flex items-center gap-2">
             <Button
