@@ -1,213 +1,101 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 语言要求
+
+- 所有对话使用中文。
+- 所有文档使用中文。
+- 所有代码注释使用中文。
+
+## 执行要求
+
+- 在生成说明、总结、计划、提交说明时，统一使用中文。
+- 在新增或修改 Markdown 文档时，统一使用中文。
+- 在新增或修改代码注释时，统一使用中文。
+
+## 协作演进原则
+
+- 默认假设模型能力处于持续提升的动态上限中；能直接依赖模型完成的高置信工作，不要继续用过细指令重复约束。
+- Prompt / 约束的目标是提供护栏，不是替代思考；仅在真实存在风险、歧义、跨上下文耦合或历史上反复出错的场景增加约束。
+- 定期审视现有约束；若某条规则只是为了弥补旧模型能力、某个短期阶段、或一次性问题，应在不再需要时删除或收缩。
+- 区分“长期稳定判断标准”和“阶段性经验”：前者保留在此文档，后者优先放在对应任务、计划、技能或临时说明中，不要无限堆积为永久规则。
+- 当对话中反复出现高价值、可复用、步骤相对稳定的流程时，优先沉淀为 skill、模板、检查清单或流程文档，而不是每次重新手写 prompt。
+- 若已有 skill 或沉淀流程可以覆盖当前任务，优先复用并在使用后继续迭代；沉淀的目标是减少重复沟通成本，而不是增加新的流程负担。
 
 ## Commands
 
-This project uses **pnpm**. Run commands from the repo root.
+- 仅使用 `pnpm`，并在仓库根目录执行。
+- 开发：`pnpm dev`、`pnpm dev:firefox`、`pnpm watch:build`
+- 构建：`pnpm build`、`pnpm build:firefox`、`pnpm zip`、`pnpm zip:firefox`
+- 质量：`pnpm compile`、`pnpm lint`、`pnpm lint:fix`、`pnpm format`
+- 当前无正式 test script；验证以 `pnpm compile`、`pnpm lint`、`pnpm build`、手动 / Chrome DevTools MCP 测试为主。
+- 交互 UI 的 `data-testid` 必须保持稳定。
+- pre-commit 会运行 `pnpm lint-staged`；staged `*.{js,jsx,ts,tsx}` 会自动执行 `eslint --fix` 与 `prettier --write`。
 
-### Development
-- `pnpm dev` - Start the Chrome development build
-- `pnpm dev:firefox` - Start the Firefox development build
-- `pnpm watch:build` - Rebuild on `src/**/*` changes
+## Core constraints
 
-### Build
-- `pnpm build` - Production build for Chrome
-- `pnpm build:firefox` - Production build for Firefox
-- `pnpm zip` - Package Chrome extension
-- `pnpm zip:firefox` - Package Firefox extension
+- 这是 sidepanel-first 扩展；不要按 popup-first 假设实现。
+- 必须兼容 light / dark / system 主题。
+- 文本对比度目标为 WCAG AA。
+- 不要破坏现有数据行为或 sync 行为。
+- 优先修改现有链路，不要新增平行实现。
 
-### Quality
-- `pnpm compile` - TypeScript type check (`tsc --noEmit`)
-- `pnpm lint` - Run ESLint
-- `pnpm lint:fix` - Fix ESLint issues
-- `pnpm format` - Run Prettier
+## Architecture constraints
 
-### Testing
-- There is currently **no formal test script** in `package.json`.
-- Validation is mainly done with `pnpm compile`, `pnpm lint`, `pnpm build`, and manual / Chrome DevTools MCP testing.
-- Interactive UI flows expose `data-testid` attributes. Keep them stable when changing user-facing controls.
-
-### Git Hooks
-- Pre-commit runs `pnpm lint-staged`.
-- Staged `*.{js,jsx,ts,tsx}` files are auto-processed with `eslint --fix` and `prettier --write`.
-
-## Project Overview
-
-DPP is a sidepanel-first browser extension built with WXT + React 19. The product combines Jenkins workflows, links, blackboard notes, session recording, AI assistance, and automation tools in one extension UI.
-
-Key constraints:
-- Preserve compatibility across **light / dark / system** themes.
-- Target **WCAG AA** contrast for text.
-- Avoid breaking existing data or sync behavior.
-
-## Architecture
-
-### Mental model
-- `src/entrypoints/sidepanel/App.tsx` is the main application shell. The extension is **not popup-first**.
-- `src/entrypoints/background.ts` is the system bus. It wires side panel behavior, auto sync, omnibox, and message routing.
-- Dexie (`src/db/index.ts`) is the shared local state core. UI, AI tools, and sync all work on the same data model.
-- `src/lib/db/*` is the preferred business data access layer. Reuse it instead of duplicating table access logic.
-- Sync is **selected-table sync**, not full-database sync.
-
-### Main runtime flows
-
-#### 1. Sidepanel shell
-- `src/entrypoints/sidepanel/App.tsx` owns tab visibility, keep-alive rendering, feature toggles, Jenkins tab gating, and auto-pull on visibility.
-- Large views such as AI Assistant and Recorder are lazy-loaded.
-
-#### 2. Background message routing
-- `src/entrypoints/background.ts` routes runtime messages by feature namespace / type.
-- Handlers are registered through `src/entrypoints/background/handlers/index.ts`.
-- New background-backed features should follow the existing handler pattern instead of adding ad-hoc logic to `background.ts`.
-
-#### 3. Shared Dexie data layer
-- `src/db/index.ts` defines the Dexie schema and initializes the sync engine.
-- `src/lib/db/*` contains reusable CRUD logic shared by UI, background handlers, and AI tools.
-- `useLiveQuery` is the default pattern for reactive reads in UI code.
-
-#### 4. Sync engine
-- `src/lib/sync/SyncEngine.ts` captures local CRUD through Dexie hooks and syncs encrypted operations.
-- `src/db/index.ts` defines which tables participate in sync: currently `tags`, `jobTags`, `links`, `linkTags`, and `blackboard`.
-- `src/lib/globalSync.ts` wraps three higher-level sync tasks: database sync, Jenkins refresh, and Hot News refresh.
-
-#### 5. AI tools
-- `src/lib/ai/tools.ts` provides the global tool registry.
-- AI tools are adapters around existing product capabilities, usually reusing `src/lib/db/*` or background messages.
-- When adding a mutating tool, require confirmation unless the existing AI flow explicitly handles it another way.
-
-#### 6. PageAgent automation chain
-PageAgent is a cross-context pipeline, not a standalone component:
-- AI tool / UI triggers background message
-- background handler injects the agent when needed
-- `src/lib/pageAgent/injector.ts` manages injection lifecycle per tab
-- `src/entrypoints/pageAgent.content.ts` initializes the in-page agent and proxies config / fetch through background
-- `wxt.config.ts` exposes the injected script through `web_accessible_resources`
-
-#### 7. Recorder pipeline
-Recorder is another cross-context pipeline:
-- UI starts recording
-- background tracks recording state
-- `src/entrypoints/recorder.content.ts` runs rrweb recording in the page
-- `network-interceptor.ts` and `console-interceptor.ts` capture extra events from the page world
-- results are stored locally and replayed through the player entrypoint
+- 主应用壳：`src/entrypoints/sidepanel/App.tsx`
+- background 入口：`src/entrypoints/background.ts`
+- 新增 background-backed 功能时，必须走 `src/entrypoints/background/handlers/index.ts` 现有 handler 模式，不要往 `background.ts` 塞临时逻辑。
+- Dexie `src/db/index.ts` 是共享状态核心。
+- 业务数据访问优先复用 `src/lib/db/*`，不要重复直接操作表。
+- Sync 是 selected-table sync，不是全库同步。
+- UI 响应式读取默认使用 `useLiveQuery`。
+- 新增会修改数据的 AI tool 时，若现有 AI flow 未处理确认，必须要求确认。
 
 ## Sync and data rules
 
-### LWW conflict resolution
-- Sync uses **Last Write Wins (LWW)**.
-- Conflict resolution must use the **local client timestamp** (`updatedAt` / operation timestamp), not a server timestamp.
-- When changing sync semantics, check both:
-  - `src/lib/sync/types.ts`
-  - `src/lib/sync/SyncEngine.ts`
+- 冲突策略是 LWW。
+- 冲突比较必须使用本地客户端时间戳（`updatedAt` / operation timestamp），不能改为服务端时间戳。
+- Sync 依赖 Dexie lifecycle hooks；绕过 Dexie CRUD 会导致 sync hook 不触发。
+- 来自 sync 的操作必须保持 `tx.source === 'sync'`，避免反馈回路。
+- synced entity 删除必须走软删除 `deletedAt`，不要单点改成硬删除。
+- synced 且加密：`tags`、`jobTags`、`links`、`linkTags`、`blackboard`
+- 仅本地：Jenkins credentials、build history、绝大多数 settings、recordings、local stats / caches
 
-### Hooks and transaction behavior
-- Sync relies on Dexie lifecycle hooks. If you bypass Dexie CRUD, sync hooks will not fire.
-- Operations originating from sync set `tx.source === 'sync'` to avoid feedback loops.
-- Delete behavior for synced entities is implemented as **soft delete** via `deletedAt`, not direct removal.
+## Coupled changes
 
-### What syncs and what stays local
-Synced and encrypted:
-- Tags
-- Links
-- Link / job tag associations
-- Blackboard items
+- 改 schema / shared entity 字段时，至少联查：`src/db/types.ts`、`src/db/index.ts`、相关 `src/lib/db/*`、相关 UI / hooks；若该表参与 sync，再查 `src/lib/sync/SyncEngine.ts`。
+- 改 sync 行为时，联查：`src/lib/sync/types.ts`、`src/lib/sync/SyncEngine.ts`、`src/db/index.ts`、相关 `src/lib/db/*`。
+- 改 AI tools 时，联查：`src/lib/ai/tools.ts`、`src/lib/ai/index.ts`、具体 `src/lib/ai/tools/*.ts`、复用到的 `src/lib/db/*` 或 background handlers。
+- 改 PageAgent 时，联查：`src/lib/ai/tools/pageAgent.ts`、`src/entrypoints/background/handlers/pageAgent.ts`、`src/lib/pageAgent/injector.ts`、`src/entrypoints/pageAgent.content.ts`、`src/entrypoints/background/handlers/general.ts`、`wxt.config.ts`。
+- 改 Recorder 时，联查：`src/features/recorder/*`、`src/entrypoints/background/handlers/recorder.ts`、`src/entrypoints/recorder.content.ts`、`src/entrypoints/network-interceptor.ts`、`src/entrypoints/console-interceptor.ts`、player 相关 entrypoints 与 recorder storage。
+- 改 feature tab / toggle 时，联查：`src/entrypoints/sidepanel/App.tsx`、options/settings UI、settings types in DB layer。
 
-Local only:
-- Jenkins credentials
-- Build history
-- Most settings
-- Recordings
-- Local stats / caches
+## Coding constraints
 
-## Change together, not separately
+- 使用 `@/` alias，不用 parent-relative imports。
+- 禁止 `any`。
+- 禁止 `@ts-ignore` 与 `@ts-expect-error`。
+- React 组件优先使用 `function Component() {}`。
+- 不要留下 floating promises；要么 `await`，要么显式 `void`。
+- async UI action 在需要日志或用户反馈时必须包 `try/catch`。
+- 诊断使用 `logger`；用户可见错误优先复用现有 toast 模式。
+- 优先复用 `src/components/ui/*` primitives。
+- 改动保持在现有 feature 结构内，不要引入一次性抽象。
 
-These are the most important multi-file coupling rules in the repo.
+## UI and accessibility constraints
 
-### Database schema or entity changes
-When changing schema or shared entity fields, review together:
-- `src/db/types.ts`
-- `src/db/index.ts`
-- related `src/lib/db/*`
-- related feature UI / hooks
-- `src/lib/sync/SyncEngine.ts` if the table is synced
+- 暗色模式下，不要给 `muted-foreground` 叠加 opacity modifier。
+- 不要使用 `text-muted-foreground/70`、`text-muted-foreground/50`、`dark:text-muted-foreground/60`。
+- 直接使用基础 token，保证可读性与对比度。
 
-### Sync behavior changes
-When changing sync behavior, review together:
-- `src/lib/sync/types.ts`
-- `src/lib/sync/SyncEngine.ts`
-- `src/db/index.ts`
-- relevant `src/lib/db/*`
+## WXT / manifest constraints
 
-### Deletion semantics
-For synced entities, do not switch one code path to hard delete without checking the rest of the flow. Soft delete via `deletedAt` is part of the sync model.
+- `wxt.config.ts` 必须保持移除 `action.default_popup`，点击扩展按钮应打开 side panel。
+- 依赖权限包括：`storage`、`sidePanel`、`alarms`、`activeTab`、`scripting`、`tabs`。
+- 若移动或重命名 recorder / PageAgent 相关资源，必须同步更新 `wxt.config.ts` 的 `web_accessible_resources`。
 
-### AI tool changes
-When adding or changing AI tools, review together:
-- `src/lib/ai/tools.ts`
-- `src/lib/ai/index.ts`
-- the specific `src/lib/ai/tools/*.ts`
-- the reused `src/lib/db/*` or background handlers
+## Editing checklist
 
-### PageAgent changes
-When changing PageAgent behavior, review together:
-- `src/lib/ai/tools/pageAgent.ts`
-- `src/entrypoints/background/handlers/pageAgent.ts`
-- `src/lib/pageAgent/injector.ts`
-- `src/entrypoints/pageAgent.content.ts`
-- `src/entrypoints/background/handlers/general.ts`
-- `wxt.config.ts`
-
-### Recorder changes
-When changing recording behavior, review together:
-- `src/features/recorder/*`
-- `src/entrypoints/background/handlers/recorder.ts`
-- `src/entrypoints/recorder.content.ts`
-- `src/entrypoints/network-interceptor.ts`
-- `src/entrypoints/console-interceptor.ts`
-- player-related entrypoints and recorder storage
-
-### Feature tabs and toggles
-If you add or rename a feature toggle or tab, review together:
-- `src/entrypoints/sidepanel/App.tsx`
-- options/settings UI
-- settings types in the DB layer
-
-## Coding conventions
-
-Prefer the existing project conventions over generic patterns.
-
-- Use **pnpm** only.
-- Use the `@/` alias instead of parent-relative imports.
-- Do not use `any`.
-- Do not use `@ts-ignore` or `@ts-expect-error`.
-- Prefer `function Component() {}` for React components.
-- Avoid floating promises: `await` them or explicitly `void` them.
-- Wrap async UI actions in `try/catch` when failures need logging or user feedback.
-- Use `logger` for diagnostics and existing toast patterns for user-visible errors.
-- Reuse `src/components/ui/*` primitives before introducing new UI patterns.
-- Keep changes aligned with existing feature structure instead of introducing one-off abstractions.
-
-## UI and accessibility notes
-
-- Theme support must continue to work in light / dark / system mode.
-- For muted text in dark mode, **do not** apply opacity modifiers on `muted-foreground`.
-- Avoid patterns like:
-  - `text-muted-foreground/70`
-  - `text-muted-foreground/50`
-  - `dark:text-muted-foreground/60`
-- Use the base token directly to preserve WCAG-compliant contrast.
-
-## WXT and manifest notes
-
-- `wxt.config.ts` removes `action.default_popup` so clicking the extension action opens the side panel.
-- The extension requires permissions including `storage`, `sidePanel`, `alarms`, `activeTab`, `scripting`, and `tabs`.
-- `web_accessible_resources` includes recorder and PageAgent scripts. If you move or rename those assets, update the WXT config too.
-
-## Practical guidance for future Claude instances
-
-Before editing code:
-1. Read the relevant feature entrypoint and its shared data helpers.
-2. Check whether the behavior is implemented through background messages, shared DB helpers, or both.
-3. If the change touches sync, recording, or PageAgent, assume there is at least one additional context or file that must change with it.
-4. Prefer updating existing flows over adding parallel abstractions.
+- 先读对应 feature entrypoint 与共享数据 helpers。
+- 先确认行为落在 background messages、shared DB helpers，还是两者都有。
+- 只要改动涉及 sync、recording、PageAgent，就按跨上下文链路处理。
+- 优先改现有流程，不要新增平行抽象。

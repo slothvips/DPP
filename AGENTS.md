@@ -2,7 +2,7 @@
 
 AI agents working on this codebase MUST follow these guidelines strictly.
 
-## 1. Project Overview
+## Project Overview
 
 | Stack       | Technology                               |
 | ----------- | ---------------------------------------- |
@@ -14,7 +14,7 @@ AI agents working on this codebase MUST follow these guidelines strictly.
 | Recording   | rrweb (Session Replay)                   |
 | Pkg Manager | **pnpm** (NEVER use npm/yarn)            |
 
-## 2. Critical Rules
+## Critical Rules
 
 - **No `any`**: Use `unknown` or specific types. ESLint errors on `any`.
 - **No Suppressions**: Never use `@ts-ignore` or `@ts-expect-error`. Fix the underlying issue.
@@ -27,7 +27,7 @@ AI agents working on this codebase MUST follow these guidelines strictly.
 - **React Compiler**: Uses babel-plugin-react-compiler. Avoid unstable hook deps, memoize expensive computations.
 - **Production Safety**: Live product with users. Dexie schema changes require migration logic.
 
-## 3. Commands
+## Commands
 
 Run from project root. NEVER `cd` into subdirectories.
 
@@ -35,6 +35,8 @@ Run from project root. NEVER `cd` into subdirectories.
 # Development
 pnpm dev              # Chrome dev server
 pnpm dev:firefox      # Firefox dev server
+
+# Production
 pnpm build            # Production build → .output/
 pnpm build:firefox    # Firefox production build
 pnpm zip              # Create Chrome zip distribution
@@ -45,26 +47,18 @@ pnpm compile          # Type check (tsc --noEmit) - MUST PASS
 pnpm lint             # ESLint check
 pnpm lint:fix         # Auto-fix lint issues
 pnpm format           # Prettier format
-
-# Testing (if tests are added)
-pnpm vitest           # Run all tests
-pnpm vitest run       # Run tests once (CI mode)
-pnpm vitest run -- <file>   # Run single test file
-pnpm vitest run -- -t "<test name>"  # Run single test by name
 ```
 
-**Note:** This project currently has no test suite. If tests are needed, use Vitest.
-
-## 4. Production Considerations
+## Production Considerations
 
 This is a live product with existing users:
 
 - **Backward Compatibility**: Avoid breaking changes to APIs, data schemas, or features.
-- **Database Migrations**: Dexie schema changes MUST include migration logic.
+- **Database Migrations**: Dexie schema changes in `src/db/schema.ts` MUST include migration logic.
 - **Data Loss Prevention**: Consider how changes affect existing user data.
 - **Feature Flags**: Use flags for risky changes to allow gradual rollout.
 
-## 5. Directory Structure
+## Directory Structure
 
 ```
 src/
@@ -73,25 +67,24 @@ src/
 │   ├── popup/           # Popup UI
 │   └── *.content.ts     # Content scripts
 ├── components/ui/       # Shadcn-like primitives (Button, Input, Toast...)
-├── features/            # Domain modules (jenkins/, links/, recorder/)
-│   └── <feature>/{api/,components/,hooks/,messages.ts,types.ts}
-├── db/                  # Dexie schema + Sync logic
-├── lib/                 # Core utilities (crypto/, sync/)
-└── utils/               # Helpers (cn.ts, logger.ts)
+├── features/            # Domain modules (aiAssistant/, jenkins/, links/, recorder/...)
+│   └── <feature>/      # Structure varies: api/, components/, hooks/, messages.ts, service.ts, utils/
+├── db/                  # Dexie schema (schema.ts) + Sync logic
+├── lib/                 # Core utilities (ai/, crypto/, db/, http.ts, sync/)
+└── utils/               # Helpers (cn.ts, logger.ts, modal.ts, validation.ts)
 ```
 
-## 6. Code Style
+## Code Style
 
-### 6.1 Imports & Naming
+### Imports & Naming
 
 - **Absolute Imports:** Always use `@/` alias (configured in tsconfig.json).
-- **Import Order:** `react` → `wxt` → `@/...` → `./...` (Prettier handles sorting).
 - **Naming Conventions:**
   - Components: `PascalCase.tsx`, `export function ComponentName`
   - Utils: `camelCase.ts`
   - Constants: `UPPER_SNAKE_CASE`
 
-### 6.2 React Components
+### React Components
 
 - Use `function Component() {}` syntax.
 - Define Props interface. Pass `className` to root via `cn()`.
@@ -110,7 +103,7 @@ export function Badge({ variant = 'default', className, ...props }: BadgeProps) 
 }
 ```
 
-### 6.3 Error Handling
+### Error Handling
 
 Always wrap async operations in try-catch. Use `logger` for logging and `toast` for user feedback.
 
@@ -126,7 +119,7 @@ async function fetchData() {
 }
 ```
 
-### 6.4 Patterns
+### Patterns
 
 - **API Clients:** Factory pattern `createClient(credentials)`.
 - **Sync:** Use `SyncEngine` class. Sensitive data MUST be encrypted before sync.
@@ -134,7 +127,7 @@ async function fetchData() {
 - **Logging:** Use `logger.info/warn/error` from `@/utils/logger`.
 - **Classes:** Use `cn()` from `@/utils/cn` for conditional class merging.
 
-## 7. Available Utilities
+## Available Utilities
 
 | Utility        | Location                | Purpose                |
 | -------------- | ----------------------- | ---------------------- |
@@ -143,24 +136,18 @@ async function fetchData() {
 | `useToast`     | `@/components/ui/toast` | User notifications     |
 | `useLiveQuery` | `dexie-react-hooks`     | Reactive DB queries    |
 
-## 8. Data & Synchronization
+## Data & Synchronization
 
-- **Dexie:** Define schema in `src/db/index.ts`. Handle versions carefully.
+- **Dexie:** Schema defined in `src/db/schema.ts`, registered in `src/db/index.ts`. Handle versions carefully.
 - **SyncEngine:** Handles data replication with E2EE via Web Crypto API.
 - **Sensitive data** MUST be encrypted before storing or syncing.
 
-## 9. Pre-commit Hooks
+## Pre-commit Hooks
 
-Uses `simple-git-hooks` with `lint-staged`. Before committing:
-
-- ESLint auto-fixes applied
-- Prettier formats changed files
+Uses `simple-git-hooks` with `lint-staged`. ESLint auto-fixes and Prettier formats are applied to staged `.ts`/`.tsx` files.
 
 Run `pnpm lint:fix` and `pnpm format` before committing.
 
-## 10. Agent Workflow
+## Verification
 
-1. **Analyze:** Read related files, check `src/components/ui` for reusable primitives.
-2. **Plan:** Create TODO list, map out new files and schema changes.
-3. **Implement:** Use `pnpm`, `cn()`, follow types strictly. Handle errors with try-catch + logger + toast.
-4. **Verify:** `pnpm compile` (MUST PASS), `pnpm lint:fix`, `pnpm build`.
+Before completing any task: `pnpm compile` (MUST PASS), `pnpm lint:fix`, `pnpm build`.
