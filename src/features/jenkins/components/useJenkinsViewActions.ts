@@ -16,7 +16,6 @@ interface UseJenkinsViewActionsOptions {
   shouldCloseOnSuccess: boolean;
   onBuildJobChange: (job: BuildJobState | null) => void;
   onExpandedUrlsChange: (value: Set<string>) => void;
-  onJobsRefreshErrorChange: (error: string | null) => void;
   onLoadingChange: (loading: boolean) => void;
 }
 
@@ -29,7 +28,6 @@ export function useJenkinsViewActions({
   shouldCloseOnSuccess,
   onBuildJobChange,
   onExpandedUrlsChange,
-  onJobsRefreshErrorChange,
   onLoadingChange,
 }: UseJenkinsViewActionsOptions) {
   const { toast } = useToast();
@@ -44,11 +42,9 @@ export function useJenkinsViewActions({
     onLoadingChange(true);
     try {
       const jobCount = await JenkinsService.fetchAllJobs();
-      onJobsRefreshErrorChange(null);
       toast(`采集完成，Job: ${jobCount}`, 'success');
     } catch (e) {
       logger.error('Sync failed', e);
-      onJobsRefreshErrorChange(e instanceof Error ? e.message : String(e));
       toast('采集失败，请检查控制台', 'error');
     } finally {
       onLoadingChange(false);

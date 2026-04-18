@@ -8,7 +8,6 @@ import { useJenkinsView } from '@/features/jenkins/components/useJenkinsView';
 export function JenkinsView() {
   const {
     buildJob,
-    buildsRefreshError,
     closeBuildDialog,
     currentEnvId,
     displayedBuilds,
@@ -24,9 +23,6 @@ export function JenkinsView() {
     jobTagsMap,
     jobTree,
     jobs,
-    jobsRefreshError,
-    lastBuildsRefreshTime,
-    lastJobsRefreshTime,
     loading,
     myBuildsLoading,
     nextRefreshTime,
@@ -59,9 +55,7 @@ export function JenkinsView() {
           <JenkinsBuildHistorySection
             displayedBuilds={displayedBuilds}
             expanded={expandedUrls.has('__build_history__')}
-            isShowingCachedBuilds={Boolean(buildsRefreshError && displayedBuilds.length > 0)}
             jobTagsMap={jobTagsMap}
-            lastBuildsRefreshTime={lastBuildsRefreshTime}
             loading={myBuildsLoading}
             nextRefreshTime={nextRefreshTime}
             onBuild={(build) =>
@@ -76,11 +70,8 @@ export function JenkinsView() {
         expandedUrls={expandedUrls}
         filter={filter}
         filteredJobs={filteredJobs}
-        isShowingCachedJobs={Boolean(jobsRefreshError && jobs.length > 0)}
         jobTree={jobTree}
         jobs={jobs}
-        jobsRefreshError={jobsRefreshError}
-        lastJobsRefreshTime={lastJobsRefreshTime}
         loading={loading}
         onBuild={(job) => openBuildDialog({ url: job.url, name: job.name, envId: job.env })}
         onToggle={toggleExpand}

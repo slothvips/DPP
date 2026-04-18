@@ -1,17 +1,14 @@
-import { ChevronDown, ChevronRight, History, WifiOff } from 'lucide-react';
+import { ChevronDown, ChevronRight, History } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import type { MyBuildItem, TagItem } from '@/db';
 import { MyBuildRow } from '@/features/jenkins/components/MyBuildRow';
 import { RefreshCountdown } from '@/features/jenkins/components/RefreshCountdown';
-import { cn } from '@/utils/cn';
 
 interface JenkinsBuildHistorySectionProps {
   displayedBuilds: MyBuildItem[];
   expanded: boolean;
-  isShowingCachedBuilds: boolean;
   jobTagsMap: Map<string, TagItem[]>;
-  lastBuildsRefreshTime: number | null;
   loading: boolean;
   nextRefreshTime: number | null;
   onBuild: (build: MyBuildItem) => void;
@@ -24,9 +21,7 @@ interface JenkinsBuildHistorySectionProps {
 export function JenkinsBuildHistorySection({
   displayedBuilds,
   expanded,
-  isShowingCachedBuilds,
   jobTagsMap,
-  lastBuildsRefreshTime,
   loading,
   nextRefreshTime,
   onBuild,
@@ -36,13 +31,6 @@ export function JenkinsBuildHistorySection({
   showOthersBuilds,
 }: JenkinsBuildHistorySectionProps) {
   const hasBuilds = displayedBuilds.length > 0;
-  const hasSuccessfulRefresh = lastBuildsRefreshTime !== null;
-  const shouldShowEmptyErrorState = !hasBuilds && !hasSuccessfulRefresh;
-  const statusText = lastBuildsRefreshTime
-    ? `上次成功刷新 ${new Date(lastBuildsRefreshTime).toLocaleString()}`
-    : hasBuilds
-      ? '显示本地缓存'
-      : '尚未成功刷新';
 
   return (
     <div className="mb-2">
@@ -91,27 +79,8 @@ export function JenkinsBuildHistorySection({
       </button>
       {expanded && (
         <div className="pl-6">
-          <div
-            className={cn(
-              'mb-2 flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs',
-              isShowingCachedBuilds
-                ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
-                : 'border-border bg-muted/50 text-muted-foreground'
-            )}
-          >
-            {isShowingCachedBuilds ? <WifiOff className="h-3.5 w-3.5 shrink-0" /> : null}
-            <span>
-              {isShowingCachedBuilds ? `刷新失败，继续显示缓存 · ${statusText}` : statusText}
-            </span>
-          </div>
           {!hasBuilds ? (
-            shouldShowEmptyErrorState ? (
-              <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
-                暂无可用缓存，且尚未成功从 Jenkins 拉取构建历史，请检查网络或 Jenkins 配置后重试。
-              </div>
-            ) : (
-              <div className="p-2 text-xs text-muted-foreground">暂无构建记录</div>
-            )
+            <div className="p-2 text-xs text-muted-foreground">暂无构建记录</div>
           ) : (
             <div className="space-y-1">
               {displayedBuilds.map((build) => (

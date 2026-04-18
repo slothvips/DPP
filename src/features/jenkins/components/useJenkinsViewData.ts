@@ -3,28 +3,37 @@ import { useMemo } from 'react';
 import { type JenkinsEnvironment, db } from '@/db';
 import { buildJobTree } from '@/features/jenkins/utils';
 
+const EMPTY_SETTINGS = {
+  currentEnvId: undefined,
+  environments: [],
+  showOthersBuilds: false,
+} satisfies {
+  currentEnvId: string | undefined;
+  environments: JenkinsEnvironment[];
+  showOthersBuilds: boolean;
+};
+
 export function useJenkinsViewData(filter: string) {
-  const settings = useLiveQuery(() => db.settings.toArray(), [], []);
-  const settingsMap = useMemo(
-    () => new Map(settings.map((setting) => [setting.key, setting.value])),
-    [settings]
+  const settings = useLiveQuery(
+    async () => {
+      const [currentEnvSetting, environmentsSetting, showOthersBuildsSetting] = await Promise.all([
+        db.settings.get('jenkins_current_env'),
+        db.settings.get('jenkins_environments'),
+        db.settings.get('show_others_builds'),
+      ]);
+
+      return {
+        currentEnvId: currentEnvSetting?.value as string | undefined,
+        environments: (environmentsSetting?.value as JenkinsEnvironment[] | undefined) || [],
+        showOthersBuilds: (showOthersBuildsSetting?.value as boolean | undefined) ?? false,
+      };
+    },
+    [],
+    EMPTY_SETTINGS
   );
 
-  const currentEnvId = settingsMap.get('jenkins_current_env') as string | undefined;
-  const environments =
-    (settingsMap.get('jenkins_environments') as JenkinsEnvironment[] | undefined) || [];
+  const { currentEnvId, environments, showOthersBuilds } = settings;
   const currentEnv = environments.find((environment) => environment.id === currentEnvId);
-  const showOthersBuilds = (settingsMap.get('show_others_builds') as boolean | undefined) ?? false;
-  const lastBuildsRefreshByEnv =
-    (settingsMap.get('jenkins_builds_last_refresh_by_env') as Record<string, number> | undefined) ||
-    {};
-  const lastJobsRefreshByEnv =
-    (settingsMap.get('jenkins_jobs_last_refresh_by_env') as Record<string, number> | undefined) ||
-    {};
-  const lastBuildsRefreshTime = currentEnvId
-    ? (lastBuildsRefreshByEnv[currentEnvId] ?? null)
-    : null;
-  const lastJobsRefreshTime = currentEnvId ? (lastJobsRefreshByEnv[currentEnvId] ?? null) : null;
 
   const { jobs, jobTags, tags, myBuilds, othersBuilds } = useLiveQuery(
     async () => {
@@ -103,8 +112,6 @@ export function useJenkinsViewData(filter: string) {
     jobTagsMap,
     jobTree,
     jobs,
-    lastBuildsRefreshTime,
-    lastJobsRefreshTime,
     showOthersBuilds,
     tags,
   };

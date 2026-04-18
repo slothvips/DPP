@@ -5,18 +5,14 @@ import { logger } from '@/utils/logger';
 
 interface UseJenkinsBuildPollingOptions {
   enabled: boolean;
-  onError: (error: Error) => void;
   onLoadingChange: (loading: boolean) => void;
   onNextRefreshTimeChange: (value: number | null) => void;
-  onRefresh: () => void;
 }
 
 export function useJenkinsBuildPolling({
   enabled,
-  onError,
   onLoadingChange,
   onNextRefreshTimeChange,
-  onRefresh,
 }: UseJenkinsBuildPollingOptions) {
   useEffect(() => {
     if (!enabled) return;
@@ -42,13 +38,16 @@ export function useJenkinsBuildPolling({
       try {
         onLoadingChange(true);
         await JenkinsService.fetchMyBuilds();
+        if (!mounted) {
+          return;
+        }
         onLoadingChange(false);
-        onRefresh();
         onNextRefreshTimeChange(Date.now() + JENKINS.POLL_INTERVAL_MS);
       } catch (error) {
         logger.error('Auto-refresh My Builds failed', error);
-        onLoadingChange(false);
-        onError(error instanceof Error ? error : new Error(String(error)));
+        if (mounted) {
+          onLoadingChange(false);
+        }
       } finally {
         isPollingInFlight = false;
         if (mounted) {
@@ -72,5 +71,5 @@ export function useJenkinsBuildPolling({
       clearTimeout(timeoutId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [enabled, onError, onLoadingChange, onNextRefreshTimeChange, onRefresh]);
+  }, [enabled, onLoadingChange, onNextRefreshTimeChange]);
 }

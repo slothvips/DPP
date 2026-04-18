@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { logger } from '@/utils/logger';
 import type { BuildJobState } from './jenkinsViewShared';
 import { useJenkinsBuildPolling } from './useJenkinsBuildPolling';
 import { useJenkinsDeepLink } from './useJenkinsDeepLink';
@@ -14,8 +13,6 @@ export function useJenkinsView() {
   const [myBuildsLoading, setMyBuildsLoading] = useState(false);
   const [nextRefreshTime, setNextRefreshTime] = useState<number | null>(null);
   const [shouldCloseOnSuccess, setShouldCloseOnSuccess] = useState(false);
-  const [buildsRefreshError, setBuildsRefreshError] = useState<string | null>(null);
-  const [jobsRefreshError, setJobsRefreshError] = useState<string | null>(null);
 
   const {
     currentEnv,
@@ -26,8 +23,6 @@ export function useJenkinsView() {
     jobTagsMap,
     jobTree,
     jobs,
-    lastBuildsRefreshTime,
-    lastJobsRefreshTime,
     showOthersBuilds,
     tags,
   } = useJenkinsViewData(filter);
@@ -37,8 +32,6 @@ export function useJenkinsView() {
   const jenkinsToken = currentEnv?.token;
 
   useEffect(() => {
-    setBuildsRefreshError(null);
-    setJobsRefreshError(null);
     setNextRefreshTime(null);
   }, [currentEnvId]);
 
@@ -53,13 +46,6 @@ export function useJenkinsView() {
     enabled: Boolean(jenkinsHost && jenkinsUser && jenkinsToken),
     onLoadingChange: setMyBuildsLoading,
     onNextRefreshTimeChange: setNextRefreshTime,
-    onRefresh: () => {
-      setBuildsRefreshError(null);
-    },
-    onError: (error) => {
-      logger.error('Failed to refresh Jenkins builds', error);
-      setBuildsRefreshError(error.message);
-    },
   });
 
   const {
@@ -80,13 +66,11 @@ export function useJenkinsView() {
     shouldCloseOnSuccess,
     onBuildJobChange: setBuildJob,
     onExpandedUrlsChange: setExpandedUrls,
-    onJobsRefreshErrorChange: setJobsRefreshError,
     onLoadingChange: setLoading,
   });
 
   return {
     buildJob,
-    buildsRefreshError,
     currentEnvId,
     displayedBuilds,
     environments,
@@ -101,9 +85,6 @@ export function useJenkinsView() {
     jobTagsMap,
     jobTree,
     jobs,
-    jobsRefreshError,
-    lastBuildsRefreshTime,
-    lastJobsRefreshTime,
     loading,
     myBuildsLoading,
     nextRefreshTime,
