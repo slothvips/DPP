@@ -1,4 +1,4 @@
-import { Clock, Play, X } from 'lucide-react';
+import { Clock, ExternalLink, Play, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tag } from '@/components/ui/tag';
 import type { MyBuildItem, TagItem } from '@/db';
@@ -23,15 +23,9 @@ export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) 
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5">
-          <a
-            href={build.id}
-            target="_blank"
-            rel="noreferrer"
-            className="text-sm font-medium hover:underline truncate text-foreground"
-            title={build.jobName}
-          >
+          <span className="text-sm font-medium truncate text-foreground" title={build.jobName}>
             {build.jobName}
-          </a>
+          </span>
           <span className="text-xs text-muted-foreground font-mono">#{build.number}</span>
           {tags && tags.length > 0 && (
             <div className="flex items-center gap-1">
@@ -61,6 +55,16 @@ export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) 
         </div>
       </div>
 
+      <Button
+        asChild
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 text-muted-foreground hover:text-primary hover:bg-accent"
+      >
+        <a href={build.id} target="_blank" rel="noreferrer" title="打开 Jenkins">
+          <ExternalLink className="w-3 h-3" />
+        </a>
+      </Button>
       <Button
         variant="ghost"
         size="icon"

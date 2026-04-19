@@ -1,4 +1,4 @@
-import { Play, Terminal } from 'lucide-react';
+import { ExternalLink, Play, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { JobItem, TagItem } from '@/db';
 import { JobTagSelector } from '@/features/jenkins/components/JobTagSelector';
@@ -27,14 +27,9 @@ export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="block">
-              <a
-                href={job.url}
-                target="_blank"
-                rel="noreferrer"
-                className="font-medium hover:underline break-words mr-2 align-middle text-sm"
-              >
+              <span className="font-medium break-words mr-2 align-middle text-sm">
                 {job.fullName || job.name}
-              </a>
+              </span>
               {jobIsFolder && (
                 <span className="inline-block align-middle text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground mr-2 font-medium">
                   Folder
@@ -60,6 +55,16 @@ export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
         </div>
 
         <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-accent"
+          >
+            <a href={job.url} target="_blank" rel="noreferrer" title="打开 Jenkins">
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          </Button>
           <Button
             variant="ghost"
             size="icon"

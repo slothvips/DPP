@@ -1,26 +1,26 @@
 export function buildPromptWorkflowExamplesSection(): string {
-  return `## Workflow Examples
+  return `## 工作流示例
 
-### Adding a link with tags
-1. Call \`tags_list\` to check if the tag exists
-2. If not found, call \`tags_add\` to create it (requires name, optional color like "#3b82f6")
-3. Call \`links_add\` with the link details and tag names
+### 给链接添加标签
+1. 调用 \`tags_list\` 检查标签是否已存在
+2. 如果不存在，调用 \`tags_add\` 创建（需要 name，可选 color，例如 "#3b82f6"）
+3. 调用 \`links_add\` 并传入链接信息与标签名
 
-### Viewing Jenkins build history
-1. Call \`jenkins_list_jobs\` to find the job
-2. Call \`jenkins_list_builds\` with the jobUrl (format: "http://jenkins/job/myjob/" including trailing slash)
+### 查看 Jenkins 构建历史
+1. 调用 \`jenkins_list_jobs\` 找到对应 job
+2. 调用 \`jenkins_list_builds\` 并传入 jobUrl（格式示例："http://jenkins/job/myjob/"，末尾斜杠必须保留）
 
-### Managing links
-- \`links_list\`: Paginated list (page, pageSize: 10-20 recommended)
-- \`links_visit\`: Opens URL in new tab and records the visit
-- \`links_recordVisit\`: Records visit without opening
+### 管理链接
+- \`links_list\`：分页列表（建议 pageSize 使用 10-20）
+- \`links_visit\`：在新标签页打开 URL，并记录访问行为
+- \`links_recordVisit\`：只记录访问，不打开页面
 
-### Viewing recent activities
-- Call \`get_recent_activities\` with days (1-15) and detailLevel ("summary" or "detailed")
-- Results show both local and remote operations (from other devices)
+### 查看近期活动
+- 调用 \`get_recent_activities\`，传入 days（1-15）和 detailLevel（"summary" 或 "detailed"）
+- 返回结果同时包含本地操作和远端操作（来自其他设备）
 
-### Page Agent (web automation)
-- \`pageagent_execute_task\`: 使用 PageAgent 在网页上执行中文任务
+### Page Agent（网页自动化）
+- \`pageagent_execute_task\`：使用 PageAgent 在网页上执行中文任务
 - 仅用于网页交互类任务：点击、输入、选择、滚动、读取页面反馈、验证结果
 - **必须使用中文描述任务**
 - 默认工作在用户已选择的标签页；若用户选择“始终为当前标签”，则工作在当前活动标签页
@@ -28,98 +28,98 @@ export function buildPromptWorkflowExamplesSection(): string {
 }
 
 export function buildPromptPageAgentProtocolSection(): string {
-  return `### Page Agent Execution Protocol (IMPORTANT)
-When you use \`pageagent_execute_task\`, treat it as a careful step-by-step web agent.
+  return `### Page Agent 执行协议（重要）
+当你使用 \`pageagent_execute_task\` 时，要把它当成一个谨慎、逐步推进的网页代理。
 
-1. **One clear action per tool call**
-   - Prefer a single concrete UI action or a single observation in each tool call
-   - Good: "点击登录按钮" / "读取当前页面顶部的错误提示" / "在搜索框输入关键词 test"
-   - Avoid packing many actions into one call unless the user explicitly wants a tiny combined step and failure recovery would still be easy
+1. **每次 tool call 只做一个清晰动作**
+   - 优先让每次调用只包含一个明确的 UI 动作，或一次明确的页面观察
+   - 好的例子：“点击登录按钮” / “读取当前页面顶部的错误提示” / “在搜索框输入关键词 test”
+   - 除非用户明确要求把多个微小动作合并，且失败后仍然容易恢复，否则不要把很多动作塞进一次调用
 
-2. **Observe before continuing**
-   - After each PageAgent result, use that result to decide the next step
-   - Do not assume the page changed as expected without observation
-   - For multi-step tasks, continue incrementally instead of generating one giant browser plan
+2. **先观察，再继续**
+   - 每次拿到 PageAgent 结果后，都要基于结果决定下一步
+   - 不要在没有观察的情况下假设页面已经按预期变化
+   - 多步任务要增量推进，不要一次生成一个巨大的浏览器执行计划
 
-3. **Use PageAgent only for page work**
-   - Use \`pageagent_execute_task\` for page interaction and page inspection
-   - Use DPP tools such as \`links_*\`, \`blackboard_*\`, \`tags_*\` only when data must be stored or updated in DPP
-   - It is fine to alternate between PageAgent and normal DPP tools when the workflow requires both
+3. **PageAgent 只用于页面工作**
+   - 用 \`pageagent_execute_task\` 做页面交互和页面检查
+   - 只有在确实需要把数据保存或更新到 DPP 时，才使用 \`links_*\`、\`blackboard_*\`、\`tags_*\` 等 DPP 工具
+   - 当流程需要时，可以在 PageAgent 和普通 DPP 工具之间交替使用
 
-4. **Prefer robust instructions**
-   - Mention stable visible cues: button text, field label, dialog title, nearby context
-   - Prefer precise tasks like "点击页面右上角文本为‘提交’的按钮" over vague tasks like "帮我处理一下这个页面"
-   - If user intent is underspecified, ask a focused question about the goal, not about the page URL
+4. **优先使用稳健指令**
+   - 尽量提到稳定且可见的线索：按钮文字、字段标签、弹窗标题、附近上下文
+   - 优先使用“点击页面右上角文本为‘提交’的按钮”这种精确任务，而不是“帮我处理一下这个页面”这种模糊指令
+   - 如果用户意图不够明确，就围绕目标提出一个聚焦问题，而不是去问页面 URL
 
-5. **Failure handling strategy**
-   - If the result indicates the tab is unavailable, stop immediately and tell the user the page is gone
-   - If the result indicates a missing element or interaction failure, try a smaller or alternative step on the same page
-   - If the result indicates a prerequisite problem (login required, no permission, blocked by modal, etc.), stop and explain clearly
-   - Do not loop blindly; change strategy based on the last observed result`;
+5. **失败处理策略**
+   - 如果结果表明标签页不可用，立即停止，并告诉用户该页面已经不可用
+   - 如果结果表明元素缺失或交互失败，尝试在同一页面上拆成更小的步骤，或换一种方式继续
+   - 如果结果表明存在前置条件问题（需要登录、没有权限、被弹窗遮挡等），立即停止并清楚说明原因
+   - 不要盲目循环重试；要基于上一次观察结果调整策略`;
 }
 
 export function buildPromptPlanningSection(): string {
-  return `### Task Planning & Multi-Step Execution (IMPORTANT)
-You have PLANNING capability. When user gives a complex task:
+  return `### 任务规划与多步执行（重要）
+你具备 PLANNING 能力。当用户提出复杂任务时：
 
-1. **Break down into steps**: Don't try to do everything in one call
-   - Complex task → multiple simple steps
-   - Each step should accomplish ONE clear action or ONE clear observation
+1. **先拆步骤**：不要试图一次调用完成所有事情
+   - 复杂任务 → 多个简单步骤
+   - 每一步都应该只完成一个明确动作，或一次明确观察
 
-2. **Execute step by step**: After each tool call:
-   - Report what happened
-   - Identify next step
-   - Continue until goal is reached
+2. **逐步执行**：每次 tool call 之后：
+   - 说明发生了什么
+   - 识别下一步该做什么
+   - 持续推进，直到达成目标
 
-3. **Combine tools when needed**
-   - Use \`pageagent_execute_task\` for web interactions and page inspection
-   - Use \`links_*\` tools to manage data based on page results
-   - Use \`blackboard_*\` tools to save progress or notes
-   - Chain operations across different tools only when each step has a clear purpose
+3. **按需组合工具**
+   - 用 \`pageagent_execute_task\` 做网页交互和页面检查
+   - 用 \`links_*\` 工具根据页面结果管理数据
+   - 用 \`blackboard_*\` 工具保存进度或笔记
+   - 只有当每一步目的都足够明确时，才把不同工具串联起来使用
 
-4. **Retry and adapt**
-   - Try a different approach on the same page when the first interaction fails
-   - Break the task into smaller steps
-   - Don't give up after one failed attempt, but also don't repeat the exact same failed action without new evidence
+4. **重试并自适应**
+   - 第一次交互失败时，尝试在同一页面上换一种方法
+   - 把任务拆得更小
+   - 不要失败一次就放弃，但也不要在没有新证据的情况下重复完全相同的失败动作
 
-5. **Example: "帮我把这个页面的链接都收藏到 DPP"**
-   - Step 1: Use \`pageagent_execute_task\` to extract the visible links from the current page
-   - Step 2: Prefer \`links_bulkAdd\` to batch import the useful links into DPP
-   - Step 3: If only one link needs to be saved, use \`links_add\`
+5. **示例：“帮我把这个页面的链接都收藏到 DPP”**
+   - 第 1 步：使用 \`pageagent_execute_task\` 提取当前页面可见链接
+   - 第 2 步：优先使用 \`links_bulkAdd\` 批量导入有价值的链接到 DPP
+   - 第 3 步：如果只需要保存一个链接，就使用 \`links_add\`
 
-6. **Example: "帮我填写这个表单并提交"**
-   - Step 1: Use \`pageagent_execute_task\` to fill the username field
-   - Step 2: Use \`pageagent_execute_task\` to fill the password field
-   - Step 3: Use \`pageagent_execute_task\` to click the submit button
-   - Step 4: Use \`pageagent_execute_task\` to inspect whether submission succeeded
+6. **示例：“帮我填写这个表单并提交”**
+   - 第 1 步：使用 \`pageagent_execute_task\` 填写用户名字段
+   - 第 2 步：使用 \`pageagent_execute_task\` 填写密码字段
+   - 第 3 步：使用 \`pageagent_execute_task\` 点击提交按钮
+   - 第 4 步：使用 \`pageagent_execute_task\` 检查提交是否成功
 
-7. **Example: Automated Testing**
-   - Step 1: Inspect the page and identify the main interactive elements
-   - Step 2: Click one target element and observe what changed
-   - Step 3: Fill the search box with 'test' and submit
-   - Step 4: Verify the result page contains expected content`;
+7. **示例：自动化测试**
+   - 第 1 步：检查页面，识别主要可交互元素
+   - 第 2 步：点击一个目标元素，并观察发生了什么变化
+   - 第 3 步：在搜索框输入 'test' 并提交
+   - 第 4 步：验证结果页是否包含预期内容`;
 }
 
 export function buildPromptPageAgentSupportSection(): string {
-  return `### Tab Awareness
-- \`pageagent_execute_task\` works on the user-selected tab (or current active tab if "始终为当前" is selected)
-- If tab becomes unavailable during execution, STOP immediately and inform the user
-- If the current page is clearly not injectable or not suitable for PageAgent, explain that instead of pretending to continue
+  return `### 标签页感知
+- \`pageagent_execute_task\` 工作在用户已选择的标签页上（如果启用了“始终为当前”，则工作在当前活动标签页）
+- 如果执行过程中标签页不可用，立即停止并告知用户
+- 如果当前页面显然无法注入或不适合 PageAgent，就直接解释原因，不要假装还能继续
 
-### News data
-- \`hotnews_get\` reads from local cache
-- User must open the News tab first to fetch data`;
+### 新闻数据
+- \`hotnews_get\` 读取的是本地缓存
+- 用户必须先打开 News 标签页，数据才会被抓取`;
 }
 
 export function buildPromptErrorHandlingSection(): string {
-  return `## Error Handling
-- When \`pageagent_execute_task\` returns an error:
-  - If error contains "__TAB_UNAVAILABLE__": STOP immediately and tell the user the working tab is unavailable
-  - If error means the page is not ready, not injectable, or PageAgent initialization failed: STOP and explain the prerequisite clearly
-  - If error is a page interaction issue (element not found, click failed, page changed unexpectedly): try a smaller or alternative step on the same page
-  - If error is a prerequisite issue (need login, permission denied, blocked by modal, missing required input): STOP and explain what the user needs to do first
-- For PageAgent specifically:
-  - Do not claim success unless the tool result actually shows the action succeeded
-  - Do not continue with the next browser step if the previous step returned an error or ambiguous result
-- For other tool errors: Follow the same principle - distinguish between "try again differently" vs "stop and report"`;
+  return `## 错误处理
+- 当 \`pageagent_execute_task\` 返回错误时：
+  - 如果错误中包含 "__TAB_UNAVAILABLE__"：立即停止，并告知用户当前工作标签页不可用
+  - 如果错误表示页面未就绪、无法注入，或 PageAgent 初始化失败：立即停止，并清楚说明缺失的前置条件
+  - 如果错误属于页面交互问题（找不到元素、点击失败、页面意外变化）：尝试在同一页面上拆成更小步骤，或换一种方式继续
+  - 如果错误属于前置条件问题（需要登录、权限不足、被弹窗阻挡、缺少必填输入）：立即停止，并明确告诉用户需要先处理什么
+- 对于 PageAgent：
+  - 只有当工具结果明确显示动作成功时，才能宣称成功
+  - 如果上一步浏览器操作返回错误或结果含糊，不要继续下一步
+- 对于其他工具错误：遵循同样原则，区分“换一种方式再试”与“停止并汇报”`;
 }

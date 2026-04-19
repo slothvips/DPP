@@ -15,15 +15,15 @@ export function getPromptToolDescriptions(): string {
       const required = params.required || [];
       const properties = Object.entries(params.properties || {})
         .map(([name, prop]: [string, ToolProperty]) => {
-          const requiredMark = required.includes(name) ? ' (required)' : ' (optional)';
-          const enumStr = prop.enum ? ` (one of: ${prop.enum.join(', ')})` : '';
-          return `  - ${name}${requiredMark}: ${prop.description}${enumStr}`;
+          const requiredMark = required.includes(name) ? '（必填）' : '（可选）';
+          const enumStr = prop.enum ? `（可选值：${prop.enum.join(', ')}）` : '';
+          return `  - ${name}${requiredMark}：${prop.description}${enumStr}`;
         })
         .join('\n');
 
       return `### ${tool.name}
 ${tool.description}
-${properties ? `Parameters:\n${properties}` : 'Parameters: none'}`;
+${properties ? `参数：\n${properties}` : '参数：无'}`;
     })
     .join('\n\n');
 }
@@ -32,7 +32,7 @@ export function getPromptConfirmationSection(): string {
   const confirmationRequired = toolRegistry.getConfirmationRequired();
   return confirmationRequired.length > 0
     ? confirmationRequired.map((name) => `- ${name}`).join('\n')
-    : '- (none)';
+    : '- （无）';
 }
 
 export function buildPromptToolingSection({
@@ -42,25 +42,25 @@ export function buildPromptToolingSection({
   toolDescriptions: string;
   confirmationSection: string;
 }): string {
-  return `## Tool Usage
+  return `## 工具使用
 
-You can call tools through the model API's native tool calling mechanism.
-Do NOT print fake JSON tool calls in markdown or code blocks.
-When a tool is needed, emit a real tool call through the API.
-When no tool is needed, answer normally in Markdown.
+你可以通过模型 API 的原生 tool calling 机制调用工具。
+不要在 Markdown 或代码块里输出伪造的 JSON 工具调用。
+需要用工具时，直接通过 API 发出真实的 tool call。
+不需要工具时，正常用 Markdown 回答。
 
-## Available Tools
+## 可用工具
 
 ${toolDescriptions}
 
-## Tool Usage Rules
+## 工具使用规则
 
-**Query operations** (no confirmation needed):
-- list, get, search, export operations
-- Examples: links_list, jenkins_list_jobs, tags_list, recorder_list, hotnews_get
+**查询类操作**（无需确认）：
+- list、get、search、export 这类查询操作
+- 示例：links_list、jenkins_list_jobs、tags_list、recorder_list、hotnews_get
 
-**Operations requiring confirmation** (user must confirm before execution):
+**需要确认的操作**（执行前必须由用户确认）：
 ${confirmationSection}
 
-If a confirming operation is needed, you may still request the tool call directly. The client will handle confirmation before execution.`;
+如果某个操作需要确认，你仍然可以直接请求对应的 tool call；客户端会在执行前处理确认流程。`;
 }
