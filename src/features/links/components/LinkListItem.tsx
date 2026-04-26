@@ -28,9 +28,10 @@ export function LinkListItem({
     <div
       key={link.id}
       className={cn(
-        'flex items-start gap-2 rounded-lg border transition-colors group relative overflow-hidden',
-        'p-3 mb-3 min-h-[60px]',
-        link.pinnedAt ? 'bg-secondary/30 border-primary/20' : 'hover:bg-accent'
+        'group relative mb-2.5 flex min-h-[68px] items-start gap-3 overflow-hidden rounded-2xl border border-border/60 p-3 shadow-sm transition-all duration-200',
+        link.pinnedAt
+          ? 'bg-primary/4 ring-1 ring-primary/12'
+          : 'bg-background/90 hover:border-primary/10 hover:bg-muted/16 hover:shadow-sm'
       )}
     >
       <div className="flex-1 min-w-0 flex flex-col gap-1.5">
@@ -42,11 +43,13 @@ export function LinkListItem({
             className={cn('block group/link')}
             onSingleClick={() => onRecordVisit(link.id)}
           >
-            <div className="font-medium truncate text-base leading-normal py-0.5">{link.name}</div>
+            <div className="truncate py-0.5 text-sm font-semibold leading-normal text-foreground transition-colors group-hover/link:text-primary">
+              {link.name}
+            </div>
           </LinkAnchor>
           {import.meta.env.DEV && (
             <div
-              className="flex items-center gap-0.5 text-xs text-muted-foreground bg-muted/40 px-1 rounded"
+              className="flex items-center gap-0.5 rounded-md bg-muted/32 px-1.5 py-0.5 text-[11px] text-muted-foreground"
               title={`使用次数：${link.usageCount}`}
             >
               <Eye className="h-3 w-3" />
@@ -111,7 +114,7 @@ export function LinkListItem({
               'w-full'
             )}
           >
-            <span className="truncate max-w-[400px] opacity-70 group-hover/link:opacity-100 transition-opacity">
+            <span className="max-w-[400px] truncate transition-opacity group-hover/link:opacity-100">
               {link.url}
             </span>
           </div>

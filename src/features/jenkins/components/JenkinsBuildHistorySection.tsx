@@ -33,10 +33,10 @@ export function JenkinsBuildHistorySection({
   const hasBuilds = displayedBuilds.length > 0;
 
   return (
-    <div className="mb-2">
+    <div className="mb-3 rounded-2xl border border-border/60 bg-background/78 p-2">
       <button
         type="button"
-        className="flex items-center gap-2 p-1.5 rounded hover:bg-accent/50 cursor-pointer select-none group w-full text-left bg-transparent border-0"
+        className="group flex w-full cursor-pointer select-none items-center gap-2 rounded-xl border-0 bg-transparent p-2 text-left hover:bg-accent/40"
         onClick={onToggle}
       >
         <span className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0 flex items-center justify-center">
@@ -47,7 +47,7 @@ export function JenkinsBuildHistorySection({
         </div>
         <span className="text-sm font-medium">构建历史</span>
         <div
-          className="flex items-center gap-1.5 ml-4"
+          className="ml-4 flex items-center gap-1.5 rounded-full bg-muted/60 px-2 py-1"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
@@ -71,18 +71,20 @@ export function JenkinsBuildHistorySection({
         ) : (
           <div className="flex items-center gap-2 mr-2">
             {nextRefreshTime && <RefreshCountdown targetTime={nextRefreshTime} />}
-            <span className="text-xs text-muted-foreground bg-muted px-1.5 rounded-full">
+            <span className="rounded-full bg-muted/70 px-1.5 text-xs text-muted-foreground">
               {displayedBuilds.length}
             </span>
           </div>
         )}
       </button>
       {expanded && (
-        <div className="pl-6">
+        <div className="pl-6 pr-1">
           {!hasBuilds ? (
-            <div className="p-2 text-xs text-muted-foreground">暂无构建记录</div>
+            <div className="rounded-xl border border-dashed border-success/14 bg-success/4 p-3 text-xs text-muted-foreground">
+              暂无构建记录
+            </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-2">
               {displayedBuilds.map((build) => (
                 <MyBuildRow
                   key={build.id}

@@ -27,7 +27,7 @@ export function App() {
   return (
     <ToastProvider>
       <ConfirmDialogProvider>
-        <div className="flex flex-col h-full bg-background text-foreground">
+        <div className="flex h-full min-h-0 flex-col bg-gradient-to-b from-background via-background to-muted/20 text-foreground dark:from-background dark:via-background dark:to-secondary/35">
           {!isMinimalMode && <SidepanelHeader showSyncButton={showSyncButton} />}
 
           {!isMinimalMode && (

@@ -51,11 +51,11 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] border-border/60 bg-background/96">
         <DialogHeader>
           <DialogTitle>给 D仔 接入外置大脑</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-4 py-3">
           <AIConfigProviderNotice provider={provider} />
 
           <AIConfigFormFields
@@ -69,7 +69,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
             onApiKeyChange={setApiKey}
           />
         </div>
-        <DialogFooter>
+        <DialogFooter className="pt-1">
           <Button variant="outline" onClick={() => setOpen(false)}>
             取消
           </Button>

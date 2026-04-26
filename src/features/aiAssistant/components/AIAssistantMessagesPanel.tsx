@@ -59,30 +59,38 @@ export function AIAssistantMessagesPanel({
   onConfigSaved,
 }: AIAssistantMessagesPanelProps) {
   return (
-    <div className="relative flex-1 overflow-hidden">
+    <div className="relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b from-info/4 via-background to-background">
       <div
         ref={messagesContainerRef}
         onScroll={onScroll}
-        className="absolute inset-0 overflow-y-auto p-3 space-y-3 custom-scrollbar"
+        className="absolute inset-0 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar"
       >
         {isConfigMissing && messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-4">⚙️</div>
-            <p className="text-sm font-medium">需要配置 AI 服务</p>
-            <p className="text-xs mt-1 text-muted-foreground">请先配置 AI 服务商和模型</p>
-            <AIConfigDialog onSaved={onConfigSaved}>
-              <Button className="mt-4" size="sm">
-                去配置
-              </Button>
-            </AIConfigDialog>
+          <div className="flex h-full items-center justify-center text-center">
+            <div className="w-full max-w-md rounded-2xl border border-border/60 bg-background/90 px-6 py-8">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/9 text-2xl text-primary ring-1 ring-primary/12">
+                ⚙️
+              </div>
+              <p className="text-sm font-semibold text-foreground">需要配置 AI 服务</p>
+              <p className="mt-2 text-xs leading-6 text-muted-foreground">
+                请先配置 AI 服务商和模型
+              </p>
+              <AIConfigDialog onSaved={onConfigSaved}>
+                <Button className="mt-5 rounded-xl px-4" size="sm">
+                  去配置
+                </Button>
+              </AIConfigDialog>
+            </div>
           </div>
         )}
 
         {!isConfigMissing && messages.length === 0 && (
           <div className="flex min-h-full items-center justify-center px-4 py-8">
-            <div className="max-w-xl text-center text-muted-foreground">
-              <div className="text-4xl">🤖</div>
-              <p className="mt-4 text-sm font-medium text-foreground">你好！我是 D仔</p>
+            <div className="max-w-xl rounded-3xl border border-border/60 bg-background/90 p-6 text-center text-muted-foreground">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/9 text-2xl text-primary ring-1 ring-primary/12">
+                🤖
+              </div>
+              <p className="mt-4 text-sm font-semibold text-foreground">你好！我是 D仔</p>
               <p className="mt-2 text-xs leading-6">
                 直接描述目标即可，我会调用 DPP 里的能力一步步完成。
               </p>
@@ -108,18 +116,18 @@ export function AIAssistantMessagesPanel({
 
         {(status === 'loading' || status === 'streaming') && (
           <div className="flex justify-start">
-            <div className="bg-muted rounded-lg px-3 py-2">
-              <div className="flex items-center gap-1">
-                <span className="text-sm text-muted-foreground">思考中</span>
-                <span className="animate-pulse">...</span>
+            <div className="rounded-2xl border border-info/12 bg-info/6 px-4 py-3">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium text-foreground">思考中</span>
+                <span className="animate-pulse text-sm text-muted-foreground">...</span>
               </div>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="flex justify-center">
-            <div className="bg-destructive/10 text-destructive rounded-lg px-3 py-2 text-sm">
+          <div className="flex justify-center px-2">
+            <div className="rounded-2xl border border-destructive/16 bg-destructive/8 px-4 py-3 text-sm text-destructive">
               {error}
             </div>
           </div>
@@ -131,10 +139,10 @@ export function AIAssistantMessagesPanel({
       {!isNearBottom && (
         <button
           onClick={onScrollToBottom}
-          className="absolute bottom-4 right-4 p-2 bg-primary text-primary-foreground rounded-full shadow-lg hover:opacity-90 transition-opacity"
+          className="absolute bottom-4 right-4 rounded-full border border-border/70 bg-background/95 p-2 text-primary shadow-lg backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/18"
           title="直达底部"
         >
-          <ArrowDown className="w-5 h-5" />
+          <ArrowDown className="h-5 w-5" />
         </button>
       )}
     </div>

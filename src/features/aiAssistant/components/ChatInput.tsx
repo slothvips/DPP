@@ -65,7 +65,7 @@ export const ChatInput = memo(function ChatInput({
     <div className="flex flex-col gap-2">
       {rightSlot}
       {bottomSlot}
-      <div className="flex flex-1 gap-2">
+      <div className="flex flex-1 items-end gap-2">
         <Textarea
           ref={textareaRef}
           value={input}
@@ -73,7 +73,7 @@ export const ChatInput = memo(function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="min-h-[44px] max-h-32 resize-none flex-1"
+          className="min-h-[52px] max-h-32 flex-1 resize-none rounded-2xl border-border/70 bg-background px-4 py-3 shadow-none"
           rows={1}
           data-testid="ai-chat-input"
         />
@@ -84,16 +84,16 @@ export const ChatInput = memo(function ChatInput({
           data-testid={isRunning ? 'ai-chat-stop' : 'ai-chat-send'}
           title={isRunning ? '停止' : '发送'}
           className={cn(
-            'transition-all duration-200',
-            isRunning && 'bg-destructive/10 hover:bg-destructive/20 border border-destructive/50'
+            'h-[52px] w-[52px] rounded-2xl transition-all duration-200',
+            isRunning && 'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
           )}
         >
           {isRunning ? (
             <div className="relative flex items-center justify-center">
-              <Square className="w-3 h-3 fill-destructive text-destructive" />
+              <Square className="h-3 w-3 fill-destructive text-destructive" />
             </div>
           ) : (
-            <Send className="w-4 h-4" />
+            <Send className="h-4 w-4" />
           )}
         </Button>
       </div>

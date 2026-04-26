@@ -13,7 +13,7 @@ interface MyBuildRowProps {
 
 export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) {
   return (
-    <div className="flex items-start gap-2 p-1.5 rounded hover:bg-accent/50 group relative">
+    <div className="group relative flex items-start gap-3 rounded-2xl border border-border/60 bg-background/88 p-3 shadow-sm transition-all duration-200 hover:border-success/12 hover:shadow-sm">
       <div className="shrink-0 mt-1">
         <div
           className="w-2 h-2 rounded-full mt-1.5"
@@ -35,7 +35,7 @@ export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) 
             </div>
           )}
           {build.userName && (
-            <span className="text-xs bg-muted px-1 rounded text-muted-foreground">
+            <span className="rounded-full bg-muted/70 px-1.5 py-0.5 text-xs text-muted-foreground">
               {build.userName}
             </span>
           )}
@@ -59,7 +59,7 @@ export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) 
         asChild
         variant="ghost"
         size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-primary hover:bg-accent"
+        className="h-7 w-7 rounded-xl text-muted-foreground hover:bg-accent/70 hover:text-primary"
       >
         <a href={build.id} target="_blank" rel="noreferrer" title="打开 Jenkins">
           <ExternalLink className="w-3 h-3" />
@@ -68,7 +68,7 @@ export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) 
       <Button
         variant="ghost"
         size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-success hover:bg-success/10 dark:hover:text-success dark:hover:bg-success/20"
+        className="h-7 w-7 rounded-xl text-muted-foreground hover:bg-success/8 hover:text-success dark:hover:bg-success/18 dark:hover:text-success"
         onClick={onBuild}
         title="再次构建"
       >
@@ -78,7 +78,7 @@ export function MyBuildRow({ build, tags, onBuild, onCancel }: MyBuildRowProps) 
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 text-muted-foreground hover:text-destructive hover:bg-destructive/10 dark:hover:text-destructive dark:hover:bg-destructive/20"
+          className="h-7 w-7 rounded-xl text-muted-foreground hover:bg-destructive/8 hover:text-destructive dark:hover:bg-destructive/18 dark:hover:text-destructive"
           onClick={onCancel}
           title="取消构建"
         >

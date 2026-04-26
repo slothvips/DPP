@@ -9,6 +9,7 @@ interface ToolboxBaseTool {
   name: string;
   description: string;
   icon: LucideIcon;
+  accentClassName: string;
 }
 
 export interface InternalTool extends ToolboxBaseTool {
@@ -26,8 +27,8 @@ export interface ExternalTool extends ToolboxBaseTool {
 export type ToolboxTool = InternalTool | ExternalTool;
 
 export const TOOLBOX_PAGE_MAP: Partial<Record<InternalToolId, string>> = {
-  diff: '/diff.html',
-  'tree-diff': '/tree-diff.html',
+  diff: 'diff.html',
+  'tree-diff': 'tree-diff.html',
 };
 
 export const TOOLBOX_TOOLS: ToolboxTool[] = [
@@ -37,6 +38,7 @@ export const TOOLBOX_TOOLS: ToolboxTool[] = [
     name: '文本差异对比工具',
     icon: FileDiff,
     description: 'VSCode 同款',
+    accentClassName: 'bg-primary/12 text-primary ring-primary/12',
     openInNewTab: true,
   },
   {
@@ -45,6 +47,7 @@ export const TOOLBOX_TOOLS: ToolboxTool[] = [
     name: 'JSON 编辑器',
     icon: FileBraces,
     description: '格式化、压缩、验证',
+    accentClassName: 'bg-info/12 text-info ring-info/12',
     openInNewTab: false,
   },
   {
@@ -53,6 +56,7 @@ export const TOOLBOX_TOOLS: ToolboxTool[] = [
     name: '正则表达式测试器',
     icon: Regex,
     description: '实时匹配测试',
+    accentClassName: 'bg-success/12 text-success ring-success/12',
     openInNewTab: false,
   },
   {
@@ -61,6 +65,7 @@ export const TOOLBOX_TOOLS: ToolboxTool[] = [
     name: '时间戳转换器',
     icon: Clock,
     description: '时间戳与日期互转',
+    accentClassName: 'bg-warning/14 text-warning ring-warning/14',
     openInNewTab: false,
   },
   {
@@ -69,6 +74,7 @@ export const TOOLBOX_TOOLS: ToolboxTool[] = [
     name: '树形数据对比',
     icon: FileDiff,
     description: '树形/扁平数据对比',
+    accentClassName: 'bg-primary/10 text-primary ring-primary/10',
     openInNewTab: true,
   },
   {
@@ -77,6 +83,7 @@ export const TOOLBOX_TOOLS: ToolboxTool[] = [
     name: 'React Playground',
     icon: Box,
     description: 'CodeSandbox 在线编辑器',
+    accentClassName: 'bg-info/12 text-info ring-info/12',
     url: 'https://codesandbox.io/s/new',
   },
   {
@@ -85,6 +92,7 @@ export const TOOLBOX_TOOLS: ToolboxTool[] = [
     name: 'Vue Playground',
     icon: Box,
     description: 'Vue 官方在线编辑器',
+    accentClassName: 'bg-success/12 text-success ring-success/12',
     url: 'https://play.vuejs.org/',
   },
 ];

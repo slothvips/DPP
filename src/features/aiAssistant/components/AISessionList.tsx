@@ -50,7 +50,7 @@ export function AISessionList({
         size="sm"
         onClick={handleToggle}
         disabled={disabled}
-        className="text-xs font-normal h-7 px-2 max-w-[120px]"
+        className="h-8 max-w-[140px] rounded-xl border border-border/60 bg-background/78 px-3 text-xs font-normal"
         title={currentSession?.title || '新会话'}
       >
         <span className="truncate">{currentSession?.title || '新会话'}</span>
@@ -63,18 +63,18 @@ export function AISessionList({
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
 
           {/* Dropdown */}
-          <div className="absolute left-0 top-full mt-1 w-72 bg-popover border rounded-md shadow-lg z-20 max-h-48 overflow-y-auto custom-scrollbar">
+          <div className="absolute left-0 top-full z-20 mt-1 max-h-56 w-72 overflow-y-auto rounded-2xl border border-border/60 bg-popover/98 p-1 shadow-md custom-scrollbar">
             <div className="p-1">
               {/* Session List */}
               {sessions.length === 0 ? (
-                <div className="text-xs text-muted-foreground px-2 py-2">暂无会话</div>
+                <div className="px-3 py-3 text-xs text-muted-foreground">暂无会话</div>
               ) : (
                 sessions.map((session) => (
                   <div
                     key={session.id}
-                    className={`flex items-center justify-between px-2 py-1.5 rounded-sm text-xs cursor-pointer hover:bg-accent ${
-                      session.id === currentSessionId ? 'bg-accent' : ''
-                    } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
+                    className={`flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 text-xs hover:bg-accent ${
+                      session.id === currentSessionId ? 'bg-accent/72' : ''
+                    } ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                     onClick={() => handleSelectSession(session.id)}
                   >
                     <div className="flex items-center min-w-0 flex-1">

@@ -19,7 +19,7 @@ export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
   const jobIsFolder = isFolder(job);
 
   return (
-    <div className="p-3 hover:bg-accent/50 group transition-colors flex flex-col gap-2">
+    <div className="group flex flex-col gap-2 rounded-2xl border border-border/60 bg-background/90 p-3 shadow-sm transition-all duration-200 hover:border-success/12 hover:shadow-sm">
       <div className="flex items-start justify-between">
         <div className="flex gap-3 overflow-hidden flex-1">
           <div className={`mt-1 shrink-0 ${getJobColorClass(job.color)}`}>
@@ -31,7 +31,7 @@ export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
                 {job.fullName || job.name}
               </span>
               {jobIsFolder && (
-                <span className="inline-block align-middle text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground mr-2 font-medium">
+                <span className="mr-2 inline-block rounded-full bg-muted/70 px-1.5 py-0.5 align-middle text-[10px] font-medium text-muted-foreground">
                   Folder
                 </span>
               )}
@@ -54,12 +54,12 @@ export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
           </div>
         </div>
 
-        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+        <div className="ml-2 flex shrink-0 gap-2 opacity-0 transition-opacity group-hover:opacity-100">
           <Button
             asChild
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-accent"
+            className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-accent/70 hover:text-primary"
           >
             <a href={job.url} target="_blank" rel="noreferrer" title="打开 Jenkins">
               <ExternalLink className="w-4 h-4" />
@@ -68,7 +68,7 @@ export function JobRow({ job, onBuild, availableTags }: JobRowProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-success hover:bg-success/10 dark:hover:text-success dark:hover:bg-success/20"
+            className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-success/8 hover:text-success dark:hover:bg-success/18 dark:hover:text-success"
             title="构建"
             onClick={onBuild}
           >

@@ -47,14 +47,12 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] border-border/60 bg-background/96">
         <DialogHeader>
           <DialogTitle>{initialData ? '编辑链接' : '添加链接'}</DialogTitle>
-          <DialogDescription>
-            {initialData ? '修改现有的链接信息。' : '添加一个新的常用链接。'}
-          </DialogDescription>
+          <DialogDescription>{initialData ? '修改链接信息。' : '添加常用链接。'}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="grid gap-4 py-3">
           <div className="grid gap-2">
             <Label htmlFor="name">名称</Label>
             <Input
@@ -109,7 +107,7 @@ export function LinkDialog({ isOpen, onClose, initialData, onSave }: LinkDialogP
               {formData.note.length} / {VALIDATION_LIMITS.LINK_NOTE_MAX}
             </p>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="gap-2 pt-1 sm:gap-0">
             <Button type="button" variant="outline" onClick={onClose}>
               取消
             </Button>

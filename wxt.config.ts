@@ -6,6 +6,10 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   vite: () => ({
+    server: {
+      port: 3001,
+      strictPort: true,
+    },
     plugins: [
       UnoCSS(),
       babel({
@@ -48,6 +52,12 @@ export default defineConfig({
           48: '/icon-dev/48.png',
           96: '/icon-dev/96.png',
           128: '/icon-dev/128.png',
+        };
+        manifest.content_security_policy = {
+          extension_pages:
+            "script-src 'self' 'wasm-unsafe-eval' http://localhost:3000 http://localhost:3001; object-src 'self';",
+          sandbox:
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3000 http://localhost:3001; sandbox allow-scripts allow-forms allow-popups allow-modals; child-src 'self';",
         };
       }
       // Remove default_popup from action to allow onClicked handler

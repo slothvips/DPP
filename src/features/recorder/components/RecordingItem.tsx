@@ -47,8 +47,8 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
   };
 
   return (
-    <div className="p-3 border rounded-lg bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-start justify-between gap-2 mb-2">
+    <div className="rounded-2xl border border-border/60 bg-background/92 p-3.5 text-card-foreground shadow-sm transition-all duration-200 hover:border-primary/10 hover:shadow-sm">
+      <div className="mb-2.5 flex items-start justify-between gap-2">
         {isEditing ? (
           <Input
             value={title}
@@ -56,18 +56,21 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
             onBlur={handleSaveTitle}
             onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
             autoFocus
-            className="h-7 text-sm"
+            className="h-8 rounded-xl text-sm"
           />
         ) : (
-          <div className="font-medium text-sm truncate flex-1" title={recording.title}>
+          <div
+            className="flex-1 truncate text-sm font-semibold text-foreground"
+            title={recording.title}
+          >
             {recording.title}
           </div>
         )}
-        <div className="flex gap-1 shrink-0">
+        <div className="flex shrink-0 gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6"
+            className="h-7 w-7 rounded-xl"
             onClick={() => setIsEditing(!isEditing)}
             title="重命名"
           >
@@ -76,7 +79,7 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-destructive hover:text-destructive"
+            className="h-7 w-7 rounded-xl text-destructive hover:text-destructive"
             onClick={() => onDelete(recording.id)}
             title="删除"
           >
@@ -85,7 +88,7 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
         </div>
       </div>
 
-      <div className="text-xs text-muted-foreground flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
         <div className="flex justify-between">
           <span>{format(recording.createdAt, 'yyyy-MM-dd HH:mm')}</span>
           <span>{formatDuration(recording.duration)}</span>
@@ -110,17 +113,17 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
         </div>
       </div>
 
-      <div className="flex gap-2 mt-3">
-        <Button size="sm" className="flex-1 h-7 text-xs" onClick={handlePlay}>
-          <Play className="w-3 h-3 mr-1" /> 播放
+      <div className="mt-3.5 flex gap-2">
+        <Button size="sm" className="h-8 flex-1 text-xs shadow-sm" onClick={handlePlay}>
+          <Play className="mr-1 h-3 w-3" /> 播放
         </Button>
         <Button
           size="sm"
           variant="outline"
-          className="flex-1 h-7 text-xs"
+          className="h-8 flex-1 text-xs"
           onClick={() => onExport(recording)}
         >
-          <Download className="w-3 h-3 mr-1" /> 导出
+          <Download className="mr-1 h-3 w-3" /> 导出
         </Button>
       </div>
     </div>

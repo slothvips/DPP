@@ -28,7 +28,10 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
         <Button
           variant="outline"
           size="sm"
-          className={cn('text-xs gap-1.5 items-center', className)}
+          className={cn(
+            'h-8 items-center gap-1.5 rounded-xl border-border/60 bg-background/96 text-xs',
+            className
+          )}
           title="选择 Page Agent 工作标签页（仅支持 SPA）"
         >
           {isLoading ? (
@@ -63,7 +66,10 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-3" align="end">
+      <PopoverContent
+        className="w-80 rounded-2xl border border-border/60 p-3 shadow-md"
+        align="end"
+      >
         <div className="text-xs font-medium text-muted-foreground px-2 py-1.5">
           选择 Page Agent 工作标签页
         </div>

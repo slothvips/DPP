@@ -4,10 +4,10 @@ import { cn } from '@/utils/cn';
 
 const TIPS = [
   { icon: Sparkles, text: '任何搜索支持空格分隔多关键词', color: 'text-primary' },
-  { icon: Lightbulb, text: 'Jenkins 支持多环境切换，在设置中配置', color: 'text-success' },
-  { icon: Lightbulb, text: 'D仔支持自然语言管理链接、Job、便签，操控页面', color: 'text-success' },
+  { icon: Lightbulb, text: 'Jenkins 支持多环境切换', color: 'text-success' },
+  { icon: Lightbulb, text: 'D仔支持管理链接、Job、便签与页面', color: 'text-success' },
   { icon: Lightbulb, text: '便签支持 Markdown 格式', color: 'text-success' },
-  { icon: Sparkles, text: '设置中可管理多个 Jenkins 环境凭证', color: 'text-primary' },
+  { icon: Sparkles, text: '设置中可管理多个 Jenkins 凭证', color: 'text-primary' },
   { icon: Sparkles, text: '浏览器地址栏输入 [dpp + 空格]，全局快速搜索', color: 'text-primary' },
 ];
 
@@ -49,12 +49,12 @@ export function Tips() {
     >
       <div
         className={cn(
-          'flex items-center gap-3 text-sm transition-all duration-300 px-6 py-2.5 rounded-full bg-gradient-to-r from-muted/50 to-muted/30 border border-border/60 shadow-sm hover:shadow-md max-w-full backdrop-blur-sm',
-          fade ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-1'
+          'flex max-w-full items-center gap-2.5 rounded-full border border-border/55 bg-background/90 px-5 py-2 text-sm ring-1 ring-border/20 backdrop-blur transition-all duration-300 hover:border-border/70',
+          fade ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
         )}
       >
-        <Icon className={cn('w-4 h-4 shrink-0', tip.color)} />
-        <span className="truncate text-foreground font-medium tracking-wide">{tip.text}</span>
+        <Icon className={cn('h-4 w-4 shrink-0', tip.color)} />
+        <span className="truncate font-medium text-foreground">{tip.text}</span>
       </div>
     </div>
   );

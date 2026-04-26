@@ -58,7 +58,7 @@ export function BlackboardItemView({
   return (
     <div
       ref={containerRef}
-      className={`group relative p-5 rounded-sm shadow-md hover:shadow-xl hover:scale-[1.02] hover:z-10 transition-all duration-300 min-h-[180px] flex flex-col ${color}`}
+      className={`group relative flex min-h-[172px] flex-col overflow-hidden rounded-[18px] border border-black/6 p-4.5 shadow-sm transition-all duration-300 hover:z-10 hover:scale-[1.01] hover:shadow-lg ${color}`}
       style={{
         transform: `rotate(${transforms.rotation}deg) translate(${transforms.xOffset}px, ${transforms.yOffset}px)`,
       }}
@@ -102,15 +102,15 @@ export function BlackboardItemView({
 
       {/* Action Bar - Only visible on hover */}
       {!readOnly && (
-        <div className="flex justify-between items-end mt-4 pt-2 border-t border-border opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <div className="text-[10px] text-muted-foreground font-mono">
+        <div className="mt-4 flex items-end justify-between border-t border-black/6 pt-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-mono text-foreground/65">
             {format(item.createdAt, 'MM-dd HH:mm')}
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1.5">
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-muted rounded-full"
+              className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-black/6 hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation();
                 onPin(item.id, !item.pinned);
@@ -118,13 +118,13 @@ export function BlackboardItemView({
               title={item.pinned ? '取消置顶' : '置顶'}
             >
               <Pin
-                className={`w-3.5 h-3.5 ${item.pinned ? 'fill-foreground text-foreground' : 'text-muted-foreground'}`}
+                className={`h-3.5 w-3.5 ${item.pinned ? 'fill-foreground text-foreground' : 'text-current'}`}
               />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-muted rounded-full"
+              className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-black/6 hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation();
                 onLock(item.id, !item.locked);
@@ -132,22 +132,22 @@ export function BlackboardItemView({
               title={item.locked ? '解锁' : '锁定'}
             >
               {item.locked ? (
-                <Unlock className="w-3.5 h-3.5 text-warning" />
+                <Unlock className="h-3.5 w-3.5 text-warning" />
               ) : (
-                <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                <Lock className="h-3.5 w-3.5 text-current" />
               )}
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-full"
+              className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-destructive/10 hover:text-destructive"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(item.id);
               }}
               title="删除"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>

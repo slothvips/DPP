@@ -37,8 +37,8 @@ export function RecorderControl() {
   if (!isRecording) {
     if (isChecking) {
       return (
-        <Button variant="destructive" className="w-full flex items-center gap-2" disabled>
-          <div className="w-3 h-3 rounded-full bg-destructive-foreground/50 animate-pulse" />
+        <Button variant="destructive" className="h-12 w-full gap-2 rounded-2xl" disabled>
+          <div className="h-3 w-3 animate-pulse rounded-full bg-destructive-foreground/50" />
           检测页面...
         </Button>
       );
@@ -46,8 +46,8 @@ export function RecorderControl() {
 
     if (!isSupported) {
       return (
-        <Button variant="outline" className="w-full flex items-center gap-2" disabled>
-          <div className="w-3 h-3 rounded-full bg-muted-foreground" />
+        <Button variant="outline" className="h-12 w-full gap-2 rounded-2xl" disabled>
+          <div className="h-3 w-3 rounded-full bg-muted-foreground" />
           页面不支持录制
         </Button>
       );
@@ -56,20 +56,22 @@ export function RecorderControl() {
     return (
       <Button
         variant="destructive"
-        className="w-full flex items-center gap-2"
+        className="h-12 w-full gap-2 rounded-2xl text-sm"
         onClick={handleStartRecording}
       >
-        <div className="w-3 h-3 rounded-full bg-destructive-foreground" />
+        <div className="h-3 w-3 rounded-full bg-destructive-foreground" />
         开始录制
       </Button>
     );
   }
 
   return (
-    <div className="flex items-center gap-4 p-2 bg-background border rounded-md">
+    <div className="flex items-center gap-4 rounded-2xl border border-border/60 bg-background/88 p-3">
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-        <span className="font-mono text-foreground font-medium">{formatDuration(duration)}</span>
+        <div className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+        <span className="font-mono text-sm font-semibold text-foreground">
+          {formatDuration(duration)}
+        </span>
       </div>
       <span className="ml-auto text-xs text-muted-foreground">在页面上停止</span>
     </div>

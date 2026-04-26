@@ -1,4 +1,6 @@
 import * as monaco from 'monaco-editor';
+import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
+import 'monaco-editor/min/vs/editor/editor.main.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { setupMonacoWorker } from '@/lib/monaco/worker';

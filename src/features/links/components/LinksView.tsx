@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { VirtualList } from '@/components/ui/virtual-list';
@@ -97,7 +98,7 @@ export function LinksView() {
   };
 
   return (
-    <div className="space-y-4 h-full flex flex-col">
+    <div className="flex h-full flex-col gap-4 p-4">
       <LinksToolbar
         onAdd={handleAdd}
         onSearchChange={setSearch}
@@ -110,7 +111,7 @@ export function LinksView() {
         items={filteredAndSortedLinks ?? []}
         estimateSize={116}
         overscan={5}
-        containerClassName="pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] flex-1 min-h-0"
+        containerClassName="flex-1 min-h-0 pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
         renderItem={(link) => (
           <LinkListItem
             key={link.id}
@@ -124,8 +125,18 @@ export function LinksView() {
         )}
       />
       {filteredAndSortedLinks?.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          {search ? '未找到匹配的链接' : '暂无链接'}
+        <div className="flex flex-1 items-center justify-center rounded-2xl border border-dashed border-primary/14 bg-primary/4 px-4 py-8 text-center">
+          <div>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/12">
+              <Search className="h-5 w-5" />
+            </div>
+            <p className="text-sm font-semibold text-foreground">
+              {search ? '未找到匹配的链接' : '还没有收藏任何链接'}
+            </p>
+            <p className="mt-2 text-xs leading-6 text-muted-foreground">
+              {search ? '换个关键词或排序方式试试。' : '点击右上角添加链接。'}
+            </p>
+          </div>
         </div>
       )}
 

@@ -27,7 +27,7 @@ export function BlackboardGrid({
   onFocusHandled,
 }: BlackboardGridProps) {
   return (
-    <div ref={gridRef} className="max-w-5xl mx-auto pb-24">
+    <div ref={gridRef} className="mx-auto max-w-4xl pb-24">
       <div className="grid-sizer w-full md:w-[calc(50%-12px)]" />
 
       {sortedItems.map((item) => (

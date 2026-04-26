@@ -13,27 +13,30 @@ interface MessageItemProps {
  */
 export const MessageItem = memo(
   function MessageItem({ message }: MessageItemProps) {
+    const isUser = message.role === 'user';
+    const isToolResult = Boolean(message.name);
+
     return (
-      <div className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
         <div
-          className={`min-w-0 max-w-[85%] overflow-hidden rounded-lg px-3 py-2 ${
-            message.role === 'user'
-              ? 'bg-primary text-primary-foreground'
-              : message.name
-                ? 'bg-muted text-xs font-mono'
-                : 'bg-muted'
+          className={`min-w-0 max-w-[88%] overflow-hidden rounded-2xl border px-4 py-3 shadow-sm transition-colors ${
+            isUser
+              ? 'border-primary/18 bg-primary text-primary-foreground shadow-primary/10'
+              : isToolResult
+                ? 'border-border/70 bg-muted/60 text-foreground'
+                : 'border-border/70 bg-background/96 text-foreground'
           }`}
         >
           {message.name && (
-            <div className="text-xs font-medium text-muted-foreground mb-1">
-              {message.name} 结果:
+            <div className="mb-2 inline-flex rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-medium text-muted-foreground ring-1 ring-border/60">
+              {message.name} 结果
             </div>
           )}
           <div
             className={
-              message.role === 'user'
+              isUser
                 ? 'prose prose-sm prose-invert max-w-none break-words [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
-                : 'text-sm prose prose-sm max-w-none break-words dark:prose-invert [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
+                : 'prose prose-sm max-w-none break-words dark:prose-invert [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
             }
           >
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
