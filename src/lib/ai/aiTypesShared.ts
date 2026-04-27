@@ -24,12 +24,28 @@ export interface OpenAIToolDefinition {
   };
 }
 
+export interface ProviderMessageMetadata {
+  anthropicContentBlocks?: unknown[];
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   name?: string;
   toolCallId?: string;
   toolCalls?: OpenAIToolCall[];
+  providerMetadata?: ProviderMessageMetadata;
+}
+
+export interface ChatResponse {
+  message: {
+    role: 'assistant';
+    content: string;
+    toolCalls?: OpenAIToolCall[];
+    providerMetadata?: ProviderMessageMetadata;
+  };
+  done: boolean;
+  finishReason?: string | null;
 }
 
 export interface ChatOptions {
@@ -43,16 +59,6 @@ export interface ChatOptions {
 
 export interface InitProgressCallback {
   (progress: number, text: string): void;
-}
-
-export interface ChatResponse {
-  message: {
-    role: 'assistant';
-    content: string;
-    toolCalls?: OpenAIToolCall[];
-  };
-  done: boolean;
-  finishReason?: string | null;
 }
 
 export interface Model {

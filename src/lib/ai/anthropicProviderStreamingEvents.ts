@@ -1,6 +1,7 @@
 import { logger } from '@/utils/logger';
 import {
   type AnthropicStreamingState,
+  appendAnthropicResponseContentBlock,
   appendAnthropicStreamingContent,
   getLatestAnthropicToolCall,
   setAnthropicStreamingFallbackContent,
@@ -15,8 +16,22 @@ import type { OpenAIToolCall } from './types';
 
 interface AnthropicStreamingEventPayload {
   type?: string;
-  delta?: { type?: string; text?: string; thinking?: string; partial_json?: string };
-  content_block?: { type?: string; id?: string; name?: string };
+  delta?: {
+    type?: string;
+    text?: string;
+    thinking?: string;
+    partial_json?: string;
+    signature?: string;
+  };
+  content_block?: {
+    type?: string;
+    id?: string;
+    name?: string;
+    text?: string;
+    thinking?: string;
+    data?: string;
+    signature?: string;
+  };
   choices?: {
     delta?: {
       content?: string;
@@ -52,12 +67,32 @@ export function processAnthropicStreamingEventBlock(options: {
     if (parsed.type === 'content_block_delta') {
       if (parsed.delta?.type === 'text_delta' && parsed.delta.text) {
         appendAnthropicStreamingContent(state, parsed.delta.text, onChunk);
+        const lastBlock = state.responseContentBlocks.at(-1);
+        if (lastBlock?.type === 'text') {
+          lastBlock.text += parsed.delta.text;
+        }
       } else if (parsed.delta?.type === 'thinking_delta' && parsed.delta.thinking) {
         appendAnthropicStreamingContent(state, parsed.delta.thinking, onChunk);
+        if (state.currentThinkingBlock) {
+          state.currentThinkingBlock.thinking += parsed.delta.thinking;
+        }
+      } else if (parsed.delta?.type === 'signature_delta' && parsed.delta.signature) {
+        if (state.currentThinkingBlock) {
+          state.currentThinkingBlock.signature =
+            (state.currentThinkingBlock.signature || '') + parsed.delta.signature;
+        }
       } else if (parsed.delta?.type === 'input_json_delta' && parsed.delta.partial_json) {
         const lastToolCall = getLatestAnthropicToolCall(state);
         if (lastToolCall) {
           lastToolCall.function.arguments += parsed.delta.partial_json;
+        }
+        if (state.currentToolUseBlock) {
+          state.currentToolUseJsonBuffer += parsed.delta.partial_json;
+          try {
+            state.currentToolUseBlock.input = JSON.parse(state.currentToolUseJsonBuffer);
+          } catch {
+            // wait for complete JSON
+          }
         }
       }
     } else if (parsed.type === 'content_block_start') {
@@ -71,7 +106,36 @@ export function processAnthropicStreamingEventBlock(options: {
           },
         };
         state.anthropicToolCallLookup.set(toolCall.id, toolCall);
+        state.currentToolUseJsonBuffer = '';
+        state.currentToolUseBlock = {
+          type: 'tool_use',
+          id: toolCall.id,
+          name: toolCall.function.name,
+          input: {},
+        };
+        appendAnthropicResponseContentBlock(state, state.currentToolUseBlock);
+      } else if (parsed.content_block?.type === 'text') {
+        appendAnthropicResponseContentBlock(state, {
+          type: 'text',
+          text: parsed.content_block.text || '',
+        });
+      } else if (parsed.content_block?.type === 'thinking') {
+        state.currentThinkingBlock = {
+          type: 'thinking',
+          thinking: parsed.content_block.thinking || '',
+          signature: parsed.content_block.signature,
+        };
+        appendAnthropicResponseContentBlock(state, state.currentThinkingBlock);
+      } else if (parsed.content_block?.type === 'redacted_thinking') {
+        appendAnthropicResponseContentBlock(state, {
+          type: 'redacted_thinking',
+          data: parsed.content_block.data || '',
+        });
       }
+    } else if (parsed.type === 'content_block_stop') {
+      state.currentThinkingBlock = null;
+      state.currentToolUseBlock = null;
+      state.currentToolUseJsonBuffer = '';
     } else if (parsed.choices?.[0]?.delta?.content) {
       appendAnthropicStreamingContent(state, parsed.choices[0].delta.content, onChunk);
     } else if (parsed.choices?.[0]?.message?.content) {

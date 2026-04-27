@@ -14,6 +14,12 @@ export interface AnthropicTextBlock {
 export interface AnthropicThinkingBlock {
   type: 'thinking';
   thinking: string;
+  signature?: string;
+}
+
+export interface AnthropicRedactedThinkingBlock {
+  type: 'redacted_thinking';
+  data: string;
 }
 
 export interface AnthropicToolUseBlock {
@@ -31,12 +37,15 @@ export interface AnthropicToolResultBlock {
 
 export type AnthropicMessageContentBlock =
   | AnthropicTextBlock
+  | AnthropicThinkingBlock
+  | AnthropicRedactedThinkingBlock
   | AnthropicToolUseBlock
   | AnthropicToolResultBlock;
 
 export type AnthropicResponseContentBlock =
   | AnthropicTextBlock
   | AnthropicThinkingBlock
+  | AnthropicRedactedThinkingBlock
   | AnthropicToolUseBlock;
 
 export interface AnthropicChatMessage {

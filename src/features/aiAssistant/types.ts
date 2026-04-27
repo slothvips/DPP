@@ -1,5 +1,5 @@
 // AI Assistant feature types
-import type { AIProviderType, OpenAIToolCall } from '@/lib/ai/types';
+import type { AIProviderType, OpenAIToolCall, ProviderMessageMetadata } from '@/lib/ai/types';
 
 export interface ChatMessage {
   id: string;
@@ -9,6 +9,7 @@ export interface ChatMessage {
   name?: string;
   toolCallId?: string;
   toolCalls?: OpenAIToolCall[];
+  providerMetadata?: ProviderMessageMetadata;
   createdAt: number;
 }
 

@@ -31,4 +31,8 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(4).stores({
     aiMessages: 'id, sessionId, createdAt, toolCallId',
   });
+
+  db.version(5).stores({
+    aiMessages: 'id, sessionId, createdAt, toolCallId',
+  });
 }

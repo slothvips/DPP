@@ -1,6 +1,6 @@
 import { stripThinkingContent } from './ollama';
 import { normalizeToolArgumentsJson } from './providerShared';
-import type { ChatResponse, OpenAIToolCall } from './types';
+import type { AnthropicResponseContentBlock, ChatResponse, OpenAIToolCall } from './types';
 
 interface PartialStreamingToolCall {
   id?: string;
@@ -16,6 +16,10 @@ export interface AnthropicStreamingState {
   anthropicToolCallLookup: Map<string, OpenAIToolCall>;
   openAIToolCallLookup: Map<string, OpenAIToolCall>;
   openAIToolCallKeyByIndex: Map<number, string>;
+  responseContentBlocks: AnthropicResponseContentBlock[];
+  currentThinkingBlock: Extract<AnthropicResponseContentBlock, { type: 'thinking' }> | null;
+  currentToolUseBlock: Extract<AnthropicResponseContentBlock, { type: 'tool_use' }> | null;
+  currentToolUseJsonBuffer: string;
 }
 
 export function createAnthropicStreamingState(): AnthropicStreamingState {
@@ -25,6 +29,10 @@ export function createAnthropicStreamingState(): AnthropicStreamingState {
     anthropicToolCallLookup: new Map<string, OpenAIToolCall>(),
     openAIToolCallLookup: new Map<string, OpenAIToolCall>(),
     openAIToolCallKeyByIndex: new Map<number, string>(),
+    responseContentBlocks: [],
+    currentThinkingBlock: null,
+    currentToolUseBlock: null,
+    currentToolUseJsonBuffer: '',
   };
 }
 
@@ -85,6 +93,13 @@ export function upsertOpenAIStreamingToolCall(options: {
   state.openAIToolCallLookup.set(key, existing);
 }
 
+export function appendAnthropicResponseContentBlock(
+  state: AnthropicStreamingState,
+  block: AnthropicResponseContentBlock
+) {
+  state.responseContentBlocks.push(block);
+}
+
 export function buildAnthropicStreamingResponse(state: AnthropicStreamingState): ChatResponse {
   const anthropicToolCalls = Array.from(state.anthropicToolCallLookup.values()).map((toolCall) => ({
     ...toolCall,
@@ -109,6 +124,9 @@ export function buildAnthropicStreamingResponse(state: AnthropicStreamingState):
       role: 'assistant',
       content: stripThinkingContent(state.fullContent),
       toolCalls: finalToolCalls.length ? finalToolCalls : undefined,
+      providerMetadata: {
+        anthropicContentBlocks: state.responseContentBlocks,
+      },
     },
     done: true,
     finishReason: state.finishReason,

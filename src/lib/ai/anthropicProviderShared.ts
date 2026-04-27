@@ -5,6 +5,7 @@ import type {
   AnthropicChatRequest,
   AnthropicChatResponse,
   AnthropicMessageContentBlock,
+  AnthropicResponseContentBlock,
   ChatMessage,
   ChatOptions,
   ChatResponse,
@@ -26,6 +27,29 @@ export function getOpenAIHeaders(apiKey: string): HeadersInit {
   };
 }
 
+function toAnthropicAssistantContentBlocks(message: ChatMessage): AnthropicMessageContentBlock[] {
+  const rawBlocks = message.providerMetadata?.anthropicContentBlocks;
+  if (Array.isArray(rawBlocks) && rawBlocks.length > 0) {
+    return rawBlocks as AnthropicMessageContentBlock[];
+  }
+
+  const content: AnthropicMessageContentBlock[] = [];
+  if (message.content) {
+    content.push({ type: 'text', text: message.content });
+  }
+
+  for (const toolCall of message.toolCalls || []) {
+    content.push({
+      type: 'tool_use',
+      id: toolCall.id,
+      name: toolCall.function.name,
+      input: JSON.parse(toolCall.function.arguments),
+    });
+  }
+
+  return content;
+}
+
 export function toAnthropicMessage(message: ChatMessage): AnthropicChatMessage {
   if (message.role === 'system') {
     return { role: 'user', content: message.content };
@@ -44,24 +68,11 @@ export function toAnthropicMessage(message: ChatMessage): AnthropicChatMessage {
     };
   }
 
-  if (message.role === 'assistant' && message.toolCalls?.length) {
-    const content: AnthropicMessageContentBlock[] = [];
-    if (message.content) {
-      content.push({ type: 'text', text: message.content });
-    }
-
-    for (const toolCall of message.toolCalls) {
-      content.push({
-        type: 'tool_use',
-        id: toolCall.id,
-        name: toolCall.function.name,
-        input: JSON.parse(toolCall.function.arguments),
-      });
-    }
-
+  if (message.role === 'assistant') {
+    const content = toAnthropicAssistantContentBlocks(message);
     return {
       role: 'assistant',
-      content,
+      content: content.length > 0 ? content : [{ type: 'text', text: message.content }],
     };
   }
 
@@ -79,10 +90,42 @@ export function buildAnthropicChatRequest(
   const systemMessages = messages.filter((message) => message.role === 'system');
   const otherMessages = messages.filter((message) => message.role !== 'system');
   const systemContent = systemMessages.map((message) => message.content).join('\n');
+  const legacyToolResultIds = new Set<string>();
+
+  const anthropicMessages = otherMessages.flatMap((message) => {
+    if (
+      message.role === 'assistant' &&
+      message.toolCalls?.length &&
+      !message.providerMetadata?.anthropicContentBlocks
+    ) {
+      message.toolCalls.forEach((toolCall) => legacyToolResultIds.add(toolCall.id));
+      return [
+        {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: message.content || '历史工具调用记录' }],
+        },
+      ];
+    }
+
+    if (
+      message.role === 'tool' &&
+      message.toolCallId &&
+      legacyToolResultIds.has(message.toolCallId)
+    ) {
+      return [
+        {
+          role: 'user' as const,
+          content: `工具执行结果：${message.content}`,
+        },
+      ];
+    }
+
+    return [toAnthropicMessage(message)];
+  });
 
   const requestBody: AnthropicChatRequest = {
     model,
-    messages: otherMessages.map(toAnthropicMessage),
+    messages: anthropicMessages,
     max_tokens: 4096,
     stream: options?.stream ?? false,
   };
@@ -114,6 +157,12 @@ export function buildAnthropicOpenAIRequestBody(
     requestBody.tools,
     requestBody.temperature
   );
+}
+
+function buildAnthropicProviderMetadata(content: AnthropicResponseContentBlock[]) {
+  return {
+    anthropicContentBlocks: content,
+  };
 }
 
 export function mapAnthropicResponse(
@@ -163,6 +212,7 @@ export function mapAnthropicResponse(
       role: 'assistant',
       content: stripThinkingContent(textContent),
       toolCalls: toolCalls.length ? toolCalls : undefined,
+      providerMetadata: buildAnthropicProviderMetadata(response.content),
     },
     done: response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence',
     finishReason: response.stop_reason,

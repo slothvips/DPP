@@ -14,13 +14,15 @@ export function resolveRuntimeToolChoice(tools: OpenAIToolDefinition[]): 'auto' 
 
 export function createAssistantRuntimeMessage(
   content: string,
-  toolCalls?: ChatMessage['toolCalls']
+  toolCalls?: ChatMessage['toolCalls'],
+  providerMetadata?: ChatMessage['providerMetadata']
 ): ChatMessage {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     role: 'assistant',
     content,
     toolCalls,
+    providerMetadata,
     createdAt: Date.now(),
   };
 }

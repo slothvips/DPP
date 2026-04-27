@@ -1,4 +1,4 @@
-import type { OpenAIToolCall } from '@/lib/ai/types';
+import type { OpenAIToolCall, ProviderMessageMetadata } from '@/lib/ai/types';
 
 export interface AISession {
   id: string;
@@ -15,5 +15,6 @@ export interface AIMessage {
   name?: string;
   toolCallId?: string;
   toolCalls?: OpenAIToolCall[];
+  providerMetadata?: ProviderMessageMetadata;
   createdAt: number;
 }

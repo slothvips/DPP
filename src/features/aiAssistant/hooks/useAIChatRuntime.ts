@@ -70,7 +70,8 @@ export function useAIChatRuntime({
 
       const assistantMessage = createAssistantRuntimeMessage(
         response.message.content || accumulatedContentRef.current,
-        response.message.toolCalls
+        response.message.toolCalls,
+        response.message.providerMetadata
       );
 
       onAssistantMessage(assistantMessage);
