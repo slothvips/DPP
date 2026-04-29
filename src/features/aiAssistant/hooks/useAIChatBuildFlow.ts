@@ -8,7 +8,7 @@ function generateId(): string {
 
 interface UseAIChatBuildFlowOptions {
   appendMessages: (messages: ChatMessage[]) => ChatMessage[];
-  saveUserMessage: (message: ChatMessage) => Promise<void>;
+  saveToolMessages: (messages: ChatMessage[]) => Promise<void>;
   onContinueConversation: () => Promise<void>;
   onStatusChange: (status: 'idle' | 'loading' | 'confirming') => void;
 }
@@ -23,7 +23,7 @@ interface UseAIChatBuildFlowReturn {
 
 export function useAIChatBuildFlow({
   appendMessages,
-  saveUserMessage,
+  saveToolMessages,
   onContinueConversation,
   onStatusChange,
 }: UseAIChatBuildFlowOptions): UseAIChatBuildFlowReturn {
@@ -37,21 +37,33 @@ export function useAIChatBuildFlow({
 
     setBuildCompleted(true);
 
-    const successMessage: ChatMessage = {
-      id: generateId(),
-      role: 'user',
-      content: `[jenkins_trigger_build] 构建已成功触发: ${pendingBuild.jobName}`,
-      createdAt: Date.now(),
-    };
+    const toolMessages: ChatMessage[] = [
+      {
+        id: generateId(),
+        role: 'tool',
+        name: pendingBuild.toolName,
+        toolCallId: pendingBuild.toolCallId,
+        content: `[jenkins_trigger_build] 构建已成功触发: ${pendingBuild.jobName}`,
+        createdAt: Date.now(),
+      },
+      ...pendingBuild.remainingToolCalls.map((toolCall) => ({
+        id: generateId(),
+        role: 'tool' as const,
+        name: toolCall.function.name,
+        toolCallId: toolCall.id,
+        content: `已跳过执行工具：${toolCall.function.name}`,
+        createdAt: Date.now(),
+      })),
+    ];
 
-    appendMessages([successMessage]);
-    void saveUserMessage(successMessage);
+    appendMessages(toolMessages);
+    void saveToolMessages(toolMessages);
 
     setPendingBuild(null);
     onStatusChange('idle');
 
     void onContinueConversation();
-  }, [appendMessages, onContinueConversation, onStatusChange, pendingBuild, saveUserMessage]);
+  }, [appendMessages, onContinueConversation, onStatusChange, pendingBuild, saveToolMessages]);
 
   const cancelBuild = useCallback(() => {
     if (buildCompleted) {
@@ -63,19 +75,31 @@ export function useAIChatBuildFlow({
       return;
     }
 
-    const cancelMessage: ChatMessage = {
-      id: generateId(),
-      role: 'user',
-      content: `[jenkins_trigger_build] 用户取消了构建: ${pendingBuild.jobName}`,
-      createdAt: Date.now(),
-    };
+    const toolMessages: ChatMessage[] = [
+      {
+        id: generateId(),
+        role: 'tool',
+        name: pendingBuild.toolName,
+        toolCallId: pendingBuild.toolCallId,
+        content: `[jenkins_trigger_build] 用户取消了构建: ${pendingBuild.jobName}`,
+        createdAt: Date.now(),
+      },
+      ...pendingBuild.remainingToolCalls.map((toolCall) => ({
+        id: generateId(),
+        role: 'tool' as const,
+        name: toolCall.function.name,
+        toolCallId: toolCall.id,
+        content: `已取消执行工具：${toolCall.function.name}`,
+        createdAt: Date.now(),
+      })),
+    ];
 
-    appendMessages([cancelMessage]);
-    void saveUserMessage(cancelMessage);
+    appendMessages(toolMessages);
+    void saveToolMessages(toolMessages);
 
     setPendingBuild(null);
     onStatusChange('idle');
-  }, [appendMessages, buildCompleted, onStatusChange, pendingBuild, saveUserMessage]);
+  }, [appendMessages, buildCompleted, onStatusChange, pendingBuild, saveToolMessages]);
 
   const resetBuildFlowState = useCallback(() => {
     setPendingBuild(null);

@@ -26,6 +26,7 @@ export interface OpenAIToolDefinition {
 
 export interface ProviderMessageMetadata {
   anthropicContentBlocks?: unknown[];
+  openAIReasoningContent?: string;
 }
 
 export interface ChatMessage {

@@ -54,16 +54,17 @@ export function toPreparedToolCalls(pendingToolCalls: PendingToolCalls): Prepare
   }));
 }
 
-export function createToolCallCancelMessage(options: {
-  pendingToolCall: PendingToolCall;
-  pendingToolCalls: PendingToolCalls | null;
-}): ChatMessage {
-  const { pendingToolCall, pendingToolCalls } = options;
+export function createToolCallCancelMessages(options: {
+  pendingToolCalls: PendingToolCalls;
+}): ChatMessage[] {
+  const { pendingToolCalls } = options;
 
-  return {
+  return pendingToolCalls.toolCalls.map((toolCall) => ({
     id: generateToolFlowId(),
-    role: 'user',
-    content: `已取消执行工具：${pendingToolCall.toolCall.function.name}${pendingToolCalls && pendingToolCalls.toolCalls.length > 1 ? `（以及另外 ${pendingToolCalls.toolCalls.length - 1} 个）` : ''}`,
+    role: 'tool',
+    name: toolCall.function.name,
+    toolCallId: toolCall.id,
+    content: `已取消执行工具：${toolCall.function.name}`,
     createdAt: Date.now(),
-  };
+  }));
 }

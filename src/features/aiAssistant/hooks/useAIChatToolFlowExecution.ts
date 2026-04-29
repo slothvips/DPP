@@ -99,7 +99,10 @@ export function useAIChatToolFlowExecution({
     await saveToolMessages(toolMessages);
 
     if (pendingBuild) {
-      onPendingBuildChange(pendingBuild);
+      onPendingBuildChange({
+        ...pendingBuild,
+        remainingToolCalls: remainingPendingToolCalls?.toolCalls || [],
+      });
       onStatusChange('confirming');
       return;
     }

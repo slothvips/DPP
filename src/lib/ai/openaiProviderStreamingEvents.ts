@@ -2,6 +2,7 @@ import { logger } from '@/utils/logger';
 import {
   type OpenAIStreamingState,
   appendOpenAIStreamingContent,
+  appendOpenAIStreamingReasoningContent,
   setOpenAIStreamingFallbackContent,
   upsertOpenAIStreamingToolCall,
 } from './openaiProviderStreamingShared';
@@ -16,6 +17,7 @@ interface OpenAIStreamingEventPayload {
   choices?: {
     delta?: {
       content?: string;
+      reasoning_content?: string;
       tool_calls?: Array<{
         index?: number;
         id?: string;
@@ -28,6 +30,7 @@ interface OpenAIStreamingEventPayload {
     };
     message?: {
       content?: string | null;
+      reasoning_content?: string;
       tool_calls?: OpenAIToolCall[];
     };
     finish_reason?: string | null;
@@ -50,6 +53,14 @@ export function processOpenAIStreamingEventBlock(options: {
     const parsed = JSON.parse(data) as OpenAIStreamingEventPayload;
     const choice = parsed.choices?.[0];
     const delta = choice?.delta;
+
+    if (delta?.reasoning_content) {
+      appendOpenAIStreamingReasoningContent(state, delta.reasoning_content);
+    }
+
+    if (choice?.message?.reasoning_content && !state.reasoningContent) {
+      appendOpenAIStreamingReasoningContent(state, choice.message.reasoning_content);
+    }
 
     if (delta?.content) {
       appendOpenAIStreamingContent(state, delta.content, onChunk);

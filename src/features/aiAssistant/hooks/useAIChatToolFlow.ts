@@ -2,14 +2,13 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ChatMessage } from '../types';
 import type { PendingBuild, PendingToolCall, PendingToolCalls } from './useAIChat.types';
 import { useAIChatBuildFlow } from './useAIChatBuildFlow';
-import { createToolCallCancelMessage, getPendingToolCall } from './useAIChatToolFlow.shared';
+import { createToolCallCancelMessages, getPendingToolCall } from './useAIChatToolFlow.shared';
 import { useAIChatToolFlowExecution } from './useAIChatToolFlowExecution';
 
 interface UseAIChatToolFlowOptions {
   yoloMode: boolean;
   appendMessages: (messages: ChatMessage[]) => ChatMessage[];
   saveToolMessages: (messages: ChatMessage[]) => Promise<void>;
-  saveUserMessage: (message: ChatMessage) => Promise<void>;
   onContinueConversation: () => Promise<void>;
   onStatusChange: (status: 'idle' | 'loading' | 'confirming') => void;
 }
@@ -24,6 +23,7 @@ interface UseAIChatToolFlowReturn {
   cancelToolCall: () => void;
   completeBuild: () => void;
   cancelBuild: () => void;
+  cancelPendingToolFlow: () => void;
   resetToolFlowState: () => void;
 }
 
@@ -31,7 +31,6 @@ export function useAIChatToolFlow({
   yoloMode,
   appendMessages,
   saveToolMessages,
-  saveUserMessage,
   onContinueConversation,
   onStatusChange,
 }: UseAIChatToolFlowOptions): UseAIChatToolFlowReturn {
@@ -39,7 +38,7 @@ export function useAIChatToolFlow({
   const { pendingBuild, setPendingBuild, completeBuild, cancelBuild, resetBuildFlowState } =
     useAIChatBuildFlow({
       appendMessages,
-      saveUserMessage,
+      saveToolMessages,
       onContinueConversation,
       onStatusChange,
     });
@@ -83,20 +82,34 @@ export function useAIChatToolFlow({
   }, [confirmAllToolCallsInternal, pendingToolCalls]);
 
   const cancelToolCall = useCallback(() => {
-    if (!pendingToolCall) {
+    if (!pendingToolCall || !pendingToolCalls) {
       return;
     }
 
-    const cancelMessage = createToolCallCancelMessage({
-      pendingToolCall,
+    const cancelMessages = createToolCallCancelMessages({
       pendingToolCalls,
     });
 
-    appendMessages([cancelMessage]);
-    void saveUserMessage(cancelMessage);
+    appendMessages(cancelMessages);
+    void saveToolMessages(cancelMessages);
     setPendingToolCalls(null);
     onStatusChange('idle');
-  }, [appendMessages, onStatusChange, pendingToolCall, pendingToolCalls, saveUserMessage]);
+  }, [appendMessages, onStatusChange, pendingToolCall, pendingToolCalls, saveToolMessages]);
+
+  const cancelPendingToolFlow = useCallback(() => {
+    if (pendingToolCalls) {
+      const cancelMessages = createToolCallCancelMessages({
+        pendingToolCalls,
+      });
+      appendMessages(cancelMessages);
+      void saveToolMessages(cancelMessages);
+      setPendingToolCalls(null);
+    }
+
+    if (pendingBuild) {
+      cancelBuild();
+    }
+  }, [appendMessages, cancelBuild, pendingBuild, pendingToolCalls, saveToolMessages]);
 
   const resetToolFlowState = useCallback(() => {
     setPendingToolCalls(null);
@@ -113,6 +126,7 @@ export function useAIChatToolFlow({
     cancelToolCall,
     completeBuild,
     cancelBuild,
+    cancelPendingToolFlow,
     resetToolFlowState,
   };
 }

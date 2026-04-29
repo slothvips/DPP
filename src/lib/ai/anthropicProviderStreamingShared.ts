@@ -12,6 +12,7 @@ interface PartialStreamingToolCall {
 
 export interface AnthropicStreamingState {
   fullContent: string;
+  openAIReasoningContent: string;
   finishReason: string | null;
   anthropicToolCallLookup: Map<string, OpenAIToolCall>;
   openAIToolCallLookup: Map<string, OpenAIToolCall>;
@@ -25,6 +26,7 @@ export interface AnthropicStreamingState {
 export function createAnthropicStreamingState(): AnthropicStreamingState {
   return {
     fullContent: '',
+    openAIReasoningContent: '',
     finishReason: null,
     anthropicToolCallLookup: new Map<string, OpenAIToolCall>(),
     openAIToolCallLookup: new Map<string, OpenAIToolCall>(),
@@ -52,6 +54,13 @@ export function setAnthropicStreamingFallbackContent(
   if (content && !state.fullContent) {
     state.fullContent = content;
   }
+}
+
+export function appendAnthropicOpenAIReasoningContent(
+  state: AnthropicStreamingState,
+  content: string
+) {
+  state.openAIReasoningContent += content;
 }
 
 export function getLatestAnthropicToolCall(
@@ -126,6 +135,7 @@ export function buildAnthropicStreamingResponse(state: AnthropicStreamingState):
       toolCalls: finalToolCalls.length ? finalToolCalls : undefined,
       providerMetadata: {
         anthropicContentBlocks: state.responseContentBlocks,
+        openAIReasoningContent: state.openAIReasoningContent || undefined,
       },
     },
     done: true,

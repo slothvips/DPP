@@ -16,7 +16,7 @@ export async function executePreparedToolCalls(preparedToolCalls: PreparedToolCa
 
   const toolMessages: ChatMessage[] = [];
 
-  for (const preparedToolCall of preparedToolCalls) {
+  for (const [index, preparedToolCall] of preparedToolCalls.entries()) {
     const { toolCall, arguments: args } = preparedToolCall;
 
     try {
@@ -33,6 +33,9 @@ export async function executePreparedToolCalls(preparedToolCalls: PreparedToolCa
           pendingBuild: {
             jobUrl: resultObj.jobUrl,
             jobName: resultObj.jobName,
+            toolCallId: toolCall.id,
+            toolName: toolCall.function.name,
+            remainingToolCalls: preparedToolCalls.slice(index + 1).map((call) => call.toolCall),
           },
         };
       }

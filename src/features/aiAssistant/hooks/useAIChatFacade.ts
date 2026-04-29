@@ -42,12 +42,18 @@ export function useAIChatFacade(): UseAIChatReturn {
     loadSessionMessages,
   } = useAIChatMessages();
 
-  const { sessionId, sessions, loadSessions, createNewSession, switchSession, deleteSession } =
-    useAIChatSessions({
-      onMessagesLoaded: loadSessionMessages,
-      onBeforeSessionSwitch: resetSessionScopedState,
-      resetFirstMessageFlag,
-    });
+  const {
+    sessionId,
+    sessions,
+    loadSessions,
+    createNewSession: createSession,
+    switchSession: switchSessionInternal,
+    deleteSession: deleteSessionInternal,
+  } = useAIChatSessions({
+    onMessagesLoaded: loadSessionMessages,
+    onBeforeSessionSwitch: resetSessionScopedState,
+    resetFirstMessageFlag,
+  });
 
   const { saveUserMessage, saveAssistantMessage, saveToolMessages } =
     useAIChatPersistence(sessionId);
@@ -80,12 +86,12 @@ export function useAIChatFacade(): UseAIChatReturn {
     cancelToolCall,
     completeBuild,
     cancelBuild,
+    cancelPendingToolFlow,
     resetToolFlowState,
   } = useAIChatToolFlow({
     yoloMode,
     appendMessages,
     saveToolMessages,
-    saveUserMessage,
     onContinueConversation: continueCurrentConversation,
     onStatusChange: setStatus,
   });
@@ -102,6 +108,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     toLibChatMessage: toProviderChatMessage,
     resetRuntimeState,
     stopRuntime,
+    cancelPendingToolFlow,
     resetToolFlowState,
     clearPersistedMessages: (currentSessionId) => {
       void clearSessionMessages(currentSessionId);
@@ -111,6 +118,36 @@ export function useAIChatFacade(): UseAIChatReturn {
   });
 
   continueConversationRef.current = continueConversation;
+
+  const resetBeforeLeavingSession = useCallback(() => {
+    stopRuntime();
+    cancelPendingToolFlow();
+    resetToolFlowState();
+    resetSessionScopedState();
+  }, [cancelPendingToolFlow, resetSessionScopedState, resetToolFlowState, stopRuntime]);
+
+  const createNewSession = useCallback(async () => {
+    resetBeforeLeavingSession();
+    await createSession();
+  }, [createSession, resetBeforeLeavingSession]);
+
+  const switchSession = useCallback(
+    async (id: string) => {
+      resetBeforeLeavingSession();
+      await switchSessionInternal(id);
+    },
+    [resetBeforeLeavingSession, switchSessionInternal]
+  );
+
+  const deleteSession = useCallback(
+    async (id: string) => {
+      if (id === sessionId) {
+        resetBeforeLeavingSession();
+      }
+      await deleteSessionInternal(id);
+    },
+    [deleteSessionInternal, resetBeforeLeavingSession, sessionId]
+  );
 
   const resetProvider = useCallback(() => {
     resetRuntimeProvider();

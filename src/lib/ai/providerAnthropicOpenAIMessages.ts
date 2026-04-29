@@ -38,11 +38,22 @@ export function anthropicMessageToOpenAIMessage(message: AnthropicChatMessage): 
     )
     .map((block) => block.text)
     .join('');
+  const thinkingContent = message.content
+    .filter(
+      (block): block is Extract<AnthropicMessageContentBlock, { type: 'thinking' }> =>
+        block.type === 'thinking'
+    )
+    .map((block) => block.thinking)
+    .join('');
 
   const openAIMessage: OpenAIChatMessage = {
     role: message.role,
     content: textContent,
   };
+
+  if (message.role === 'assistant' && thinkingContent) {
+    openAIMessage.reasoning_content = thinkingContent;
+  }
 
   const toolResultBlock = message.content.find(
     (block): block is Extract<AnthropicMessageContentBlock, { type: 'tool_result' }> =>

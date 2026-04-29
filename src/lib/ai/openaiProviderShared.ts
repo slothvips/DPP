@@ -21,6 +21,8 @@ export function toOpenAIMessage(message: ChatMessage): OpenAIChatMessage {
     role: message.role,
     content: message.content,
     name: message.name,
+    reasoning_content:
+      message.role === 'assistant' ? message.providerMetadata?.openAIReasoningContent : undefined,
     tool_call_id: message.toolCallId,
     tool_calls: mapOpenAIToolCalls(message.toolCalls),
   };
@@ -56,6 +58,9 @@ export function mapOpenAIResponse(response: OpenAIChatResponse): ChatResponse {
       role: choice.message.role,
       content: stripThinkingContent(choice.message.content || ''),
       toolCalls: mapOpenAIToolCalls(choice.message.tool_calls),
+      providerMetadata: choice.message.reasoning_content
+        ? { openAIReasoningContent: choice.message.reasoning_content }
+        : undefined,
     },
     done: choice.finish_reason === 'stop' || choice.finish_reason === 'tool_calls',
     finishReason: choice.finish_reason,

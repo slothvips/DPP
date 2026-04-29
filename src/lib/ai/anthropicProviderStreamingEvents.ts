@@ -1,6 +1,7 @@
 import { logger } from '@/utils/logger';
 import {
   type AnthropicStreamingState,
+  appendAnthropicOpenAIReasoningContent,
   appendAnthropicResponseContentBlock,
   appendAnthropicStreamingContent,
   getLatestAnthropicToolCall,
@@ -35,6 +36,7 @@ interface AnthropicStreamingEventPayload {
   choices?: {
     delta?: {
       content?: string;
+      reasoning_content?: string;
       tool_calls?: Array<{
         index?: number;
         id?: string;
@@ -44,6 +46,7 @@ interface AnthropicStreamingEventPayload {
     };
     message?: {
       content?: string | null;
+      reasoning_content?: string;
       tool_calls?: OpenAIToolCall[];
     };
     finish_reason?: string | null;
@@ -136,10 +139,19 @@ export function processAnthropicStreamingEventBlock(options: {
       state.currentThinkingBlock = null;
       state.currentToolUseBlock = null;
       state.currentToolUseJsonBuffer = '';
-    } else if (parsed.choices?.[0]?.delta?.content) {
-      appendAnthropicStreamingContent(state, parsed.choices[0].delta.content, onChunk);
-    } else if (parsed.choices?.[0]?.message?.content) {
-      setAnthropicStreamingFallbackContent(state, parsed.choices[0].message.content);
+    } else if (parsed.choices?.[0]) {
+      const choice = parsed.choices[0];
+      if (choice.delta?.reasoning_content) {
+        appendAnthropicOpenAIReasoningContent(state, choice.delta.reasoning_content);
+      }
+      if (choice.message?.reasoning_content && !state.openAIReasoningContent) {
+        appendAnthropicOpenAIReasoningContent(state, choice.message.reasoning_content);
+      }
+      if (choice.delta?.content) {
+        appendAnthropicStreamingContent(state, choice.delta.content, onChunk);
+      } else if (choice.message?.content) {
+        setAnthropicStreamingFallbackContent(state, choice.message.content);
+      }
     }
 
     if (parsed.choices?.[0]?.message?.tool_calls?.length) {

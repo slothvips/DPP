@@ -23,6 +23,7 @@ interface UseAIChatActionsOptions {
   toLibChatMessage: (message: ChatMessage) => ProviderChatMessage;
   resetRuntimeState: () => void;
   stopRuntime: () => void;
+  cancelPendingToolFlow: () => void;
   resetToolFlowState: () => void;
   clearPersistedMessages: (sessionId: string) => void;
   setStatus: (status: AIChatStatus) => void;
@@ -48,6 +49,7 @@ export function useAIChatActions({
   toLibChatMessage,
   resetRuntimeState,
   stopRuntime,
+  cancelPendingToolFlow,
   resetToolFlowState,
   clearPersistedMessages,
   setStatus,
@@ -126,6 +128,7 @@ export function useAIChatActions({
 
   const stop = useCallback(() => {
     stopRuntime();
+    cancelPendingToolFlow();
     resetToolFlowState();
 
     const stopMessage = createStoppedChatMessage();
@@ -137,7 +140,15 @@ export function useAIChatActions({
     setError(null);
 
     logger.info('[AIChat] AI task stopped by user');
-  }, [appendMessages, resetToolFlowState, saveUserMessage, setError, setStatus, stopRuntime]);
+  }, [
+    appendMessages,
+    cancelPendingToolFlow,
+    resetToolFlowState,
+    saveUserMessage,
+    setError,
+    setStatus,
+    stopRuntime,
+  ]);
 
   const clearMessages = useCallback(() => {
     if (sessionId) {

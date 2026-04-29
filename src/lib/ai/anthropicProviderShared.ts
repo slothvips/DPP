@@ -175,6 +175,9 @@ export function mapAnthropicResponse(
         role: 'assistant',
         content: stripThinkingContent(choice.message?.content || ''),
         toolCalls: mapOpenAIToolCalls(choice.message.tool_calls),
+        providerMetadata: choice.message.reasoning_content
+          ? { openAIReasoningContent: choice.message.reasoning_content }
+          : undefined,
       },
       done: choice.finish_reason === 'stop' || choice.finish_reason === 'tool_calls',
       finishReason: choice.finish_reason,

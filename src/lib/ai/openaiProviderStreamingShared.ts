@@ -12,6 +12,7 @@ interface PartialStreamingToolCall {
 
 export interface OpenAIStreamingState {
   fullContent: string;
+  reasoningContent: string;
   finishReason: string | null;
   toolCallLookup: Map<string, OpenAIToolCall>;
   toolCallKeyByIndex: Map<number, string>;
@@ -20,6 +21,7 @@ export interface OpenAIStreamingState {
 export function createOpenAIStreamingState(): OpenAIStreamingState {
   return {
     fullContent: '',
+    reasoningContent: '',
     finishReason: null,
     toolCallLookup: new Map<string, OpenAIToolCall>(),
     toolCallKeyByIndex: new Map<number, string>(),
@@ -33,6 +35,10 @@ export function appendOpenAIStreamingContent(
 ) {
   state.fullContent += chunk;
   onChunk(chunk);
+}
+
+export function appendOpenAIStreamingReasoningContent(state: OpenAIStreamingState, chunk: string) {
+  state.reasoningContent += chunk;
 }
 
 export function setOpenAIStreamingFallbackContent(
@@ -91,6 +97,9 @@ export function buildOpenAIStreamingResponse(state: OpenAIStreamingState): ChatR
       role: 'assistant',
       content: stripThinkingContent(state.fullContent),
       toolCalls: finalToolCalls.length ? finalToolCalls : undefined,
+      providerMetadata: state.reasoningContent
+        ? { openAIReasoningContent: state.reasoningContent }
+        : undefined,
     },
     done: true,
     finishReason: state.finishReason,

@@ -22,6 +22,9 @@ export interface PendingToolCalls {
 export interface PendingBuild {
   jobUrl: string;
   jobName: string;
+  toolCallId: string;
+  toolName: string;
+  remainingToolCalls: ToolCall[];
 }
 
 export interface UseAIChatReturn {

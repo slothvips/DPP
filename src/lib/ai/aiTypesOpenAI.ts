@@ -4,6 +4,7 @@ export interface OpenAIChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
   name?: string;
+  reasoning_content?: string;
   tool_call_id?: string;
   tool_calls?: OpenAIToolCall[];
 }
@@ -25,6 +26,7 @@ export interface OpenAIChatResponse {
     message: {
       role: 'assistant';
       content: string | null;
+      reasoning_content?: string;
       tool_calls?: OpenAIToolCall[];
     };
     finish_reason: string | null;
