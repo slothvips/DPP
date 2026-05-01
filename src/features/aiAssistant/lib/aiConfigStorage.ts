@@ -1,9 +1,8 @@
-import { db } from '@/db';
+import { readAISetting, resolveAIApiKey } from '@/lib/ai/configShared';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import type { AIProviderType } from '@/lib/ai/types';
-import { decryptData, encryptData, loadKey } from '@/lib/crypto/encryption';
+import { encryptData, loadKey } from '@/lib/crypto/encryption';
 import { updateSetting } from '@/lib/db/settings';
-import { logger } from '@/utils/logger';
 
 export interface StoredAIConfig {
   provider: AIProviderType;
@@ -13,8 +12,7 @@ export interface StoredAIConfig {
 }
 
 export async function loadAIConfig(): Promise<StoredAIConfig> {
-  const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
-  const provider = (providerSetting?.value as AIProviderType) || 'custom';
+  const provider = (await readAISetting('ai_provider_type')) || 'ollama';
   return loadProviderConfig(provider);
 }
 
@@ -23,68 +21,57 @@ export async function loadProviderConfig(provider: AIProviderType): Promise<Stor
   const modelKey = `ai_${provider}_model` as const;
   const apiKeyKey = `ai_${provider}_api_key` as const;
 
-  const savedBaseUrl = await db.settings.where('key').equals(baseUrlKey).first();
-  const savedModel = await db.settings.where('key').equals(modelKey).first();
-  const savedApiKey = await db.settings.where('key').equals(apiKeyKey).first();
+  const [savedBaseUrl, savedModel, savedApiKey] = await Promise.all([
+    readAISetting(baseUrlKey),
+    readAISetting(modelKey),
+    readAISetting(apiKeyKey),
+  ]);
 
   return {
     provider,
-    baseUrl: (savedBaseUrl?.value as string) || DEFAULT_CONFIGS[provider].baseUrl || '',
-    model: (savedModel?.value as string) || DEFAULT_CONFIGS[provider].model || '',
-    apiKey: await decryptApiKey(savedApiKey?.value),
+    baseUrl: savedBaseUrl || DEFAULT_CONFIGS[provider].baseUrl || '',
+    model: savedModel || DEFAULT_CONFIGS[provider].model || '',
+    apiKey: await resolveAIApiKey(savedApiKey, '[AIConfig]'),
   };
 }
 
 export async function saveAIConfig(config: StoredAIConfig): Promise<void> {
+  await saveProviderConfig(config, { activateProvider: true });
+}
+
+export async function saveProviderConfig(
+  config: StoredAIConfig,
+  options: { activateProvider?: boolean; preserveApiKey?: boolean } = {}
+): Promise<void> {
   const { provider, baseUrl, model, apiKey } = config;
+  const { activateProvider = false, preserveApiKey = false } = options;
   const baseUrlKey = `ai_${provider}_base_url` as const;
   const modelKey = `ai_${provider}_model` as const;
   const apiKeyKey = `ai_${provider}_api_key` as const;
 
-  await updateSetting('ai_provider_type', provider);
-  await updateSetting(baseUrlKey, baseUrl);
-  await updateSetting(modelKey, model);
+  const updates: Array<Promise<void>> = [
+    updateSetting(baseUrlKey, baseUrl),
+    updateSetting(modelKey, model),
+  ];
 
-  if (apiKey) {
-    const encryptionKey = await loadKey();
-    if (encryptionKey) {
-      const encrypted = await encryptData(apiKey, encryptionKey);
-      await updateSetting(apiKeyKey, encrypted);
-    } else {
-      await updateSetting(apiKeyKey, apiKey);
-    }
-    return;
+  if (activateProvider) {
+    updates.push(updateSetting('ai_provider_type', provider));
   }
 
-  await updateSetting(apiKeyKey, '');
+  if (!preserveApiKey) {
+    let storedApiKey: string | Awaited<ReturnType<typeof encryptData>> = '';
+    if (apiKey) {
+      const encryptionKey = await loadKey();
+      storedApiKey = encryptionKey ? await encryptData(apiKey, encryptionKey) : apiKey;
+    }
+    updates.push(updateSetting(apiKeyKey, storedApiKey));
+  }
+
+  await Promise.all(updates);
 }
 
 export async function isAIConfigConfigured(): Promise<boolean> {
-  const providerSetting = await db.settings.where('key').equals('ai_provider_type').first();
-  const provider = (providerSetting?.value as AIProviderType) || 'custom';
-  const config = await loadProviderConfig(provider);
+  const config = await loadAIConfig();
 
   return Boolean(config.baseUrl || config.model || config.apiKey);
-}
-
-async function decryptApiKey(value: unknown): Promise<string> {
-  if (!value) {
-    return '';
-  }
-
-  try {
-    const encryptionKey = await loadKey();
-    if (encryptionKey && typeof value === 'object') {
-      const decrypted = await decryptData(
-        value as { ciphertext: string; iv: string },
-        encryptionKey
-      );
-      return decrypted as string;
-    }
-
-    return value as string;
-  } catch (err) {
-    logger.error('[AIConfig] Failed to decrypt API key:', err);
-    return '';
-  }
 }

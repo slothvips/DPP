@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { redactSensitiveFields } from '@/utils/sensitive';
 import type { PendingToolCall } from '../hooks/useAIChat.types';
 import { getToolConfirmationContent } from './toolConfirmationShared';
 
@@ -23,6 +24,7 @@ export function ToolConfirmationSingleView({
 }: ToolConfirmationSingleViewProps) {
   const toolName = pendingToolCall?.toolCall.function.name || '';
   const args = pendingToolCall?.arguments || {};
+  const safeArgs = redactSensitiveFields(args);
   const content = getToolConfirmationContent(toolName, args);
 
   return (
@@ -44,7 +46,7 @@ export function ToolConfirmationSingleView({
         {Object.keys(args).length > 0 && (
           <div className="mt-2 text-xs text-muted-foreground font-mono bg-muted p-2 rounded">
             <div className="font-medium mb-1">参数:</div>
-            {JSON.stringify(args, null, 2)}
+            {JSON.stringify(safeArgs, null, 2)}
           </div>
         )}
       </div>

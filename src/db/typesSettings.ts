@@ -18,6 +18,10 @@ export interface SettingMap {
   jenkins_token: string;
   jenkins_environments: JenkinsEnvironment[];
   jenkins_current_env: string;
+  jenkins_tg_notification_enabled: boolean;
+  jenkins_tg_bot_token: string | StoredEncryptedValue;
+  jenkins_tg_chat_id: string;
+  jenkins_tg_release_keywords: string;
   custom_server_url: string;
   sync_access_token: string;
   sync_encryption_key: string;

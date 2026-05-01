@@ -1,5 +1,8 @@
 import type { PreparedToolCall, ToolCall } from '@/features/aiAssistant/hooks/useAIChat.types';
+import { normalizeToolArgumentsJson } from '@/lib/ai/providerShared';
 import { toolRegistry } from '@/lib/ai/tools';
+
+const ALWAYS_CONFIRM_TOOL_NAMES = new Set(['ai_config_update', 'dpp_config_update']);
 
 export function parseToolCallArguments(toolCall: ToolCall): Record<string, unknown> {
   const rawArgs = toolCall.function.arguments.trim();
@@ -7,7 +10,13 @@ export function parseToolCallArguments(toolCall: ToolCall): Record<string, unkno
     return {};
   }
 
-  const parsed = JSON.parse(rawArgs) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawArgs) as unknown;
+  } catch {
+    parsed = JSON.parse(normalizeToolArgumentsJson(rawArgs)) as unknown;
+  }
+
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error(`Tool ${toolCall.function.name} arguments must be a JSON object`);
   }
@@ -50,7 +59,10 @@ export function normalizeAndClassifyToolCalls(
       },
     };
 
-    if (!yoloMode && toolRegistry.requiresConfirmation(resolvedTool.name)) {
+    if (
+      ALWAYS_CONFIRM_TOOL_NAMES.has(resolvedTool.name) ||
+      (!yoloMode && toolRegistry.requiresConfirmation(resolvedTool.name))
+    ) {
       toolCallsToConfirm.push(normalizedToolCall);
     } else {
       toolCallsToExecute.push(normalizedToolCall);

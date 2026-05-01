@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import type { BuildParameter } from '@/features/jenkins/api/build';
 import { JenkinsService } from '@/features/jenkins/service';
+import {
+  isJenkinsReleaseBuild,
+  isJenkinsTelegramConfigured,
+  loadJenkinsTelegramConfig,
+} from '@/features/jenkins/telegram';
 import { logger } from '@/utils/logger';
 
 interface UseBuildDialogOptions {
   jobUrl: string;
+  jobName: string;
   envId?: string;
   isOpen: boolean;
   onClose: () => void;
@@ -43,6 +49,7 @@ function buildDefaultFormValues(parameters: BuildParameter[]) {
 
 export function useBuildDialog({
   jobUrl,
+  jobName,
   envId,
   isOpen,
   onClose,
@@ -53,45 +60,95 @@ export function useBuildDialog({
   const [building, setBuilding] = useState(false);
   const [params, setParams] = useState<BuildParameter[]>([]);
   const [formValues, setFormValues] = useState<Record<string, string | boolean | number>>({});
+  const [telegramAvailable, setTelegramAvailable] = useState(false);
+  const [notifyTelegram, setNotifyTelegram] = useState(false);
 
   useEffect(() => {
-    const loadParams = async () => {
-      try {
-        const details = (await JenkinsService.getJobDetails(jobUrl, envId)) as JenkinsJobDetails;
-        const definitions = extractBuildParameters(details);
-        setParams(definitions);
-        setFormValues(buildDefaultFormValues(definitions));
-      } catch (error) {
-        logger.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (!isOpen) {
       return;
     }
 
+    let cancelled = false;
+
+    const loadParams = async () => {
+      const [detailsResult, telegramConfigResult] = await Promise.allSettled([
+        JenkinsService.getJobDetails(jobUrl, envId),
+        loadJenkinsTelegramConfig(),
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      let definitions: BuildParameter[] = [];
+      if (detailsResult.status === 'fulfilled') {
+        definitions = extractBuildParameters(detailsResult.value as JenkinsJobDetails);
+      } else {
+        logger.error(detailsResult.reason);
+      }
+
+      const defaults = buildDefaultFormValues(definitions);
+      setParams(definitions);
+      setFormValues(defaults);
+      setLoading(false);
+
+      if (telegramConfigResult.status === 'fulfilled') {
+        const config = telegramConfigResult.value;
+        const available = isJenkinsTelegramConfigured(config);
+        setTelegramAvailable(available);
+        setNotifyTelegram(
+          available &&
+            isJenkinsReleaseBuild({ jobName, jobUrl, parameters: defaults }, config.releaseKeywords)
+        );
+      } else {
+        logger.error(
+          '[Jenkins] Failed to load Telegram notification config:',
+          telegramConfigResult.reason
+        );
+        setTelegramAvailable(false);
+        setNotifyTelegram(false);
+      }
+    };
+
     setLoading(true);
     setParams([]);
     setFormValues({});
+    setTelegramAvailable(false);
+    setNotifyTelegram(false);
     void loadParams();
-  }, [envId, isOpen, jobUrl]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [envId, isOpen, jobName, jobUrl]);
 
   const updateFormValue = (name: string, value: string | boolean | number) => {
-    setFormValues((prev) => ({ ...prev, [name]: value }));
+    setFormValues((prev) => (prev[name] === value ? prev : { ...prev, [name]: value }));
   };
 
   const handleBuild = async () => {
     setBuilding(true);
     try {
-      const success = await JenkinsService.triggerBuild(jobUrl, formValues, envId);
-      if (!success) {
+      const result = await JenkinsService.triggerBuild({
+        jobUrl,
+        jobName,
+        parameters: formValues,
+        envId,
+        notifyTelegram,
+      });
+      if (!result.buildTriggered) {
         toast('触发构建失败，请检查网络或权限', 'error');
         return;
       }
 
-      toast('构建已触发！', 'success');
+      if (result.telegramNotification?.attempted && !result.telegramNotification.sent) {
+        toast('构建已触发，但 TG 通知发送失败', 'error');
+      } else if (result.telegramNotification?.sent) {
+        toast('构建已触发，TG 通知已发送', 'success');
+      } else {
+        toast('构建已触发！', 'success');
+      }
+
       onClose();
       onBuildSuccess?.();
     } catch (error) {
@@ -107,7 +164,10 @@ export function useBuildDialog({
     formValues,
     handleBuild,
     loading,
+    notifyTelegram,
     params,
+    setNotifyTelegram,
+    telegramAvailable,
     updateFormValue,
   };
 }

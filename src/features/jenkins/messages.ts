@@ -17,8 +17,19 @@ export interface TriggerBuildMessage extends JenkinsMessageBase {
   type: 'JENKINS_TRIGGER_BUILD';
   payload: {
     jobUrl: string;
+    jobName?: string;
     parameters?: Record<string, string | boolean | number>;
     envId?: string;
+    notifyTelegram?: boolean;
+  };
+}
+
+export interface TriggerBuildResult {
+  buildTriggered: boolean;
+  telegramNotification?: {
+    attempted: boolean;
+    sent: boolean;
+    error?: string;
   };
 }
 
@@ -39,12 +50,21 @@ export interface CancelBuildMessage extends JenkinsMessageBase {
   };
 }
 
+export interface TestTelegramNotificationMessage extends JenkinsMessageBase {
+  type: 'JENKINS_TEST_TELEGRAM_NOTIFICATION';
+  payload: {
+    botToken: string;
+    chatId: string;
+  };
+}
+
 export type JenkinsMessage =
   | FetchJobsMessage
   | FetchMyBuildsMessage
   | TriggerBuildMessage
   | GetJobDetailsMessage
-  | CancelBuildMessage;
+  | CancelBuildMessage
+  | TestTelegramNotificationMessage;
 
 export interface JenkinsResponse<T = unknown> {
   success: boolean;

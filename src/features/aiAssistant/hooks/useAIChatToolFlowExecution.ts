@@ -15,6 +15,7 @@ interface UseAIChatToolFlowExecutionOptions {
   onContinueConversation: () => Promise<void>;
   onStatusChange: (status: 'idle' | 'loading' | 'confirming') => void;
   onPendingBuildChange: (build: PendingBuild | null) => void;
+  onAIConfigChanged: () => void;
 }
 
 export function useAIChatToolFlowExecution({
@@ -24,11 +25,14 @@ export function useAIChatToolFlowExecution({
   onContinueConversation,
   onStatusChange,
   onPendingBuildChange,
+  onAIConfigChanged,
 }: UseAIChatToolFlowExecutionOptions) {
   async function executePreparedCallsAndContinue(
     preparedToolCalls: ReturnType<typeof toPreparedToolCalls>
   ) {
-    const { toolMessages, pendingBuild } = await executePreparedToolCalls(preparedToolCalls);
+    const { toolMessages, pendingBuild } = await executePreparedToolCalls(preparedToolCalls, {
+      onAIConfigChanged,
+    });
 
     appendMessages(toolMessages);
     await saveToolMessages(toolMessages);
@@ -60,7 +64,9 @@ export function useAIChatToolFlowExecution({
 
     if (toolCallsToExecute.length > 0) {
       onStatusChange('loading');
-      const { toolMessages, pendingBuild } = await executePreparedToolCalls(toolCallsToExecute);
+      const { toolMessages, pendingBuild } = await executePreparedToolCalls(toolCallsToExecute, {
+        onAIConfigChanged,
+      });
 
       appendMessages(toolMessages);
       await saveToolMessages(toolMessages);
@@ -91,9 +97,12 @@ export function useAIChatToolFlowExecution({
     onPendingToolCallsChange(null);
     onStatusChange('loading');
 
-    const { toolMessages, pendingBuild } = await executePreparedToolCalls([
-      currentPreparedToolCall,
-    ]);
+    const { toolMessages, pendingBuild } = await executePreparedToolCalls(
+      [currentPreparedToolCall],
+      {
+        onAIConfigChanged,
+      }
+    );
 
     appendMessages(toolMessages);
     await saveToolMessages(toolMessages);

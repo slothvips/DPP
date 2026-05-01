@@ -1,3 +1,4 @@
+import { normalizeToolArgumentsJsonForRequest } from './providerStreamingToolCalls';
 import type {
   AnthropicToolDefinition,
   ChatOptions,
@@ -15,7 +16,7 @@ export function mapOpenAIToolCalls(toolCalls?: OpenAIToolCall[]): OpenAIToolCall
     type: 'function',
     function: {
       name: toolCall.function.name,
-      arguments: toolCall.function.arguments,
+      arguments: normalizeToolArgumentsJsonForRequest(toolCall.function.arguments),
     },
   }));
 }

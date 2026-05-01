@@ -6,6 +6,17 @@ import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { EXCLUDED_SETTINGS, SETTINGS_CATEGORIES } from './optionsShared';
 
+const SENSITIVE_EXPORT_SETTING_KEYS = new Set<SettingKey>([
+  'sync_encryption_key',
+  'sync_access_token',
+  'jenkins_token',
+  'jenkins_tg_bot_token',
+  'ai_api_key',
+  'ai_ollama_api_key',
+  'ai_anthropic_api_key',
+  'ai_custom_api_key',
+]);
+
 interface UseOptionsExportOptions {
   selectedCategories: string[];
   setShowExportDialog: Dispatch<SetStateAction<boolean>>;
@@ -36,13 +47,13 @@ export function useOptionsExport({
         )
       );
       const filteredSettings = safeSettings.filter((setting) => allowedKeys.has(setting.key));
-      const hasEncryptionKey = filteredSettings.some(
-        (setting) => setting.key === 'sync_encryption_key'
-      );
+      const sensitiveKeys = filteredSettings
+        .map((setting) => setting.key as SettingKey)
+        .filter((key) => SENSITIVE_EXPORT_SETTING_KEYS.has(key));
 
-      if (hasEncryptionKey) {
+      if (sensitiveKeys.length > 0) {
         const confirmed = await confirm(
-          '安全提示：\n\n导出文件中将包含您的【同步加密密钥】。\n\n请务必妥善保管导出文件，不要分享给不可信的人，否则可能导致您的加密数据泄露。\n\n是否继续？',
+          `安全提示：\n\n导出文件中将包含敏感配置：${sensitiveKeys.join('、')}。\n\n请务必妥善保管导出文件，不要分享给不可信的人，否则可能导致凭据或加密数据泄露。\n\n是否继续？`,
           '确认导出'
         );
         if (!confirmed) {

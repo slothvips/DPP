@@ -32,8 +32,19 @@ interface Props {
 }
 
 export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSuccess }: Props) {
-  const { building, formValues, handleBuild, loading, params, updateFormValue } = useBuildDialog({
+  const {
+    building,
+    formValues,
+    handleBuild,
+    loading,
+    notifyTelegram,
+    params,
+    setNotifyTelegram,
+    telegramAvailable,
+    updateFormValue,
+  } = useBuildDialog({
     jobUrl,
+    jobName,
     envId,
     isOpen,
     onClose,
@@ -115,6 +126,19 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {telegramAvailable && (
+          <div className="flex items-center space-x-2 rounded-md border border-border bg-muted/40 p-3">
+            <Checkbox
+              id="notify-telegram"
+              checked={notifyTelegram}
+              onCheckedChange={(checked) => setNotifyTelegram(checked === true)}
+            />
+            <Label htmlFor="notify-telegram" className="text-sm">
+              发布构建通知 TG 群
+            </Label>
           </div>
         )}
 

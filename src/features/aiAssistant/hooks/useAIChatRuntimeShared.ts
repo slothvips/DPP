@@ -32,7 +32,9 @@ function normalizeToolCallBlock(
   );
 
   if (toolCalls.length === 0) {
-    return message.content ? [{ ...message, toolCalls: undefined }] : [];
+    return message.content || message.providerMetadata
+      ? [{ ...message, toolCalls: undefined }]
+      : [];
   }
 
   const keptToolCallIds = new Set(toolCalls.map((toolCall) => toolCall.id));

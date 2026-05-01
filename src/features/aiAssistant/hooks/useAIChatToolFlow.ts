@@ -11,6 +11,7 @@ interface UseAIChatToolFlowOptions {
   saveToolMessages: (messages: ChatMessage[]) => Promise<void>;
   onContinueConversation: () => Promise<void>;
   onStatusChange: (status: 'idle' | 'loading' | 'confirming') => void;
+  onAIConfigChanged: () => void;
 }
 
 interface UseAIChatToolFlowReturn {
@@ -33,6 +34,7 @@ export function useAIChatToolFlow({
   saveToolMessages,
   onContinueConversation,
   onStatusChange,
+  onAIConfigChanged,
 }: UseAIChatToolFlowOptions): UseAIChatToolFlowReturn {
   const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
   const { pendingBuild, setPendingBuild, completeBuild, cancelBuild, resetBuildFlowState } =
@@ -56,6 +58,7 @@ export function useAIChatToolFlow({
     onContinueConversation,
     onStatusChange,
     onPendingBuildChange: setPendingBuild,
+    onAIConfigChanged,
   });
 
   const processAssistantResponse = useCallback(

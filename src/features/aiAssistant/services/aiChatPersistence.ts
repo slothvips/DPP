@@ -1,6 +1,17 @@
 import { addMessage } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
+import { redactSensitiveJsonObject } from '@/utils/sensitive';
 import type { ChatMessage } from '../types';
+
+function sanitizeToolCalls(message: ChatMessage): ChatMessage['toolCalls'] {
+  return message.toolCalls?.map((toolCall) => ({
+    ...toolCall,
+    function: {
+      ...toolCall.function,
+      arguments: redactSensitiveJsonObject(toolCall.function.arguments),
+    },
+  }));
+}
 
 export async function saveUserMessage(sessionId: string | null, message: ChatMessage) {
   if (!sessionId) {
@@ -29,7 +40,7 @@ export async function saveAssistantMessage(sessionId: string | null, message: Ch
       role: 'assistant',
       content: message.content,
       name: message.name,
-      toolCalls: message.toolCalls,
+      toolCalls: sanitizeToolCalls(message),
       providerMetadata: message.providerMetadata,
     });
   } catch (error) {

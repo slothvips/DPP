@@ -43,6 +43,17 @@ export const SETTINGS_CATEGORIES: Array<{
     keys: ['jenkins_environments', 'jenkins_current_env'],
   },
   {
+    key: 'jenkins_tg',
+    label: 'Jenkins TG 通知',
+    description: '发布构建群通知配置',
+    keys: [
+      'jenkins_tg_notification_enabled',
+      'jenkins_tg_bot_token',
+      'jenkins_tg_chat_id',
+      'jenkins_tg_release_keywords',
+    ],
+  },
+  {
     key: 'sync_settings',
     label: '同步设置',
     description: '服务器地址、访问令牌、加密密钥',

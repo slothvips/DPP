@@ -1,5 +1,7 @@
+import { registerAIConfigTools } from './tools/aiConfig';
 import { registerBlackboardTools } from './tools/blackboard';
 import { registerBrowserTools } from './tools/browser';
+import { registerDPPConfigTools } from './tools/dppConfig';
 import { registerHotNewsTools } from './tools/hotnews';
 import { registerJenkinsTools } from './tools/jenkins';
 import { registerLinksTools } from './tools/links';
@@ -16,6 +18,8 @@ export function ensureAIToolsRegistered(): void {
   }
 
   registerBrowserTools();
+  registerAIConfigTools();
+  registerDPPConfigTools();
   registerLinksTools();
   registerTagsTools();
   registerHotNewsTools();

@@ -94,6 +94,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     saveToolMessages,
     onContinueConversation: continueCurrentConversation,
     onStatusChange: setStatus,
+    onAIConfigChanged: resetRuntimeProvider,
   });
 
   const { sendMessage, continueConversation, stop, clearMessages } = useAIChatActions({

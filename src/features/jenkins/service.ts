@@ -1,4 +1,9 @@
-import type { JenkinsMessage, JenkinsResponse } from './messages';
+import type {
+  JenkinsMessage,
+  JenkinsResponse,
+  TriggerBuildMessage,
+  TriggerBuildResult,
+} from './messages';
 
 async function send<T>(message: JenkinsMessage): Promise<T> {
   const response = (await browser.runtime.sendMessage(message)) as JenkinsResponse<T>;
@@ -20,14 +25,10 @@ export const JenkinsService = {
     return send<number>({ type: 'JENKINS_FETCH_MY_BUILDS' });
   },
 
-  async triggerBuild(
-    jobUrl: string,
-    parameters?: Record<string, string | boolean | number>,
-    envId?: string
-  ): Promise<boolean> {
-    return send<boolean>({
+  async triggerBuild(payload: TriggerBuildMessage['payload']): Promise<TriggerBuildResult> {
+    return send<TriggerBuildResult>({
       type: 'JENKINS_TRIGGER_BUILD',
-      payload: { jobUrl, parameters, envId },
+      payload,
     });
   },
 
@@ -42,6 +43,13 @@ export const JenkinsService = {
     return send<boolean>({
       type: 'JENKINS_CANCEL_BUILD',
       payload: { jobUrl, buildNumber, envId },
+    });
+  },
+
+  async testTelegramNotification(botToken: string, chatId: string): Promise<boolean> {
+    return send<boolean>({
+      type: 'JENKINS_TEST_TELEGRAM_NOTIFICATION',
+      payload: { botToken, chatId },
     });
   },
 };

@@ -51,6 +51,22 @@ export function getToolConfirmationContent(
         confirmText: '开始录制',
         isDestructive: false,
       };
+    case 'ai_config_update':
+      return {
+        title: '确认修改 D仔 配置',
+        description: '此操作会修改 D仔 的 AI 服务商、模型或密钥配置。',
+        impact: `将更新服务商: ${args.provider || '当前服务商'}`,
+        confirmText: '确认修改',
+        isDestructive: false,
+      };
+    case 'dpp_config_update':
+      return {
+        title: '确认修改 DPP 配置',
+        description: '此操作会修改 DPP 本地设置，可能影响功能显示、同步、Jenkins 或通知行为。',
+        impact: `将更新配置: ${Object.keys((args.updates as Record<string, unknown>) || {}).join(', ') || '未知配置'}`,
+        confirmText: '确认修改',
+        isDestructive: false,
+      };
     default:
       return {
         title: '确认操作',

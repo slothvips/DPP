@@ -11,5 +11,7 @@ export {
   getSSEDataPayload,
   mergeStreamedValue,
   normalizeToolArgumentsJson,
+  normalizeToolArgumentsJsonForRequest,
+  normalizeToolArgumentsJsonOrOriginal,
   resolveStreamingToolCallKey,
 } from './providerStreamingShared';

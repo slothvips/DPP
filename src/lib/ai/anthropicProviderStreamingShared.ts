@@ -1,5 +1,5 @@
 import { stripThinkingContent } from './ollama';
-import { normalizeToolArgumentsJson } from './providerShared';
+import { normalizeToolArgumentsJsonOrOriginal } from './providerShared';
 import type { AnthropicResponseContentBlock, ChatResponse, OpenAIToolCall } from './types';
 
 interface PartialStreamingToolCall {
@@ -114,7 +114,7 @@ export function buildAnthropicStreamingResponse(state: AnthropicStreamingState):
     ...toolCall,
     function: {
       ...toolCall.function,
-      arguments: normalizeToolArgumentsJson(toolCall.function.arguments),
+      arguments: normalizeToolArgumentsJsonOrOriginal(toolCall.function.arguments),
     },
   }));
 
@@ -122,7 +122,7 @@ export function buildAnthropicStreamingResponse(state: AnthropicStreamingState):
     ...toolCall,
     function: {
       ...toolCall.function,
-      arguments: normalizeToolArgumentsJson(toolCall.function.arguments),
+      arguments: normalizeToolArgumentsJsonOrOriginal(toolCall.function.arguments),
     },
   }));
 

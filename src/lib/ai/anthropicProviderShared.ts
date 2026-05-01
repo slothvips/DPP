@@ -1,5 +1,10 @@
 import { stripThinkingContent } from './ollama';
-import { anthropicTools, buildAnthropicOpenAIRequest, mapOpenAIToolCalls } from './providerShared';
+import {
+  anthropicTools,
+  buildAnthropicOpenAIRequest,
+  mapOpenAIToolCalls,
+  normalizeToolArgumentsJsonForRequest,
+} from './providerShared';
 import type {
   AnthropicChatMessage,
   AnthropicChatRequest,
@@ -43,7 +48,7 @@ function toAnthropicAssistantContentBlocks(message: ChatMessage): AnthropicMessa
       type: 'tool_use',
       id: toolCall.id,
       name: toolCall.function.name,
-      input: JSON.parse(toolCall.function.arguments),
+      input: JSON.parse(normalizeToolArgumentsJsonForRequest(toolCall.function.arguments)),
     });
   }
 

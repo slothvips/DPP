@@ -1,5 +1,5 @@
 import { stripThinkingContent } from './ollama';
-import { normalizeToolArgumentsJson } from './providerShared';
+import { normalizeToolArgumentsJsonOrOriginal } from './providerShared';
 import type { ChatResponse, OpenAIToolCall } from './types';
 
 interface PartialStreamingToolCall {
@@ -88,7 +88,7 @@ export function buildOpenAIStreamingResponse(state: OpenAIStreamingState): ChatR
     ...toolCall,
     function: {
       ...toolCall.function,
-      arguments: normalizeToolArgumentsJson(toolCall.function.arguments),
+      arguments: normalizeToolArgumentsJsonOrOriginal(toolCall.function.arguments),
     },
   }));
 
