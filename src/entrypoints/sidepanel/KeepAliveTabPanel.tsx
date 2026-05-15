@@ -11,14 +11,14 @@ export function KeepAliveTabPanel({ active, children, visible }: KeepAliveTabPan
 
   return (
     <div
-      className="absolute inset-0 min-h-0 min-w-0 transition-opacity duration-200"
+      className="absolute inset-0 flex min-h-0 min-w-0 flex-col overflow-hidden transition-opacity duration-200"
       style={{
         opacity: isShown ? 1 : 0,
         visibility: isShown ? 'visible' : 'hidden',
         pointerEvents: isShown ? 'auto' : 'none',
       }}
     >
-      {children}
+      <div className="h-full min-h-0 min-w-0 overflow-hidden">{children}</div>
     </div>
   );
 }

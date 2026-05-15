@@ -47,7 +47,7 @@ export function SidepanelContent({
 }: SidepanelContentProps) {
   return (
     <main
-      className="relative min-h-0 min-w-0 flex-1 overflow-hidden px-3 pb-3 pt-1.5"
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden px-3 pb-3 pt-1.5 [@media(max-height:520px)]:px-2 [@media(max-height:520px)]:pb-2 [@media(max-height:520px)]:pt-1"
       data-testid="main-content"
     >
       <div className="relative h-full min-h-0 min-w-0 overflow-hidden rounded-[22px] border border-border/55 bg-background/76 dark:bg-card/84">

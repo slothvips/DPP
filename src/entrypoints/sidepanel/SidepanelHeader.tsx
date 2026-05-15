@@ -13,7 +13,7 @@ export function SidepanelHeader({ showSyncButton }: SidepanelHeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-10 border-b border-border/50 bg-background/80 px-3 py-3 backdrop-blur dark:bg-background/88">
+    <header className="shrink-0 border-b border-border/50 bg-background/80 px-3 py-3 backdrop-blur [@media(max-height:520px)]:py-2 dark:bg-background/88">
       <div className="flex min-w-0 items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/9 text-sm font-semibold text-primary ring-1 ring-primary/12">

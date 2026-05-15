@@ -30,10 +30,10 @@ export function SidepanelTabBar({
 }: SidepanelTabBarProps) {
   return (
     <div
-      className="min-w-0 border-b border-border/50 bg-background/72 px-3 py-1.5 backdrop-blur dark:bg-background/78"
+      className="shrink-0 min-w-0 border-b border-border/50 bg-background/72 px-3 py-1.5 backdrop-blur [@media(max-height:520px)]:py-1 dark:bg-background/78"
       data-testid="tab-container"
     >
-      <div className="grid min-w-0 grid-cols-4 gap-0.5 rounded-2xl bg-muted/38 p-0.75 ring-1 ring-border/30 dark:bg-muted/62 dark:ring-border/55">
+      <div className="grid min-w-0 grid-cols-4 gap-0.5 rounded-2xl bg-muted/38 p-0.75 ring-1 ring-border/30 [@media(max-height:520px)]:flex [@media(max-height:520px)]:flex-nowrap [@media(max-height:520px)]:overflow-x-auto dark:bg-muted/62 dark:ring-border/55">
         {tabOrder
           .filter((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles, showJenkinsTab }))
           .map((tabId) => {
@@ -47,7 +47,7 @@ export function SidepanelTabBar({
                 type="button"
                 draggable
                 data-testid={config.testid}
-                className={`flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-2 py-1.75 text-xs font-medium cursor-grab active:cursor-grabbing select-none transition-all duration-200 ease-out active:scale-[0.985] ${
+                className={`flex min-w-0 [@media(max-height:520px)]:min-w-[4.25rem] [@media(max-height:520px)]:shrink-0 items-center justify-center gap-1.5 rounded-xl px-2 py-1.75 text-xs font-medium cursor-grab active:cursor-grabbing select-none transition-all duration-200 ease-out active:scale-[0.985] [@media(max-height:520px)]:py-1 ${
                   isActive
                     ? getActiveTabClassName()
                     : 'text-muted-foreground hover:bg-background/64 hover:text-foreground'

@@ -36,7 +36,7 @@ export function VirtualList<T>({
   );
 
   return (
-    <div ref={parentRef} className={cn('overflow-auto', containerClassName)}>
+    <div ref={parentRef} className={cn('h-full min-h-0 overflow-auto', containerClassName)}>
       <div
         className="relative w-full"
         style={{

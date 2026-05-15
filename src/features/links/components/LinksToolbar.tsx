@@ -26,7 +26,7 @@ export function LinksToolbar({
   sortBy,
 }: LinksToolbarProps) {
   return (
-    <div className="rounded-2xl border border-border/55 bg-primary/4 p-3">
+    <div className="rounded-2xl border border-border/55 bg-primary/4 p-3 [@media(max-height:520px)]:p-2">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary/9 text-primary ring-1 ring-primary/10">
@@ -34,7 +34,9 @@ export function LinksToolbar({
           </div>
           <div>
             <h2 className="text-sm font-semibold tracking-tight text-foreground">链接</h2>
-            <p className="text-xs text-muted-foreground">整理常用地址与标签</p>
+            <p className="text-xs text-muted-foreground [@media(max-height:520px)]:hidden">
+              整理常用地址与标签
+            </p>
           </div>
         </div>
         <Button

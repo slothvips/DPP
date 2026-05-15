@@ -17,7 +17,9 @@ const rootElement = document.getElementById('root');
 if (rootElement) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
-      <SidePanelApp />
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        <SidePanelApp />
+      </div>
     </React.StrictMode>
   );
 }
