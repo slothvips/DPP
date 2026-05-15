@@ -19,9 +19,9 @@ export function JenkinsEnvManager() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-lg font-medium">环境列表</h3>
-        <Button size="sm" onClick={handleAdd} className="gap-2">
+        <Button size="sm" onClick={handleAdd} className="shrink-0 gap-2">
           <Plus className="w-4 h-4" /> 新增环境
         </Button>
       </div>

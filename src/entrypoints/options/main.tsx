@@ -41,9 +41,12 @@ function OptionsApp() {
   } = useOptionsPage();
 
   return (
-    <div className="min-h-screen bg-background text-foreground" data-testid="options-page">
-      <div className="container mx-auto p-8 max-w-2xl">
-        <div className="flex items-center gap-2 mb-6">
+    <div
+      className="min-h-screen overflow-x-hidden bg-background text-foreground"
+      data-testid="options-page"
+    >
+      <div className="container mx-auto max-w-2xl min-w-0 px-4 py-6 sm:p-8">
+        <div className="flex flex-wrap items-center gap-2 mb-6">
           <h1 className="text-2xl font-bold" data-testid="options-title">
             DPP 设置
           </h1>

@@ -28,7 +28,7 @@ export function JenkinsEnvDialog(props: JenkinsEnvDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>{initialData ? '编辑环境' : '添加环境'}</DialogTitle>
           <DialogDescription>配置您的 Jenkins 服务器连接信息。</DialogDescription>
@@ -70,7 +70,7 @@ export function JenkinsEnvDialog(props: JenkinsEnvDialogProps) {
             </Button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="user">用户 ID</Label>
               <Input

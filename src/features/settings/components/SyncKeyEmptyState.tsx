@@ -22,25 +22,25 @@ export function SyncKeyEmptyState({
 }: SyncKeyEmptyStateProps) {
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium flex items-center gap-2">
+      <Label className="flex flex-wrap items-center gap-2 text-sm font-medium">
         同步密钥
         <span className="text-xs font-normal text-muted-foreground">(必填，用于加密数据)</span>
       </Label>
 
-      <div className="relative">
+      <div className="flex flex-col gap-2 sm:relative sm:block">
         <Input
           value={importInput}
           onChange={(event) => onImportInputChange(event.target.value)}
           placeholder="在此输入密钥，或点击右侧生成..."
-          className="font-mono text-sm pr-24"
+          className="min-w-0 font-mono text-sm sm:pr-24"
         />
-        <div className="absolute right-1 top-1 bottom-1 flex items-center">
+        <div className="flex justify-end sm:absolute sm:bottom-1 sm:right-1 sm:top-1 sm:items-center">
           {importInput ? (
             <Button
               onClick={onImport}
               disabled={isImporting}
               size="sm"
-              className="h-7 px-3 text-xs bg-primary/10 text-primary hover:bg-primary/20 border-0"
+              className="h-7 border-0 bg-primary/10 px-3 text-xs text-primary hover:bg-primary/20"
             >
               导入
             </Button>
@@ -50,9 +50,9 @@ export function SyncKeyEmptyState({
               disabled={isGenerating}
               variant="ghost"
               size="sm"
-              className="h-7 px-3 text-xs text-primary hover:text-primary hover:bg-primary/10"
+              className="h-7 px-3 text-xs text-primary hover:bg-primary/10 hover:text-primary"
             >
-              <Key className="w-3 h-3 mr-1.5" />
+              <Key className="mr-1.5 h-3 w-3 shrink-0" />
               生成随机密钥
             </Button>
           )}
@@ -63,8 +63,8 @@ export function SyncKeyEmptyState({
         <p className="text-[10px] text-muted-foreground">
           请妥善保管此密钥。丢失密钥将导致无法解密同步数据。
         </p>
-        <p className="text-[10px] text-primary flex items-center gap-1.5">
-          <Users className="w-3 h-3" />
+        <p className="flex items-start gap-1.5 text-[10px] text-primary">
+          <Users className="mt-0.5 h-3 w-3 shrink-0" />
           团队协作提示：所有成员需配置完全一致的密钥才能共享数据
         </p>
       </div>

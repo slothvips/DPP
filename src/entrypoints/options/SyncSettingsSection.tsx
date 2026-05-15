@@ -35,7 +35,7 @@ export function SyncSettingsSection({
   onSave,
 }: SyncSettingsSectionProps) {
   return (
-    <section className="space-y-4 border p-4 rounded-lg">
+    <section className="min-w-0 space-y-4 rounded-lg border p-4">
       <h2 className="text-xl font-semibold">数据同步配置</h2>
 
       {lastSyncTime && (
@@ -98,7 +98,7 @@ export function SyncSettingsSection({
                   onAutoSyncChange({ ...autoSync, interval: Number(value) })
                 }
               >
-                <SelectTrigger id="auto-sync-interval" className="w-[180px]">
+                <SelectTrigger id="auto-sync-interval" className="w-full max-w-xs">
                   <SelectValue placeholder="选择间隔时间" />
                 </SelectTrigger>
                 <SelectContent>

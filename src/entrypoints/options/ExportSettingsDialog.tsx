@@ -28,16 +28,17 @@ export function ExportSettingsDialog({
 }: ExportSettingsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-[calc(100vw-2rem)]">
         <DialogHeader>
           <DialogTitle>导出应用设置</DialogTitle>
           <DialogDescription>选择要导出的设置类型</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 py-4">
           {SETTINGS_CATEGORIES.map((category) => (
-            <div key={category.key} className="flex items-center space-x-3">
+            <div key={category.key} className="flex min-w-0 items-start gap-3">
               <Checkbox
                 id={`export-${category.key}`}
+                className="mt-0.5 shrink-0"
                 checked={selectedCategories.includes(category.key)}
                 onCheckedChange={(checked) => {
                   if (checked) {
@@ -52,10 +53,10 @@ export function ExportSettingsDialog({
               />
               <Label
                 htmlFor={`export-${category.key}`}
-                className="text-sm font-medium cursor-pointer"
+                className="min-w-0 flex-1 cursor-pointer space-y-0.5"
               >
-                {category.label}
-                <span className="text-muted-foreground text-xs ml-2">{category.description}</span>
+                <span className="block text-sm font-medium">{category.label}</span>
+                <span className="block text-xs text-muted-foreground">{category.description}</span>
               </Label>
             </div>
           ))}

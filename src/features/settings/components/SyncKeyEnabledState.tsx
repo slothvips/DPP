@@ -1,7 +1,6 @@
 import { Bug, Copy, Eye, EyeOff, Shield, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { SyncKeyChangeDialog } from './SyncKeyChangeDialog';
 
 interface SyncKeyEnabledStateProps {
@@ -45,15 +44,15 @@ export function SyncKeyEnabledState({
 }: SyncKeyEnabledStateProps) {
   return (
     <div className="space-y-2">
-      <Label className="text-sm font-medium flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span>同步密钥</span>
-          <span className="text-xs font-normal text-success border border-success/20 bg-success/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-            <Shield className="w-3 h-3" />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="text-sm font-medium">同步密钥</span>
+          <span className="flex items-center gap-1 rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-xs font-normal text-success">
+            <Shield className="h-3 w-3 shrink-0" />
             已启用加密
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SyncKeyChangeDialog
             confirmText={confirmText}
             isMigrating={isMigrating}
@@ -71,7 +70,7 @@ export function SyncKeyEnabledState({
             variant="ghost"
             size="sm"
             onClick={onClear}
-            className="h-6 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+            className="h-6 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             清除密钥
           </Button>
@@ -82,26 +81,26 @@ export function SyncKeyEnabledState({
             className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
             title="调试同步数据"
           >
-            <Bug className="w-3 h-3" />
+            <Bug className="h-3 w-3" />
           </Button>
         </div>
-      </Label>
+      </div>
 
-      <div className="relative">
+      <div className="relative min-w-0">
         <Input
           readOnly
           value={keyString}
           type={showKey ? 'text' : 'password'}
-          className="pr-20 font-mono text-sm bg-muted/50 text-muted-foreground"
+          className="min-w-0 bg-muted/50 pr-20 font-mono text-sm text-muted-foreground"
         />
-        <div className="absolute right-1 top-1 bottom-1 flex items-center gap-1">
+        <div className="absolute bottom-1 right-1 top-1 flex items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={onToggleShowKey}
           >
-            {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
           <Button
             variant="ghost"
@@ -110,18 +109,18 @@ export function SyncKeyEnabledState({
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
             title="复制"
           >
-            <Copy className="w-4 h-4" />
+            <Copy className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-1 px-1">
-        <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-          <Shield className="w-3 h-3 text-success" />
+        <p className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
+          <Shield className="mt-0.5 h-3 w-3 shrink-0 text-success" />
           数据在本地加密后传输，服务器无法解密
         </p>
-        <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-          <Users className="w-3 h-3 text-primary" />
+        <p className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
+          <Users className="mt-0.5 h-3 w-3 shrink-0 text-primary" />
           若需共享数据，请确保团队成员使用相同密钥
         </p>
       </div>

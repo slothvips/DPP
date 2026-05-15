@@ -51,7 +51,7 @@ export function SyncKeyChangeDialog({
           更换密钥
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-[calc(100vw-2rem)]">
         <DialogHeader>
           <DialogTitle>更换同步密钥</DialogTitle>
           <DialogDescription className="space-y-3 pt-2">
@@ -84,7 +84,7 @@ export function SyncKeyChangeDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-3">
             <Label>选择操作模式</Label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button
                 type="button"
                 className={`border rounded-md p-3 text-left transition-all ${migrationMode === 'member' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-input hover:border-primary/50 hover:bg-muted/50'}`}

@@ -22,10 +22,10 @@ interface FeatureTogglesSectionProps {
 
 export function FeatureTogglesSection({ featureToggles, onToggle }: FeatureTogglesSectionProps) {
   return (
-    <section className="space-y-4 border p-4 rounded-lg">
+    <section className="min-w-0 space-y-4 rounded-lg border p-4">
       <h2 className="text-xl font-semibold">功能开关</h2>
       <p className="text-sm text-muted-foreground">控制在主界面中显示哪些功能标签页</p>
-      <div className="grid grid-cols-2 gap-4" data-testid="feature-toggles">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="feature-toggles">
         {FEATURE_OPTIONS.map(({ key, label }) => (
           <div key={key} className="flex items-center space-x-3">
             <Checkbox
