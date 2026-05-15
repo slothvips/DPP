@@ -46,8 +46,11 @@ export function SidepanelContent({
   showJenkinsTab,
 }: SidepanelContentProps) {
   return (
-    <main className="relative flex-1 overflow-hidden px-3 pb-3 pt-1.5" data-testid="main-content">
-      <div className="relative h-full overflow-hidden rounded-[22px] border border-border/55 bg-background/76 dark:bg-card/84">
+    <main
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden px-3 pb-3 pt-1.5"
+      data-testid="main-content"
+    >
+      <div className="relative h-full min-h-0 min-w-0 overflow-hidden rounded-[22px] border border-border/55 bg-background/76 dark:bg-card/84">
         <KeepAliveTabPanel active={activeTab === 'links'} visible={featureToggles.links}>
           <LinksView />
         </KeepAliveTabPanel>

@@ -21,7 +21,7 @@ export function ToolboxView() {
   }
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4" data-testid="toolbox-view">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 p-4" data-testid="toolbox-view">
       <div className="rounded-2xl border border-border/60 bg-warning/6 p-4 ring-1 ring-warning/8">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/12 text-warning ring-1 ring-warning/12">

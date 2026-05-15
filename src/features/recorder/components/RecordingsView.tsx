@@ -41,7 +41,7 @@ export function RecordingsView() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 p-4">
       <div className="rounded-2xl border border-border/60 bg-destructive/5 p-3 ring-1 ring-destructive/6">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>

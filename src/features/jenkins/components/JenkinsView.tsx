@@ -39,7 +39,7 @@ export function JenkinsView() {
   }
 
   return (
-    <div className="flex flex-col h-full space-y-4">
+    <div className="flex h-full min-h-0 min-w-0 flex-col space-y-4">
       <JenkinsToolbar
         currentEnvId={currentEnvId}
         environments={environments}

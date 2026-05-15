@@ -20,7 +20,7 @@ export function HotNewsView() {
   } = useHotNewsView();
 
   return (
-    <div className="flex h-full flex-col gap-2.5 overflow-hidden p-3.5">
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-2.5 overflow-hidden p-3.5">
       <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-warning/5 p-2.5 ring-1 ring-warning/7">
         <div className="flex items-center gap-2">
           <div className="flex rounded-xl bg-background/76 p-0.75 ring-1 ring-border/40">

@@ -11,7 +11,7 @@ export function KeepAliveTabPanel({ active, children, visible }: KeepAliveTabPan
 
   return (
     <div
-      className="absolute inset-0 transition-opacity duration-200"
+      className="absolute inset-0 min-h-0 min-w-0 transition-opacity duration-200"
       style={{
         opacity: isShown ? 1 : 0,
         visibility: isShown ? 'visible' : 'hidden',

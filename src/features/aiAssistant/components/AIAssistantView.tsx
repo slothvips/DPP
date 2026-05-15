@@ -90,7 +90,7 @@ export function AIAssistantView() {
   }, [isSummarizing, messages.length, status, summarizeSession, switchSession, toast]);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[22px] border border-border/60 bg-background/90">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[22px] border border-border/60 bg-background/90">
       <AIAssistantHeader
         sessions={sessions}
         currentSessionId={sessionId}

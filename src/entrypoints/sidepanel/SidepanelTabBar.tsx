@@ -30,10 +30,10 @@ export function SidepanelTabBar({
 }: SidepanelTabBarProps) {
   return (
     <div
-      className="border-b border-border/50 bg-background/72 px-3 py-1.5 backdrop-blur dark:bg-background/78"
+      className="min-w-0 border-b border-border/50 bg-background/72 px-3 py-1.5 backdrop-blur dark:bg-background/78"
       data-testid="tab-container"
     >
-      <div className="grid grid-cols-4 gap-0.5 rounded-2xl bg-muted/38 p-0.75 ring-1 ring-border/30 dark:bg-muted/62 dark:ring-border/55">
+      <div className="grid min-w-0 grid-cols-4 gap-0.5 rounded-2xl bg-muted/38 p-0.75 ring-1 ring-border/30 dark:bg-muted/62 dark:ring-border/55">
         {tabOrder
           .filter((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles, showJenkinsTab }))
           .map((tabId) => {

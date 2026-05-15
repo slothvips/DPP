@@ -24,8 +24,8 @@ export function BlackboardView() {
   } = useBlackboardView();
 
   return (
-    <div className="relative flex h-full flex-col overflow-hidden rounded-[20px] border border-border/45 bg-muted/30 ring-1 ring-border/20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDMiLz4KPC9zdmc+')]">
-      <div className="flex-1 overflow-y-auto p-5 custom-scrollbar sm:p-6">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[20px] border border-border/45 bg-muted/30 ring-1 ring-border/20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMDMiLz4KPC9zdmc+')]">
+      <div className="min-h-0 flex-1 overflow-y-auto p-5 custom-scrollbar sm:p-6">
         {items === undefined && (
           <div className="flex items-center justify-center h-32" data-testid="loading">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />

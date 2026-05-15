@@ -32,7 +32,7 @@ export function JenkinsJobContent({
   const hasJobs = jobs.length > 0;
 
   return (
-    <div className="flex-1 overflow-auto border rounded-md">
+    <div className="min-h-0 flex-1 overflow-auto border rounded-md">
       {!hasJobs ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
           {loading ? '正在从 Jenkins 获取数据...' : '暂无数据，请点击采集'}

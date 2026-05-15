@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 
 export function JenkinsEmptyState() {
   return (
-    <div className="flex h-full items-center justify-center px-4 py-8">
+    <div className="flex h-full min-h-0 min-w-0 items-center justify-center px-4 py-8">
       <div className="w-full max-w-sm rounded-3xl border border-border/60 bg-background/88 p-6 text-center">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm ring-1 ring-primary/15">
           <Settings2 className="h-6 w-6" />
