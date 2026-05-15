@@ -28,13 +28,13 @@ export function LinkListItem({
     <div
       key={link.id}
       className={cn(
-        'group relative mb-2.5 flex min-h-[68px] items-start gap-3 overflow-hidden rounded-2xl border border-border/60 p-3 shadow-sm transition-all duration-200',
+        'group relative mb-1.5 flex min-h-[56px] items-start gap-2 overflow-hidden rounded-xl border border-border/60 p-2 shadow-sm transition-all duration-200',
         link.pinnedAt
           ? 'bg-primary/4 ring-1 ring-primary/12'
           : 'bg-background/90 hover:border-primary/10 hover:bg-muted/16 hover:shadow-sm'
       )}
     >
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
           <LinkAnchor
             href={link.url}

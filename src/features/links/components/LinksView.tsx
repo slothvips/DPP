@@ -127,7 +127,7 @@ export function LinksView() {
         ) : (
           <VirtualList
             items={filteredAndSortedLinks ?? []}
-            estimateSize={140}
+            estimateSize={108}
             overscan={5}
             containerClassName="h-full min-h-0 pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
             renderItem={(link) => (

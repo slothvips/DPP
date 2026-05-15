@@ -3,10 +3,6 @@ import { cancelBuild, getJobDetails, triggerBuild } from '@/features/jenkins/api
 import { fetchAllJobs } from '@/features/jenkins/api/fetchJobs';
 import { fetchMyBuilds } from '@/features/jenkins/api/fetchMyBuilds';
 import type { JenkinsMessage, JenkinsResponse } from '@/features/jenkins/messages';
-import {
-  notifyTelegramForTriggeredBuild,
-  sendJenkinsTelegramMessage,
-} from '@/features/jenkins/telegram';
 import { getJenkinsCredentials } from '@/lib/db/jenkins';
 import { logger } from '@/utils/logger';
 
@@ -31,23 +27,9 @@ export async function handleJenkinsMessage(message: JenkinsMessage): Promise<Jen
         break;
       }
       case 'JENKINS_TRIGGER_BUILD': {
-        const { jobUrl, jobName, parameters, envId: targetEnvId, notifyTelegram } = message.payload;
-        const { host, user, token, envId } = await getJenkinsCredentials(targetEnvId);
-        const buildTriggered = await triggerBuild(jobUrl, user, token, host, parameters);
-        const telegramNotification = buildTriggered
-          ? await notifyTelegramForTriggeredBuild({
-              context: {
-                jobName: jobName || jobUrl,
-                jobUrl,
-                envId,
-                jenkinsUser: user,
-                parameters,
-              },
-              notifyTelegram,
-            })
-          : undefined;
-
-        data = { buildTriggered, telegramNotification };
+        const { jobUrl, parameters, envId: targetEnvId } = message.payload;
+        const { host, user, token } = await getJenkinsCredentials(targetEnvId);
+        data = await triggerBuild(jobUrl, user, token, host, parameters);
         break;
       }
       case 'JENKINS_GET_JOB_DETAILS': {
@@ -60,15 +42,6 @@ export async function handleJenkinsMessage(message: JenkinsMessage): Promise<Jen
         const { jobUrl, buildNumber, envId: targetEnvId } = message.payload;
         const { host, user, token } = await getJenkinsCredentials(targetEnvId);
         data = await cancelBuild(jobUrl, buildNumber, user, token, host);
-        break;
-      }
-      case 'JENKINS_TEST_TELEGRAM_NOTIFICATION': {
-        const { botToken, chatId } = message.payload;
-        await sendJenkinsTelegramMessage(
-          { botToken, chatId },
-          `DPP Jenkins TG 通知测试\n时间: ${new Date().toLocaleString('zh-CN', { hour12: false })}`
-        );
-        data = true;
         break;
       }
     }

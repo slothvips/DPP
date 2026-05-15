@@ -105,31 +105,6 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'string',
     writable: true,
   },
-  jenkins_tg_notification_enabled: {
-    category: 'jenkins',
-    description: 'Enable Jenkins Telegram release notifications',
-    type: 'boolean',
-    writable: true,
-  },
-  jenkins_tg_bot_token: {
-    category: 'jenkins',
-    description: 'Telegram Bot Token for Jenkins notifications',
-    sensitive: true,
-    type: 'string',
-    writable: true,
-  },
-  jenkins_tg_chat_id: {
-    category: 'jenkins',
-    description: 'Telegram target chat ID for Jenkins notifications',
-    type: 'string',
-    writable: true,
-  },
-  jenkins_tg_release_keywords: {
-    category: 'jenkins',
-    description: 'Keywords used to detect release builds',
-    type: 'string',
-    writable: true,
-  },
   custom_server_url: {
     category: 'sync',
     description: 'DPP sync server URL',
@@ -332,7 +307,6 @@ const ENCRYPTABLE_SETTING_KEYS = new Set<SettingKey>([
   'ai_ollama_api_key',
   'ai_anthropic_api_key',
   'ai_custom_api_key',
-  'jenkins_tg_bot_token',
 ]);
 
 const SYNC_RELATED_SETTING_KEYS = new Set<SettingKey>([
@@ -486,20 +460,6 @@ function validateSettingBoundary(key: SettingKey, value: unknown): void {
       return;
     case 'jenkins_token':
       validateStringLength(key, value, VALIDATION_LIMITS.JENKINS_TOKEN_MAX, 'Jenkins Token');
-      return;
-    case 'jenkins_tg_bot_token':
-      validateStringLength(key, value, VALIDATION_LIMITS.JENKINS_TG_BOT_TOKEN_MAX, 'TG Bot Token');
-      return;
-    case 'jenkins_tg_chat_id':
-      validateStringLength(key, value, VALIDATION_LIMITS.JENKINS_TG_CHAT_ID_MAX, 'TG Chat ID');
-      return;
-    case 'jenkins_tg_release_keywords':
-      validateStringLength(
-        key,
-        value,
-        VALIDATION_LIMITS.JENKINS_TG_RELEASE_KEYWORDS_MAX,
-        'TG 发布关键词'
-      );
       return;
     case 'jenkins_environments':
       validateJenkinsEnvironments(value);

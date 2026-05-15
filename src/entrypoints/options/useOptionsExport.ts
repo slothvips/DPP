@@ -10,7 +10,6 @@ const SENSITIVE_EXPORT_SETTING_KEYS = new Set<SettingKey>([
   'sync_encryption_key',
   'sync_access_token',
   'jenkins_token',
-  'jenkins_tg_bot_token',
   'ai_api_key',
   'ai_ollama_api_key',
   'ai_anthropic_api_key',
