@@ -16,6 +16,9 @@ export default defineConfig({
         babelConfig: {
           presets: ['@babel/preset-typescript'],
           plugins: [['babel-plugin-react-compiler', { target: '19' }]],
+          // 抑制 Babel 对超过 500KB 的文件(react-dom、rrweb)的 deoptimised 警告
+          // 这些是预编译的 production 文件,Babel 不需要优化其代码样式
+          compact: true,
         },
         filter: /\.[jt]sx?$/,
       }),
@@ -24,17 +27,35 @@ export default defineConfig({
       charset: 'ascii',
     },
     build: {
-      // 警告阈值设为 1500KB:
-      // - 比默认 500KB 宽松,避免 rrweb 等大型库的噪声警告
-      // - 比之前的 7000KB 严格,让真正异常的 chunk 仍可见
+      // 警告阈值设为 4000KB:
+      // - Monaco editor.main.js 约 3.77MB(已通过 React.lazy 懒加载,不影响首屏)
+      // - 其他 chunk 均远低于 1500KB,提高阈值不会掩盖真正异常的 chunk
       // 注意:不能使用 manualChunks,因为 WXT 的 background service worker
       // 使用 inlineDynamicImports(无法动态加载 chunk),与 manualChunks 不兼容。
       // Monaco 等大型库的拆分通过 React.lazy + 动态 import 实现。
-      chunkSizeWarningLimit: 1500,
+      chunkSizeWarningLimit: 4000,
       rollupOptions: {
         onwarn(warning, warn) {
           // 忽略 page-agent 依赖中的 eval 警告
           if (warning.code === 'EVAL' && warning.message.includes('@page-agent/page-controller')) {
+            return;
+          }
+          // 忽略 Radix UI 的 "use client" 指令警告
+          // Radix UI 为 React Server Components 标注 "use client",
+          // 在浏览器扩展 bundling 中无意义,Rollup 会安全忽略
+          if (
+            warning.code === 'MODULE_LEVEL_DIRECTIVE' &&
+            warning.message.includes('"use client"')
+          ) {
+            return;
+          }
+          // 忽略 UnoCSS 的 "virtual:uno.css" 重复导入警告
+          // WXT 多入口(7 个 HTML)各自注入 UnoCSS 虚拟模块,UnoCSS 已正确处理
+          // (只用第一个出现),警告本身无害
+          if (
+            warning.message.includes('[unocss]') &&
+            warning.message.includes('is being imported multiple times')
+          ) {
             return;
           }
           warn(warning);
