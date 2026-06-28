@@ -15,7 +15,7 @@ export async function fetchNews(date: string): Promise<DailyNews | null> {
   try {
     const cached = await getHotNews({ date });
     if (cached?.data) {
-      return cached.data as DailyNews;
+      return cached.data;
     }
   } catch (error) {
     logger.debug('Cache read failed:', error);

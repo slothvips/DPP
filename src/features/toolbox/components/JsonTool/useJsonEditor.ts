@@ -1,12 +1,9 @@
-import * as monaco from 'monaco-editor';
-import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
-import 'monaco-editor/min/vs/editor/editor.main.css';
+import type * as Monaco from 'monaco-editor';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
-import { setupMonacoWorker } from '@/lib/monaco/worker';
+import { loadMonaco } from '@/lib/monaco/loadMonaco';
+import { logger } from '@/utils/logger';
 import { validateJsonText } from './jsonUtils';
-
-setupMonacoWorker();
 
 function forceShowFoldIcons() {
   if (document.getElementById('monaco-fold-force-show')) {
@@ -32,9 +29,13 @@ function isDarkTheme(theme: string): boolean {
 
 export function useJsonEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof Monaco | null>(null);
   const { theme } = useTheme();
-  const initialThemeRef = useRef(theme);
+  // 用 ref 跟踪最新 theme,供 initEditor 异步加载完成后读取
+  // 避免"加载期间切换主题"的竞态:theme effect 已运行过(no-op),editor 停留旧主题
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const [error, setError] = useState<string | null>(null);
 
   const validateEditorValue = useCallback((value: string) => {
@@ -44,49 +45,67 @@ export function useJsonEditor() {
   }, []);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    let disposed = false;
 
-    forceShowFoldIcons();
+    async function initEditor() {
+      if (!containerRef.current) return;
 
-    editorRef.current = monaco.editor.create(containerRef.current, {
-      value: '{\n  \n}',
-      language: 'json',
-      theme: isDarkTheme(initialThemeRef.current) ? 'vs-dark' : 'vs',
-      automaticLayout: true,
-      minimap: { enabled: false },
-      fontSize: 13,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-      lineNumbers: 'on',
-      wordWrap: 'on',
-      scrollBeyondLastLine: false,
-      renderLineHighlight: 'all',
-      tabSize: 2,
-      formatOnPaste: true,
-      formatOnType: true,
-      folding: true,
-      foldingStrategy: 'indentation',
-      foldingHighlight: true,
-      showFoldingControls: 'always',
-      bracketPairColorization: { enabled: true },
-      guides: { bracketPairs: true, indentation: true },
-      padding: { top: 8, bottom: 8 },
-      scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
-    });
+      try {
+        const monaco = await loadMonaco();
+        if (disposed || !containerRef.current) return;
 
-    editorRef.current.onDidChangeModelContent(() => {
-      validateEditorValue(editorRef.current?.getValue() || '');
-    });
+        monacoRef.current = monaco;
+        forceShowFoldIcons();
+
+        editorRef.current = monaco.editor.create(containerRef.current, {
+          value: '{\n  \n}',
+          language: 'json',
+          theme: isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs',
+          automaticLayout: true,
+          minimap: { enabled: false },
+          fontSize: 13,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          lineNumbers: 'on',
+          wordWrap: 'on',
+          scrollBeyondLastLine: false,
+          renderLineHighlight: 'all',
+          tabSize: 2,
+          formatOnPaste: true,
+          formatOnType: true,
+          folding: true,
+          foldingStrategy: 'indentation',
+          foldingHighlight: true,
+          showFoldingControls: 'always',
+          bracketPairColorization: { enabled: true },
+          guides: { bracketPairs: true, indentation: true },
+          padding: { top: 8, bottom: 8 },
+          scrollbar: { verticalScrollbarSize: 10, horizontalScrollbarSize: 10 },
+        });
+
+        editorRef.current.onDidChangeModelContent(() => {
+          validateEditorValue(editorRef.current?.getValue() || '');
+        });
+
+        // 加载完成后立即应用最新主题,修复竞态:
+        // 若加载期间 theme 变化,theme effect 已 no-op,这里补齐
+        monaco.editor.setTheme(isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs');
+      } catch (err) {
+        logger.error('[useJsonEditor] Failed to load Monaco:', err);
+      }
+    }
+
+    void initEditor();
 
     return () => {
+      disposed = true;
       editorRef.current?.dispose();
       editorRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [validateEditorValue]);
 
   useEffect(() => {
     const updateMonacoTheme = () => {
-      monaco.editor.setTheme(isDarkTheme(theme) ? 'vs-dark' : 'vs');
+      monacoRef.current?.editor.setTheme(isDarkTheme(theme) ? 'vs-dark' : 'vs');
     };
 
     updateMonacoTheme();

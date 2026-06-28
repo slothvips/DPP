@@ -13,7 +13,7 @@ export function createUploadButton(doc: Document): HTMLButtonElement {
   const button = doc.createElement('button');
   button.type = 'button';
   button.className = 'dpp-upload-btn';
-  button.innerHTML = '📹 上传录像';
+  button.textContent = '📹 上传录像';
   applyStyles(button, {
     padding: '6px 14px',
     fontSize: '13px',
@@ -52,8 +52,8 @@ export function bindUploadButton(
     event.preventDefault();
     event.stopPropagation();
 
-    const originalText = button.innerHTML;
-    button.innerHTML = '⏳ 加载中...';
+    const originalText = button.textContent;
+    button.textContent = '⏳ 加载中...';
     button.disabled = true;
 
     try {
@@ -68,7 +68,7 @@ export function bindUploadButton(
 
       if (!response.success) {
         showAlert(response.error || '加载录像失败');
-        button.innerHTML = originalText;
+        button.textContent = originalText;
         button.disabled = false;
         return;
       }
@@ -77,13 +77,13 @@ export function bindUploadButton(
         showRecordingPicker(doc, recordings, input, button, originalText);
       } else {
         showAlert('暂无录像记录');
-        button.innerHTML = originalText;
+        button.textContent = originalText;
         button.disabled = false;
       }
     } catch (error) {
       logZentao('Error loading recordings:', error);
       showAlert('加载录像失败');
-      button.innerHTML = originalText;
+      button.textContent = originalText;
       button.disabled = false;
     }
   };

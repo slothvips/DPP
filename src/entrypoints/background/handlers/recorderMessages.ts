@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 import type { RecordingState } from '@/features/recorder/types';
-import { addRecording, getAllRecordings, getRecordingById } from '@/lib/db/recorder';
+import { addRecording, getAllRecordingMetas, getRecordingById } from '@/lib/db/recorder';
 import { logger } from '@/utils/logger';
 import { clearRecordingState, getRecordingState, setRecordingState } from './recorderState';
 
@@ -65,8 +65,8 @@ export function handleRecorderStatusForContent(sender: chrome.runtime.MessageSen
 }
 
 export async function handleGetAllRecordings() {
-  const recordings = await getAllRecordings();
-  const metas = recordings.map(({ events: _events, ...meta }) => meta);
+  // 直接查询元数据,避免读取大量 events 数组占用内存
+  const metas = await getAllRecordingMetas();
   return { success: true, data: metas };
 }
 

@@ -5,7 +5,7 @@ export type {
   ImportRecordingResult,
   UpdateRecordingTitleResult,
 } from './recorderShared';
-export { getAllRecordings, getRecordingById } from './recorderQueries';
+export { getAllRecordingMetas, getAllRecordings, getRecordingById } from './recorderQueries';
 export {
   addRecording,
   clearRecordings,

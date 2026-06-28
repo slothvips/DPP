@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { logger } from '@/utils/logger';
-import type { Recording } from '../types';
+import type { RecordingMeta } from '../types';
 
 interface Props {
-  recording: Recording;
+  recording: RecordingMeta;
   onDelete: (id: string) => void;
   onUpdateTitle: (id: string, title: string) => void;
-  onExport: (recording: Recording) => void;
+  onExport: (recording: RecordingMeta) => void;
 }
 
 export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: Props) {

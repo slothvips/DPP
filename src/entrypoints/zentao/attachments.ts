@@ -73,7 +73,7 @@ export function enhanceMainFrameAttachments(doc: Document) {
 
     const playButton = doc.createElement('button');
     playButton.type = 'button';
-    playButton.innerHTML = '▶️ 播放录像';
+    playButton.textContent = '▶️ 播放录像';
     applyStyles(playButton, {
       marginLeft: '8px',
       padding: '4px 12px',
@@ -108,8 +108,8 @@ export function enhanceMainFrameAttachments(doc: Document) {
 
       logZentao('Fetching recording from:', jsonUrl);
 
-      const originalText = playButton.innerHTML;
-      playButton.innerHTML = '⏳ 加载中...';
+      const originalText = playButton.textContent;
+      playButton.textContent = '⏳ 加载中...';
       playButton.disabled = true;
 
       try {
@@ -138,13 +138,13 @@ export function enhanceMainFrameAttachments(doc: Document) {
           payload: { cacheId },
         });
 
-        playButton.innerHTML = originalText;
+        playButton.textContent = originalText;
         playButton.disabled = false;
       } catch (error) {
         logZentao('Error fetching recording:', error);
-        playButton.innerHTML = '❌ 失败';
+        playButton.textContent = '❌ 失败';
         setTimeout(() => {
-          playButton.innerHTML = originalText;
+          playButton.textContent = originalText;
           playButton.disabled = false;
         }, 2000);
         showAlert(`加载录像失败: ${error instanceof Error ? error.message : String(error)}`);

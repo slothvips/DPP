@@ -1,3 +1,7 @@
+import { Settings } from 'lucide-react';
+import { browser } from 'wxt/browser';
+import { GlobalSyncButton } from '@/components/GlobalSyncButton';
+import { Button } from '@/components/ui/button';
 import { TAB_CONFIG } from './sidepanelTabs';
 import type { FeatureToggles, TabId } from './sidepanelTypes';
 
@@ -11,6 +15,7 @@ interface SidepanelTabBarProps {
   tabOrder: TabId[];
   featureToggles: FeatureToggles;
   showJenkinsTab: boolean;
+  showSyncButton: boolean;
   handleTabChange: (tabId: TabId) => void;
   handleDragStart: (tabId: TabId) => void;
   handleDragOver: (event: React.DragEvent<HTMLButtonElement>, tabId: TabId) => void;
@@ -23,17 +28,21 @@ export function SidepanelTabBar({
   tabOrder,
   featureToggles,
   showJenkinsTab,
+  showSyncButton,
   handleTabChange,
   handleDragStart,
   handleDragOver,
   handleDragEnd,
 }: SidepanelTabBarProps) {
+  const openSettings = () => {
+    browser.tabs.create({ url: browser.runtime.getURL('/options.html') });
+  };
   return (
     <div
-      className="shrink-0 min-w-0 border-b border-border/50 bg-background/72 px-3 py-1.5 backdrop-blur [@media(max-height:520px)]:py-1 dark:bg-background/78"
+      className="flex h-full w-36 shrink-0 flex-col overflow-hidden border-r border-border/50 bg-background/72 py-2 backdrop-blur dark:bg-background/78"
       data-testid="tab-container"
     >
-      <div className="grid min-w-0 grid-cols-4 gap-0.5 rounded-2xl bg-muted/38 p-0.75 ring-1 ring-border/30 [@media(max-height:520px)]:flex [@media(max-height:520px)]:flex-nowrap [@media(max-height:520px)]:overflow-x-auto dark:bg-muted/62 dark:ring-border/55">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2">
         {tabOrder
           .filter((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles, showJenkinsTab }))
           .map((tabId) => {
@@ -47,7 +56,7 @@ export function SidepanelTabBar({
                 type="button"
                 draggable
                 data-testid={config.testid}
-                className={`flex min-w-0 [@media(max-height:520px)]:min-w-[4.25rem] [@media(max-height:520px)]:shrink-0 items-center justify-center gap-1.5 rounded-xl px-2 py-1.75 text-xs font-medium cursor-grab active:cursor-grabbing select-none transition-all duration-200 ease-out active:scale-[0.985] [@media(max-height:520px)]:py-1 ${
+                className={`flex min-w-0 items-center justify-start gap-2 rounded-xl px-2.5 py-2.5 text-xs font-medium cursor-grab active:cursor-grabbing select-none transition-all duration-200 ease-out active:scale-[0.985] ${
                   isActive
                     ? getActiveTabClassName()
                     : 'text-muted-foreground hover:bg-background/64 hover:text-foreground'
@@ -62,6 +71,20 @@ export function SidepanelTabBar({
               </button>
             );
           })}
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border/30 px-2 pt-3">
+        {showSyncButton && <GlobalSyncButton orientation="vertical" />}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={openSettings}
+          data-testid="settings-button"
+          className="flex h-auto items-center justify-start gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-muted-foreground hover:bg-background/64 hover:text-foreground"
+        >
+          <Settings className="h-4 w-4 shrink-0" />
+          <span>设置</span>
+        </Button>
       </div>
     </div>
   );

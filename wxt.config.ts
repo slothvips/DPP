@@ -24,9 +24,13 @@ export default defineConfig({
       charset: 'ascii',
     },
     build: {
-      // 提高警告阈值，消除 "chunk too large" 警告
-      chunkSizeWarningLimit: 7000,
-      // 过滤掉第三方依赖的 eval 警告
+      // 警告阈值设为 1500KB:
+      // - 比默认 500KB 宽松,避免 rrweb 等大型库的噪声警告
+      // - 比之前的 7000KB 严格,让真正异常的 chunk 仍可见
+      // 注意:不能使用 manualChunks,因为 WXT 的 background service worker
+      // 使用 inlineDynamicImports(无法动态加载 chunk),与 manualChunks 不兼容。
+      // Monaco 等大型库的拆分通过 React.lazy + 动态 import 实现。
+      chunkSizeWarningLimit: 1500,
       rollupOptions: {
         onwarn(warning, warn) {
           // 忽略 page-agent 依赖中的 eval 警告

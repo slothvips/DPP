@@ -55,7 +55,11 @@ const messageHandlers: Array<{
   },
   {
     match: (type) => type === 'ZEN_FETCH_JSON' || type === 'JENKINS_API_REQUEST',
-    handler: (message) => handleProxyMessage(message as Parameters<typeof handleProxyMessage>[0]),
+    handler: (message, sender) =>
+      handleProxyMessage(
+        message as Parameters<typeof handleProxyMessage>[0],
+        sender as Parameters<typeof handleProxyMessage>[1] | undefined
+      ),
   },
   {
     match: (type) => type === 'PAGE_AGENT_INJECT',

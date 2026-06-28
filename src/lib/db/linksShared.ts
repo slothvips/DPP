@@ -1,6 +1,6 @@
 import type { Table } from 'dexie';
 import { db } from '@/db';
-import type { LinkTagItem } from '@/db/types';
+import type { LinkTagItem, TagItem } from '@/db/types';
 import { logger } from '@/utils/logger';
 
 export function getLinkTagsTable(): Table<LinkTagItem, [string, string]> {
@@ -15,6 +15,33 @@ export function isValidLinkUrl(url: string): boolean {
     logger.debug('Invalid URL:', url, error);
     return false;
   }
+}
+
+/**
+ * 构建 linkId → TagItem[] 的映射表
+ *
+ * 抽取自 useLinksData.buildLinksWithStats 和 linksQueries.listLinks,
+ * 消除两处重复的 Map join 逻辑。
+ */
+export function buildLinkTagsMap(
+  allLinkTags: LinkTagItem[],
+  allTags: TagItem[]
+): Map<string, TagItem[]> {
+  const tagsMap = new Map(allTags.map((tag) => [tag.id, tag]));
+  const linkTagsMap = new Map<string, TagItem[]>();
+
+  for (const linkTag of allLinkTags) {
+    const tag = tagsMap.get(linkTag.tagId);
+    if (!tag) {
+      continue;
+    }
+
+    const current = linkTagsMap.get(linkTag.linkId) || [];
+    current.push(tag);
+    linkTagsMap.set(linkTag.linkId, current);
+  }
+
+  return linkTagsMap;
 }
 
 export async function resolveTagNamesToIds(tagsInput: string[]): Promise<string[]> {

@@ -28,27 +28,30 @@ export function App() {
     <ToastProvider>
       <ConfirmDialogProvider>
         <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-gradient-to-b from-background via-background to-muted/20 text-foreground dark:from-background dark:via-background dark:to-secondary/35">
-          {!isMinimalMode && <SidepanelHeader showSyncButton={showSyncButton} />}
+          {!isMinimalMode && <SidepanelHeader />}
 
-          {!isMinimalMode && (
-            <SidepanelTabBar
+          <div className="flex min-h-0 min-w-0 flex-1 flex-row overflow-hidden">
+            {!isMinimalMode && (
+              <SidepanelTabBar
+                activeTab={activeTab}
+                draggedTab={draggedTab}
+                tabOrder={tabOrder}
+                featureToggles={featureToggles}
+                showJenkinsTab={showJenkinsTab}
+                showSyncButton={showSyncButton}
+                handleTabChange={handleTabChange}
+                handleDragStart={handleDragStart}
+                handleDragOver={handleDragOver}
+                handleDragEnd={handleDragEnd}
+              />
+            )}
+
+            <SidepanelContent
               activeTab={activeTab}
-              draggedTab={draggedTab}
-              tabOrder={tabOrder}
               featureToggles={featureToggles}
               showJenkinsTab={showJenkinsTab}
-              handleTabChange={handleTabChange}
-              handleDragStart={handleDragStart}
-              handleDragOver={handleDragOver}
-              handleDragEnd={handleDragEnd}
             />
-          )}
-
-          <SidepanelContent
-            activeTab={activeTab}
-            featureToggles={featureToggles}
-            showJenkinsTab={showJenkinsTab}
-          />
+          </div>
         </div>
       </ConfirmDialogProvider>
     </ToastProvider>

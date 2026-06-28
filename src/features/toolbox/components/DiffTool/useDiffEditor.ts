@@ -1,12 +1,8 @@
-import * as monaco from 'monaco-editor';
-import 'monaco-editor/esm/vs/base/browser/ui/codicons/codicon/codicon.css';
-import 'monaco-editor/min/vs/editor/editor.main.css';
+import type * as Monaco from 'monaco-editor';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTheme } from '@/hooks/useTheme';
-import { setupMonacoWorker } from '@/lib/monaco/worker';
+import { loadMonaco } from '@/lib/monaco/loadMonaco';
 import { logger } from '@/utils/logger';
-
-setupMonacoWorker();
 
 function isDarkTheme(theme: string): boolean {
   return (
@@ -17,58 +13,83 @@ function isDarkTheme(theme: string): boolean {
 
 export function useDiffEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const editorRef = useRef<monaco.editor.IStandaloneDiffEditor | null>(null);
+  const editorRef = useRef<Monaco.editor.IStandaloneDiffEditor | null>(null);
+  const monacoRef = useRef<typeof Monaco | null>(null);
   const { theme } = useTheme();
-  const initialThemeRef = useRef(theme);
+  // 用 ref 跟踪最新 theme,供 initEditor 异步加载完成后读取
+  // 避免"加载期间切换主题"的竞态:theme effect 已运行过(no-op),editor 停留旧主题
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
   const [editorError, setEditorError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    let disposed = false;
 
-    try {
-      const originalModel = monaco.editor.createModel('', 'text/plain');
-      const modifiedModel = monaco.editor.createModel('', 'text/plain');
-      const editor = monaco.editor.createDiffEditor(containerRef.current, {
-        automaticLayout: true,
-        readOnly: false,
-        theme: isDarkTheme(initialThemeRef.current) ? 'vs-dark' : 'vs',
-        renderSideBySide: true,
-        ignoreTrimWhitespace: false,
-        renderOverviewRuler: true,
-        scrollBeyondLastLine: false,
-        originalEditable: true,
-        enableSplitViewResizing: true,
-        fontSize: 13,
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-        minimap: { enabled: false },
-        lineNumbers: 'on',
-        wordWrap: 'on',
-        renderLineHighlight: 'all',
-      });
+    async function initEditor() {
+      if (!containerRef.current) return;
 
-      editor.setModel({
-        original: originalModel,
-        modified: modifiedModel,
-      });
-      editorRef.current = editor;
-      setEditorError(null);
+      try {
+        const monaco = await loadMonaco();
+        if (disposed || !containerRef.current) return;
 
-      return () => {
-        editor.dispose();
-        originalModel.dispose();
-        modifiedModel.dispose();
-        editorRef.current = null;
-      };
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '编辑器初始化失败';
-      setEditorError(errorMessage);
-      logger.error('[useDiffEditor] Monaco editor init error:', err);
+        monacoRef.current = monaco;
+
+        const originalModel = monaco.editor.createModel('', 'text/plain');
+        const modifiedModel = monaco.editor.createModel('', 'text/plain');
+        const editor = monaco.editor.createDiffEditor(containerRef.current, {
+          automaticLayout: true,
+          readOnly: false,
+          theme: isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs',
+          renderSideBySide: true,
+          ignoreTrimWhitespace: false,
+          renderOverviewRuler: true,
+          scrollBeyondLastLine: false,
+          originalEditable: true,
+          enableSplitViewResizing: true,
+          fontSize: 13,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          minimap: { enabled: false },
+          lineNumbers: 'on',
+          wordWrap: 'on',
+          renderLineHighlight: 'all',
+        });
+
+        editor.setModel({
+          original: originalModel,
+          modified: modifiedModel,
+        });
+        editorRef.current = editor;
+        setEditorError(null);
+
+        // 加载完成后立即应用最新主题,修复竞态:
+        // 若加载期间 theme 变化,theme effect 已 no-op,这里补齐
+        monaco.editor.setTheme(isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs');
+      } catch (err) {
+        if (disposed) return;
+        const errorMessage = err instanceof Error ? err.message : '编辑器初始化失败';
+        setEditorError(errorMessage);
+        logger.error('[useDiffEditor] Monaco editor init error:', err);
+      }
     }
+
+    void initEditor();
+
+    return () => {
+      disposed = true;
+      const editor = editorRef.current;
+      if (editor) {
+        const model = editor.getModel();
+        model?.original.dispose();
+        model?.modified.dispose();
+        editor.dispose();
+        editorRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
     const updateMonacoTheme = () => {
-      monaco.editor.setTheme(isDarkTheme(theme) ? 'vs-dark' : 'vs');
+      monacoRef.current?.editor.setTheme(isDarkTheme(theme) ? 'vs-dark' : 'vs');
     };
 
     updateMonacoTheme();

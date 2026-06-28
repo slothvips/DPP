@@ -4,14 +4,15 @@ import {
   deleteRecording as dbDeleteRecording,
   updateRecordingTitle as dbUpdateRecordingTitle,
   exportRecordingAsJson,
-  getAllRecordings,
+  getAllRecordingMetas,
   importRecordingFromJson,
 } from '@/lib/db/recorder';
 import { logger } from '@/utils/logger';
-import type { Recording } from '../types';
+import type { RecordingMeta } from '../types';
 
 export function useRecordings() {
-  const recordings = useLiveQuery(() => getAllRecordings(), []);
+  // 仅查询元数据(不含 events 数组),避免 UI 长期持有大量事件数据
+  const recordings = useLiveQuery(() => getAllRecordingMetas(), []);
 
   const deleteRecording = async (id: string) => {
     const result = await dbDeleteRecording({ id });
@@ -50,7 +51,7 @@ export function useRecordings() {
     return result.id;
   };
 
-  const exportRecording = async (recording: Recording) => {
+  const exportRecording = async (recording: RecordingMeta) => {
     const result = await exportRecordingAsJson({ id: recording.id });
     if (!result.success || !result.data) {
       throw new Error(result.message);

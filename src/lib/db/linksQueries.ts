@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import type { LinkItem, LinkStatItem, LinkTagItem } from '@/db/types';
-import { getLinkTagsTable } from './linksShared';
+import { buildLinkTagsMap, getLinkTagsTable } from './linksShared';
 
 export async function listLinks(args: {
   keyword?: string;
@@ -36,20 +36,8 @@ export async function listLinks(args: {
     db.linkStats.toArray(),
   ]);
 
-  const tagsMap = new Map(allTags.map((tag) => [tag.id, tag]));
   const statsMap = new Map(allStats.map((stat) => [stat.id, stat]));
-  const linkTagsMap = new Map<string, typeof allTags>();
-
-  for (const linkTag of allLinkTags) {
-    const tag = tagsMap.get(linkTag.tagId);
-    if (!tag) {
-      continue;
-    }
-
-    const current = linkTagsMap.get(linkTag.linkId) || [];
-    current.push(tag);
-    linkTagsMap.set(linkTag.linkId, current);
-  }
+  const linkTagsMap = buildLinkTagsMap(allLinkTags, allTags);
 
   let filteredLinks = allLinks;
   if (args.keyword) {

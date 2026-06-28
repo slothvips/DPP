@@ -87,8 +87,26 @@ export interface LinkStatItem {
   pinnedAt?: number;
 }
 
+export interface NewsItem {
+  title: string;
+  url: string;
+  comment: string;
+}
+
+export interface NewsSection {
+  source: string;
+  icon: string;
+  items: NewsItem[];
+}
+
+/** 每日热点新闻聚合(热讯缓存数据的实际类型) */
+export interface DailyNews {
+  date: string;
+  sections: NewsSection[];
+}
+
 export interface HotNewsCache {
   date: string;
-  data: unknown;
+  data: DailyNews;
   updatedAt: number;
 }

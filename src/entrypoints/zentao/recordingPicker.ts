@@ -116,9 +116,9 @@ export function showRecordingPicker(
         input.dispatchEvent(new Event('change', { bubbles: true }));
 
         overlay.remove();
-        button.innerHTML = '✅ 已选择';
+        button.textContent = '✅ 已选择';
         setTimeout(() => {
-          button.innerHTML = originalText;
+          button.textContent = originalText;
           button.disabled = false;
         }, 2000);
       } catch (error) {
@@ -146,7 +146,7 @@ export function showRecordingPicker(
   });
   closeButton.onclick = () => {
     overlay.remove();
-    button.innerHTML = originalText;
+    button.textContent = originalText;
     button.disabled = false;
   };
   modal.appendChild(closeButton);
@@ -155,7 +155,7 @@ export function showRecordingPicker(
   overlay.onclick = (event) => {
     if (event.target === overlay) {
       overlay.remove();
-      button.innerHTML = originalText;
+      button.textContent = originalText;
       button.disabled = false;
     }
   };

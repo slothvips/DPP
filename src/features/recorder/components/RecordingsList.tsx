@@ -1,12 +1,12 @@
 import { Play } from 'lucide-react';
-import type { Recording } from '../types';
+import type { RecordingMeta } from '../types';
 import { RecordingItem } from './RecordingItem';
 
 interface Props {
-  recordings: Recording[];
+  recordings: RecordingMeta[];
   onDelete: (id: string) => void;
   onUpdateTitle: (id: string, title: string) => void;
-  onExport: (recording: Recording) => void;
+  onExport: (recording: RecordingMeta) => void;
 }
 
 export function RecordingsList({ recordings, onDelete, onUpdateTitle, onExport }: Props) {

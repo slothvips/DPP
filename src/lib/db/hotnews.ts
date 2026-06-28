@@ -1,6 +1,6 @@
 // Unified hotnews database operations
 import { db } from '@/db';
-import type { HotNewsCache } from '@/db/types';
+import type { DailyNews, HotNewsCache } from '@/db/types';
 import { logger } from '@/utils/logger';
 
 /**
@@ -13,7 +13,7 @@ export async function getHotNews(args: { date: string }): Promise<HotNewsCache |
 /**
  * Save hot news to cache
  */
-export async function saveHotNews(args: { date: string; data: unknown }): Promise<void> {
+export async function saveHotNews(args: { date: string; data: DailyNews }): Promise<void> {
   await db.hotNews.put({
     date: args.date,
     data: args.data,

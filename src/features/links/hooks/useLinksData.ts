@@ -1,4 +1,5 @@
 import type { LinkItem, LinkStatItem, LinkTagItem, TagItem } from '@/db';
+import { buildLinkTagsMap } from '@/lib/db/linksShared';
 import type { LinkWithStats } from './useLinks.types';
 
 export function buildLinksWithStats(
@@ -8,19 +9,7 @@ export function buildLinksWithStats(
   allTags: TagItem[]
 ): LinkWithStats[] {
   const statsMap = new Map(allStats.map((stat) => [stat.id, stat]));
-  const tagsMap = new Map(allTags.map((tag) => [tag.id, tag]));
-  const linkTagsMap = new Map<string, TagItem[]>();
-
-  for (const linkTag of allLinkTags) {
-    const tag = tagsMap.get(linkTag.tagId);
-    if (!tag) {
-      continue;
-    }
-
-    const current = linkTagsMap.get(linkTag.linkId) || [];
-    current.push(tag);
-    linkTagsMap.set(linkTag.linkId, current);
-  }
+  const linkTagsMap = buildLinkTagsMap(allLinkTags, allTags);
 
   return allLinks.map((link) => ({
     ...link,
