@@ -2,7 +2,7 @@
   "name": "dpp",
   "description": "for work.",
   "private": true,
-  "version": "0.6.10",
+  "version": "0.6.11",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -46,7 +46,7 @@
     "lucide-react": "^0.563.0",
     "masonry-layout": "^4.2.2",
     "monaco-editor": "^0.55.1",
-    "page-agent": "^1.6.2",
+    "page-agent": "^1.11.0",
     "react": "^19.2.3",
     "react-diff-viewer-continued": "^4.2.0",
     "react-dom": "^19.2.3",

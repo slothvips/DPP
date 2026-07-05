@@ -1,6 +1,7 @@
 import React from 'react';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
+import { cn } from '@/utils/cn';
 import { KeepAliveTabPanel } from './KeepAliveTabPanel';
 import { LazyTabPanel } from './LazyTabPanel';
 import type { FeatureToggles, TabId } from './sidepanelTypes';
@@ -38,6 +39,7 @@ const ToolboxView = React.lazy(() =>
 interface SidepanelContentProps {
   activeTab: TabId;
   featureToggles: FeatureToggles;
+  reserveFloatingNav?: boolean;
   showJenkinsTab: boolean;
 }
 
@@ -60,11 +62,17 @@ function SidepanelLoadingFallback() {
 export function SidepanelContent({
   activeTab,
   featureToggles,
+  reserveFloatingNav = false,
   showJenkinsTab,
 }: SidepanelContentProps) {
   return (
     <main
-      className="relative min-h-0 min-w-0 flex-1 overflow-hidden px-3 pb-3 pt-1.5 [@media(max-height:520px)]:px-2 [@media(max-height:520px)]:pb-2 [@media(max-height:520px)]:pt-1"
+      className={cn(
+        'relative min-h-0 min-w-0 flex-1 overflow-hidden pb-3 pr-3 pt-1.5 [@media(max-height:520px)]:pb-2 [@media(max-height:520px)]:pr-2 [@media(max-height:520px)]:pt-1',
+        reserveFloatingNav
+          ? 'pl-[3.75rem] [@media(max-height:520px)]:pl-[3.5rem]'
+          : 'pl-3 [@media(max-height:520px)]:pl-2'
+      )}
       data-testid="main-content"
     >
       <div className="relative h-full min-h-0 min-w-0 overflow-hidden rounded-[22px] border border-border/55 bg-background/76 dark:bg-card/84">

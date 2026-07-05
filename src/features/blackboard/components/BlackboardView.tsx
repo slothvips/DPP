@@ -1,5 +1,4 @@
 import React from 'react';
-import { BlackboardAddButton } from './BlackboardAddButton';
 import { BlackboardDeleteDialog } from './BlackboardDeleteDialog';
 import { BlackboardEmptyState } from './BlackboardEmptyState';
 import { BlackboardGrid } from './BlackboardGrid';
@@ -38,6 +37,7 @@ export function BlackboardView() {
           gridRef={gridRef}
           sortedItems={sortedItems || []}
           focusId={focusId}
+          onAdd={handleAdd}
           onUpdate={handleUpdate}
           onDelete={setDeleteId}
           onPin={handlePin}
@@ -47,8 +47,6 @@ export function BlackboardView() {
           onFocusHandled={() => setFocusId(null)}
         />
       </div>
-
-      <BlackboardAddButton onAdd={handleAdd} />
 
       <BlackboardDeleteDialog
         open={!!deleteId}

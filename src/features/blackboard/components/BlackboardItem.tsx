@@ -72,18 +72,19 @@ export function BlackboardItemView({
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 w-full relative min-h-[140px]">
+      <div className="relative min-h-[140px] min-w-0 w-full flex-1">
         {isEditing ? (
           <textarea
             ref={textareaRef}
             value={content}
+            wrap="soft"
             onChange={(event) => {
               handleChange(event.target.value);
             }}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             placeholder="写点什么..."
-            className="w-full bg-transparent border-none outline-none ring-0 shadow-none focus:ring-0 focus:outline-none focus:border-none resize-none p-0 text-base text-foreground placeholder:text-muted-foreground placeholder:italic overflow-hidden"
+            className="w-full resize-none overflow-hidden border-none bg-transparent p-0 text-base text-foreground shadow-none outline-none break-words [overflow-wrap:anywhere] placeholder:text-muted-foreground placeholder:italic focus:border-none focus:outline-none focus:ring-0"
             style={{
               ...commonStyle,
               minHeight: minEditHeight,

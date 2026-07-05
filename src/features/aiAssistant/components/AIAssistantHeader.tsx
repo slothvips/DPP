@@ -1,4 +1,4 @@
-import { Bot, Plus, Scissors, Settings, Trash2 } from 'lucide-react';
+import { Plus, Scissors, Settings, Trash2 } from 'lucide-react';
 import { YoloButton } from '@/components/YoloButton';
 import { Button } from '@/components/ui/button';
 import type { AISession } from '../types';
@@ -35,16 +35,27 @@ export function AIAssistantHeader({
   onClear,
 }: AIAssistantHeaderProps) {
   return (
-    <div className="border-b border-border/55 bg-info/6 px-3 py-3">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-info/9 text-info ring-1 ring-info/12">
-            <Bot className="h-4.5 w-4.5" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">D仔</h2>
-            <p className="text-xs text-muted-foreground">协助你处理本地数据与页面任务</p>
-          </div>
+    <div className="border-b border-border/55 bg-info/6 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <AISessionList
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            onSelectSession={onSelectSession}
+            onDeleteSession={onDeleteSession}
+            disabled={isRunning}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCreateSession}
+            disabled={isRunning}
+            title={isRunning ? '请等待 D仔 完成当前任务' : '新建会话'}
+            className="h-8 shrink-0 rounded-xl border border-border/55 bg-background/78 px-3 text-xs"
+          >
+            <Plus className="mr-1 h-3.5 w-3.5" />
+            新建
+          </Button>
         </div>
         <div className="flex items-center gap-1 rounded-2xl bg-background/60 p-1 ring-1 ring-border/35">
           <YoloButton />
@@ -80,26 +91,6 @@ export function AIAssistantHeader({
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <AISessionList
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          onSelectSession={onSelectSession}
-          onDeleteSession={onDeleteSession}
-          disabled={isRunning}
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onCreateSession}
-          disabled={isRunning}
-          title={isRunning ? '请等待 D仔 完成当前任务' : '新建会话'}
-          className="h-8 rounded-xl border border-border/55 bg-background/78 px-3 text-xs"
-        >
-          <Plus className="mr-1 h-3.5 w-3.5" />
-          新建会话
-        </Button>
       </div>
     </div>
   );

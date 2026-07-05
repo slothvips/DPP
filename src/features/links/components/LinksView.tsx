@@ -120,7 +120,7 @@ export function LinksView() {
                 {search ? '未找到匹配的链接' : '还没有收藏任何链接'}
               </p>
               <p className="mt-2 text-xs leading-6 text-muted-foreground">
-                {search ? '换个关键词或排序方式试试。' : '点击右上角添加链接。'}
+                {search ? '换个关键词或排序方式试试。' : '点击上方添加链接。'}
               </p>
             </div>
           </div>

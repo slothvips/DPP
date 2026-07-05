@@ -43,43 +43,37 @@ export function RecordingsView() {
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 p-4">
       <div className="rounded-2xl border border-border/60 bg-destructive/5 p-3 ring-1 ring-destructive/6">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold tracking-tight text-foreground">录制</h2>
-            <p className="text-xs text-muted-foreground">捕获页面操作并回放关键流程</p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept=".json,.rrweb"
-              onChange={handleFileChange}
-            />
+        <div className="mb-3 flex items-center justify-end gap-1.5">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".json,.rrweb"
+            onChange={handleFileChange}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 rounded-xl border border-destructive/15 bg-background/80 px-3 text-xs text-destructive shadow-sm hover:text-destructive"
+            onClick={handleImportClick}
+          >
+            <Upload className="mr-1 h-3.5 w-3.5" /> 导入
+          </Button>
+          {recordings && recordings.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 rounded-xl border border-destructive/15 bg-background/80 px-3 text-xs text-destructive shadow-sm hover:text-destructive"
-              onClick={handleImportClick}
+              className="h-8 rounded-xl px-3 text-xs text-muted-foreground hover:text-destructive"
+              onClick={async () => {
+                const confirmed = await confirm('确定要删除所有录制吗?', '确认删除', 'danger');
+                if (confirmed) {
+                  clearRecordings();
+                }
+              }}
             >
-              <Upload className="mr-1 h-3.5 w-3.5" /> 导入
+              <Trash2 className="mr-1 h-3.5 w-3.5" /> 清空
             </Button>
-            {recordings && recordings.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 rounded-xl px-3 text-xs text-muted-foreground hover:text-destructive"
-                onClick={async () => {
-                  const confirmed = await confirm('确定要删除所有录制吗?', '确认删除', 'danger');
-                  if (confirmed) {
-                    clearRecordings();
-                  }
-                }}
-              >
-                <Trash2 className="mr-1 h-3.5 w-3.5" /> 清空
-              </Button>
-            )}
-          </div>
+          )}
         </div>
         <RecorderControl />
       </div>

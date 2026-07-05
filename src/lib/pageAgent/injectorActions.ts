@@ -53,11 +53,11 @@ export async function clearExistingAgent(tabId: number): Promise<void> {
   try {
     await browser.scripting.executeScript({
       target: { tabId },
-      func: () => {
+      func: async () => {
         const agent = window.__DPP_PAGE_AGENT__;
         if (agent) {
-          agent.stop();
           delete window.__DPP_PAGE_AGENT__;
+          await agent.stop();
         }
       },
     });

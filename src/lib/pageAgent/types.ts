@@ -14,7 +14,7 @@ export interface PageAgentExecutionResult {
  */
 export interface PageAgentInstance {
   execute: (task: string) => Promise<PageAgentExecutionResult>;
-  stop: () => void;
+  stop: () => Promise<void>;
   panel?: {
     show: () => void;
     expand: () => void;

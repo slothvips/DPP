@@ -8,7 +8,7 @@ export function BlackboardEmptyState() {
           <Plus className="h-10 w-10" />
         </div>
         <p className="text-base font-semibold text-foreground">黑板上空空如也</p>
-        <p className="mt-2 max-w-xs text-sm leading-6">点击右下角添加第一张便签，记下想法和待办</p>
+        <p className="mt-2 max-w-xs text-sm leading-6">点击 New 卡片，记下想法和待办</p>
       </div>
     </div>
   );
