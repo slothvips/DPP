@@ -21,8 +21,11 @@ export default defineContentScript({
     function handlePageUnload() {
       if (currentAgent) {
         logger.info('[PageAgent] 页面即将卸载，停止 Agent');
-        currentAgent.stop();
+        const agent = currentAgent;
         currentAgent = null;
+        void agent.stop().catch((error: unknown) => {
+          logger.debug('[PageAgent] 页面卸载时停止 Agent 失败:', error);
+        });
       }
     }
 
@@ -118,8 +121,11 @@ export default defineContentScript({
     return () => {
       window.removeEventListener('beforeunload', handlePageUnload);
       if (currentAgent) {
-        currentAgent.stop();
+        const agent = currentAgent;
         currentAgent = null;
+        void agent.stop().catch((error: unknown) => {
+          logger.debug('[PageAgent] Content script 清理时停止 Agent 失败:', error);
+        });
       }
       delete window.__DPP_PAGE_AGENT__;
     };
