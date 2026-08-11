@@ -125,6 +125,13 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'string',
     writable: true,
   },
+  personal_encryption_key: {
+    category: 'security',
+    description: 'Personal encryption key for private data (never share; not team sync key)',
+    sensitive: true,
+    type: 'string',
+    writable: false,
+  },
   feature_hotnews_enabled: {
     category: 'features',
     description: 'Show Hot News feature',
@@ -164,6 +171,12 @@ const DPP_CONFIG_DEFINITIONS = {
   feature_playground_enabled: {
     category: 'features',
     description: 'Show Playground feature',
+    type: 'boolean',
+    writable: true,
+  },
+  feature_totp_enabled: {
+    category: 'features',
+    description: 'Show TOTP authenticator feature',
     type: 'boolean',
     writable: true,
   },

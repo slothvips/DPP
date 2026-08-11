@@ -1,6 +1,7 @@
 import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
 import type { JenkinsEnvironment } from '@/db/types';
+import { clearAllLocalData } from '@/lib/db/clearAllLocalData';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { EXCLUDED_SETTINGS, type ImportedSetting, isImportedSetting } from './optionsShared';
@@ -98,15 +99,24 @@ export function useOptionsImportAndReset() {
   };
 
   const clearData = async () => {
-    const confirmed = await confirm('确定要清空所有数据并重置吗？', '确认清空', 'danger');
+    const confirmed = await confirm(
+      '确定要清空所有数据并重置吗？\n\n将清除 IndexedDB、localStorage、sessionStorage、扩展 storage 与缓存中的全部本地数据（含验证器密钥等仅本地数据）。此操作不可恢复。',
+      '确认清空',
+      'danger'
+    );
     if (!confirmed) {
       return;
     }
 
-    await db.delete();
-    await db.open();
-    toast('数据已清空', 'info');
-    setTimeout(() => window.location.reload(), 1000);
+    try {
+      await clearAllLocalData();
+      await db.open();
+      toast('数据已清空', 'info');
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+      logger.error('Failed to clear all local data:', error);
+      toast(`清空失败: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    }
   };
 
   const rebuildLocalData = async () => {

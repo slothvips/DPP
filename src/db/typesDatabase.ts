@@ -2,6 +2,7 @@ import type Dexie from 'dexie';
 import type { EntityTable } from 'dexie';
 import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
+import type { TotpAccountItem } from '@/features/totp/types';
 import type { AIMessage, AISession } from './typesAI';
 import type {
   HotNewsCache,
@@ -30,6 +31,7 @@ export type DPPDatabase = Dexie & {
   blackboard: EntityTable<BlackboardItem, 'id'>;
   hotNews: EntityTable<HotNewsCache, 'date'>;
   recordings: EntityTable<Recording, 'id'>;
+  totpAccounts: EntityTable<TotpAccountItem, 'id'>;
   operations: EntityTable<SyncOperation, 'id'>;
   syncMetadata: EntityTable<SyncMetadata, 'id'>;
   deferred_ops: EntityTable<DeferredOp, 'id'>;

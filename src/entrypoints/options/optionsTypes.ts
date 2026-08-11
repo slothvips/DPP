@@ -15,4 +15,5 @@ export interface FeatureTogglesState {
   recorder: boolean;
   aiAssistant: boolean;
   playground: boolean;
+  totp: boolean;
 }

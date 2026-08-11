@@ -58,7 +58,8 @@
 - 来自 sync 的操作必须保持 `tx.source === 'sync'`，避免反馈回路。
 - synced entity 删除必须走软删除 `deletedAt`，不要单点改成硬删除。
 - synced 且加密：`tags`、`jobTags`、`links`、`linkTags`、`blackboard`
-- 仅本地：Jenkins credentials、build history、绝大多数 settings、recordings、local stats / caches
+- 仅本地：Jenkins credentials、build history、绝大多数 settings、recordings、local stats / caches、totpAccounts（TOTP 验证器）
+- 个人私钥 `personal_encryption_key`：与团队 `sync_encryption_key` 分离；禁止分享、默认不进设置导出；后续用于个人私密数据同步，当前勿接入团队 SyncEngine 表列表
 
 ## Coupled changes
 

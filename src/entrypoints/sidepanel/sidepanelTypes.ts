@@ -5,7 +5,8 @@ export type TabId =
   | 'recorder'
   | 'blackboard'
   | 'aiAssistant'
-  | 'playground';
+  | 'playground'
+  | 'totp';
 
 export interface FeatureToggles {
   hotNews: boolean;
@@ -15,6 +16,7 @@ export interface FeatureToggles {
   recorder: boolean;
   aiAssistant: boolean;
   playground: boolean;
+  totp: boolean;
 }
 
 export const DEFAULT_FEATURE_TOGGLES: FeatureToggles = {
@@ -25,4 +27,5 @@ export const DEFAULT_FEATURE_TOGGLES: FeatureToggles = {
   recorder: true,
   aiAssistant: true,
   playground: true,
+  totp: true,
 };

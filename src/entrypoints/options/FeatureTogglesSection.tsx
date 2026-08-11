@@ -6,6 +6,7 @@ const FEATURE_OPTIONS = [
   { key: 'blackboard', label: '黑板' },
   { key: 'jenkins', label: 'Jenkins' },
   { key: 'links', label: '链接' },
+  { key: 'totp', label: '验证器' },
   { key: 'recorder', label: '录制' },
   { key: 'hotNews', label: '资讯' },
   { key: 'aiAssistant', label: 'D仔' },

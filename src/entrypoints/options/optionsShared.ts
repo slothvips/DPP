@@ -8,6 +8,8 @@ export const EXCLUDED_SETTINGS: SettingKey[] = [
   'global_sync_status',
   'global_sync_error',
   'global_sync_start_time',
+  // 个人私钥禁止进入配置导出/导入，避免误分享到团队备份
+  'personal_encryption_key',
 ];
 
 export const SETTINGS_CATEGORIES: Array<{
@@ -34,6 +36,7 @@ export const SETTINGS_CATEGORIES: Array<{
       'feature_recorder_enabled',
       'feature_ai_assistant_enabled',
       'feature_playground_enabled',
+      'feature_totp_enabled',
     ],
   },
   {

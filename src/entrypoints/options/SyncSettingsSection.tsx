@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PersonalKeyManager } from '@/features/settings/components/PersonalKeyManager';
 import { SyncKeyManager } from '@/features/settings/components/SyncKeyManager';
 import { VALIDATION_LIMITS } from '@/utils/validation';
 import type { AutoSyncState, CustomConfigState } from './optionsTypes';
@@ -77,6 +78,17 @@ export function SyncSettingsSection({
         </div>
 
         <SyncKeyManager />
+
+        <div className="space-y-3 border-t border-border pt-4">
+          <div className="flex items-center gap-2">
+            <span className="i-lucide-lock-keyhole text-primary" />
+            <span className="text-sm font-semibold">个人私钥</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            仅供你本人加密个人私密数据，与上方团队同步密钥相互独立。请勿分享给任何人。
+          </p>
+          <PersonalKeyManager />
+        </div>
 
         <div className="space-y-4 pt-4 border-t border-border">
           <div className="flex items-center space-x-2">

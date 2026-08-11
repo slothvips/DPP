@@ -18,6 +18,7 @@ export function useSidepanelSettings() {
       const recorder = await db.settings.get('feature_recorder_enabled');
       const aiAssistant = await db.settings.get('feature_ai_assistant_enabled');
       const playground = await db.settings.get('feature_playground_enabled');
+      const totp = await db.settings.get('feature_totp_enabled');
 
       return {
         hotNews: hotNews?.value !== false,
@@ -27,6 +28,7 @@ export function useSidepanelSettings() {
         recorder: recorder?.value !== false,
         aiAssistant: aiAssistant?.value !== false,
         playground: playground?.value !== false,
+        totp: totp?.value !== false,
       };
     }) ?? DEFAULT_FEATURE_TOGGLES;
 

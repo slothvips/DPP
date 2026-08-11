@@ -10,6 +10,7 @@ export const FEATURE_KEY_MAP = {
   recorder: 'feature_recorder_enabled',
   aiAssistant: 'feature_ai_assistant_enabled',
   playground: 'feature_playground_enabled',
+  totp: 'feature_totp_enabled',
 } as const satisfies Record<keyof FeatureTogglesState, SettingKey>;
 
 export const FEATURE_LABEL_MAP: Record<keyof FeatureTogglesState, string> = {
@@ -20,6 +21,7 @@ export const FEATURE_LABEL_MAP: Record<keyof FeatureTogglesState, string> = {
   recorder: '录制',
   aiAssistant: 'D仔',
   playground: '游乐园',
+  totp: '验证器',
 };
 
 export const DEFAULT_FEATURE_TOGGLES: FeatureTogglesState = {
@@ -30,6 +32,7 @@ export const DEFAULT_FEATURE_TOGGLES: FeatureTogglesState = {
   recorder: true,
   aiAssistant: true,
   playground: true,
+  totp: true,
 };
 
 export function resolveFeatureToggles(settings: Setting[]): FeatureTogglesState {
@@ -41,5 +44,6 @@ export function resolveFeatureToggles(settings: Setting[]): FeatureTogglesState 
     recorder: getSettingValue(settings, 'feature_recorder_enabled') !== false,
     aiAssistant: getSettingValue(settings, 'feature_ai_assistant_enabled') !== false,
     playground: getSettingValue(settings, 'feature_playground_enabled') !== false,
+    totp: getSettingValue(settings, 'feature_totp_enabled') !== false,
   };
 }

@@ -21,6 +21,11 @@ export interface SettingMap {
   custom_server_url: string;
   sync_access_token: string;
   sync_encryption_key: string;
+  /**
+   * 个人私钥：仅用于个人私密数据加密/同步，禁止与他人分享。
+   * 与 sync_encryption_key（团队同步密钥）相互独立。
+   */
+  personal_encryption_key: string;
   feature_hotnews_enabled: boolean;
   feature_links_enabled: boolean;
   feature_blackboard_enabled: boolean;
@@ -28,6 +33,7 @@ export interface SettingMap {
   feature_recorder_enabled: boolean;
   feature_ai_assistant_enabled: boolean;
   feature_playground_enabled: boolean;
+  feature_totp_enabled: boolean;
   sync_client_id: string;
   global_sync_start_time: number;
   show_others_builds: boolean;

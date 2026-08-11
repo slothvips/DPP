@@ -1,9 +1,11 @@
 import React from 'react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
 import { cn } from '@/utils/cn';
 import { KeepAliveTabPanel } from './KeepAliveTabPanel';
 import { LazyTabPanel } from './LazyTabPanel';
+import { TAB_CONFIG } from './sidepanelTabs';
 import type { FeatureToggles, TabId } from './sidepanelTypes';
 
 // 懒加载较重的视图,避免首屏加载全部代码
@@ -33,6 +35,11 @@ const RecordingsView = React.lazy(() =>
 const ToolboxView = React.lazy(() =>
   import('@/features/toolbox/components/ToolboxView').then((module) => ({
     default: module.ToolboxView,
+  }))
+);
+const TotpView = React.lazy(() =>
+  import('@/features/totp/components/TotpView').then((module) => ({
+    default: module.TotpView,
   }))
 );
 
@@ -76,12 +83,16 @@ export function SidepanelContent({
       data-testid="main-content"
     >
       <div className="relative h-full min-h-0 min-w-0 overflow-hidden rounded-[22px] border border-border/55 bg-background/76 dark:bg-card/84">
-        {/* 同步导入的轻量视图:始终挂载(KeepAlive) */}
+        {/* 同步导入的轻量视图:始终挂载(KeepAlive)；各模块独立 ErrorBoundary，避免单模块错误拖垮整页 */}
         <KeepAliveTabPanel active={activeTab === 'links'} visible={featureToggles.links}>
-          <LinksView />
+          <ErrorBoundary moduleName={TAB_CONFIG.links.label} className="h-full">
+            <LinksView />
+          </ErrorBoundary>
         </KeepAliveTabPanel>
         <KeepAliveTabPanel active={activeTab === 'jenkins'} visible={showJenkinsTab}>
-          <JenkinsView />
+          <ErrorBoundary moduleName={TAB_CONFIG.jenkins.label} className="h-full">
+            <JenkinsView />
+          </ErrorBoundary>
         </KeepAliveTabPanel>
 
         {/* 懒加载的重型视图:首次激活才挂载,之后保持(KeepAlive)
@@ -91,35 +102,54 @@ export function SidepanelContent({
           visible={featureToggles.recorder}
           fallback={<SidepanelLoadingFallback />}
         >
-          <RecordingsView />
+          <ErrorBoundary moduleName={TAB_CONFIG.recorder.label} className="h-full">
+            <RecordingsView />
+          </ErrorBoundary>
         </LazyTabPanel>
         <LazyTabPanel
           active={activeTab === 'blackboard'}
           visible={featureToggles.blackboard}
           fallback={<SidepanelLoadingFallback />}
         >
-          <BlackboardView />
+          <ErrorBoundary moduleName={TAB_CONFIG.blackboard.label} className="h-full">
+            <BlackboardView />
+          </ErrorBoundary>
         </LazyTabPanel>
         <LazyTabPanel
           active={activeTab === 'hotNews'}
           visible={featureToggles.hotNews}
           fallback={<SidepanelLoadingFallback />}
         >
-          <HotNewsView />
+          <ErrorBoundary moduleName={TAB_CONFIG.hotNews.label} className="h-full">
+            <HotNewsView />
+          </ErrorBoundary>
         </LazyTabPanel>
         <LazyTabPanel
           active={activeTab === 'aiAssistant'}
           visible={featureToggles.aiAssistant}
           fallback={<SidepanelLoadingFallback />}
         >
-          <AIAssistantView />
+          <ErrorBoundary moduleName={TAB_CONFIG.aiAssistant.label} className="h-full">
+            <AIAssistantView />
+          </ErrorBoundary>
         </LazyTabPanel>
         <LazyTabPanel
           active={activeTab === 'playground'}
           visible={featureToggles.playground}
           fallback={<SidepanelLoadingFallback />}
         >
-          <ToolboxView />
+          <ErrorBoundary moduleName={TAB_CONFIG.playground.label} className="h-full">
+            <ToolboxView />
+          </ErrorBoundary>
+        </LazyTabPanel>
+        <LazyTabPanel
+          active={activeTab === 'totp'}
+          visible={featureToggles.totp}
+          fallback={<SidepanelLoadingFallback />}
+        >
+          <ErrorBoundary moduleName={TAB_CONFIG.totp.label} className="h-full">
+            <TotpView />
+          </ErrorBoundary>
         </LazyTabPanel>
       </div>
     </main>

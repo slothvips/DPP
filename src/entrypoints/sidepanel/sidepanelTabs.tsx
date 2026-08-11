@@ -1,6 +1,7 @@
-import { Box, Flame, Link, MessageSquare, Sparkles, Video } from 'lucide-react';
+import { Box, Flame, Link, MessageSquare, Shield, Sparkles, Video } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { JenkinsIcon } from '@/components/ui/JenkinsIcon';
+import { TOTP_MIGRATION_SECTIONS, TOTP_MIGRATION_SUMMARY } from '@/features/totp/migrationGuide';
 import type { FeatureToggles, TabId } from './sidepanelTypes';
 
 interface TabConfig {
@@ -22,6 +23,7 @@ export const DEFAULT_TAB_ORDER: TabId[] = [
   'blackboard',
   'jenkins',
   'links',
+  'totp',
   'recorder',
   'hotNews',
   'aiAssistant',
@@ -168,5 +170,33 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
       ],
     },
     getVisible: ({ featureToggles }) => featureToggles.playground,
+  },
+  totp: {
+    description: '本地 TOTP 动态验证码',
+    label: '验证器',
+    testid: 'tab-totp',
+    icon: <Shield className="h-4 w-4" />,
+    usageGuide: {
+      summary: TOTP_MIGRATION_SUMMARY,
+      sections: [
+        {
+          title: '使用',
+          items: [
+            '验证码默认隐藏，可用工具栏眼睛图标切换显示。',
+            '点击卡片即可复制验证码；拖动手柄可调整顺序。',
+            '密钥、算法、位数、周期导入后不可修改；数据仅保存在本机。',
+          ],
+        },
+        {
+          title: '导入 / 导出',
+          items: [
+            '导入：粘贴 otpauth:// 链接或 Base32 密钥，支持批量。',
+            '导出：复制或下载 otpauth:// 文本，默认不展示明文。',
+          ],
+        },
+        ...TOTP_MIGRATION_SECTIONS,
+      ],
+    },
+    getVisible: ({ featureToggles }) => featureToggles.totp,
   },
 };

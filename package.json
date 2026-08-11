@@ -46,6 +46,7 @@
     "lucide-react": "^0.563.0",
     "masonry-layout": "^4.2.2",
     "monaco-editor": "^0.55.1",
+    "otpauth": "^9.5.1",
     "page-agent": "^1.11.0",
     "react": "^19.2.3",
     "react-diff-viewer-continued": "^4.2.0",

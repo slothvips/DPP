@@ -57,4 +57,31 @@ export function registerDatabaseSchema(db: Dexie) {
     linkTags: '[linkId+tagId], linkId, tagId, deletedAt',
     operations: 'id, table, type, synced, timestamp',
   });
+
+  // v7: 本地 TOTP 验证器账户（不同步）
+  db.version(7).stores({
+    totpAccounts: 'id, label, issuer, createdAt',
+  });
+
+  // v8: TOTP 手动排序
+  db.version(8)
+    .stores({
+      totpAccounts: 'id, sortOrder, label, issuer, createdAt',
+    })
+    .upgrade(async (tx) => {
+      const table = tx.table('totpAccounts');
+      const items = await table.toArray();
+      items.sort(
+        (a, b) =>
+          ((a.sortOrder as number | undefined) ?? (a.createdAt as number)) -
+          ((b.sortOrder as number | undefined) ?? (b.createdAt as number))
+      );
+      await Promise.all(
+        items.map((item, index) =>
+          table.update(item.id as string, {
+            sortOrder: typeof item.sortOrder === 'number' ? item.sortOrder : index,
+          })
+        )
+      );
+    });
 }
