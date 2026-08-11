@@ -1,4 +1,5 @@
 import type { TotpAccountItem } from '@/features/totp/types';
+import { isSoftDeleted } from '@/lib/db/softDelete';
 import { getTotpTable } from './totpShared';
 
 function getSortKey(item: TotpAccountItem): number {
@@ -6,11 +7,15 @@ function getSortKey(item: TotpAccountItem): number {
 }
 
 export async function listTotpAccounts(): Promise<TotpAccountItem[]> {
-  const items = await getTotpTable().toArray();
+  const items = (await getTotpTable().toArray()).filter((item) => !isSoftDeleted(item));
   items.sort((a, b) => getSortKey(a) - getSortKey(b) || a.createdAt - b.createdAt);
   return items;
 }
 
 export async function getTotpAccount(id: string): Promise<TotpAccountItem | undefined> {
-  return getTotpTable().get(id);
+  const item = await getTotpTable().get(id);
+  if (!item || isSoftDeleted(item)) {
+    return undefined;
+  }
+  return item;
 }

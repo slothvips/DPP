@@ -84,4 +84,9 @@ export function registerDatabaseSchema(db: Dexie) {
         )
       );
     });
+
+  // v9: TOTP 纳入个人密钥同步，支持软删除
+  db.version(9).stores({
+    totpAccounts: 'id, sortOrder, label, issuer, createdAt, deletedAt',
+  });
 }

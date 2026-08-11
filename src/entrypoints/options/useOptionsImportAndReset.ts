@@ -1,6 +1,7 @@
 import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
 import type { JenkinsEnvironment } from '@/db/types';
+import { loadPersonalKey } from '@/lib/crypto/personalKey';
 import { clearAllLocalData } from '@/lib/db/clearAllLocalData';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
@@ -100,7 +101,7 @@ export function useOptionsImportAndReset() {
 
   const clearData = async () => {
     const confirmed = await confirm(
-      '确定要清空所有数据并重置吗？\n\n将清除 IndexedDB、localStorage、sessionStorage、扩展 storage 与缓存中的全部本地数据（含验证器密钥等仅本地数据）。此操作不可恢复。',
+      '确定要清空所有数据并重置吗？\n\n将清除 IndexedDB、localStorage、sessionStorage、扩展 storage 与缓存中的全部本地数据（含验证器、个人私钥、团队同步数据等）。此操作不可恢复。',
       '确认清空',
       'danger'
     );
@@ -120,8 +121,19 @@ export function useOptionsImportAndReset() {
   };
 
   const rebuildLocalData = async () => {
+    let hasPersonalKey = false;
+    try {
+      hasPersonalKey = Boolean(await loadPersonalKey());
+    } catch (error) {
+      logger.warn('[DataRebuild] Failed to check personal key:', error);
+    }
+
+    const personalClause = hasPersonalKey
+      ? '已配置个人私钥：验证器等个人同步数据也会被清空，再从服务器拉取（未成功同步的内容会丢失）。'
+      : '未配置个人私钥：验证器等仅本地个人数据将保留（无法从服务器恢复，故不清除）。';
+
     const confirmed = await confirm(
-      '此操作将清空本地同步数据并从服务器重新拉取，未同步到服务器的本地数据将会丢失。\n\n正常来讲，你永远不会用到这个功能。\n\n⚠️ 请仅在数据异常时使用（至少与两名团队成员数据不一致）。',
+      `此操作将清空本地团队同步数据并从服务器重新拉取。个人私钥不会被清除。\n\n${personalClause}\n\n未同步到服务器的本地团队数据将会丢失。\n\n正常来讲，你永远不会用到这个功能。\n\n⚠️ 请仅在数据异常时使用。`,
       '确认重建本地数据',
       'danger'
     );
@@ -138,7 +150,8 @@ export function useOptionsImportAndReset() {
         throw new Error('同步引擎初始化失败');
       }
 
-      await engine.clearAllData();
+      // 有个人私钥：个人数据可走同步恢复 → 一并清空；无私钥：仅本地 → 保留
+      await engine.clearAllData({ preservePersonal: !hasPersonalKey });
       await engine.pull();
 
       toast('数据重建成功', 'success');

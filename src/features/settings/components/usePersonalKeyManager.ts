@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
+import { syncEngine } from '@/db';
 import { exportKey } from '@/lib/crypto/encryption';
 import {
   clearPersonalKey,
@@ -7,8 +8,22 @@ import {
   importAndStorePersonalKey,
   loadPersonalKey,
 } from '@/lib/crypto/personalKey';
+import {
+  finalizePersonalSyncAfterKeyReady,
+  resetPersonalSyncBootstrapFlag,
+} from '@/lib/sync/personalSyncBootstrap';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
+
+/** 个人私钥写入后：enqueue → 尝试 push（不清库） */
+async function syncAfterPersonalKeyReady(): Promise<number> {
+  await syncEngine.getClientId();
+  const live = syncEngine.instance;
+  if (!live) {
+    throw new Error('同步引擎未就绪');
+  }
+  return finalizePersonalSyncAfterKeyReady(live);
+}
 
 export function usePersonalKeyManager() {
   const { toast } = useToast();
@@ -26,13 +41,11 @@ export function usePersonalKeyManager() {
   const checkKey = useCallback(async () => {
     try {
       const key = await loadPersonalKey();
-      if (key) {
-        setHasKey(true);
-        setKeyString(await exportKey(key));
-        return;
+      setHasKey(Boolean(key));
+      if (!key) {
+        setKeyString('');
+        setShowKey(false);
       }
-      setHasKey(false);
-      setKeyString('');
     } catch (error) {
       logger.error('Failed to load personal key:', error);
     }
@@ -42,20 +55,42 @@ export function usePersonalKeyManager() {
     void checkKey();
   }, [checkKey]);
 
+  const runPostKeySync = useCallback(
+    async (successBase: string) => {
+      toast('正在将个人数据加入同步队列...', 'info');
+      try {
+        const enqueued = await syncAfterPersonalKeyReady();
+        await checkKey();
+        if (enqueued > 0) {
+          toast(`${successBase}；已准备 ${enqueued} 条个人数据，将在同步时上传`, 'success');
+        } else {
+          toast(`${successBase}；验证器等个人数据将在同步时上传`, 'success');
+        }
+      } catch (error) {
+        logger.error('Failed to enqueue/push after personal key ready:', error);
+        await checkKey();
+        toast(
+          '个人私钥已保存，但加入同步队列或推送失败。请检查同步配置后手动同步；本地验证器数据已保留。',
+          'error'
+        );
+      }
+    },
+    [checkKey, toast]
+  );
+
   const handleGenerate = useCallback(async () => {
     try {
       setIsGenerating(true);
       await generateAndStorePersonalKey();
-      await checkKey();
-      toast('个人私钥已生成并保存', 'success');
       setImportInput('');
+      await runPostKeySync('个人私钥已生成并保存');
     } catch (error) {
       logger.error(error);
       toast('生成个人私钥失败', 'error');
     } finally {
       setIsGenerating(false);
     }
-  }, [checkKey, toast]);
+  }, [runPostKeySync, toast]);
 
   const handleImport = useCallback(async () => {
     if (!importInput.trim()) return;
@@ -63,22 +98,21 @@ export function usePersonalKeyManager() {
     try {
       setIsImporting(true);
       await importAndStorePersonalKey(importInput);
-      await checkKey();
-      toast('个人私钥已导入', 'success');
       setImportInput('');
+      await runPostKeySync('个人私钥已导入');
     } catch (error) {
       logger.error(error);
       toast('无效的密钥格式', 'error');
     } finally {
       setIsImporting(false);
     }
-  }, [checkKey, importInput, toast]);
+  }, [importInput, runPostKeySync, toast]);
 
   const handleReplace = useCallback(async () => {
     if (!replaceInput.trim()) return;
 
     const confirmed = await confirm(
-      '确定要用新密钥覆盖当前个人私钥吗？\n\n若已有使用旧密钥加密的个人数据，将无法再解密。请确认新密钥已在你的其他设备上妥善备份。',
+      '确定要用新密钥覆盖当前个人私钥吗？\n\n若已有使用旧密钥加密的个人数据，将无法再解密。本地个人数据将用新密钥重新加入同步队列（不清空本地验证器）。',
       '确认更换个人私钥',
       'danger'
     );
@@ -87,22 +121,22 @@ export function usePersonalKeyManager() {
     try {
       setIsReplacing(true);
       await importAndStorePersonalKey(replaceInput);
-      await checkKey();
-      toast('个人私钥已更换', 'success');
       setReplaceInput('');
       setIsReplaceOpen(false);
       setShowKey(false);
+      setKeyString('');
+      await runPostKeySync('个人私钥已更换');
     } catch (error) {
       logger.error(error);
       toast('无效的密钥格式', 'error');
     } finally {
       setIsReplacing(false);
     }
-  }, [checkKey, confirm, replaceInput, toast]);
+  }, [confirm, replaceInput, runPostKeySync, toast]);
 
   const handleGenerateReplace = useCallback(async () => {
     const confirmed = await confirm(
-      '确定要生成新的个人私钥并覆盖当前密钥吗？\n\n旧密钥加密的个人数据将无法再解密。请先备份当前密钥（若仍需要）。',
+      '确定要生成新的个人私钥并覆盖当前密钥吗？\n\n旧密钥加密的云端个人数据将无法再解密。本地个人数据将用新密钥重新加入同步队列（不清空本地验证器）。',
       '确认生成并替换',
       'danger'
     );
@@ -111,22 +145,22 @@ export function usePersonalKeyManager() {
     try {
       setIsReplacing(true);
       await generateAndStorePersonalKey();
-      await checkKey();
-      toast('已生成并保存新的个人私钥', 'success');
       setReplaceInput('');
       setIsReplaceOpen(false);
       setShowKey(false);
+      setKeyString('');
+      await runPostKeySync('已生成并保存新的个人私钥');
     } catch (error) {
       logger.error(error);
       toast('生成个人私钥失败', 'error');
     } finally {
       setIsReplacing(false);
     }
-  }, [checkKey, confirm, toast]);
+  }, [confirm, runPostKeySync, toast]);
 
   const handleClear = useCallback(async () => {
     const confirmed = await confirm(
-      '确定要清除个人私钥吗？\n\n清除后将无法解密使用该密钥加密的个人私密数据。请确保已自行备份。',
+      '确定要清除个人私钥吗？\n\n清除后将无法解密使用该密钥加密的个人私密数据，验证器等个人数据也将停止上传。请确保已自行备份。',
       '确认清除个人私钥',
       'danger'
     );
@@ -134,8 +168,10 @@ export function usePersonalKeyManager() {
 
     try {
       await clearPersonalKey();
+      await resetPersonalSyncBootstrapFlag();
       await checkKey();
       setShowKey(false);
+      setKeyString('');
       toast('个人私钥已清除', 'info');
     } catch (error) {
       logger.error(error);
@@ -143,11 +179,46 @@ export function usePersonalKeyManager() {
     }
   }, [checkKey, confirm, toast]);
 
+  const handleToggleShowKey = useCallback(async () => {
+    if (showKey) {
+      setShowKey(false);
+      setKeyString('');
+      return;
+    }
+
+    try {
+      const key = await loadPersonalKey();
+      if (!key) {
+        setHasKey(false);
+        toast('个人私钥不存在', 'error');
+        return;
+      }
+      setKeyString(await exportKey(key));
+      setShowKey(true);
+    } catch (error) {
+      logger.error('Failed to reveal personal key:', error);
+      toast('无法显示个人私钥', 'error');
+    }
+  }, [showKey, toast]);
+
   const handleCopyKey = useCallback(() => {
-    void navigator.clipboard.writeText(keyString).then(
-      () => toast('个人私钥已复制到剪贴板', 'success'),
-      () => toast('复制失败', 'error')
-    );
+    void (async () => {
+      try {
+        let value = keyString;
+        if (!value) {
+          const key = await loadPersonalKey();
+          if (!key) {
+            toast('个人私钥不存在', 'error');
+            return;
+          }
+          value = await exportKey(key);
+        }
+        await navigator.clipboard.writeText(value);
+        toast('个人私钥已复制到剪贴板', 'success');
+      } catch {
+        toast('复制失败', 'error');
+      }
+    })();
   }, [keyString, toast]);
 
   return {
@@ -157,6 +228,7 @@ export function usePersonalKeyManager() {
     handleGenerateReplace,
     handleImport,
     handleReplace,
+    handleToggleShowKey,
     hasKey,
     importInput,
     isGenerating,

@@ -10,6 +10,7 @@ export const EXCLUDED_SETTINGS: SettingKey[] = [
   'global_sync_start_time',
   // 个人私钥禁止进入配置导出/导入，避免误分享到团队备份
   'personal_encryption_key',
+  'personal_sync_bootstrap_done',
 ];
 
 export const SETTINGS_CATEGORIES: Array<{

@@ -1,6 +1,6 @@
 # 个人私钥 + 同服务器 SyncEngine 技术方案
 
-> 状态：草案（基于产品讨论收敛）  
+> 状态：已落地第一期（验证器 + 双钥 SyncEngine）  
 > 目标：在**不新建同步通道**的前提下，用**第二把密钥**隔离个人私密数据与团队共享数据。
 
 ---
@@ -72,9 +72,10 @@
 
 解析顺序：
 
-1. **实体级覆盖**：记录上若存在 `dataScope: 'team' | 'personal'`，以之为准。  
-2. **表级默认**：查表级注册表。  
-3. **安全兜底**：解析为 `personal` 的数据**禁止**回落到团队密钥；无个人私钥则不得上传。
+1. **表级默认**：查表级注册表。  
+2. **表为 personal**：恒为 personal（忽略实体降级为 team）。  
+3. **表为 team**：允许实体覆盖为 `personal`（未来黑板私人条）。  
+4. **安全兜底**：解析为 `personal` 的数据**禁止**回落到团队密钥；无个人私钥则不得上传。
 
 表级默认示意：
 
@@ -84,7 +85,7 @@
 | `totpAccounts` | `personal` |
 | recordings、Jenkins 凭证、绝大多数 settings 等 | `local`（不进同步表列表） |
 
-第一期：`totpAccounts` 整表 `personal`，可不写实体字段。  
+第一期：`totpAccounts` 整表 `personal`，可不写实体字段；**表默认 personal 时忽略实体降级为 team**。  
 后续：`blackboard` 等可增加可选 `dataScope`，默认 `team`；单条设为私人时改为 `personal` 并重加密推送。
 
 ### 3.3 密钥角色
@@ -111,13 +112,13 @@ flowchart TB
   PK -->|是| EncP[个人钥加密]
   PK -->|否| SkipPush[跳过上传]
   TK -->|是| EncT[团队钥加密]
-  TK -->|否| FailTeam[团队同步失败]
+  TK -->|否| SkipTeam[跳过该条团队op]
   EncP --> Server[同步服务器]
   EncT --> Server
-  Server --> Pull[pull按keyHash选钥]
+  Server --> Pull[pull按keyHash选钥并校验scope]
   Pull -->|匹配个人| ApplyP[写入个人表]
   Pull -->|匹配团队| ApplyT[写入团队表]
-  Pull -->|都不匹配| SkipPull[跳过]
+  Pull -->|都不匹配或scope不符| SkipPull[跳过]
 ```
 
 要点：
@@ -147,8 +148,8 @@ flowchart TB
    - **无个人私钥 → 本条不上传**，保持 `synced: 0`，打 warn；**不得**改用团队密钥  
 3. `scope === 'team'`：  
    - 有团队密钥 → 现有逻辑  
-   - 无团队密钥 → 维持现有失败策略（团队同步不可用）  
-4. 仅将**实际成功上传**的 op 标记 `synced: 1`（跳过的个人 op 不得被误标已同步）。
+   - 无团队密钥 → **跳过该条**（warn），不阻断同批个人 op 上传  
+4. 仅将**实际成功上传**的 op 标记 `synced: 1`（跳过的个人/团队 op 不得被误标已同步）。
 
 混合批次：同一 batch 内可同时含团队密文与个人密文（不同 `keyHash`）。
 
@@ -160,9 +161,10 @@ flowchart TB
    - `keyHash === personalHash` → 个人钥解密  
    - `keyHash === teamHash` → 团队钥解密  
    - 否则或解密失败 → skip  
-4. 解密成功后走现有 `applyOperation`（表名已在密文内恢复）。
+4. 解密成功后校验 **密钥角色 ↔ `resolveDataScope(op)`**：personal scope 必须个人钥，team scope 必须团队钥；不匹配则 skip（防止团队密文写入个人表）。  
+5. 校验通过后再 `applyOperation`（表名已在密文内恢复）。
 
-**仅有个人私钥、无团队密钥**时：仍应能拉取并恢复个人数据；缺团队钥不应导致整次 pull 硬失败到无法处理个人密文。
+**仅有个人私钥、无团队密钥**时：仍应能拉取并恢复个人数据；缺团队钥不应导致整次 pull 硬失败到无法处理个人密文。无 `keyHash` 的历史 op 仅尝试团队钥，且不得落入 personal 表。
 
 ### 5.4 安全不变量（必须测试）
 
@@ -200,13 +202,20 @@ flowchart TB
 2. 个人私钥**首次成功写入**（生成或导入）后，自动执行 **个人表补建**：  
    - 将本地未软删的 `totpAccounts` 写入 `operations`（`type: 'create'`，`synced: 0`）  
    - 范围仅限个人同步表，避免误清整个团队 ops（不要直接调用会 `operations.clear()` 的全量 `regenerateOperations`，或提供「仅 personal 表」的 enqueue API）  
-3. 下一次正常同步即可上传。  
-4. UI toast 提示：「个人私钥已就绪，验证器数据将在下次同步时上传」。
+3. 可尝试立即 `push`；失败只提示，不回滚已保存的密钥。**禁止**配钥路径调用 `clearAllData` + `pull`。  
+4. UI toast 提示：「个人私钥已就绪，验证器等个人数据将在同步时上传」。
+
+同步「重建本地数据」：
+
+- 个人私钥本身不清除。  
+- **已配置个人私钥**：清空含 `totpAccounts` 在内的同步表后 pull（可从服务器恢复）。  
+- **未配置个人私钥**：只清团队同步表，保留仅本地的个人数据（无法从服务器恢复）。  
+- 「清空所有数据」：整应用全清（含验证器与个人私钥）。
 
 更换个人私钥（覆盖）：
 
 - 强确认警告：旧私钥加密的云端个人数据将无法再解。  
-- 本期可不做自动「用新钥重加密云端」迁移；用户需接受旧云端个人密文失效，并由新钥重新上传本地权威数据（补建 enqueue）。  
+- 本期可不做自动「用新钥重加密云端」迁移；用户需接受旧云端个人密文失效，并由新钥重新上传本地权威数据（补建 enqueue，**不清空本地验证器**）。  
 - 文档明确说明。
 
 ### 6.4 跨设备恢复步骤（用户路径）
@@ -279,11 +288,12 @@ flowchart TB
 3. 后配个人私钥自动 enqueue  
 4. 迁移指南 / README / CLAUDE 更新  
 
-### 阶段 C — 产品增强（可选后续）
+### 阶段 C — 产品增强
 
-1. 同步设置中展示「个人数据同步状态」（待推条数、缺私钥提示）  
-2. 实体级 `dataScope`（黑板等）  
-3. 本地 secret vault、剪贴板清理等加固  
+1. ~~同步设置中展示「个人数据同步状态」~~（已做：`PersonalSyncStatus`；配钥后 enqueue + 可选 push，**不清库**）  
+2. 实体级 `dataScope`（黑板等）— 未做  
+3. 本地 secret vault、剪贴板清理等加固 — 未做  
+4. ~~同步 clear 跳过 personal；pull 校验 key↔scope；表级 personal 下限~~（见 `docs/personal-sync-fix-plan.md`）  
 
 ---
 

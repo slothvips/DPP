@@ -1,7 +1,9 @@
-import { loadKey } from '@/lib/crypto/encryption';
 import { http, httpPost } from '@/lib/http';
 import { encryptOperation } from '@/lib/sync/crypto-helpers';
-import type { SyncOperation, SyncProvider } from '@/lib/sync/types';
+import { isPersonalSyncScope } from '@/lib/sync/dataScope';
+import { loadSyncKeyring, resolveKeyForOperation } from '@/lib/sync/syncKeys';
+import type { SyncOperation, SyncProvider, SyncPushResult } from '@/lib/sync/types';
+import { logger } from '@/utils/logger';
 import type { DPPDatabase } from './types';
 
 async function getSyncServerUrl(db: DPPDatabase): Promise<{ apiUrl: string; endpoint: string }> {
@@ -32,15 +34,45 @@ async function getSyncAccessToken(db: DPPDatabase): Promise<string> {
 
 export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
   return {
-    push: async (ops, clientId) => {
-      const key = await loadKey();
-      if (!key) {
-        throw new Error(
-          'Sync failed: Security key not configured. Please generate or import a key in settings to enable end-to-end encrypted sync.'
-        );
+    push: async (ops, clientId): Promise<SyncPushResult> => {
+      const keyring = await loadSyncKeyring();
+      const encryptable: Array<{ op: SyncOperation; key: CryptoKey }> = [];
+
+      for (const op of ops) {
+        const { scope, key } = resolveKeyForOperation(op, keyring);
+
+        if (isPersonalSyncScope(scope)) {
+          if (!key) {
+            logger.warn(
+              `[Sync] Skip personal op ${op.id} (table=${op.table}): personal key not configured`
+            );
+            continue;
+          }
+          encryptable.push({ op, key });
+          continue;
+        }
+
+        if (scope === 'local') {
+          logger.warn(`[Sync] Skip local-only op ${op.id} (table=${op.table})`);
+          continue;
+        }
+
+        if (!key) {
+          logger.warn(
+            `[Sync] Skip team op ${op.id} (table=${op.table}): team sync key not configured`
+          );
+          continue;
+        }
+        encryptable.push({ op, key });
       }
 
-      const finalOps = await Promise.all(ops.map((op) => encryptOperation(op, key)));
+      if (encryptable.length === 0) {
+        return { pushedIds: [] };
+      }
+
+      const finalOps = await Promise.all(
+        encryptable.map(({ op, key }) => encryptOperation(op, key))
+      );
 
       const setting = await db.settings.get('custom_server_url');
       const apiUrl = (setting?.value as string)?.replace(/\/$/, '');
@@ -63,7 +95,8 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
       );
 
       const data = res as { cursor?: number | string; success?: boolean };
-      return data.cursor ? { cursor: data.cursor } : undefined;
+      const pushedIds = encryptable.map(({ op }) => op.id);
+      return data.cursor ? { cursor: data.cursor, pushedIds } : { pushedIds };
     },
     pull: async (cursor, clientId) => {
       const { endpoint } = await getSyncServerUrl(db);

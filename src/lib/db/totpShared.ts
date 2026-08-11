@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import type { TotpAccountItem, TotpAlgorithm, TotpDigits } from '@/features/totp/types';
+import { isSoftDeleted } from '@/lib/db/softDelete';
 
 export interface TotpMutationResult {
   success: boolean;
@@ -41,7 +42,7 @@ export function getTotpTable() {
 
 export async function getTotpAccountOrThrow(id: string): Promise<TotpAccountItem> {
   const item = await getTotpTable().get(id);
-  if (!item) {
+  if (!item || isSoftDeleted(item)) {
     throw new Error('验证器账户不存在或已被删除');
   }
   return item;

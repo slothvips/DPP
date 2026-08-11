@@ -26,6 +26,8 @@ export interface SettingMap {
    * 与 sync_encryption_key（团队同步密钥）相互独立。
    */
   personal_encryption_key: string;
+  /** 是否已完成个人同步表的首次 enqueue（升级/已有私钥场景） */
+  personal_sync_bootstrap_done: boolean;
   feature_hotnews_enabled: boolean;
   feature_links_enabled: boolean;
   feature_blackboard_enabled: boolean;

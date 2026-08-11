@@ -75,7 +75,7 @@ export function PersonalKeyEnabledState({
       <div className="relative min-w-0">
         <Input
           readOnly
-          value={keyString}
+          value={showKey ? keyString : '••••••••••••••••••••••••••••••••'}
           type={showKey ? 'text' : 'password'}
           className="min-w-0 bg-muted/50 pr-20 font-mono text-sm text-muted-foreground"
           data-testid="personal-key-value-input"
@@ -111,7 +111,7 @@ export function PersonalKeyEnabledState({
         </p>
         <p className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
           <KeyRound className="mt-0.5 h-3 w-3 shrink-0" />
-          与团队「同步密钥」相互独立；后续可用于同步验证器等个人数据。
+          与团队「同步密钥」相互独立；验证器等个人数据使用此私钥加密同步。配置后会自动加入同步队列并尝试推送，不会清空本地验证器。
         </p>
       </div>
 

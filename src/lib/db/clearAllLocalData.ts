@@ -75,6 +75,7 @@ async function clearCacheStorage(): Promise<void> {
 /**
  * 清空本扩展在本机的全部数据：IndexedDB、local/sessionStorage、
  * chrome.storage（local/session/sync）、Cache Storage。
+ * 含验证器、个人私钥等一切本地数据，不可恢复。
  */
 export async function clearAllLocalData(): Promise<void> {
   await clearIndexedDatabases();

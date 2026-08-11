@@ -1,4 +1,6 @@
 import Dexie from 'dexie';
+import { loadPersonalKey } from '@/lib/crypto/personalKey';
+import { logger } from '@/utils/logger';
 import { applySyncOperation } from './SyncEngine.apply';
 import {
   clearAllSyncData,
@@ -21,6 +23,7 @@ import {
   runWithSyncRetry,
 } from './SyncEngine.runtime';
 import { runPullFlow, runPushFlow } from './SyncEngine.sync';
+import { enqueuePersonalSyncData } from './enqueuePersonalData';
 import type {
   OperationType,
   SyncOperation,
@@ -242,7 +245,9 @@ export class SyncEngine {
     });
   }
 
-  public async clearAllData() {
+  public async clearAllData(options?: { preservePersonal?: boolean }) {
+    const preservePersonal = options?.preservePersonal ?? true;
+
     await clearAllSyncData({
       db: this.db,
       tables: this.tables,
@@ -250,7 +255,25 @@ export class SyncEngine {
       setSyncLock: (value) => this.setSyncLock(value),
       setStatus: (status) => this.setStatus(status),
       resetRuntimeState: () => this.resetRuntimeState(),
+      preservePersonal,
     });
+
+    // 保留了个人表但 operations 已空：若有个人私钥则补回同步队列
+    if (!preservePersonal) {
+      return;
+    }
+
+    try {
+      const personalKey = await loadPersonalKey();
+      if (personalKey) {
+        const enqueued = await this.enqueuePersonalData();
+        if (enqueued > 0) {
+          logger.info(`[Sync] Re-enqueued ${enqueued} personal ops after clearAllData`);
+        }
+      }
+    } catch (error) {
+      logger.warn('[Sync] Failed to re-enqueue personal data after clearAllData', error);
+    }
   }
 
   public async regenerateOperations() {
@@ -259,6 +282,14 @@ export class SyncEngine {
       tables: this.tables,
       syncLock: this.syncLock,
       setSyncLock: (value) => this.setSyncLock(value),
+      ensureClientId: () => this.ensureClientId(),
+    });
+  }
+
+  /** 个人私钥就绪后，将本地个人表数据补入同步队列 */
+  public async enqueuePersonalData() {
+    return enqueuePersonalSyncData({
+      db: this.db,
       ensureClientId: () => this.ensureClientId(),
     });
   }

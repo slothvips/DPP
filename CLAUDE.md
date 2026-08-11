@@ -57,9 +57,13 @@
 - Sync 依赖 Dexie lifecycle hooks；绕过 Dexie CRUD 会导致 sync hook 不触发。
 - 来自 sync 的操作必须保持 `tx.source === 'sync'`，避免反馈回路。
 - synced entity 删除必须走软删除 `deletedAt`，不要单点改成硬删除。
-- synced 且加密：`tags`、`jobTags`、`links`、`linkTags`、`blackboard`
-- 仅本地：Jenkins credentials、build history、绝大多数 settings、recordings、local stats / caches、totpAccounts（TOTP 验证器）
-- 个人私钥 `personal_encryption_key`：与团队 `sync_encryption_key` 分离；禁止分享、默认不进设置导出；后续用于个人私密数据同步，当前勿接入团队 SyncEngine 表列表
+- synced 且团队密钥加密：`tags`、`jobTags`、`links`、`linkTags`、`blackboard`
+- synced 且个人私钥加密：`totpAccounts`（见 `dataScope.ts`；禁止回落团队密钥）
+- 仅本地：Jenkins credentials、build history、绝大多数 settings、recordings、local stats / caches
+- 个人同步（`personal_encryption_key`）：`totpAccounts` 等，归属见 `src/lib/sync/dataScope.ts`；禁止用团队密钥加密；禁止分享个人私钥、默认不进设置导出
+- 团队同步（`sync_encryption_key`）：`tags`、`jobTags`、`links`、`linkTags`、`blackboard`
+- 同步 `clearAllData`：默认保留 personal 表；「重建本地数据」在已配置个人私钥时传 `preservePersonal: false`（可同步恢复），未配置时保留仅本地个人数据；个人私钥本身不清除
+- 「清空所有数据并重置」`clearAllLocalData`：清除本机全部数据（含验证器与个人私钥）
 
 ## Coupled changes
 

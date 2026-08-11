@@ -25,8 +25,14 @@ export interface SyncPendingCounts {
   pull: number;
 }
 
+export interface SyncPushResult {
+  cursor?: number | string;
+  /** 实际上传成功的 op id；被跳过（如缺个人私钥）的不在此列 */
+  pushedIds: string[];
+}
+
 export interface SyncProvider {
-  push(ops: SyncOperation[], clientId: string): Promise<{ cursor?: number | string } | undefined>;
+  push(ops: SyncOperation[], clientId: string): Promise<SyncPushResult>;
   pull(
     cursor?: string | number,
     clientId?: string

@@ -132,6 +132,12 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'string',
     writable: false,
   },
+  personal_sync_bootstrap_done: {
+    category: 'runtime',
+    description: 'Whether personal sync tables have been bootstrapped into the operations queue',
+    type: 'boolean',
+    writable: false,
+  },
   feature_hotnews_enabled: {
     category: 'features',
     description: 'Show Hot News feature',

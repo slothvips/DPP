@@ -1,6 +1,7 @@
 import type Dexie from 'dexie';
 import { logger } from '@/utils/logger';
 import type { SyncTransaction } from './SyncEngine.shared';
+import { getTableDataScope } from './dataScope';
 
 interface ResetSyncStateOptions {
   db: Dexie;
@@ -54,8 +55,17 @@ interface ClearAllDataOptions {
   setSyncLock: (value: boolean) => void;
   setStatus: (status: 'idle') => void;
   resetRuntimeState: () => void;
+  /**
+   * 为 true 时跳过 personal 表（如 totpAccounts）。
+   * 重建本地数据应传 false；普通清空/换团队钥 member 模式默认 true。
+   */
+  preservePersonal?: boolean;
 }
 
+/**
+ * 清空同步元数据、operations 与同步业务表。
+ * `preservePersonal: true`（默认）时保留个人域表。
+ */
 export async function clearAllSyncData({
   db,
   tables,
@@ -63,6 +73,7 @@ export async function clearAllSyncData({
   setSyncLock,
   setStatus,
   resetRuntimeState,
+  preservePersonal = true,
 }: ClearAllDataOptions) {
   if (syncLock) {
     throw new Error('Cannot clear data while sync is in progress');
@@ -72,7 +83,13 @@ export async function clearAllSyncData({
     setSyncLock(true);
     setStatus('idle');
 
-    const tablesToClear = ['syncMetadata', 'operations', 'deferred_ops', ...tables];
+    const entityTables = preservePersonal
+      ? tables.filter((tableName) => getTableDataScope(tableName) !== 'personal')
+      : tables;
+    const tablesToClear = ['syncMetadata', 'operations', 'deferred_ops', ...entityTables];
+    const skippedPersonal = preservePersonal
+      ? tables.filter((tableName) => getTableDataScope(tableName) === 'personal')
+      : [];
 
     await db.transaction(
       'rw',
@@ -86,7 +103,13 @@ export async function clearAllSyncData({
       }
     );
 
-    logger.info('[Sync] All local data and sync state cleared.');
+    if (skippedPersonal.length > 0) {
+      logger.info(
+        `[Sync] Cleared sync data; preserved personal tables: ${skippedPersonal.join(', ')}`
+      );
+    } else {
+      logger.info('[Sync] All local sync data and sync state cleared.');
+    }
   } catch (error) {
     logger.error('[Sync] Failed to clear all data:', error);
     throw error;

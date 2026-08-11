@@ -28,6 +28,8 @@ export async function runPushFlow({
     return 0;
   }
 
+  let totalPushed = 0;
+
   for (let index = 0; index < operations.length; index += pushBatchSize) {
     const batch = operations.slice(index, index + pushBatchSize);
     const result = await withRetry(
@@ -35,14 +37,21 @@ export async function runPushFlow({
       `Push batch ${Math.floor(index / pushBatchSize) + 1}`
     );
 
-    await db.table('operations').bulkPut(batch.map((operation) => ({ ...operation, synced: 1 })));
+    const pushedIds = new Set(result.pushedIds);
+    if (pushedIds.size > 0) {
+      const pushedOps = batch.filter((operation) => pushedIds.has(operation.id));
+      await db
+        .table('operations')
+        .bulkPut(pushedOps.map((operation) => ({ ...operation, synced: 1 })));
+      totalPushed += pushedOps.length;
+    }
 
-    if (result?.cursor !== undefined && result.cursor !== null) {
+    if (result.cursor !== undefined && result.cursor !== null && pushedIds.size > 0) {
       await db.transaction('rw', db.table('syncMetadata'), async () => {
         const currentMeta = await db.table('syncMetadata').get('global');
         const currentCursor = Number(currentMeta?.lastServerCursor || 0);
         const serverReturnedCursor = Number(result.cursor);
-        const expectedCursor = currentCursor + batch.length;
+        const expectedCursor = currentCursor + pushedIds.size;
 
         if (serverReturnedCursor === expectedCursor) {
           await db.table('syncMetadata').put({
@@ -66,5 +75,5 @@ export async function runPushFlow({
     }
   }
 
-  return operations.length;
+  return totalPushed;
 }

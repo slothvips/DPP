@@ -1,5 +1,6 @@
 import { PersonalKeyEmptyState } from './PersonalKeyEmptyState';
 import { PersonalKeyEnabledState } from './PersonalKeyEnabledState';
+import { PersonalSyncStatus } from './PersonalSyncStatus';
 import { usePersonalKeyManager } from './usePersonalKeyManager';
 
 export function PersonalKeyManager() {
@@ -10,6 +11,7 @@ export function PersonalKeyManager() {
     handleGenerateReplace,
     handleImport,
     handleReplace,
+    handleToggleShowKey,
     hasKey,
     importInput,
     isGenerating,
@@ -21,37 +23,37 @@ export function PersonalKeyManager() {
     setImportInput,
     setIsReplaceOpen,
     setReplaceInput,
-    setShowKey,
     showKey,
   } = usePersonalKeyManager();
 
-  if (hasKey) {
-    return (
-      <PersonalKeyEnabledState
-        isReplaceOpen={isReplaceOpen}
-        isReplacing={isReplacing}
-        keyString={keyString}
-        replaceInput={replaceInput}
-        showKey={showKey}
-        onClear={() => void handleClear()}
-        onCopyKey={handleCopyKey}
-        onGenerateReplace={() => void handleGenerateReplace()}
-        onReplace={() => void handleReplace()}
-        onReplaceInputChange={setReplaceInput}
-        onReplaceOpenChange={setIsReplaceOpen}
-        onToggleShowKey={() => setShowKey(!showKey)}
-      />
-    );
-  }
-
   return (
-    <PersonalKeyEmptyState
-      importInput={importInput}
-      isGenerating={isGenerating}
-      isImporting={isImporting}
-      onGenerate={() => void handleGenerate()}
-      onImport={() => void handleImport()}
-      onImportInputChange={setImportInput}
-    />
+    <div className="space-y-3">
+      {hasKey ? (
+        <PersonalKeyEnabledState
+          isReplaceOpen={isReplaceOpen}
+          isReplacing={isReplacing}
+          keyString={keyString}
+          replaceInput={replaceInput}
+          showKey={showKey}
+          onClear={() => void handleClear()}
+          onCopyKey={handleCopyKey}
+          onGenerateReplace={() => void handleGenerateReplace()}
+          onReplace={() => void handleReplace()}
+          onReplaceInputChange={setReplaceInput}
+          onReplaceOpenChange={setIsReplaceOpen}
+          onToggleShowKey={() => void handleToggleShowKey()}
+        />
+      ) : (
+        <PersonalKeyEmptyState
+          importInput={importInput}
+          isGenerating={isGenerating}
+          isImporting={isImporting}
+          onGenerate={() => void handleGenerate()}
+          onImport={() => void handleImport()}
+          onImportInputChange={setImportInput}
+        />
+      )}
+      <PersonalSyncStatus />
+    </div>
   );
 }

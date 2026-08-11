@@ -3,6 +3,7 @@ import {
   isValidTotpSecret,
   normalizeTotpSecret,
 } from '@/features/totp/totpCrypto';
+import { isSoftDeleted } from '@/lib/db/softDelete';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 import {
   type AddTotpAccountArgs,
@@ -71,7 +72,7 @@ export async function addTotpAccount(args: AddTotpAccountArgs): Promise<AddTotpA
   const id = crypto.randomUUID();
   const secret = normalizeTotpSecret(args.secret);
 
-  const existing = await getTotpTable().toArray();
+  const existing = (await getTotpTable().toArray()).filter((item) => !isSoftDeleted(item));
   const maxSortOrder = existing.reduce((max, item) => {
     const value = typeof item.sortOrder === 'number' ? item.sortOrder : item.createdAt;
     return Math.max(max, value);
@@ -128,8 +129,11 @@ export async function updateTotpAccount(args: UpdateTotpAccountArgs): Promise<To
 
 export async function deleteTotpAccount(args: DeleteTotpAccountArgs): Promise<TotpMutationResult> {
   await getTotpAccountOrThrow(args.id);
-  // 仅本地表：硬删除
-  await getTotpTable().delete(args.id);
+  const now = Date.now();
+  await getTotpTable().update(args.id, {
+    deletedAt: now,
+    updatedAt: now,
+  });
 
   return {
     success: true,

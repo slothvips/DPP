@@ -1,9 +1,15 @@
 import type Dexie from 'dexie';
-import { getKeyHash, loadKey } from '@/lib/crypto/encryption';
 import { decryptOperation } from '@/lib/sync/crypto-helpers';
+import {
+  doesKeyRoleMatchScope,
+  loadSyncKeyring,
+  resolveKeyForKeyHash,
+  resolveKeyRoleForKeyHash,
+} from '@/lib/sync/syncKeys';
 import { logger } from '@/utils/logger';
 import { archiveRemoteActivities } from './SyncEngine.deferred';
 import type { SyncTransaction } from './SyncEngine.shared';
+import { resolveDataScope } from './dataScope';
 import type { SyncMetadata, SyncOperation, SyncProvider } from './types';
 
 interface PullFlowOptions {
@@ -26,24 +32,16 @@ export async function runPullFlow({
   applyOperation,
 }: PullFlowOptions): Promise<{ totalPulled: number; loopCount: number }> {
   const clientId = await ensureClientId();
-  let keyCache: { key: CryptoKey; keyHash: string } | null = null;
+  const keyring = await loadSyncKeyring();
   let totalPulled = 0;
   let loopCount = 0;
   let hasMore = true;
 
-  const ensureKey = async () => {
-    if (keyCache) {
-      return keyCache;
-    }
-
-    const key = await loadKey();
-    if (!key) {
-      throw new Error('[Sync] Encryption key not found. Cannot decrypt pulled operations.');
-    }
-
-    keyCache = { key, keyHash: await getKeyHash(key) };
-    return keyCache;
-  };
+  if (!keyring.teamKey && !keyring.personalKey) {
+    throw new Error(
+      '[Sync] No encryption key found. Configure team sync key and/or personal key to decrypt pulled operations.'
+    );
+  }
 
   while (hasMore && loopCount < maxPullLoops) {
     loopCount++;
@@ -58,18 +56,27 @@ export async function runPullFlow({
 
     const remoteOperations = ops.filter((operation) => operation.clientId !== clientId);
     if (remoteOperations.length > 0) {
-      const { key, keyHash: currentKeyHash } = await ensureKey();
       const decryptedOperations = await Promise.all(
         remoteOperations.map(async (operation) => {
-          if (operation.keyHash && operation.keyHash !== currentKeyHash) {
+          const keyRole = resolveKeyRoleForKeyHash(operation.keyHash, keyring);
+          const key = resolveKeyForKeyHash(operation.keyHash, keyring);
+          if (!key || !keyRole) {
             logger.debug(
-              `[Sync] Skipping op ${operation.id} due to keyHash mismatch (expected ${currentKeyHash}, got ${operation.keyHash})`
+              `[Sync] Skipping op ${operation.id}: no matching key for keyHash=${operation.keyHash ?? 'none'}`
             );
             return null;
           }
 
           try {
-            return await decryptOperation(operation, key);
+            const decrypted = await decryptOperation(operation, key);
+            const scope = resolveDataScope(decrypted);
+            if (!doesKeyRoleMatchScope(keyRole, scope)) {
+              logger.warn(
+                `[Sync] Skipping op ${operation.id}: keyRole=${keyRole} does not match scope=${scope} (table=${decrypted.table})`
+              );
+              return null;
+            }
+            return decrypted;
           } catch (error) {
             logger.warn(`[Sync] Failed to decrypt op ${operation.id}, skipping:`, error);
             return null;

@@ -19,6 +19,9 @@ export function DangerZoneSection({ onClearData }: DangerZoneSectionProps) {
       >
         清空所有数据并重置
       </Button>
+      <p className="text-xs text-muted-foreground">
+        清除本机全部应用数据，含验证器与个人私钥，不可恢复。
+      </p>
     </section>
   );
 }

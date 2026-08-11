@@ -1,19 +1,27 @@
 import { SyncEngine } from '@/lib/sync/SyncEngine';
+import { ensurePersonalSyncBootstrapped } from '@/lib/sync/personalSyncBootstrap';
 import type { SyncPendingCounts } from '@/lib/sync/types';
 import { createDefaultSyncProvider } from './syncProvider';
 import type { DPPDatabase } from './types';
 
 let syncEngineInstance: SyncEngine | null = null;
+let personalBootstrapStarted = false;
 
 export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null> {
   if (!syncEngineInstance) {
     syncEngineInstance = new SyncEngine(
       db,
-      ['tags', 'jobTags', 'links', 'linkTags', 'blackboard'],
+      ['tags', 'jobTags', 'links', 'linkTags', 'blackboard', 'totpAccounts'],
       createDefaultSyncProvider(db)
     );
     syncEngineInstance.register();
   }
+
+  if (!personalBootstrapStarted && syncEngineInstance) {
+    personalBootstrapStarted = true;
+    void ensurePersonalSyncBootstrapped(syncEngineInstance);
+  }
+
   return syncEngineInstance;
 }
 
@@ -51,6 +59,9 @@ export function createSyncEngineFacade(db: DPPDatabase) {
     },
     async getPendingCounts(): Promise<SyncPendingCounts> {
       return (await getSyncEngine(db))?.getPendingCounts() ?? { push: 0, pull: 0 };
+    },
+    async enqueuePersonalData() {
+      return (await getSyncEngine(db))?.enqueuePersonalData() ?? 0;
     },
   };
 }

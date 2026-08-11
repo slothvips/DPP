@@ -8,7 +8,7 @@ export interface TotpAccountItem {
   issuer?: string;
   /** 账号标识（邮箱 / 用户名） */
   account?: string;
-  /** Base32 密钥（仅本地存储） */
+  /** Base32 密钥（个人密钥域同步；勿用团队密钥加密） */
   secret: string;
   algorithm: TotpAlgorithm;
   digits: TotpDigits;
@@ -18,6 +18,8 @@ export interface TotpAccountItem {
   sortOrder: number;
   createdAt: number;
   updatedAt: number;
+  /** 软删除时间戳（参与个人密钥同步） */
+  deletedAt?: number;
 }
 
 export interface TotpAccountFormData {

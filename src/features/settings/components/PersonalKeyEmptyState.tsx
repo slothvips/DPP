@@ -70,7 +70,7 @@ export function PersonalKeyEmptyState({
           请勿向任何人分享此私钥（包括团队同事）。它与上方「同步密钥」相互独立。
         </p>
         <p className="text-[10px] text-muted-foreground">
-          后续可用于同步验证器等个人私密数据；丢失后相关密文将无法解密。跨设备请自行复制保管。
+          已用于同步验证器等个人数据。配置后会自动加入同步队列并尝试推送，不会清空本地验证器；跨设备请自行复制保管此私钥。
         </p>
       </div>
     </div>
