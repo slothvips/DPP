@@ -198,25 +198,31 @@ flowchart TB
 
 约定行为：
 
-1. **不删除、不改写**本地账户内容。  
-2. 个人私钥**首次成功写入**（生成或导入）后，自动执行 **个人表补建**：  
-   - 将本地未软删的 `totpAccounts` 写入 `operations`（`type: 'create'`，`synced: 0`）  
-   - 范围仅限个人同步表，避免误清整个团队 ops（不要直接调用会 `operations.clear()` 的全量 `regenerateOperations`，或提供「仅 personal 表」的 enqueue API）  
-3. 可尝试立即 `push`；失败只提示，不回滚已保存的密钥。**禁止**配钥路径调用 `clearAllData` + `pull`。  
-4. UI toast 提示：「个人私钥已就绪，验证器等个人数据将在同步时上传」。
+1. 个人私钥**首次成功写入**（生成或导入）后，自动执行：  
+   - **个人表补建**：将本地未软删的 `totpAccounts` 写入 `operations`（`type: 'create'`，`synced: 0`）；范围仅限个人同步表  
+   - **立即 `push`**：失败只提示，不回滚已保存的密钥  
+   - **`push` 成功后**再 `clearAllData({ preservePersonal: false })` + `pull`，用服务器数据重建本地同步表（含验证器）  
+2. UI toast 提示推送与本地重建结果；失败时提示检查同步配置后手动同步。  
+3. 启动时 bootstrap（已有钥、未标记）：仅 enqueue + 打标，**不做** clear/pull。
 
-同步「重建本地数据」：
+同步「重建本地数据」（Options 显式入口，与配钥路径共用 clear+pull 语义）：
 
 - 个人私钥本身不清除。  
 - **已配置个人私钥**：清空含 `totpAccounts` 在内的同步表后 pull（可从服务器恢复）。  
 - **未配置个人私钥**：只清团队同步表，保留仅本地的个人数据（无法从服务器恢复）。  
+- 「导入配置」：覆盖应用设置并清空本地业务数据，但**必须保留**本机已有的 `personal_encryption_key`（及 `personal_sync_bootstrap_done`）；不得因导入团队备份而丢失个人私钥。  
 - 「清空所有数据」：整应用全清（含验证器与个人私钥）。
+
+个人私钥配置前置：
+
+- 须已保存非空同步服务器地址（`custom_server_url`）后，才允许生成 / 导入 / 更换个人私钥。  
+- Options UI 在未配置服务器时展示引导态；写入路径二次校验。
 
 更换个人私钥（覆盖）：
 
 - 强确认警告：旧私钥加密的云端个人数据将无法再解。  
-- 本期可不做自动「用新钥重加密云端」迁移；用户需接受旧云端个人密文失效，并由新钥重新上传本地权威数据（补建 enqueue，**不清空本地验证器**）。  
-- 文档明确说明。
+- 本期可不做自动「用新钥重加密云端」迁移；用户需接受旧云端个人密文失效。  
+- 覆盖后同样走：新钥 enqueue → push → clear + pull 重建；旧密文 keyHash 不匹配会被 skip。
 
 ### 6.4 跨设备恢复步骤（用户路径）
 
@@ -290,10 +296,10 @@ flowchart TB
 
 ### 阶段 C — 产品增强
 
-1. ~~同步设置中展示「个人数据同步状态」~~（已做：`PersonalSyncStatus`；配钥后 enqueue + 可选 push，**不清库**）  
+1. ~~同步设置中展示「个人数据同步状态」~~（已做：`PersonalSyncStatus`；配钥/换钥后 enqueue → push → clear + pull）  
 2. 实体级 `dataScope`（黑板等）— 未做  
 3. 本地 secret vault、剪贴板清理等加固 — 未做  
-4. ~~同步 clear 跳过 personal；pull 校验 key↔scope；表级 personal 下限~~（见 `docs/personal-sync-fix-plan.md`）  
+4. ~~同步 clear 默认跳过 personal；pull 校验 key↔scope；表级 personal 下限~~（见 `docs/personal-sync-fix-plan.md`）  
 
 ---
 
@@ -302,7 +308,7 @@ flowchart TB
 1. **无个人私钥**：验证器本地 CRUD 正常；push 不上传 totp；团队同步不受影响。  
 2. **有个人私钥**：两台设备同服务器 + 同个人私钥，验证器增删改可互相同步。  
 3. **仅团队密钥的第三客户端**：pull 后本地无他人验证器账户。  
-4. **先数据后配钥**：配置个人私钥后，无需逐条编辑，下次同步能上传已有账户。  
+4. **先数据后配钥**：配置个人私钥后，无需逐条编辑即可 enqueue/push 已有账户，并完成一次本地同步数据重建。  
 5. **导出配置**：不含 `personal_encryption_key`。  
 6. **编译与 lint**：`pnpm compile`、相关 eslint 通过。  
 7. **不变量**：代码审查确认不存在 personal op + team key 加密路径。

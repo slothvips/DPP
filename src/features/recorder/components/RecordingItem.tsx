@@ -46,9 +46,20 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
     return `${m}:${rs.toString().padStart(2, '0')}`;
   };
 
+  const hostname = recording.url
+    ? (() => {
+        try {
+          return new URL(recording.url).hostname;
+        } catch (error) {
+          logger.debug('Invalid URL:', recording.url, error);
+          return recording.url;
+        }
+      })()
+    : '-';
+
   return (
-    <div className="rounded-2xl border border-border/60 bg-background/92 p-3.5 text-card-foreground shadow-sm transition-all duration-200 hover:border-primary/10 hover:shadow-sm">
-      <div className="mb-2.5 flex items-start justify-between gap-2">
+    <div className="group rounded-xl border border-border/60 bg-background/90 p-2 shadow-sm transition-all duration-200 hover:border-primary/10 hover:bg-muted/16 hover:shadow-sm">
+      <div className="mb-1.5 flex items-start justify-between gap-2">
         {isEditing ? (
           <Input
             value={title}
@@ -56,75 +67,70 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
             onBlur={handleSaveTitle}
             onKeyDown={(e) => e.key === 'Enter' && handleSaveTitle()}
             autoFocus
-            className="h-8 rounded-xl text-sm"
+            className="h-7 rounded-xl text-sm"
           />
         ) : (
-          <div
-            className="flex-1 truncate text-sm font-semibold text-foreground"
-            title={recording.title}
+          <button
+            type="button"
+            className="min-w-0 flex-1 truncate py-0.5 text-left text-sm font-semibold text-foreground transition-colors hover:text-primary"
+            title={`播放：${recording.title}`}
+            onClick={handlePlay}
           >
             {recording.title}
-          </div>
+          </button>
         )}
-        <div className="flex shrink-0 gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-xl"
+            className="h-6 w-6 shrink-0"
+            onClick={handlePlay}
+            title="播放"
+          >
+            <Play className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            onClick={() => onExport(recording)}
+            title="导出"
+          >
+            <Download className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
             onClick={() => setIsEditing(!isEditing)}
             title="重命名"
           >
-            <Edit2 className="w-3 h-3" />
+            <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-xl text-destructive hover:text-destructive"
+            className="h-6 w-6 shrink-0 text-destructive hover:text-destructive"
             onClick={() => onDelete(recording.id)}
             title="删除"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5 text-xs text-muted-foreground">
-        <div className="flex justify-between">
-          <span>{format(recording.createdAt, 'yyyy-MM-dd HH:mm')}</span>
-          <span>{formatDuration(recording.duration)}</span>
+      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <div className="flex min-w-0 items-center gap-2">
+          {recording.favicon && <img src={recording.favicon} className="h-3 w-3 shrink-0" alt="" />}
+          <span className="truncate" title={recording.url}>
+            {hostname}
+          </span>
         </div>
-        <div className="flex justify-between items-center">
-          <div className="flex gap-2 items-center truncate max-w-[120px]">
-            {recording.favicon && <img src={recording.favicon} className="w-3 h-3" alt="" />}
-            <span className="truncate" title={recording.url}>
-              {recording.url
-                ? (() => {
-                    try {
-                      return new URL(recording.url).hostname;
-                    } catch (error) {
-                      logger.debug('Invalid URL:', recording.url, error);
-                      return recording.url;
-                    }
-                  })()
-                : '-'}
-            </span>
-          </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span>{format(recording.createdAt, 'MM-dd HH:mm')}</span>
+          <span>{formatDuration(recording.duration)}</span>
           <span>{formatSize(recording.fileSize)}</span>
         </div>
-      </div>
-
-      <div className="mt-3.5 flex gap-2">
-        <Button size="sm" className="h-8 flex-1 text-xs shadow-sm" onClick={handlePlay}>
-          <Play className="mr-1 h-3 w-3" /> 播放
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 flex-1 text-xs"
-          onClick={() => onExport(recording)}
-        >
-          <Download className="mr-1 h-3 w-3" /> 导出
-        </Button>
       </div>
     </div>
   );

@@ -319,6 +319,32 @@ const DPP_CONFIG_DEFINITIONS = {
     enum: ['createdAt', 'updatedAt', 'usageCount', 'lastUsedAt'],
     writable: true,
   },
+  totp_pin_hash: {
+    category: 'security',
+    description: 'TOTP PIN hash (local UI lock only)',
+    sensitive: true,
+    type: 'string',
+    writable: false,
+  },
+  totp_pin_salt: {
+    category: 'security',
+    description: 'TOTP PIN salt',
+    sensitive: true,
+    type: 'string',
+    writable: false,
+  },
+  totp_pin_iterations: {
+    category: 'security',
+    description: 'TOTP PIN PBKDF2 iterations',
+    type: 'number',
+    writable: false,
+  },
+  totp_pin_auto_lock_minutes: {
+    category: 'security',
+    description: 'TOTP PIN auto-lock idle minutes (0 = lock only when leaving)',
+    type: 'number',
+    writable: false,
+  },
 } as const satisfies Record<SettingKey, ConfigDefinition>;
 
 const ENCRYPTABLE_SETTING_KEYS = new Set<SettingKey>([

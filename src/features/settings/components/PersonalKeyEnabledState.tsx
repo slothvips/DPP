@@ -1,4 +1,4 @@
-import { Copy, Eye, EyeOff, KeyRound, Shield, ShieldAlert } from 'lucide-react';
+import { Copy, Eye, EyeOff, Shield, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,6 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 interface PersonalKeyEnabledStateProps {
+  actionsDisabled?: boolean;
+  /** 仅禁用更换密钥（例如尚未配置同步服务器） */
+  replaceDisabled?: boolean;
   isReplaceOpen: boolean;
   isReplacing: boolean;
   keyString: string;
@@ -27,6 +30,8 @@ interface PersonalKeyEnabledStateProps {
 }
 
 export function PersonalKeyEnabledState({
+  actionsDisabled = false,
+  replaceDisabled = false,
   isReplaceOpen,
   isReplacing,
   keyString,
@@ -54,6 +59,7 @@ export function PersonalKeyEnabledState({
           <Button
             variant="ghost"
             size="sm"
+            disabled={actionsDisabled || replaceDisabled}
             onClick={() => onReplaceOpenChange(true)}
             className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
             data-testid="personal-key-replace-button"
@@ -63,6 +69,7 @@ export function PersonalKeyEnabledState({
           <Button
             variant="ghost"
             size="sm"
+            disabled={actionsDisabled}
             onClick={onClear}
             className="h-6 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
             data-testid="personal-key-clear-button"
@@ -104,23 +111,17 @@ export function PersonalKeyEnabledState({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 px-1">
-        <p className="flex items-start gap-1.5 text-[10px] text-destructive">
-          <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0" />
-          请勿向任何人分享此私钥。它不会出现在配置导出中。
-        </p>
-        <p className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
-          <KeyRound className="mt-0.5 h-3 w-3 shrink-0" />
-          与团队「同步密钥」相互独立；验证器等个人数据使用此私钥加密同步。配置后会自动加入同步队列并尝试推送，不会清空本地验证器。
-        </p>
-      </div>
+      <p className="flex items-start gap-1.5 px-1 text-[10px] text-destructive">
+        <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0" />
+        找回个人数据需要此私钥，请勿分享或丢失。
+      </p>
 
       <Dialog open={isReplaceOpen} onOpenChange={onReplaceOpenChange}>
         <DialogContent className="sm:max-w-[420px]" data-testid="personal-key-replace-dialog">
           <DialogHeader>
             <DialogTitle>更换个人私钥</DialogTitle>
             <DialogDescription>
-              覆盖后，旧密钥加密的个人数据将无法解密。请仅在你的其他可信设备上使用同一私钥。
+              覆盖后，旧密钥加密的个人数据将无法解密。本地个人数据会先用新密钥推送，再从服务器重建。请仅在你的其他可信设备上使用同一私钥。
             </DialogDescription>
           </DialogHeader>
 

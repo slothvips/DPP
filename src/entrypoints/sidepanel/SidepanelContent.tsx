@@ -148,7 +148,7 @@ export function SidepanelContent({
           fallback={<SidepanelLoadingFallback />}
         >
           <ErrorBoundary moduleName={TAB_CONFIG.totp.label} className="h-full">
-            <TotpView />
+            <TotpView isActive={activeTab === 'totp'} />
           </ErrorBoundary>
         </LazyTabPanel>
       </div>

@@ -19,16 +19,23 @@ export async function bootstrapPersonalSyncAfterKeyReady(
   return enqueued;
 }
 
+export type PersonalKeyFinalizeStep = 'enqueue' | 'push' | 'clear' | 'pull';
+
 /**
  * 个人私钥写入后：enqueue → push → 清空本地同步数据 → pull 全量重建。
  * 只有 push 成功后才会清空本地数据，避免未上传的数据丢失。
  */
 export async function finalizePersonalSyncAfterKeyReady(
-  engine: PersonalSyncEngine
+  engine: PersonalSyncEngine,
+  onStep?: (step: PersonalKeyFinalizeStep) => void
 ): Promise<number> {
+  onStep?.('enqueue');
   const enqueued = await bootstrapPersonalSyncAfterKeyReady(engine);
+  onStep?.('push');
   await engine.push();
+  onStep?.('clear');
   await engine.clearAllData({ preservePersonal: false });
+  onStep?.('pull');
   await engine.pull();
   return enqueued;
 }

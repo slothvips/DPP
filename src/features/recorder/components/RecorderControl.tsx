@@ -37,8 +37,8 @@ export function RecorderControl() {
   if (!isRecording) {
     if (isChecking) {
       return (
-        <Button variant="destructive" className="h-12 w-full gap-2 rounded-2xl" disabled>
-          <div className="h-3 w-3 animate-pulse rounded-full bg-destructive-foreground/50" />
+        <Button variant="destructive" className="h-9 w-full gap-2 rounded-xl text-xs" disabled>
+          <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-destructive-foreground/50" />
           检测页面...
         </Button>
       );
@@ -46,8 +46,8 @@ export function RecorderControl() {
 
     if (!isSupported) {
       return (
-        <Button variant="outline" className="h-12 w-full gap-2 rounded-2xl" disabled>
-          <div className="h-3 w-3 rounded-full bg-muted-foreground" />
+        <Button variant="outline" className="h-9 w-full gap-2 rounded-xl text-xs" disabled>
+          <div className="h-2.5 w-2.5 rounded-full bg-muted-foreground" />
           页面不支持录制
         </Button>
       );
@@ -56,19 +56,19 @@ export function RecorderControl() {
     return (
       <Button
         variant="destructive"
-        className="h-12 w-full gap-2 rounded-2xl text-sm"
+        className="h-9 w-full gap-2 rounded-xl text-xs"
         onClick={handleStartRecording}
       >
-        <div className="h-3 w-3 rounded-full bg-destructive-foreground" />
+        <div className="h-2.5 w-2.5 rounded-full bg-destructive-foreground" />
         开始录制
       </Button>
     );
   }
 
   return (
-    <div className="flex items-center gap-4 rounded-2xl border border-border/60 bg-background/88 p-3">
+    <div className="flex h-9 items-center gap-3 rounded-xl border border-border/60 bg-background/88 px-3">
       <div className="flex items-center gap-2">
-        <div className="h-3 w-3 animate-pulse rounded-full bg-red-500" />
+        <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
         <span className="font-mono text-sm font-semibold text-foreground">
           {formatDuration(duration)}
         </span>

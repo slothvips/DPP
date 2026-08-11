@@ -63,6 +63,8 @@
 - 个人同步（`personal_encryption_key`）：`totpAccounts` 等，归属见 `src/lib/sync/dataScope.ts`；禁止用团队密钥加密；禁止分享个人私钥、默认不进设置导出
 - 团队同步（`sync_encryption_key`）：`tags`、`jobTags`、`links`、`linkTags`、`blackboard`
 - 同步 `clearAllData`：默认保留 personal 表；「重建本地数据」在已配置个人私钥时传 `preservePersonal: false`（可同步恢复），未配置时保留仅本地个人数据；个人私钥本身不清除
+- 个人私钥首次写入 / 更换后：`enqueuePersonalData` → `push` → `clearAllData({ preservePersonal: false })` → `pull`（见 `personalSyncBootstrap.ts`）；启动时 bootstrap 仅 enqueue，不做清库
+- 个人私钥配置前置：须已保存非空 `custom_server_url`；「导入配置」须保留本机 `personal_encryption_key`（及 bootstrap 标记），不得因导入而清空
 - 「清空所有数据并重置」`clearAllLocalData`：清除本机全部数据（含验证器与个人私钥）
 
 ## Coupled changes

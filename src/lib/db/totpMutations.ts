@@ -141,6 +141,27 @@ export async function deleteTotpAccount(args: DeleteTotpAccountArgs): Promise<To
   };
 }
 
+/** 软删除本机全部未删除的验证器账户（用于无个人私钥时重置 PIN） */
+export async function clearAllLocalTotpAccounts(): Promise<TotpMutationResult> {
+  const table = getTotpTable();
+  const items = (await table.toArray()).filter((item) => !isSoftDeleted(item));
+  const now = Date.now();
+
+  await Promise.all(
+    items.map((item) =>
+      table.update(item.id, {
+        deletedAt: now,
+        updatedAt: now,
+      })
+    )
+  );
+
+  return {
+    success: true,
+    message: `已删除 ${items.length} 个验证器账户`,
+  };
+}
+
 export async function reorderTotpAccounts(
   args: ReorderTotpAccountsArgs
 ): Promise<TotpMutationResult> {

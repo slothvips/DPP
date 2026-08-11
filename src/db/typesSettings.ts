@@ -57,6 +57,17 @@ export interface SettingMap {
   ai_custom_model: string;
   ai_custom_api_key: string | StoredEncryptedValue;
   links_sort_by: 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt';
+  /** 验证器 PIN 哈希（Base64，PBKDF2）；空字符串表示未设置 */
+  totp_pin_hash: string;
+  /** 验证器 PIN 盐（Base64） */
+  totp_pin_salt: string;
+  /** PBKDF2 迭代次数 */
+  totp_pin_iterations: number;
+  /**
+   * 验证器自动锁屏分钟数。
+   * 0 表示仅在离开验证器/隐藏扩展时锁定；>0 时另加空闲超时。
+   */
+  totp_pin_auto_lock_minutes: number;
 }
 
 export type SettingKey = keyof SettingMap;

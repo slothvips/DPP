@@ -11,6 +11,21 @@ export const EXCLUDED_SETTINGS: SettingKey[] = [
   // 个人私钥禁止进入配置导出/导入，避免误分享到团队备份
   'personal_encryption_key',
   'personal_sync_bootstrap_done',
+  // 验证器 PIN 仅本机 UI 锁，禁止进入配置备份
+  'totp_pin_hash',
+  'totp_pin_salt',
+  'totp_pin_iterations',
+  'totp_pin_auto_lock_minutes',
+];
+
+/** 导入配置清空本地库时，仍从本机保留、禁止被备份覆盖的设置 */
+export const IMPORT_PRESERVED_SETTINGS: SettingKey[] = [
+  'personal_encryption_key',
+  'personal_sync_bootstrap_done',
+  'totp_pin_hash',
+  'totp_pin_salt',
+  'totp_pin_iterations',
+  'totp_pin_auto_lock_minutes',
 ];
 
 export const SETTINGS_CATEGORIES: Array<{

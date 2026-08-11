@@ -92,7 +92,8 @@ const messageHandlers: Array<{
       type === 'PAGE_AGENT_GET_CONFIG' ||
       type === 'PAGE_AGENT_FETCH' ||
       type === 'OPEN_SIDE_PANEL' ||
-      type === 'SAVE_JENKINS_TOKEN',
+      type === 'SAVE_JENKINS_TOKEN' ||
+      type === 'CAPTURE_VISIBLE_TAB',
     handler: (message) =>
       handleGeneralMessage(message as Parameters<typeof handleGeneralMessage>[0]),
   },

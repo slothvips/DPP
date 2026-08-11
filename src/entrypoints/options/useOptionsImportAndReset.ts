@@ -1,17 +1,27 @@
 import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
-import type { JenkinsEnvironment } from '@/db/types';
+import type { JenkinsEnvironment, Setting } from '@/db/types';
 import { loadPersonalKey } from '@/lib/crypto/personalKey';
 import { clearAllLocalData } from '@/lib/db/clearAllLocalData';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
-import { EXCLUDED_SETTINGS, type ImportedSetting, isImportedSetting } from './optionsShared';
+import {
+  EXCLUDED_SETTINGS,
+  IMPORT_PRESERVED_SETTINGS,
+  type ImportedSetting,
+  isImportedSetting,
+} from './optionsShared';
 
 export function useOptionsImportAndReset() {
   const { toast } = useToast();
   const { confirm } = useConfirmDialog();
 
   const importSettings = async (importedSettings: ImportedSetting[]) => {
+    // 导入会删库重建；个人私钥及相关 bootstrap 标记必须从本机保留
+    const preservedSettings = (
+      await Promise.all(IMPORT_PRESERVED_SETTINGS.map((key) => db.settings.get(key)))
+    ).filter((row): row is Setting => row != null);
+
     await db.delete();
     await db.open();
 
@@ -46,6 +56,13 @@ export function useOptionsImportAndReset() {
       );
 
       await db.settings.bulkAdd(settings as Parameters<typeof db.settings.bulkAdd>[0]);
+
+      if (preservedSettings.length > 0) {
+        await db.settings.bulkPut(preservedSettings);
+        logger.info(
+          `Preserved ${preservedSettings.length} personal setting(s) across config import`
+        );
+      }
     });
   };
 
@@ -78,8 +95,17 @@ export function useOptionsImportAndReset() {
         }
 
         const hasKey = importedSettings.some((setting) => setting.key === 'sync_encryption_key');
+        let hasLocalPersonalKey = false;
+        try {
+          hasLocalPersonalKey = Boolean(await loadPersonalKey());
+        } catch (error) {
+          logger.warn('[Import] Failed to check personal key before import:', error);
+        }
+        const personalKeyClause = hasLocalPersonalKey
+          ? '已配置的个人私钥将保留（不会被清空或覆盖）。\n'
+          : '';
         const confirmed = await confirm(
-          `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}⚠️ 这将清空所有本地数据，导入后请重新同步！`,
+          `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}${personalKeyClause}⚠️ 这将清空本地业务数据并覆盖应用设置，导入后请重新同步！`,
           '确认导入'
         );
 

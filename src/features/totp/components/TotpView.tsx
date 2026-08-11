@@ -1,4 +1,4 @@
-import { ClipboardPaste, Download, Eye, EyeOff, Search, Shield } from 'lucide-react';
+import { ClipboardPaste, Download, Eye, EyeOff, Lock, Search, Shield } from 'lucide-react';
 import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,10 +7,20 @@ import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { useTotpAccounts } from '../hooks/useTotpAccounts';
 import { useTotpTicker } from '../hooks/useTotpCode';
+import { useTotpPinLock } from '../hooks/useTotpPinLock';
 import type { TotpAccountFormData, TotpAccountItem } from '../types';
 import { TotpAccountDialog } from './TotpAccountDialog';
 import { TotpAccountListItem } from './TotpAccountListItem';
 import { TotpExportDialog } from './TotpExportDialog';
+import { TotpForgotPinDialog } from './TotpForgotPinDialog';
+import { TotpLockScreen } from './TotpLockScreen';
+import { TotpPersonalKeyNotice } from './TotpPersonalKeyNotice';
+import { TotpPinSettingsDialog } from './TotpPinSettingsDialog';
+
+interface TotpViewProps {
+  /** 验证器标签是否处于前台（用于离开时自动锁屏） */
+  isActive?: boolean;
+}
 
 function matchesSearch(account: TotpAccountItem, query: string): boolean {
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -23,11 +33,13 @@ function matchesSearch(account: TotpAccountItem, query: string): boolean {
   return tokens.every((token) => haystack.includes(token));
 }
 
-export function TotpView() {
+export function TotpView({ isActive = true }: TotpViewProps) {
   const { accounts, addAccount, updateAccount, removeAccount, reorderAccounts } = useTotpAccounts();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isPinSettingsOpen, setIsPinSettingsOpen] = useState(false);
+  const [isForgotPinOpen, setIsForgotPinOpen] = useState(false);
   const [showCodes, setShowCodes] = useState(false);
   const [editingAccount, setEditingAccount] = useState<TotpAccountItem | null>(null);
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -35,7 +47,8 @@ export function TotpView() {
   const orderedAccountsRef = useRef(orderedAccounts);
   const { toast } = useToast();
   const { confirm } = useConfirmDialog();
-  const nowMs = useTotpTicker(accounts.length > 0);
+  const pinLock = useTotpPinLock({ isActive });
+  const nowMs = useTotpTicker(accounts.length > 0 && !pinLock.locked);
   const isSearching = search.trim().length > 0;
 
   const filteredAccounts = useMemo(
@@ -50,23 +63,26 @@ export function TotpView() {
     setOrderedAccounts(isSearching ? filteredAccounts : accounts);
   }, [accounts, filteredAccounts, isSearching, draggedId]);
 
+  // 锁定时关闭敏感弹窗并隐藏验证码
+  useEffect(() => {
+    if (!pinLock.locked) return;
+    setIsDialogOpen(false);
+    setIsExportOpen(false);
+    setIsPinSettingsOpen(false);
+    setShowCodes(false);
+    setEditingAccount(null);
+  }, [pinLock.locked]);
+
   function handleImport() {
     setEditingAccount(null);
     setIsDialogOpen(true);
   }
 
-  async function handleExport() {
+  function handleExport() {
     if (accounts.length === 0) {
       toast('没有可导出的账户', 'info');
       return;
     }
-
-    const confirmed = await confirm(
-      '导出内容包含全部密钥，请仅在可信环境使用，并尽快删除明文备份。确定继续？',
-      '导出确认',
-      'danger'
-    );
-    if (!confirmed) return;
     setIsExportOpen(true);
   }
 
@@ -174,6 +190,28 @@ export function TotpView() {
 
   const visibleAccounts = draggedId ? orderedAccounts : isSearching ? filteredAccounts : accounts;
 
+  if (pinLock.locked) {
+    return (
+      <div className="flex h-full min-h-0 flex-col" data-testid="totp-view">
+        <TotpLockScreen
+          unlocking={pinLock.unlocking}
+          error={pinLock.unlockError}
+          onUnlock={pinLock.unlock}
+          onForgotPin={() => setIsForgotPinOpen(true)}
+          onClearError={pinLock.clearUnlockError}
+        />
+        <TotpForgotPinDialog
+          open={isForgotPinOpen}
+          onOpenChange={setIsForgotPinOpen}
+          onReset={() => {
+            pinLock.markUnlocked();
+            toast('已重置 PIN 锁定，请尽快重新设置', 'success');
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="totp-view">
       <div className="flex shrink-0 items-center gap-1.5 border-b border-border/55 bg-background/70 px-2 py-1.5 dark:bg-background/50">
@@ -192,6 +230,17 @@ export function TotpView() {
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0"
+          onClick={() => setIsPinSettingsOpen(true)}
+          title={pinLock.pinEnabled ? '管理 PIN' : '设置 PIN'}
+          data-testid="totp-pin-settings-button"
+        >
+          <Lock className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
           onClick={() => setShowCodes((value) => !value)}
           title={showCodes ? '隐藏验证码' : '显示验证码'}
           data-testid="totp-toggle-codes-button"
@@ -203,7 +252,7 @@ export function TotpView() {
           variant="outline"
           size="sm"
           className="h-8 shrink-0 gap-1 rounded-lg px-2.5 text-xs"
-          onClick={() => void handleExport()}
+          onClick={handleExport}
           disabled={accounts.length === 0}
           data-testid="totp-export-button"
         >
@@ -221,6 +270,8 @@ export function TotpView() {
           导入
         </Button>
       </div>
+
+      <TotpPersonalKeyNotice />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {accounts.length === 0 ? (
@@ -268,6 +319,17 @@ export function TotpView() {
         onImportMany={handleImportMany}
       />
       <TotpExportDialog open={isExportOpen} accounts={accounts} onOpenChange={setIsExportOpen} />
+      <TotpPinSettingsDialog
+        open={isPinSettingsOpen}
+        pinEnabled={pinLock.pinEnabled}
+        autoLockMinutes={pinLock.autoLockMinutes}
+        onOpenChange={setIsPinSettingsOpen}
+        onPinChanged={() => {
+          // 刚设置/更新 PIN 后保持当前会话解锁，避免立刻再锁
+          pinLock.markUnlocked();
+        }}
+        onLockNow={pinLock.pinEnabled ? pinLock.lock : undefined}
+      />
     </div>
   );
 }

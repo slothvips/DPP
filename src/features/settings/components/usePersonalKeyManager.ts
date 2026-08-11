@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { syncEngine } from '@/db';
 import { exportKey } from '@/lib/crypto/encryption';
@@ -9,20 +9,34 @@ import {
   loadPersonalKey,
 } from '@/lib/crypto/personalKey';
 import {
+  type PersonalKeyFinalizeStep,
   finalizePersonalSyncAfterKeyReady,
   resetPersonalSyncBootstrapFlag,
 } from '@/lib/sync/personalSyncBootstrap';
+import { hasConfiguredSyncServer } from '@/lib/sync/syncServerConfig';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
+import type {
+  PersonalKeySetupProgressState,
+  PersonalKeySetupStepId,
+} from './personalKeySetupSteps';
 
 /** 个人私钥写入后：push 本地个人数据，再从服务端重建本地同步数据 */
-async function syncAfterPersonalKeyReady(): Promise<number> {
+async function syncAfterPersonalKeyReady(
+  onStep: (step: PersonalKeyFinalizeStep) => void
+): Promise<number> {
   await syncEngine.getClientId();
   const live = syncEngine.instance;
   if (!live) {
     throw new Error('同步引擎未就绪');
   }
-  return finalizePersonalSyncAfterKeyReady(live);
+  return finalizePersonalSyncAfterKeyReady(live, onStep);
+}
+
+async function assertSyncServerConfigured(): Promise<void> {
+  if (!(await hasConfiguredSyncServer())) {
+    throw new Error('请先配置并保存同步服务器地址，再配置个人私钥');
+  }
 }
 
 export function usePersonalKeyManager() {
@@ -37,6 +51,24 @@ export function usePersonalKeyManager() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isReplacing, setIsReplacing] = useState(false);
+  const [isCustodyGuideOpen, setIsCustodyGuideOpen] = useState(false);
+  const [custodyGuideKey, setCustodyGuideKey] = useState('');
+  const [setupProgress, setSetupProgress] = useState<PersonalKeySetupProgressState | null>(null);
+  const activeStepRef = useRef<PersonalKeySetupStepId>('saving');
+  const doneDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearDoneDismissTimer = useCallback(() => {
+    if (doneDismissTimerRef.current !== null) {
+      clearTimeout(doneDismissTimerRef.current);
+      doneDismissTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      clearDoneDismissTimer();
+    };
+  }, [clearDoneDismissTimer]);
 
   const checkKey = useCallback(async () => {
     try {
@@ -55,58 +87,118 @@ export function usePersonalKeyManager() {
     void checkKey();
   }, [checkKey]);
 
-  const runPostKeySync = useCallback(
-    async (successBase: string) => {
-      toast('正在推送个人数据并重建本地同步数据...', 'info');
-      try {
-        const enqueued = await syncAfterPersonalKeyReady();
-        await checkKey();
-        if (enqueued > 0) {
-          toast(`${successBase}；已推送 ${enqueued} 条个人数据并完成本地数据重建`, 'success');
-        } else {
-          toast(`${successBase}；已完成本地数据重建`, 'success');
-        }
-      } catch (error) {
-        logger.error('Failed to push/rebuild after personal key ready:', error);
-        await checkKey();
-        toast('个人私钥已保存，但个人数据推送或本地重建失败。请检查同步配置后手动同步。', 'error');
+  const openCustodyGuide = useCallback(async () => {
+    try {
+      const key = await loadPersonalKey();
+      if (!key) {
+        setCustodyGuideKey('');
+        setIsCustodyGuideOpen(true);
+        return;
       }
-    },
-    [checkKey, toast]
-  );
+      const exported = await exportKey(key);
+      setCustodyGuideKey(exported);
+      setKeyString(exported);
+      setShowKey(true);
+      setIsCustodyGuideOpen(true);
+    } catch (error) {
+      logger.error('Failed to prepare personal key custody guide:', error);
+      setCustodyGuideKey('');
+      setIsCustodyGuideOpen(true);
+    }
+  }, []);
+
+  const dismissSetupProgress = useCallback(() => {
+    clearDoneDismissTimer();
+    setSetupProgress(null);
+  }, [clearDoneDismissTimer]);
+
+  const runPostKeySync = useCallback(async () => {
+    clearDoneDismissTimer();
+    activeStepRef.current = 'enqueue';
+    setSetupProgress({ phase: 'enqueue' });
+
+    try {
+      const enqueued = await syncAfterPersonalKeyReady((step) => {
+        activeStepRef.current = step;
+        setSetupProgress({ phase: step });
+      });
+      await checkKey();
+      setSetupProgress({ phase: 'done', enqueued });
+      await openCustodyGuide();
+      doneDismissTimerRef.current = setTimeout(() => {
+        setSetupProgress((current) => (current?.phase === 'done' ? null : current));
+        doneDismissTimerRef.current = null;
+      }, 4000);
+    } catch (error) {
+      logger.error('Failed to push/rebuild after personal key ready:', error);
+      await checkKey();
+      setSetupProgress({
+        phase: 'error',
+        failedStep: activeStepRef.current,
+        errorMessage: '个人私钥已保存，但后续同步失败。请检查同步配置后手动同步。',
+      });
+    }
+  }, [checkKey, clearDoneDismissTimer, openCustodyGuide]);
 
   const handleGenerate = useCallback(async () => {
     try {
+      await assertSyncServerConfigured();
       setIsGenerating(true);
+      clearDoneDismissTimer();
+      activeStepRef.current = 'saving';
+      setSetupProgress({ phase: 'saving' });
       await generateAndStorePersonalKey();
       setImportInput('');
-      await runPostKeySync('个人私钥已生成并保存');
+      await checkKey();
+      await runPostKeySync();
     } catch (error) {
       logger.error(error);
-      toast('生成个人私钥失败', 'error');
+      setSetupProgress(null);
+      const message =
+        error instanceof Error && error.message.includes('同步服务器')
+          ? error.message
+          : '生成个人私钥失败';
+      toast(message, 'error');
     } finally {
       setIsGenerating(false);
     }
-  }, [runPostKeySync, toast]);
+  }, [checkKey, clearDoneDismissTimer, runPostKeySync, toast]);
 
   const handleImport = useCallback(async () => {
     if (!importInput.trim()) return;
 
     try {
+      await assertSyncServerConfigured();
       setIsImporting(true);
+      clearDoneDismissTimer();
+      activeStepRef.current = 'saving';
+      setSetupProgress({ phase: 'saving' });
       await importAndStorePersonalKey(importInput);
       setImportInput('');
-      await runPostKeySync('个人私钥已导入');
+      await checkKey();
+      await runPostKeySync();
     } catch (error) {
       logger.error(error);
-      toast('无效的密钥格式', 'error');
+      setSetupProgress(null);
+      const message =
+        error instanceof Error && error.message.includes('同步服务器')
+          ? error.message
+          : '无效的密钥格式';
+      toast(message, 'error');
     } finally {
       setIsImporting(false);
     }
-  }, [importInput, runPostKeySync, toast]);
+  }, [checkKey, clearDoneDismissTimer, importInput, runPostKeySync, toast]);
 
   const handleReplace = useCallback(async () => {
     if (!replaceInput.trim()) return;
+
+    try {
+      await assertSyncServerConfigured();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '请先配置同步服务器', 'error');
+      return;
+    }
 
     const confirmed = await confirm(
       '确定要用新密钥覆盖当前个人私钥吗？\n\n若已有使用旧密钥加密的个人数据，将无法再解密。本地个人数据会先用新密钥推送，再从服务器重建。',
@@ -117,21 +209,33 @@ export function usePersonalKeyManager() {
 
     try {
       setIsReplacing(true);
+      clearDoneDismissTimer();
+      activeStepRef.current = 'saving';
+      setSetupProgress({ phase: 'saving' });
       await importAndStorePersonalKey(replaceInput);
       setReplaceInput('');
       setIsReplaceOpen(false);
       setShowKey(false);
       setKeyString('');
-      await runPostKeySync('个人私钥已更换');
+      await checkKey();
+      await runPostKeySync();
     } catch (error) {
       logger.error(error);
+      setSetupProgress(null);
       toast('无效的密钥格式', 'error');
     } finally {
       setIsReplacing(false);
     }
-  }, [confirm, replaceInput, runPostKeySync, toast]);
+  }, [checkKey, clearDoneDismissTimer, confirm, replaceInput, runPostKeySync, toast]);
 
   const handleGenerateReplace = useCallback(async () => {
+    try {
+      await assertSyncServerConfigured();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '请先配置同步服务器', 'error');
+      return;
+    }
+
     const confirmed = await confirm(
       '确定要生成新的个人私钥并覆盖当前密钥吗？\n\n旧密钥加密的云端个人数据将无法再解密。本地个人数据会先用新密钥推送，再从服务器重建。',
       '确认生成并替换',
@@ -141,19 +245,24 @@ export function usePersonalKeyManager() {
 
     try {
       setIsReplacing(true);
+      clearDoneDismissTimer();
+      activeStepRef.current = 'saving';
+      setSetupProgress({ phase: 'saving' });
       await generateAndStorePersonalKey();
       setReplaceInput('');
       setIsReplaceOpen(false);
       setShowKey(false);
       setKeyString('');
-      await runPostKeySync('已生成并保存新的个人私钥');
+      await checkKey();
+      await runPostKeySync();
     } catch (error) {
       logger.error(error);
+      setSetupProgress(null);
       toast('生成个人私钥失败', 'error');
     } finally {
       setIsReplacing(false);
     }
-  }, [confirm, runPostKeySync, toast]);
+  }, [checkKey, clearDoneDismissTimer, confirm, runPostKeySync, toast]);
 
   const handleClear = useCallback(async () => {
     const confirmed = await confirm(
@@ -164,6 +273,8 @@ export function usePersonalKeyManager() {
     if (!confirmed) return;
 
     try {
+      clearDoneDismissTimer();
+      setSetupProgress(null);
       await clearPersonalKey();
       await resetPersonalSyncBootstrapFlag();
       await checkKey();
@@ -174,7 +285,7 @@ export function usePersonalKeyManager() {
       logger.error(error);
       toast('清除个人私钥失败', 'error');
     }
-  }, [checkKey, confirm, toast]);
+  }, [checkKey, clearDoneDismissTimer, confirm, toast]);
 
   const handleToggleShowKey = useCallback(async () => {
     if (showKey) {
@@ -218,9 +329,22 @@ export function usePersonalKeyManager() {
     })();
   }, [keyString, toast]);
 
+  const handleCustodyGuideOpenChange = useCallback((open: boolean) => {
+    setIsCustodyGuideOpen(open);
+    if (!open) {
+      setCustodyGuideKey('');
+    }
+  }, []);
+
+  const isSetupRunning =
+    setupProgress !== null && setupProgress.phase !== 'done' && setupProgress.phase !== 'error';
+
   return {
+    custodyGuideKey,
+    dismissSetupProgress,
     handleClear,
     handleCopyKey,
+    handleCustodyGuideOpenChange,
     handleGenerate,
     handleGenerateReplace,
     handleImport,
@@ -228,16 +352,20 @@ export function usePersonalKeyManager() {
     handleToggleShowKey,
     hasKey,
     importInput,
+    isCustodyGuideOpen,
     isGenerating,
     isImporting,
     isReplaceOpen,
     isReplacing,
+    isSetupRunning,
     keyString,
+    openCustodyGuide,
     replaceInput,
     setImportInput,
     setIsReplaceOpen,
     setReplaceInput,
     setShowKey,
+    setupProgress,
     showKey,
   };
 }

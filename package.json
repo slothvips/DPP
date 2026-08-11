@@ -42,6 +42,7 @@
     "dexie": "^4.2.1",
     "dexie-react-hooks": "^4.2.0",
     "diff": "^8.0.3",
+    "jsqr": "^1.4.0",
     "lodash-es": "^4.17.23",
     "lucide-react": "^0.563.0",
     "masonry-layout": "^4.2.2",

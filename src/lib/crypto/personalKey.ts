@@ -32,3 +32,16 @@ export async function importAndStorePersonalKey(base64Key: string): Promise<Cryp
   await storePersonalKey(key);
   return key;
 }
+
+/** 是否已配置个人私钥 */
+export async function hasPersonalKey(): Promise<boolean> {
+  const base64Key = await getSetting(PERSONAL_ENCRYPTION_KEY_SETTING);
+  return typeof base64Key === 'string' && base64Key.length > 0;
+}
+
+/** 校验用户输入的个人私钥是否与本机存储一致 */
+export async function verifyPersonalKeyInput(input: string): Promise<boolean> {
+  const stored = await getSetting(PERSONAL_ENCRYPTION_KEY_SETTING);
+  if (typeof stored !== 'string' || !stored) return false;
+  return stored === input.trim();
+}

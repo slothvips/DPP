@@ -12,9 +12,9 @@ interface Props {
 export function RecordingsList({ recordings, onDelete, onUpdateTitle, onExport }: Props) {
   if (recordings.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-destructive/14 bg-destructive/4 px-4 py-8 text-center">
+      <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-primary/14 bg-primary/4 px-4 py-8 text-center">
         <div>
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive ring-1 ring-destructive/12">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/12">
             <Play className="h-5 w-5" />
           </div>
           <p className="text-sm font-semibold text-foreground">暂无录制记录</p>
@@ -27,7 +27,7 @@ export function RecordingsList({ recordings, onDelete, onUpdateTitle, onExport }
   }
 
   return (
-    <div className="space-y-3">
+    <div className="h-full min-h-0 space-y-1.5 overflow-y-auto pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
       {recordings.map((recording) => (
         <RecordingItem
           key={recording.id}

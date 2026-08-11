@@ -85,7 +85,7 @@ export function SyncSettingsSection({
             <span className="text-sm font-semibold">个人私钥</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            仅供你本人加密个人私密数据（如验证器），与上方团队同步密钥相互独立。请勿分享给任何人。配置后会自动将本地个人数据加入同步队列（可选推送），不会清空本地验证器。
+            加密同步验证器等个人数据，与团队同步密钥相互独立。需先保存同步服务器地址后才可配置。
           </p>
           <PersonalKeyManager />
         </div>

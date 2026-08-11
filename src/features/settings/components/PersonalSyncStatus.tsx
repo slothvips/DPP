@@ -54,7 +54,7 @@ export function PersonalSyncStatus({ className }: PersonalSyncStatusProps) {
         data-testid="personal-sync-status-idle"
       >
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-        <span>配置个人私钥后，验证器等个人数据将使用该密钥加密同步。</span>
+        <span>未配置时，验证器等个人数据仅保存在本机。</span>
       </div>
     );
   }

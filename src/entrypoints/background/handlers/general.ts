@@ -12,11 +12,41 @@ export type GeneralMessage =
       options?: { method?: string; headers?: Record<string, string>; body?: string };
     }
   | { type: 'OPEN_SIDE_PANEL' }
-  | { type: 'SAVE_JENKINS_TOKEN'; payload: { token: string; host: string; user: string } };
+  | { type: 'SAVE_JENKINS_TOKEN'; payload: { token: string; host: string; user: string } }
+  | { type: 'CAPTURE_VISIBLE_TAB' };
 
 export function handleGeneralMessage(message: GeneralMessage): unknown {
   if (message.type === 'PAGE_AGENT_GET_CONFIG') {
     return validateAIConfig();
+  }
+
+  if (message.type === 'CAPTURE_VISIBLE_TAB') {
+    return (async () => {
+      try {
+        const windows = await browser.windows.getAll({
+          populate: false,
+          windowTypes: ['normal'],
+        });
+        const targetWindow =
+          windows.find((item) => item.focused) ??
+          windows.find((item) => item.id !== undefined) ??
+          null;
+        if (targetWindow?.id === undefined) {
+          return { success: false as const, error: '未找到可截图的浏览器窗口' };
+        }
+
+        const dataUrl = await browser.tabs.captureVisibleTab(targetWindow.id, {
+          format: 'png',
+        });
+        return { success: true as const, dataUrl };
+      } catch (error) {
+        logger.error('Failed to capture visible tab:', error);
+        return {
+          success: false as const,
+          error: error instanceof Error ? error.message : '截图失败',
+        };
+      }
+    })();
   }
 
   if (message.type === 'PAGE_AGENT_FETCH') {
