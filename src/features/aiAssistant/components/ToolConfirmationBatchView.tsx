@@ -25,8 +25,11 @@ export function ToolConfirmationBatchView({
   const argumentsList = pendingToolCalls.argumentsList;
 
   return (
-    <DialogContent className="max-w-md" data-testid="tool-confirmation-dialog">
-      <DialogHeader>
+    <DialogContent
+      className="flex max-h-[min(80vh,calc(100dvh-2rem))] max-w-md flex-col gap-4 overflow-hidden"
+      data-testid="tool-confirmation-dialog"
+    >
+      <DialogHeader className="shrink-0">
         <DialogTitle className="flex items-center gap-2">
           <AlertTriangle className="w-5 h-5 text-destructive" />
           确认批量操作
@@ -36,20 +39,20 @@ export function ToolConfirmationBatchView({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="py-2 max-h-60 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto py-2">
         {toolCallsList.map((toolCall, index) => {
           const args = argumentsList[index] || {};
           const content = getToolConfirmationContent(toolCall.function.name, args);
           return (
-            <div key={toolCall.id} className="mb-3 p-2 border rounded bg-muted/50 last:mb-0">
-              <div className="font-medium text-sm">{content.title}</div>
-              <div className="text-xs text-muted-foreground mt-1">{content.impact}</div>
+            <div key={toolCall.id} className="mb-3 rounded border bg-muted/50 p-2 last:mb-0">
+              <div className="text-sm font-medium">{content.title}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{content.impact}</div>
             </div>
           );
         })}
       </div>
 
-      <DialogFooter className="gap-2 sm:gap-0">
+      <DialogFooter className="shrink-0 gap-2 sm:gap-0">
         <Button variant="outline" onClick={onCancel} data-testid="tool-confirmation-cancel">
           <X className="w-4 h-4 mr-1" />
           取消
