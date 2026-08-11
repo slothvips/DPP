@@ -5,7 +5,10 @@ import type { SyncEngine } from './SyncEngine';
 
 const BOOTSTRAP_SETTING = 'personal_sync_bootstrap_done' as const;
 
-type PersonalSyncEngine = Pick<SyncEngine, 'enqueuePersonalData' | 'push'>;
+type PersonalSyncEngine = Pick<
+  SyncEngine,
+  'clearAllData' | 'enqueuePersonalData' | 'pull' | 'push'
+>;
 
 /** 个人私钥写入后：补建个人表同步队列，并标记 bootstrap 完成 */
 export async function bootstrapPersonalSyncAfterKeyReady(
@@ -17,14 +20,16 @@ export async function bootstrapPersonalSyncAfterKeyReady(
 }
 
 /**
- * 个人私钥写入后：enqueue → 尝试 push。
- * 不清空本地数据、不 pull（避免破坏性重建；本机权威数据保留）。
+ * 个人私钥写入后：enqueue → push → 清空本地同步数据 → pull 全量重建。
+ * 只有 push 成功后才会清空本地数据，避免未上传的数据丢失。
  */
 export async function finalizePersonalSyncAfterKeyReady(
   engine: PersonalSyncEngine
 ): Promise<number> {
   const enqueued = await bootstrapPersonalSyncAfterKeyReady(engine);
   await engine.push();
+  await engine.clearAllData({ preservePersonal: false });
+  await engine.pull();
   return enqueued;
 }
 

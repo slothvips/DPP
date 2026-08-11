@@ -15,7 +15,7 @@ import {
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
-/** 个人私钥写入后：enqueue → 尝试 push（不清库） */
+/** 个人私钥写入后：push 本地个人数据，再从服务端重建本地同步数据 */
 async function syncAfterPersonalKeyReady(): Promise<number> {
   await syncEngine.getClientId();
   const live = syncEngine.instance;
@@ -57,22 +57,19 @@ export function usePersonalKeyManager() {
 
   const runPostKeySync = useCallback(
     async (successBase: string) => {
-      toast('正在将个人数据加入同步队列...', 'info');
+      toast('正在推送个人数据并重建本地同步数据...', 'info');
       try {
         const enqueued = await syncAfterPersonalKeyReady();
         await checkKey();
         if (enqueued > 0) {
-          toast(`${successBase}；已准备 ${enqueued} 条个人数据，将在同步时上传`, 'success');
+          toast(`${successBase}；已推送 ${enqueued} 条个人数据并完成本地数据重建`, 'success');
         } else {
-          toast(`${successBase}；验证器等个人数据将在同步时上传`, 'success');
+          toast(`${successBase}；已完成本地数据重建`, 'success');
         }
       } catch (error) {
-        logger.error('Failed to enqueue/push after personal key ready:', error);
+        logger.error('Failed to push/rebuild after personal key ready:', error);
         await checkKey();
-        toast(
-          '个人私钥已保存，但加入同步队列或推送失败。请检查同步配置后手动同步；本地验证器数据已保留。',
-          'error'
-        );
+        toast('个人私钥已保存，但个人数据推送或本地重建失败。请检查同步配置后手动同步。', 'error');
       }
     },
     [checkKey, toast]
@@ -112,7 +109,7 @@ export function usePersonalKeyManager() {
     if (!replaceInput.trim()) return;
 
     const confirmed = await confirm(
-      '确定要用新密钥覆盖当前个人私钥吗？\n\n若已有使用旧密钥加密的个人数据，将无法再解密。本地个人数据将用新密钥重新加入同步队列（不清空本地验证器）。',
+      '确定要用新密钥覆盖当前个人私钥吗？\n\n若已有使用旧密钥加密的个人数据，将无法再解密。本地个人数据会先用新密钥推送，再从服务器重建。',
       '确认更换个人私钥',
       'danger'
     );
@@ -136,7 +133,7 @@ export function usePersonalKeyManager() {
 
   const handleGenerateReplace = useCallback(async () => {
     const confirmed = await confirm(
-      '确定要生成新的个人私钥并覆盖当前密钥吗？\n\n旧密钥加密的云端个人数据将无法再解密。本地个人数据将用新密钥重新加入同步队列（不清空本地验证器）。',
+      '确定要生成新的个人私钥并覆盖当前密钥吗？\n\n旧密钥加密的云端个人数据将无法再解密。本地个人数据会先用新密钥推送，再从服务器重建。',
       '确认生成并替换',
       'danger'
     );
