@@ -58,7 +58,7 @@ export function PersonalKeyEmptyState({
               data-testid="personal-key-generate-button"
             >
               <Key className="mr-1.5 h-3 w-3 shrink-0" />
-              生成随机密钥
+              生成随机私钥
             </Button>
           )}
         </div>

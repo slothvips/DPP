@@ -183,7 +183,7 @@ export function usePersonalKeyManager() {
       const message =
         error instanceof Error && error.message.includes('同步服务器')
           ? error.message
-          : '无效的密钥格式';
+          : '无效的私钥格式';
       toast(message, 'error');
     } finally {
       setIsImporting(false);
@@ -201,7 +201,7 @@ export function usePersonalKeyManager() {
     }
 
     const confirmed = await confirm(
-      '确定要用新密钥覆盖当前个人私钥吗？\n\n若已有使用旧密钥加密的个人数据，将无法再解密。本地个人数据会先用新密钥推送，再从服务器重建。',
+      '确定要用新私钥覆盖当前个人私钥吗？\n\n若已有使用旧私钥加密的个人数据，将无法再解密。本地个人数据会先用新私钥推送，再从服务器重建。',
       '确认更换个人私钥',
       'danger'
     );
@@ -222,7 +222,7 @@ export function usePersonalKeyManager() {
     } catch (error) {
       logger.error(error);
       setSetupProgress(null);
-      toast('无效的密钥格式', 'error');
+      toast('无效的私钥格式', 'error');
     } finally {
       setIsReplacing(false);
     }
@@ -237,7 +237,7 @@ export function usePersonalKeyManager() {
     }
 
     const confirmed = await confirm(
-      '确定要生成新的个人私钥并覆盖当前密钥吗？\n\n旧密钥加密的云端个人数据将无法再解密。本地个人数据会先用新密钥推送，再从服务器重建。',
+      '确定要生成新的个人私钥并覆盖当前私钥吗？\n\n旧私钥加密的云端个人数据将无法再解密。本地个人数据会先用新私钥推送，再从服务器重建。',
       '确认生成并替换',
       'danger'
     );
@@ -266,7 +266,7 @@ export function usePersonalKeyManager() {
 
   const handleClear = useCallback(async () => {
     const confirmed = await confirm(
-      '确定要清除个人私钥吗？\n\n清除后将无法解密使用该密钥加密的个人私密数据，验证器等个人数据也将停止上传。请确保已自行备份。',
+      '确定要清除个人私钥吗？\n\n清除后将无法解密使用该私钥加密的个人私密数据，验证器等个人数据也将停止上传。请确保已自行备份。',
       '确认清除个人私钥',
       'danger'
     );

@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 
 interface PersonalKeyEnabledStateProps {
   actionsDisabled?: boolean;
-  /** 仅禁用更换密钥（例如尚未配置同步服务器） */
+  /** 仅禁用更换私钥（例如尚未配置同步服务器） */
   replaceDisabled?: boolean;
   isReplaceOpen: boolean;
   isReplacing: boolean;
@@ -64,7 +64,7 @@ export function PersonalKeyEnabledState({
             className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
             data-testid="personal-key-replace-button"
           >
-            更换密钥
+            更换私钥
           </Button>
           <Button
             variant="ghost"
@@ -74,7 +74,7 @@ export function PersonalKeyEnabledState({
             className="h-6 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
             data-testid="personal-key-clear-button"
           >
-            清除密钥
+            清除私钥
           </Button>
         </div>
       </div>
@@ -121,7 +121,7 @@ export function PersonalKeyEnabledState({
           <DialogHeader>
             <DialogTitle>更换个人私钥</DialogTitle>
             <DialogDescription>
-              覆盖后，旧密钥加密的个人数据将无法解密。本地个人数据会先用新密钥推送，再从服务器重建。请仅在你的其他可信设备上使用同一私钥。
+              覆盖后，旧私钥加密的个人数据将无法解密。本地个人数据会先用新私钥推送，再从服务器重建。请仅在你的其他可信设备上使用同一私钥。
             </DialogDescription>
           </DialogHeader>
 
