@@ -30,3 +30,23 @@ export function serializeHeaders(
 export function isInjectable(url: string): boolean {
   return /^https?:\/\//.test(url);
 }
+
+interface BrowserTabCandidate {
+  id?: number;
+  url?: string;
+}
+
+interface ActiveTabQuery {
+  active: true;
+  lastFocusedWindow: true;
+}
+
+export async function resolveActivePageTabId(
+  queryTabs: (query: ActiveTabQuery) => Promise<BrowserTabCandidate[]>
+): Promise<number | null> {
+  const tabs = await queryTabs({ active: true, lastFocusedWindow: true });
+  const activeTab = tabs.find(
+    (tab) => tab.id !== undefined && tab.url !== undefined && isInjectable(tab.url)
+  );
+  return activeTab?.id ?? null;
+}

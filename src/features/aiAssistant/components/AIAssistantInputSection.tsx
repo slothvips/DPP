@@ -3,16 +3,13 @@ import type { TokenUsage } from '@/lib/ai/types';
 import { AIConfigDialog } from './AIConfigDialog';
 import { AIUsageIndicator } from './AIUsageIndicator';
 import { ChatInput } from './ChatInput';
-import { TabSelector } from './TabSelector';
 
 interface AIAssistantInputSectionProps {
   isConfigMissing: boolean;
   isRunning: boolean;
   isConfirming: boolean;
   presetPrompt: string;
-  selectedTabId: number | null;
   usage?: TokenUsage;
-  onTabSelect: (tabId: number | null) => void;
   onConfigSaved: () => void;
   onSend: (content: string) => Promise<void>;
   onStop: () => void;
@@ -23,9 +20,7 @@ export function AIAssistantInputSection({
   isRunning,
   isConfirming,
   presetPrompt,
-  selectedTabId,
   usage,
-  onTabSelect,
   onConfigSaved,
   onSend,
   onStop,
@@ -57,18 +52,6 @@ export function AIAssistantInputSection({
           isRunning={isRunning}
           placeholder="发送消息... (Shift+Enter 换行)"
           initialInput={presetPrompt}
-          rightSlot={
-            <div className="mb-2 flex flex-wrap items-center gap-2.5 rounded-xl bg-muted/45 px-3 py-2">
-              <span className="text-xs font-medium text-foreground">目标页面</span>
-              <TabSelector selectedTabId={selectedTabId} onTabSelect={onTabSelect} />
-              <span
-                className="cursor-help text-[10px] text-muted-foreground"
-                title="执行期间请不要关闭任务相关标签页"
-              >
-                支持跨页面操作，执行期间请勿关闭任务标签页
-              </span>
-            </div>
-          }
         />
       </div>
     </div>

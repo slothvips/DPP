@@ -46,7 +46,6 @@ export function AIAssistantView() {
   } = useAIChat();
 
   const { toast } = useToast();
-  const [selectedTabId, setSelectedTabId] = useState<number | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
   const { isConfigMissing, presetPrompt, handleConfigSaved, ensureConfigReady } =
@@ -135,9 +134,7 @@ export function AIAssistantView() {
         isRunning={isRunning}
         isConfirming={status === 'confirming'}
         presetPrompt={presetPrompt}
-        selectedTabId={selectedTabId}
         usage={getLatestUsage(messages)}
-        onTabSelect={setSelectedTabId}
         onConfigSaved={handleConfigSaved}
         onSend={handleSend}
         onStop={stop}

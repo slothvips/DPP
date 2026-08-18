@@ -14,6 +14,7 @@
     "zip": "pnpm clean:output && wxt zip",
     "zip:firefox": "pnpm clean:output && wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/pageAgentUtils.test.mjs",
     "postinstall": "wxt prepare",
     "prepare": "simple-git-hooks",
     "lint": "eslint .",

@@ -1,8 +1,8 @@
-// PageAgent AI tool - Execute natural language tasks on the user-selected page
+// PageAgent AI tool - Execute natural language tasks from the current active page
 import { browser } from 'wxt/browser';
 import { PAGE_AGENT_TASK_GROUP_STORAGE_KEY } from '@/lib/pageAgent/multiPageTypes';
 import type { PageAgentTaskSummary } from '@/lib/pageAgent/multiPageTypes';
-import { isInjectable } from '@/lib/pageAgent/utils';
+import { resolveActivePageTabId } from '@/lib/pageAgent/utils';
 import { logger } from '@/utils/logger';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
@@ -10,7 +10,7 @@ import type { ToolHandler } from '../tools';
 let activeTaskId: string | null = null;
 
 /**
- * Execute a natural language task on the user-selected page using PageAgent
+ * Execute a natural language task from the current active page using PageAgent
  */
 async function pageagent_execute_task(args: { task: string; group_name?: string }): Promise<{
   success: boolean;
@@ -18,23 +18,17 @@ async function pageagent_execute_task(args: { task: string; group_name?: string 
 }> {
   logger.info('[PageAgent Tool] 开始执行任务:', args.task);
 
-  // 获取已选择的标签页 ID，null 表示使用当前活动标签页
-  // session storage 中没有该 key 或值为 null 时，从当前活动标签页开始
-  let tabId: number | null = null;
   try {
-    const result = await browser.storage.session.get('__pageAgentTabId');
-    logger.info('[PageAgent Tool] session storage result:', JSON.stringify(result));
-    const storedValue = result.__pageAgentTabId;
-    // 只有当值是数字时才使用固定起始标签页，否则从当前活动标签页开始
-    tabId = typeof storedValue === 'number' ? storedValue : null;
-    logger.info('[PageAgent Tool] tabId from storage:', tabId);
+    await browser.storage.session.remove('__pageAgentTabId');
   } catch (error) {
-    logger.error('[PageAgent Tool] 读取 session storage 失败:', error);
+    logger.warn('[PageAgent Tool] 清理旧标签页选择状态失败:', error);
   }
 
   try {
-    tabId = await resolveStartTabId(tabId);
-    if (tabId === null) return { success: false, message: '无法获取当前活动标签页' };
+    const tabId = await resolveActivePageTabId((query) => browser.tabs.query(query));
+    if (tabId === null) {
+      return { success: false, message: '当前活动页面无法运行网页助手，请切换到普通网页后重试' };
+    }
 
     await ensurePageAgentHost();
     const taskId = crypto.randomUUID();
@@ -78,35 +72,6 @@ async function pageagent_execute_task(args: { task: string; group_name?: string 
   } finally {
     activeTaskId = null;
   }
-}
-
-async function resolveStartTabId(storedTabId: number | null): Promise<number | null> {
-  if (storedTabId !== null) {
-    try {
-      const storedTab = await browser.tabs.get(storedTabId);
-      if (storedTab.url && isInjectable(storedTab.url)) return storedTabId;
-    } catch (error) {
-      logger.warn('[PageAgent Tool] 已选择的起始标签页不可用，将回退到当前标签页:', error);
-    }
-    await browser.storage.session.remove('__pageAgentTabId');
-  }
-
-  const activeTabs = await browser.tabs.query({ active: true, lastFocusedWindow: true });
-  const activeTab = activeTabs.find(
-    (tab) => tab.id !== undefined && tab.url && isInjectable(tab.url)
-  );
-  if (activeTab?.id !== undefined) return activeTab.id;
-
-  const fallbackTabs = await browser.tabs.query({ active: true });
-  const fallbackActiveTab = fallbackTabs.find(
-    (tab) => tab.id !== undefined && tab.url && isInjectable(tab.url)
-  );
-  if (fallbackActiveTab?.id !== undefined) return fallbackActiveTab.id;
-
-  const allTabs = await browser.tabs.query({});
-  return (
-    allTabs.find((tab) => tab.id !== undefined && tab.url && isInjectable(tab.url))?.id ?? null
-  );
 }
 
 async function waitForPageAgentTask(taskId: string): Promise<PageAgentTaskSummary> {
