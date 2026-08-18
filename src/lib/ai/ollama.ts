@@ -1,5 +1,6 @@
 // Ollama model provider implementation
 import { http } from '@/lib/http';
+import { resolveContextWindow } from './modelCapabilities';
 import { executeOllamaChat } from './ollamaChat';
 import { listOllamaModels } from './ollamaModels';
 import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from './ollamaShared';
@@ -23,6 +24,14 @@ export class OllamaProvider implements ModelProvider {
 
   getModelName(): string {
     return this._model;
+  }
+
+  getContextWindow(): Promise<number | undefined> {
+    return resolveContextWindow({
+      provider: this.name,
+      baseUrl: this.baseUrl,
+      model: this._model,
+    });
   }
 
   setModel(model: string): void {

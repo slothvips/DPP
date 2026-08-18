@@ -1,4 +1,4 @@
-import type { OpenAIToolCall, ProviderMessageMetadata } from '@/lib/ai/types';
+import type { OpenAIToolCall, ProviderMessageMetadata, TokenUsage } from '@/lib/ai/types';
 
 export interface AISession {
   id: string;
@@ -16,5 +16,6 @@ export interface AIMessage {
   toolCallId?: string;
   toolCalls?: OpenAIToolCall[];
   providerMetadata?: ProviderMessageMetadata;
+  usage?: TokenUsage;
   createdAt: number;
 }

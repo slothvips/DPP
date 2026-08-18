@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
@@ -14,7 +15,10 @@ interface MessageItemProps {
 export const MessageItem = memo(
   function MessageItem({ message }: MessageItemProps) {
     const isUser = message.role === 'user';
-    const isToolResult = Boolean(message.name);
+    const isToolResult = message.role === 'tool';
+    const contentClassName = isUser
+      ? 'prose prose-sm prose-invert max-w-none break-words [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
+      : 'prose prose-sm max-w-none break-words dark:prose-invert [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto';
 
     return (
       <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -27,20 +31,27 @@ export const MessageItem = memo(
                 : 'border-border/70 bg-background/96 text-foreground'
           }`}
         >
-          {message.name && (
-            <div className="mb-2 inline-flex rounded-full bg-background/85 px-2.5 py-1 text-[10px] font-medium text-muted-foreground ring-1 ring-border/60">
-              {message.name} 结果
+          {isToolResult ? (
+            <details className="group">
+              <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                <span className="min-w-0 flex-1 truncate text-foreground">
+                  {message.name || '工具'} 结果
+                </span>
+                <span className="group-open:hidden">展开</span>
+                <span className="hidden group-open:inline">收起</span>
+              </summary>
+              <div className="mt-3 border-t border-border/60 pt-3">
+                <div className={contentClassName}>
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                </div>
+              </div>
+            </details>
+          ) : (
+            <div className={contentClassName}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             </div>
           )}
-          <div
-            className={
-              isUser
-                ? 'prose prose-sm prose-invert max-w-none break-words [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
-                : 'prose prose-sm max-w-none break-words dark:prose-invert [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto'
-            }
-          >
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-          </div>
         </div>
       </div>
     );
@@ -50,7 +61,8 @@ export const MessageItem = memo(
     return (
       prevProps.message.id === nextProps.message.id &&
       prevProps.message.content === nextProps.message.content &&
-      prevProps.message.role === nextProps.message.role
+      prevProps.message.role === nextProps.message.role &&
+      prevProps.message.name === nextProps.message.name
     );
   }
 );

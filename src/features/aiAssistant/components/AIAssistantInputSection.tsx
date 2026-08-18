@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui/button';
+import type { TokenUsage } from '@/lib/ai/types';
 import { AIConfigDialog } from './AIConfigDialog';
+import { AIUsageIndicator } from './AIUsageIndicator';
 import { ChatInput } from './ChatInput';
 import { TabSelector } from './TabSelector';
 
@@ -9,6 +11,7 @@ interface AIAssistantInputSectionProps {
   isConfirming: boolean;
   presetPrompt: string;
   selectedTabId: number | null;
+  usage?: TokenUsage;
   onTabSelect: (tabId: number | null) => void;
   onConfigSaved: () => void;
   onSend: (content: string) => Promise<void>;
@@ -21,6 +24,7 @@ export function AIAssistantInputSection({
   isConfirming,
   presetPrompt,
   selectedTabId,
+  usage,
   onTabSelect,
   onConfigSaved,
   onSend,
@@ -43,6 +47,8 @@ export function AIAssistantInputSection({
         </div>
       )}
 
+      <AIUsageIndicator usage={usage} />
+
       <div className="rounded-2xl border border-border/60 bg-background/90 p-3">
         <ChatInput
           onSend={onSend}
@@ -57,9 +63,9 @@ export function AIAssistantInputSection({
               <TabSelector selectedTabId={selectedTabId} onTabSelect={onTabSelect} />
               <span
                 className="cursor-help text-[10px] text-muted-foreground"
-                title="执行期间请保持页面在前台，不要切换或关闭标签页"
+                title="执行期间请不要关闭任务相关标签页"
               >
-                仅支持 SPA，请保持页面始终处于前台
+                支持跨页面操作，执行期间请勿关闭任务标签页
               </span>
             </div>
           }

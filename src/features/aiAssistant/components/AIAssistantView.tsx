@@ -10,6 +10,15 @@ import { AIAssistantInputSection } from './AIAssistantInputSection';
 import { AIAssistantMessagesPanel } from './AIAssistantMessagesPanel';
 import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
+function getLatestUsage(messages: ReturnType<typeof useAIChat>['messages']) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].usage) {
+      return messages[index].usage;
+    }
+  }
+  return undefined;
+}
+
 export function AIAssistantView() {
   const {
     messages,
@@ -127,6 +136,7 @@ export function AIAssistantView() {
         isConfirming={status === 'confirming'}
         presetPrompt={presetPrompt}
         selectedTabId={selectedTabId}
+        usage={getLatestUsage(messages)}
         onTabSelect={setSelectedTabId}
         onConfigSaved={handleConfigSaved}
         onSend={handleSend}

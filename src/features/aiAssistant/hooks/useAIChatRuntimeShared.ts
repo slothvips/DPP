@@ -82,7 +82,8 @@ export function resolveRuntimeToolChoice(tools: OpenAIToolDefinition[]): 'auto' 
 export function createAssistantRuntimeMessage(
   content: string,
   toolCalls?: ChatMessage['toolCalls'],
-  providerMetadata?: ChatMessage['providerMetadata']
+  providerMetadata?: ChatMessage['providerMetadata'],
+  usage?: ChatMessage['usage']
 ): ChatMessage {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -90,6 +91,7 @@ export function createAssistantRuntimeMessage(
     content,
     toolCalls,
     providerMetadata,
+    usage,
     createdAt: Date.now(),
   };
 }

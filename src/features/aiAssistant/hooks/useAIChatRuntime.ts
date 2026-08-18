@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
 import { toolRegistry } from '@/lib/ai/tools';
+import { stopActivePageAgentTask } from '@/lib/ai/tools/pageAgent';
 import type { AIProviderType, ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
 import type { ChatMessage } from '../types';
 import { useAIChatProvider } from './useAIChatProvider';
@@ -52,6 +53,7 @@ export function useAIChatRuntime({
       resetRuntimeState();
       createAssistantPlaceholder();
       abortControllerRef.current = new AbortController();
+      const contextWindowPromise = provider.getContextWindow?.();
 
       const response = await provider.chat(buildRuntimeRequestMessages(systemPrompt, apiMessages), {
         stream: true,
@@ -68,10 +70,16 @@ export function useAIChatRuntime({
         },
       });
 
+      const contextWindow = response.usage ? await contextWindowPromise : undefined;
+      const usage = response.usage
+        ? { ...response.usage, contextWindow: contextWindow ?? response.usage.contextWindow }
+        : undefined;
+
       const assistantMessage = createAssistantRuntimeMessage(
         response.message.content || accumulatedContentRef.current,
         response.message.toolCalls,
-        response.message.providerMetadata
+        response.message.providerMetadata,
+        usage
       );
 
       onAssistantMessage(assistantMessage);
@@ -90,6 +98,7 @@ export function useAIChatRuntime({
   );
 
   const stopRuntime = useCallback(() => {
+    stopActivePageAgentTask();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;

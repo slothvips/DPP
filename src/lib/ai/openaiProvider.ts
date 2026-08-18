@@ -1,3 +1,4 @@
+import { resolveContextWindow } from './modelCapabilities';
 import { executeOpenAIChat } from './openaiProviderChat';
 import { listOpenAIModels } from './openaiProviderModels';
 import type { ChatMessage, ChatOptions, ChatResponse, Model, ModelProvider } from './types';
@@ -16,6 +17,15 @@ export class OpenAICompatibleProvider implements ModelProvider {
 
   getModelName(): string {
     return this._model;
+  }
+
+  getContextWindow(): Promise<number | undefined> {
+    return resolveContextWindow({
+      provider: this.name,
+      baseUrl: this.baseUrl,
+      model: this._model,
+      apiKey: this.apiKey,
+    });
   }
 
   setModel(model: string): void {

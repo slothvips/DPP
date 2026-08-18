@@ -61,16 +61,32 @@ export async function handleAnthropicStreamingChat({
   if (!response) {
     const openAIUrl = `${baseUrl}/v1/chat/completions`;
     logger.debug(`[Anthropic] Trying OpenAI-compatible streaming endpoint: ${openAIUrl}`);
+    const openAIRequestBody = {
+      ...buildAnthropicOpenAIRequestBody(model, requestBody),
+      stream: true,
+      stream_options: { include_usage: true },
+    };
 
     response = await fetch(openAIUrl, {
       method: 'POST',
       headers: getOpenAIHeaders(apiKey),
-      body: JSON.stringify({
-        ...buildAnthropicOpenAIRequestBody(model, requestBody),
-        stream: true,
-      }),
+      body: JSON.stringify(openAIRequestBody),
       signal,
     });
+
+    if (!response.ok && (response.status === 400 || response.status === 422)) {
+      const { stream_options, ...fallbackRequestBody } = openAIRequestBody;
+      void stream_options;
+      logger.warn(
+        '[Anthropic] OpenAI-compatible streaming usage is unsupported; retrying without stream_options'
+      );
+      response = await fetch(openAIUrl, {
+        method: 'POST',
+        headers: getOpenAIHeaders(apiKey),
+        body: JSON.stringify(fallbackRequestBody),
+        signal,
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -84,7 +100,7 @@ export async function handleAnthropicStreamingChat({
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  const state = createAnthropicStreamingState();
+  const state = createAnthropicStreamingState(model);
   let buffer = '';
 
   try {
