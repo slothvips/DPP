@@ -5,6 +5,7 @@ import {
 } from '@/features/totp/totpCrypto';
 import { isSoftDeleted } from '@/lib/db/softDelete';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
+import { clearTotpLocalOrder, getTotpLocalOrder, saveTotpLocalOrder } from './totpLocalOrder';
 import {
   type AddTotpAccountArgs,
   type AddTotpAccountResult,
@@ -91,12 +92,35 @@ export async function addTotpAccount(args: AddTotpAccountArgs): Promise<AddTotpA
     createdAt: now,
     updatedAt: now,
   });
+  await appendToLocalOrder(id);
 
   return {
     success: true,
     id,
     message: '验证器账户已添加',
   };
+}
+
+/** 本地排序存在时，把新账户追加到末尾，保持"新增出现在列表末尾" */
+async function appendToLocalOrder(id: string): Promise<void> {
+  const localOrder = await getTotpLocalOrder();
+  if (!localOrder) {
+    return;
+  }
+  await saveTotpLocalOrder([...localOrder, id]);
+}
+
+/** 本地排序存在时，从本地排序中移除已删除的账户 */
+async function removeFromLocalOrder(id: string): Promise<void> {
+  const localOrder = await getTotpLocalOrder();
+  if (!localOrder) {
+    return;
+  }
+  const next = localOrder.filter((item) => item !== id);
+  if (next.length === localOrder.length) {
+    return;
+  }
+  await saveTotpLocalOrder(next);
 }
 
 export async function updateTotpAccount(args: UpdateTotpAccountArgs): Promise<TotpMutationResult> {
@@ -134,6 +158,7 @@ export async function deleteTotpAccount(args: DeleteTotpAccountArgs): Promise<To
     deletedAt: now,
     updatedAt: now,
   });
+  await removeFromLocalOrder(args.id);
 
   return {
     success: true,
@@ -155,6 +180,7 @@ export async function clearAllLocalTotpAccounts(): Promise<TotpMutationResult> {
       })
     )
   );
+  await clearTotpLocalOrder();
 
   return {
     success: true,
@@ -165,17 +191,8 @@ export async function clearAllLocalTotpAccounts(): Promise<TotpMutationResult> {
 export async function reorderTotpAccounts(
   args: ReorderTotpAccountsArgs
 ): Promise<TotpMutationResult> {
-  const now = Date.now();
-  const table = getTotpTable();
-
-  await Promise.all(
-    args.orderedIds.map((id, index) =>
-      table.update(id, {
-        sortOrder: index,
-        updatedAt: now,
-      })
-    )
-  );
+  // 排序仅写入本地表，不更新 totpAccounts，避免产生上传记录
+  await saveTotpLocalOrder(args.orderedIds);
 
   return {
     success: true,

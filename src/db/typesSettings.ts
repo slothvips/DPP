@@ -6,7 +6,15 @@ export interface StoredEncryptedValue {
   iv: string;
 }
 
-export interface SettingMap {
+type AIProviderSettingMap = {
+  [Provider in AIProviderType as `ai_${Provider}_base_url`]: string;
+} & {
+  [Provider in AIProviderType as `ai_${Provider}_model`]: string;
+} & {
+  [Provider in AIProviderType as `ai_${Provider}_api_key`]: string | StoredEncryptedValue;
+};
+
+interface BaseSettingMap {
   theme: 'light' | 'dark' | 'system';
   last_sync_time: number;
   last_sync_status: string;
@@ -47,15 +55,6 @@ export interface SettingMap {
   ai_base_url: string;
   ai_model: string;
   ai_api_key: string | StoredEncryptedValue;
-  ai_ollama_base_url: string;
-  ai_ollama_model: string;
-  ai_ollama_api_key: string | StoredEncryptedValue;
-  ai_anthropic_base_url: string;
-  ai_anthropic_model: string;
-  ai_anthropic_api_key: string | StoredEncryptedValue;
-  ai_custom_base_url: string;
-  ai_custom_model: string;
-  ai_custom_api_key: string | StoredEncryptedValue;
   links_sort_by: 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt';
   /** 验证器 PIN 哈希（Base64，PBKDF2）；空字符串表示未设置 */
   totp_pin_hash: string;
@@ -69,6 +68,8 @@ export interface SettingMap {
    */
   totp_pin_auto_lock_minutes: number;
 }
+
+export type SettingMap = BaseSettingMap & AIProviderSettingMap;
 
 export type SettingKey = keyof SettingMap;
 export type SettingValue<K extends SettingKey> = SettingMap[K];

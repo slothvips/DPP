@@ -2,18 +2,17 @@ import type { Dispatch, SetStateAction } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { db } from '@/db';
 import type { SettingKey } from '@/db/types';
+import { AI_PROVIDER_DEFINITIONS } from '@/lib/ai/providerRegistry';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
-import { EXCLUDED_SETTINGS, SETTINGS_CATEGORIES } from './optionsShared';
+import { EXCLUDED_SETTINGS, SETTINGS_CATEGORIES, isStoredEncryptedValue } from './optionsShared';
 
 const SENSITIVE_EXPORT_SETTING_KEYS = new Set<SettingKey>([
   'sync_encryption_key',
   'sync_access_token',
   'jenkins_token',
   'ai_api_key',
-  'ai_ollama_api_key',
-  'ai_anthropic_api_key',
-  'ai_custom_api_key',
+  ...AI_PROVIDER_DEFINITIONS.map((provider) => `ai_${provider.id}_api_key` as SettingKey),
 ]);
 
 interface UseOptionsExportOptions {
@@ -46,6 +45,22 @@ export function useOptionsExport({
         )
       );
       const filteredSettings = safeSettings.filter((setting) => allowedKeys.has(setting.key));
+      const hasEncryptedAIKey = filteredSettings.some(
+        (setting) =>
+          SENSITIVE_EXPORT_SETTING_KEYS.has(setting.key as SettingKey) &&
+          setting.key !== 'sync_encryption_key' &&
+          isStoredEncryptedValue(setting.value)
+      );
+      if (
+        hasEncryptedAIKey &&
+        !filteredSettings.some((setting) => setting.key === 'sync_encryption_key')
+      ) {
+        const syncKey = safeSettings.find((setting) => setting.key === 'sync_encryption_key');
+        if (!syncKey || typeof syncKey.value !== 'string' || !syncKey.value) {
+          throw new Error('AI API Key 已加密，但未找到对应的同步密钥，无法创建可恢复的备份');
+        }
+        filteredSettings.push(syncKey);
+      }
       const sensitiveKeys = filteredSettings
         .map((setting) => setting.key as SettingKey)
         .filter((key) => SENSITIVE_EXPORT_SETTING_KEYS.has(key));

@@ -5,6 +5,7 @@ import {
   mapOpenAIToolCalls,
   normalizeToolArgumentsJsonForRequest,
 } from './providerShared';
+import { createTokenUsage } from './tokenUsage';
 import type {
   AnthropicChatMessage,
   AnthropicChatRequest,
@@ -143,9 +144,21 @@ export function buildAnthropicChatRequest(
     requestBody.temperature = options.temperature;
   }
 
+  if (options?.providerOptions?.thinking) {
+    requestBody.thinking = options.providerOptions.thinking;
+  }
+
   const tools = anthropicTools(options);
   if (tools?.length) {
     requestBody.tools = tools;
+    const toolChoice = options?.toolChoice;
+    if (toolChoice && typeof toolChoice === 'object') {
+      requestBody.tool_choice = { type: 'tool', name: toolChoice.function.name };
+    } else if (toolChoice === 'required') {
+      requestBody.tool_choice = { type: 'any' };
+    } else if (toolChoice) {
+      requestBody.tool_choice = { type: toolChoice };
+    }
   }
 
   return { requestBody, systemContent };
@@ -160,7 +173,8 @@ export function buildAnthropicOpenAIRequestBody(
     requestBody.messages,
     requestBody.system || '',
     requestBody.tools,
-    requestBody.temperature
+    requestBody.temperature,
+    requestBody.tool_choice
   );
 }
 
@@ -186,6 +200,12 @@ export function mapAnthropicResponse(
       },
       done: choice.finish_reason === 'stop' || choice.finish_reason === 'tool_calls',
       finishReason: choice.finish_reason,
+      usage: createTokenUsage({
+        inputTokens: response.usage?.prompt_tokens,
+        outputTokens: response.usage?.completion_tokens,
+        totalTokens: response.usage?.total_tokens,
+        cachedInputTokens: response.usage?.prompt_tokens_details?.cached_tokens,
+      }),
     };
   }
 
@@ -215,6 +235,11 @@ export function mapAnthropicResponse(
       },
     }));
 
+  const cachedInputTokens = response.usage.cache_read_input_tokens;
+  const cacheWriteInputTokens = response.usage.cache_creation_input_tokens;
+  const inputTokens =
+    response.usage.input_tokens + (cachedInputTokens ?? 0) + (cacheWriteInputTokens ?? 0);
+
   return {
     message: {
       role: 'assistant',
@@ -224,5 +249,11 @@ export function mapAnthropicResponse(
     },
     done: response.stop_reason === 'end_turn' || response.stop_reason === 'stop_sequence',
     finishReason: response.stop_reason,
+    usage: createTokenUsage({
+      inputTokens,
+      outputTokens: response.usage.output_tokens,
+      cachedInputTokens,
+      cacheWriteInputTokens,
+    }),
   };
 }

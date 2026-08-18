@@ -1,3 +1,4 @@
+import { createTokenUsage } from './tokenUsage';
 import type {
   ChatMessage,
   ChatOptions,
@@ -54,5 +55,9 @@ export function mapOllamaResponse(response: OllamaChatResponse): ChatResponse {
     },
     done: response.done,
     finishReason: response.message.tool_calls?.length ? 'tool_calls' : 'stop',
+    usage: createTokenUsage({
+      inputTokens: response.prompt_eval_count,
+      outputTokens: response.eval_count,
+    }),
   };
 }

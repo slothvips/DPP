@@ -1,11 +1,9 @@
 import {
   handleGeneralMessage,
   handleJenkinsMessage,
-  handlePageAgentCloseAll,
-  handlePageAgentExecute,
-  handlePageAgentExecuteTaskWithTab,
-  handlePageAgentInject,
-  handlePageAgentInjectWithTab,
+  handlePageAgentLlmAbort,
+  handlePageAgentLlmRequest,
+  handlePageAgentRemoteMessage,
   handleProxyMessage,
   handleRecorderMessage,
   handleRemoteRecordingMessage,
@@ -62,40 +60,28 @@ const messageHandlers: Array<{
       ),
   },
   {
-    match: (type) => type === 'PAGE_AGENT_INJECT',
+    match: (type) => type === 'PAGE_AGENT_PAGE_CONTROL' || type === 'PAGE_AGENT_TAB_CONTROL',
     handler: (message) =>
-      handlePageAgentInject(message as Parameters<typeof handlePageAgentInject>[0]),
-  },
-  {
-    match: (type) => type === 'PAGE_AGENT_INJECT_WITH_TAB',
-    handler: (message) =>
-      handlePageAgentInjectWithTab(message as Parameters<typeof handlePageAgentInjectWithTab>[0]),
-  },
-  {
-    match: (type) => type === 'PAGE_AGENT_EXECUTE_TASK',
-    handler: (message) =>
-      handlePageAgentExecute(message as Parameters<typeof handlePageAgentExecute>[0]),
-  },
-  {
-    match: (type) => type === 'PAGE_AGENT_EXECUTE_TASK_WITH_TAB',
-    handler: (message) =>
-      handlePageAgentExecuteTaskWithTab(
-        message as Parameters<typeof handlePageAgentExecuteTaskWithTab>[0]
-      ),
-  },
-  {
-    match: (type) => type === 'PAGE_AGENT_CLOSE_ALL',
-    handler: () => handlePageAgentCloseAll(),
+      handlePageAgentRemoteMessage(message as Parameters<typeof handlePageAgentRemoteMessage>[0]),
   },
   {
     match: (type) =>
       type === 'PAGE_AGENT_GET_CONFIG' ||
-      type === 'PAGE_AGENT_FETCH' ||
       type === 'OPEN_SIDE_PANEL' ||
       type === 'SAVE_JENKINS_TOKEN' ||
       type === 'CAPTURE_VISIBLE_TAB',
     handler: (message) =>
       handleGeneralMessage(message as Parameters<typeof handleGeneralMessage>[0]),
+  },
+  {
+    match: (type) => type === 'PAGE_AGENT_LLM_REQUEST',
+    handler: (message) =>
+      handlePageAgentLlmRequest(message as Parameters<typeof handlePageAgentLlmRequest>[0]),
+  },
+  {
+    match: (type) => type === 'PAGE_AGENT_LLM_ABORT',
+    handler: (message) =>
+      handlePageAgentLlmAbort(message as Parameters<typeof handlePageAgentLlmAbort>[0]),
   },
 ];
 

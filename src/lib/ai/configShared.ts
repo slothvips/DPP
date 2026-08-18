@@ -2,11 +2,6 @@ import { db } from '@/db';
 import type { SettingKey, SettingValue, StoredEncryptedValue } from '@/db/types';
 import { decryptData, loadKey } from '@/lib/crypto/encryption';
 import { logger } from '@/utils/logger';
-import type { AIProviderType } from './types';
-
-export function isAnthropicProvider(providerType: AIProviderType): boolean {
-  return providerType === 'anthropic';
-}
 
 export async function readAISetting<K extends SettingKey>(
   key: K

@@ -4,6 +4,7 @@ import {
   appendOpenAIStreamingContent,
   appendOpenAIStreamingReasoningContent,
   setOpenAIStreamingFallbackContent,
+  setOpenAIStreamingUsage,
   upsertOpenAIStreamingToolCall,
 } from './openaiProviderStreamingShared';
 import {
@@ -11,9 +12,10 @@ import {
   mergeStreamedValue,
   resolveStreamingToolCallKey,
 } from './providerShared';
-import type { OpenAIToolCall } from './types';
+import type { OpenAIChatResponse, OpenAIToolCall } from './types';
 
 interface OpenAIStreamingEventPayload {
+  usage?: OpenAIChatResponse['usage'];
   choices?: {
     delta?: {
       content?: string;
@@ -53,6 +55,10 @@ export function processOpenAIStreamingEventBlock(options: {
     const parsed = JSON.parse(data) as OpenAIStreamingEventPayload;
     const choice = parsed.choices?.[0];
     const delta = choice?.delta;
+
+    if (parsed.usage) {
+      setOpenAIStreamingUsage(state, parsed.usage);
+    }
 
     if (delta?.reasoning_content) {
       appendOpenAIStreamingReasoningContent(state, delta.reasoning_content);

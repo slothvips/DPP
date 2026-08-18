@@ -18,6 +18,11 @@ import type {
 import type { Setting } from './typesSettings';
 import type { DeferredOp, RemoteActivityLog, SyncMetadata, SyncOperation } from './typesSync';
 
+export interface TotpLocalOrderRecord {
+  key: string;
+  orderedIds: string[];
+}
+
 export type DPPDatabase = Dexie & {
   links: EntityTable<LinkItem, 'id'>;
   linkTags: EntityTable<LinkTagItem, never>;
@@ -32,6 +37,7 @@ export type DPPDatabase = Dexie & {
   hotNews: EntityTable<HotNewsCache, 'date'>;
   recordings: EntityTable<Recording, 'id'>;
   totpAccounts: EntityTable<TotpAccountItem, 'id'>;
+  totpLocalOrder: EntityTable<TotpLocalOrderRecord, 'key'>;
   operations: EntityTable<SyncOperation, 'id'>;
   syncMetadata: EntityTable<SyncMetadata, 'id'>;
   deferred_ops: EntityTable<DeferredOp, 'id'>;

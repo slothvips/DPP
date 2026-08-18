@@ -1,4 +1,4 @@
-export type AIProviderType = 'ollama' | 'anthropic' | 'custom';
+export type { AIProviderType } from './providerIds';
 
 export interface ToolParameter {
   type: 'object';
@@ -24,9 +24,32 @@ export interface OpenAIToolDefinition {
   };
 }
 
+export type OpenAIToolChoice =
+  | 'auto'
+  | 'none'
+  | 'required'
+  | { type: 'function'; function: { name: string } };
+
+export interface ProviderRequestOptions {
+  enableThinking?: boolean;
+  thinking?: { type: string };
+  reasoningEffort?: 'none' | 'minimal' | 'low' | 'medium' | 'high';
+  verbosity?: 'low' | 'medium' | 'high';
+}
+
 export interface ProviderMessageMetadata {
   anthropicContentBlocks?: unknown[];
+  aiSdkResponseMessages?: unknown[];
   openAIReasoningContent?: string;
+}
+
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cachedInputTokens?: number;
+  cacheWriteInputTokens?: number;
+  contextWindow?: number;
 }
 
 export interface ChatMessage {
@@ -47,6 +70,7 @@ export interface ChatResponse {
   };
   done: boolean;
   finishReason?: string | null;
+  usage?: TokenUsage;
 }
 
 export interface ChatOptions {
@@ -55,7 +79,8 @@ export interface ChatOptions {
   signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
   tools?: OpenAIToolDefinition[];
-  toolChoice?: 'auto' | 'none';
+  toolChoice?: OpenAIToolChoice | null;
+  providerOptions?: ProviderRequestOptions;
 }
 
 export interface InitProgressCallback {
@@ -74,6 +99,7 @@ export interface ModelProvider {
   chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResponse>;
   listModels(): Promise<Model[]>;
   getModelName(): string;
+  getContextWindow?(): Promise<number | undefined>;
   setModel(model: string): void;
   initialize?(onProgress?: InitProgressCallback): Promise<void>;
   isInitialized?(): boolean;

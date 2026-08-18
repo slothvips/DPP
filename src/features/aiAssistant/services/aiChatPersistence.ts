@@ -42,6 +42,7 @@ export async function saveAssistantMessage(sessionId: string | null, message: Ch
       name: message.name,
       toolCalls: sanitizeToolCalls(message),
       providerMetadata: message.providerMetadata,
+      usage: message.usage,
     });
   } catch (error) {
     logger.error('[AIChat] Failed to save assistant message:', error);

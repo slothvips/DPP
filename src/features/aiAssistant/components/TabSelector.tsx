@@ -1,4 +1,4 @@
-// TabSelector - 选择 PageAgent 工作标签页
+// TabSelector - 选择网页助手任务的起始标签页
 import { Globe, Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -32,7 +32,7 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
             'h-8 items-center gap-1.5 rounded-xl border-border/60 bg-background/96 text-xs',
             className
           )}
-          title="选择 Page Agent 工作标签页（仅支持 SPA）"
+          title="选择 Page Agent 任务起始标签页"
         >
           {isLoading ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -56,7 +56,7 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
           ) : selectedTabId === null ? (
             <>
               <Zap className="w-3.5 h-3.5" />
-              <span>始终为当前标签</span>
+              <span>从当前标签开始</span>
             </>
           ) : (
             <>
@@ -71,9 +71,9 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
         align="end"
       >
         <div className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-          选择 Page Agent 工作标签页
+          选择 Page Agent 起始标签页
         </div>
-        {/* 始终为当前标签选项 */}
+        {/* 从当前标签开始的选项 */}
         <button
           onClick={handleAlwaysCurrentClick}
           className={cn(
@@ -85,8 +85,8 @@ export function TabSelector({ selectedTabId, onTabSelect, className }: TabSelect
         >
           <Zap className="w-4 h-4 flex-shrink-0 text-primary" />
           <div className="flex-1 min-w-0">
-            <div className="truncate text-primary font-medium">始终为当前标签</div>
-            <div className="text-xs text-muted-foreground">每次使用时自动选择当前活动标签页</div>
+            <div className="truncate text-primary font-medium">从当前标签开始</div>
+            <div className="text-xs text-muted-foreground">每次任务从当前活动标签页开始</div>
           </div>
         </button>
         <div className="h-px bg-border my-1" />

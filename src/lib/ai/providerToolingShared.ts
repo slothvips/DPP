@@ -24,7 +24,7 @@ export function mapOpenAIToolCalls(toolCalls?: OpenAIToolCall[]): OpenAIToolCall
 export function openAIToolChoice(
   toolChoice: ChatOptions['toolChoice'] | undefined
 ): OpenAIChatRequest['tool_choice'] | undefined {
-  return toolChoice;
+  return toolChoice || undefined;
 }
 
 export function anthropicTools(options?: ChatOptions): AnthropicToolDefinition[] | undefined {

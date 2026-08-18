@@ -60,6 +60,8 @@ export interface AnthropicChatRequest {
   stream?: boolean;
   system?: string;
   tools?: AnthropicToolDefinition[];
+  tool_choice?: { type: 'auto' | 'any' | 'none' } | { type: 'tool'; name: string };
+  thinking?: { type: string };
   temperature?: number;
 }
 
@@ -73,5 +75,7 @@ export interface AnthropicChatResponse {
   usage: {
     input_tokens: number;
     output_tokens: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
   };
 }

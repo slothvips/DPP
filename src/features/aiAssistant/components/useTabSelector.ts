@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { isInjectable } from '@/lib/pageAgent/injector';
+import { browser } from 'wxt/browser';
+import { isInjectable } from '@/lib/pageAgent/utils';
 import { logger } from '@/utils/logger';
 
 const TAB_ID_STORAGE_KEY = '__pageAgentTabId';

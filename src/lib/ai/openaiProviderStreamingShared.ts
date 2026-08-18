@@ -1,6 +1,7 @@
 import { stripThinkingContent } from './ollama';
 import { normalizeToolArgumentsJsonOrOriginal } from './providerShared';
-import type { ChatResponse, OpenAIToolCall } from './types';
+import { createTokenUsage } from './tokenUsage';
+import type { ChatResponse, OpenAIChatResponse, OpenAIToolCall } from './types';
 
 interface PartialStreamingToolCall {
   id?: string;
@@ -16,16 +17,26 @@ export interface OpenAIStreamingState {
   finishReason: string | null;
   toolCallLookup: Map<string, OpenAIToolCall>;
   toolCallKeyByIndex: Map<number, string>;
+  model: string;
+  usage?: OpenAIChatResponse['usage'];
 }
 
-export function createOpenAIStreamingState(): OpenAIStreamingState {
+export function createOpenAIStreamingState(model: string): OpenAIStreamingState {
   return {
     fullContent: '',
     reasoningContent: '',
     finishReason: null,
     toolCallLookup: new Map<string, OpenAIToolCall>(),
     toolCallKeyByIndex: new Map<number, string>(),
+    model,
   };
+}
+
+export function setOpenAIStreamingUsage(
+  state: OpenAIStreamingState,
+  usage: OpenAIChatResponse['usage']
+) {
+  state.usage = usage;
 }
 
 export function appendOpenAIStreamingContent(
@@ -103,5 +114,11 @@ export function buildOpenAIStreamingResponse(state: OpenAIStreamingState): ChatR
     },
     done: true,
     finishReason: state.finishReason,
+    usage: createTokenUsage({
+      inputTokens: state.usage?.prompt_tokens,
+      outputTokens: state.usage?.completion_tokens,
+      totalTokens: state.usage?.total_tokens,
+      cachedInputTokens: state.usage?.prompt_tokens_details?.cached_tokens,
+    }),
   };
 }

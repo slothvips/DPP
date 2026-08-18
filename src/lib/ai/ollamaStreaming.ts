@@ -29,6 +29,7 @@ export async function handleOllamaStreamingChat(
   let buffer = '';
   let finalToolCalls: ChatResponse['message']['toolCalls'];
   let done = false;
+  let usageResponse: OllamaChatResponse | undefined;
 
   const processLine = (line: string) => {
     const trimmed = line.trim();
@@ -47,6 +48,7 @@ export async function handleOllamaStreamingChat(
       }
       if (data.done) {
         done = true;
+        usageResponse = data;
       }
     } catch (error) {
       logger.debug('Failed to parse Ollama response:', error);
@@ -80,11 +82,14 @@ export async function handleOllamaStreamingChat(
   }
 
   return mapOllamaResponse({
+    model: usageResponse?.model ?? requestBody.model,
     message: {
       role: 'assistant',
       content: stripThinkingContent(fullContent),
       tool_calls: finalToolCalls,
     },
     done,
+    prompt_eval_count: usageResponse?.prompt_eval_count,
+    eval_count: usageResponse?.eval_count,
   });
 }

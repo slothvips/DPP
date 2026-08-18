@@ -1,11 +1,8 @@
 import { browser } from 'wxt/browser';
 import { db } from '@/db';
-import type {
-  JenkinsEnvironment,
-  SettingKey,
-  SettingValue,
-  StoredEncryptedValue,
-} from '@/db/types';
+import type { JenkinsEnvironment, SettingKey, SettingValue } from '@/db/types';
+import { AI_PROVIDER_TYPES } from '@/lib/ai/providerIds';
+import { AI_PROVIDER_DEFINITIONS } from '@/lib/ai/providerRegistry';
 import { encryptData, loadKey } from '@/lib/crypto/encryption';
 import { getSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
@@ -34,6 +31,41 @@ interface ConfigEntry {
   configured: boolean;
   value: unknown;
 }
+
+type AIProviderSettingKey = Extract<SettingKey, `ai_${string}_${'api_key' | 'base_url' | 'model'}`>;
+
+const AI_PROVIDER_CONFIG_DEFINITIONS = Object.fromEntries(
+  AI_PROVIDER_DEFINITIONS.flatMap((provider) => [
+    [
+      `ai_${provider.id}_base_url`,
+      {
+        category: 'ai',
+        description: `${provider.label} base URL`,
+        type: 'string',
+        writable: true,
+      },
+    ],
+    [
+      `ai_${provider.id}_model`,
+      {
+        category: 'ai',
+        description: `${provider.label} model`,
+        type: 'string',
+        writable: true,
+      },
+    ],
+    [
+      `ai_${provider.id}_api_key`,
+      {
+        category: 'ai',
+        description: `${provider.label} API key`,
+        sensitive: true,
+        type: 'string',
+        writable: true,
+      },
+    ],
+  ])
+) as Record<AIProviderSettingKey, ConfigDefinition>;
 
 const DPP_CONFIG_DEFINITIONS = {
   theme: {
@@ -96,6 +128,7 @@ const DPP_CONFIG_DEFINITIONS = {
   jenkins_environments: {
     category: 'jenkins',
     description: 'Jenkins environment list',
+    sensitive: true,
     type: 'json',
     writable: true,
   },
@@ -233,7 +266,7 @@ const DPP_CONFIG_DEFINITIONS = {
     category: 'ai',
     description: 'Current D仔 AI provider',
     type: 'string',
-    enum: ['ollama', 'anthropic', 'custom'],
+    enum: AI_PROVIDER_TYPES,
     writable: true,
   },
   ai_base_url: {
@@ -255,63 +288,7 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'string',
     writable: true,
   },
-  ai_ollama_base_url: {
-    category: 'ai',
-    description: 'Ollama base URL',
-    type: 'string',
-    writable: true,
-  },
-  ai_ollama_model: {
-    category: 'ai',
-    description: 'Ollama model',
-    type: 'string',
-    writable: true,
-  },
-  ai_ollama_api_key: {
-    category: 'ai',
-    description: 'Ollama API key',
-    sensitive: true,
-    type: 'string',
-    writable: true,
-  },
-  ai_anthropic_base_url: {
-    category: 'ai',
-    description: 'Anthropic-compatible base URL',
-    type: 'string',
-    writable: true,
-  },
-  ai_anthropic_model: {
-    category: 'ai',
-    description: 'Anthropic-compatible model',
-    type: 'string',
-    writable: true,
-  },
-  ai_anthropic_api_key: {
-    category: 'ai',
-    description: 'Anthropic-compatible API key',
-    sensitive: true,
-    type: 'string',
-    writable: true,
-  },
-  ai_custom_base_url: {
-    category: 'ai',
-    description: 'OpenAI-compatible base URL',
-    type: 'string',
-    writable: true,
-  },
-  ai_custom_model: {
-    category: 'ai',
-    description: 'OpenAI-compatible model',
-    type: 'string',
-    writable: true,
-  },
-  ai_custom_api_key: {
-    category: 'ai',
-    description: 'OpenAI-compatible API key',
-    sensitive: true,
-    type: 'string',
-    writable: true,
-  },
+  ...AI_PROVIDER_CONFIG_DEFINITIONS,
   links_sort_by: {
     category: 'links',
     description: 'Links sorting field',
@@ -349,9 +326,7 @@ const DPP_CONFIG_DEFINITIONS = {
 
 const ENCRYPTABLE_SETTING_KEYS = new Set<SettingKey>([
   'ai_api_key',
-  'ai_ollama_api_key',
-  'ai_anthropic_api_key',
-  'ai_custom_api_key',
+  ...AI_PROVIDER_DEFINITIONS.map((provider) => `ai_${provider.id}_api_key` as AIProviderSettingKey),
 ]);
 
 const SYNC_RELATED_SETTING_KEYS = new Set<SettingKey>([
@@ -398,39 +373,10 @@ function parseObjectArgs(args: unknown): Record<string, unknown> {
   return args as Record<string, unknown>;
 }
 
-function maskSensitiveValue(value: unknown): unknown {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-
-  if (isEncryptedValue(value)) {
-    return '[encrypted]';
-  }
-
-  if (typeof value !== 'string') {
-    return '[configured]';
-  }
-
-  if (value.length <= 8) {
-    return '********';
-  }
-
-  return `${value.slice(0, 3)}...${value.slice(-4)}`;
-}
-
-function isEncryptedValue(value: unknown): value is StoredEncryptedValue {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-
-  const candidate = value as { ciphertext?: unknown; iv?: unknown };
-  return typeof candidate.ciphertext === 'string' && typeof candidate.iv === 'string';
-}
-
 function toDisplayValue(key: SettingKey, value: unknown): unknown {
   const definition = getConfigDefinition(key);
   if (definition.sensitive) {
-    return maskSensitiveValue(value);
+    return null;
   }
 
   return value ?? null;

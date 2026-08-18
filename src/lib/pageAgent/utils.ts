@@ -26,3 +26,7 @@ export function serializeHeaders(
 
   return result;
 }
+
+export function isInjectable(url: string): boolean {
+  return /^https?:\/\//.test(url);
+}

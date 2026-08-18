@@ -15,12 +15,24 @@ export async function handleOpenAIStreamingChat(
   onChunk: (chunk: string) => void,
   signal?: AbortSignal
 ): Promise<ChatResponse> {
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method: 'POST',
     headers: getOpenAIHeaders(apiKey),
     body: JSON.stringify({ ...requestBody, stream: true }),
     signal,
   });
+
+  if (!response.ok && (response.status === 400 || response.status === 422)) {
+    const fallbackRequestBody = { ...requestBody };
+    delete fallbackRequestBody.stream_options;
+    logger.warn('[OpenAI] Streaming usage is unsupported; retrying without stream_options');
+    response = await fetch(url, {
+      method: 'POST',
+      headers: getOpenAIHeaders(apiKey),
+      body: JSON.stringify({ ...fallbackRequestBody, stream: true }),
+      signal,
+    });
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
@@ -35,7 +47,7 @@ export async function handleOpenAIStreamingChat(
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
-  const state = createOpenAIStreamingState();
+  const state = createOpenAIStreamingState(requestBody.model);
   let buffer = '';
 
   try {

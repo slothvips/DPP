@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { resetPageAgentTaskGroup } from '@/lib/ai/tools/pageAgent';
 import type { ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
 import { updateSessionTitle } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
@@ -103,6 +104,7 @@ export function useAIChatActions({
       }
 
       try {
+        await resetPageAgentTaskGroup();
         const assistantMessage = await runChatCompletion(
           buildSendMessagePayload(nextMessages, userMessage, toLibChatMessage)
         );

@@ -5,6 +5,8 @@ import {
   appendAnthropicResponseContentBlock,
   appendAnthropicStreamingContent,
   getLatestAnthropicToolCall,
+  mergeAnthropicStreamingUsage,
+  setAnthropicOpenAIStreamingUsage,
   setAnthropicStreamingFallbackContent,
   upsertOpenAIStreamingToolCall,
 } from './anthropicProviderStreamingShared';
@@ -13,7 +15,7 @@ import {
   mergeStreamedValue,
   resolveStreamingToolCallKey,
 } from './providerShared';
-import type { OpenAIToolCall } from './types';
+import type { AnthropicChatResponse, OpenAIChatResponse, OpenAIToolCall } from './types';
 
 interface AnthropicStreamingEventPayload {
   type?: string;
@@ -33,6 +35,10 @@ interface AnthropicStreamingEventPayload {
     data?: string;
     signature?: string;
   };
+  message?: {
+    usage?: AnthropicChatResponse['usage'];
+  };
+  usage?: Partial<AnthropicChatResponse['usage']> | OpenAIChatResponse['usage'];
   choices?: {
     delta?: {
       content?: string;
@@ -66,6 +72,14 @@ export function processAnthropicStreamingEventBlock(options: {
 
   try {
     const parsed = JSON.parse(data) as AnthropicStreamingEventPayload;
+
+    if (parsed.message?.usage) {
+      mergeAnthropicStreamingUsage(state, parsed.message.usage);
+    } else if (parsed.usage && 'prompt_tokens' in parsed.usage) {
+      setAnthropicOpenAIStreamingUsage(state, parsed.usage);
+    } else if (parsed.usage) {
+      mergeAnthropicStreamingUsage(state, parsed.usage);
+    }
 
     if (parsed.type === 'content_block_delta') {
       if (parsed.delta?.type === 'text_delta' && parsed.delta.text) {

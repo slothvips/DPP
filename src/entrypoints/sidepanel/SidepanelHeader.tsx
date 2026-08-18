@@ -44,7 +44,7 @@ export function SidepanelHeader({ activeTab, showSyncButton }: SidepanelHeaderPr
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0 rounded-xl border border-border/55 bg-background/78 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+                className="h-8 w-8 shrink-0 rounded-xl border border-border/55 bg-background/78 text-yellow-500/75 hover:bg-accent/80 hover:text-yellow-600 dark:text-yellow-300/75 dark:hover:text-yellow-200"
                 aria-label="查看使用指南"
                 title="查看使用指南"
                 data-testid="sidepanel-guide-button"

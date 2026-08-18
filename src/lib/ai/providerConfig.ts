@@ -1,16 +1,9 @@
-import { DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL } from './ollama';
+import type { AIProviderType } from './providerIds';
+import { AI_PROVIDER_REGISTRY } from './providerRegistry';
 
-export const DEFAULT_CONFIGS = {
-  ollama: {
-    baseUrl: DEFAULT_OLLAMA_BASE_URL,
-    model: DEFAULT_OLLAMA_MODEL,
-  },
-  anthropic: {
-    baseUrl: 'https://api.anthropic.com',
-    model: 'claude-3-haiku-20240307',
-  },
-  custom: {
-    baseUrl: '',
-    model: '',
-  },
-} as const;
+export const DEFAULT_CONFIGS = Object.fromEntries(
+  Object.values(AI_PROVIDER_REGISTRY).map((provider) => [
+    provider.id,
+    { baseUrl: provider.defaultBaseUrl, model: provider.defaultModel },
+  ])
+) as Record<AIProviderType, { baseUrl: string; model: string }>;

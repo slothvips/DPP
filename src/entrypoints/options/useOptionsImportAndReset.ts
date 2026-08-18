@@ -1,6 +1,7 @@
 import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
-import type { JenkinsEnvironment, Setting } from '@/db/types';
+import type { JenkinsEnvironment, Setting, StoredEncryptedValue } from '@/db/types';
+import { decryptData, exportKey, importKey, loadKey } from '@/lib/crypto/encryption';
 import { loadPersonalKey } from '@/lib/crypto/personalKey';
 import { clearAllLocalData } from '@/lib/db/clearAllLocalData';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
@@ -9,8 +10,52 @@ import {
   EXCLUDED_SETTINGS,
   IMPORT_PRESERVED_SETTINGS,
   type ImportedSetting,
-  isImportedSetting,
+  isStoredEncryptedValue,
+  parseImportedSettings,
 } from './optionsShared';
+
+async function validateEncryptedAISettings(settings: ImportedSetting[]): Promise<void> {
+  const encryptedSettings = settings.filter(
+    (setting) =>
+      (setting.key === 'ai_api_key' ||
+        (setting.key.startsWith('ai_') && setting.key.endsWith('_api_key'))) &&
+      isStoredEncryptedValue(setting.value)
+  );
+  if (encryptedSettings.length === 0) {
+    return;
+  }
+
+  let syncKeySetting = settings.find((setting) => setting.key === 'sync_encryption_key');
+  let syncKeyValue =
+    typeof syncKeySetting?.value === 'string' && syncKeySetting.value
+      ? syncKeySetting.value
+      : undefined;
+  if (!syncKeyValue) {
+    const localKey = await loadKey();
+    if (!localKey) {
+      throw new Error('备份包含加密的 AI API Key，但缺少同步密钥，已取消导入');
+    }
+    const exportedLocalKey = await exportKey(localKey);
+    syncKeySetting = {
+      key: 'sync_encryption_key',
+      value: exportedLocalKey,
+    };
+    syncKeyValue = exportedLocalKey;
+    settings.push(syncKeySetting);
+  }
+
+  try {
+    const key = await importKey(syncKeyValue);
+    const decryptedValues = await Promise.all(
+      encryptedSettings.map((setting) => decryptData(setting.value as StoredEncryptedValue, key))
+    );
+    if (decryptedValues.some((value) => typeof value !== 'string')) {
+      throw new Error('AI API Key decrypted to an invalid value');
+    }
+  } catch {
+    throw new Error('备份中的同步密钥无法解密 AI API Key，已取消导入');
+  }
+}
 
 export function useOptionsImportAndReset() {
   const { toast } = useToast();
@@ -89,10 +134,11 @@ export function useOptionsImportAndReset() {
           throw new Error('文件中没有应用设置数据');
         }
 
-        const importedSettings: ImportedSetting[] = parsed.data.settings.filter(isImportedSetting);
+        const importedSettings = parseImportedSettings(parsed.data.settings as unknown[]);
         if (importedSettings.length === 0) {
           throw new Error('文件中没有可识别的设置项');
         }
+        await validateEncryptedAISettings(importedSettings);
 
         const hasKey = importedSettings.some((setting) => setting.key === 'sync_encryption_key');
         let hasLocalPersonalKey = false;

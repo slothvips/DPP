@@ -4,18 +4,16 @@ import {
   loadProviderConfig,
   saveProviderConfig,
 } from '@/features/aiAssistant/lib/aiConfigStorage';
+import { AI_PROVIDER_TYPES, isAIProviderType } from '@/lib/ai/providerIds';
 import type { AIProviderType } from '@/lib/ai/types';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
-
-const AI_PROVIDER_TYPES = ['ollama', 'anthropic', 'custom'] as const satisfies AIProviderType[];
 
 interface AIConfigSummary {
   provider: AIProviderType;
   baseUrl: string;
   model: string;
   apiKeyConfigured: boolean;
-  apiKeyPreview: string;
 }
 
 interface AIConfigUpdateArgs {
@@ -25,10 +23,6 @@ interface AIConfigUpdateArgs {
   apiKey?: string;
   clearApiKey?: boolean;
   activateProvider?: boolean;
-}
-
-function isAIProviderType(value: unknown): value is AIProviderType {
-  return typeof value === 'string' && AI_PROVIDER_TYPES.includes(value as AIProviderType);
 }
 
 function readStringArg(args: Record<string, unknown>, key: string): string | undefined {
@@ -60,23 +54,12 @@ function parseObjectArgs(args: unknown): Record<string, unknown> {
   return args as Record<string, unknown>;
 }
 
-function maskSecret(value: string): string {
-  if (!value) {
-    return '';
-  }
-  if (value.length <= 8) {
-    return '********';
-  }
-  return `${value.slice(0, 3)}...${value.slice(-4)}`;
-}
-
 function summarizeConfig(config: StoredAIConfig): AIConfigSummary {
   return {
     provider: config.provider,
     baseUrl: config.baseUrl,
     model: config.model,
     apiKeyConfigured: Boolean(config.apiKey),
-    apiKeyPreview: maskSecret(config.apiKey),
   };
 }
 
@@ -91,7 +74,7 @@ async function ai_config_get() {
     current: summarizeConfig(currentConfig),
     providers: providerConfigs,
     editableFields: ['provider', 'baseUrl', 'model', 'apiKey', 'clearApiKey', 'activateProvider'],
-    note: 'apiKey 只返回脱敏预览；修改 apiKey 时请通过 ai_config_update 传入新值。',
+    note: 'API Key 只返回是否已配置；修改时请通过 ai_config_update 传入新值。',
   };
 }
 

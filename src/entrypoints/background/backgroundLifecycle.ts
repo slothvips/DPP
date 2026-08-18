@@ -1,24 +1,13 @@
 import { browser } from 'wxt/browser';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
-import { clearAllAgents, registerInjectorTabLifecycle } from '@/lib/pageAgent/injector';
 import { logger } from '@/utils/logger';
 import { setupAutoSync, setupOmnibox } from './handlers';
 
 export function registerBackgroundLifecycle() {
-  // 注册 PageAgent 标签页生命周期监听（仅在 background 上下文）
-  registerInjectorTabLifecycle();
-
   browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error) => logger.error('Failed to set side panel behavior:', error));
-
-  browser.sidePanel.onClosed.addListener(() => {
-    logger.info('[Background] Side panel closed, destroying all PageAgent instances');
-    clearAllAgents().catch((error: Error) =>
-      logger.error('Failed to clear agents on side panel close:', error)
-    );
-  });
 
   void setupAutoSync();
 

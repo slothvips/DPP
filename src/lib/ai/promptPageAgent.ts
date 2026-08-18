@@ -20,10 +20,13 @@ export function buildPromptWorkflowExamplesSection(): string {
 - 返回结果同时包含本地操作和远端操作（来自其他设备）
 
 ### Page Agent（网页自动化）
-- \`pageagent_execute_task\`：使用 PageAgent 在网页上执行中文任务
+- \`pageagent_execute_task\`：使用网页助手完成一个或多个页面上的中文任务
+- 调用 \`pageagent_execute_task\` 时必须同时填写简短的 \`group_name\`，名称应概括本次任务目标，例如“比较 JS 异步文档”或“检查订单状态”
 - 仅用于网页交互类任务：点击、输入、选择、滚动、读取页面反馈、验证结果
 - **必须使用中文描述任务**
-- 默认工作在用户已选择的标签页；若用户选择“始终为当前标签”，则工作在当前活动标签页
+- 从用户选择的起始标签页开始；若用户选择“从当前标签开始”，则从当前活动标签页开始
+- 同一次调用可打开、切换和关闭任务相关标签页，适合目标明确的跨页面流程
+- 用户要求 PageAgent 跨页面读取或操作时，必须把完整跨页目标交给一次 \`pageagent_execute_task\`；不要先用 \`browser_openUrl\` 代替它打开页面
 - 不要索要 URL，也不要让用户重复指定页面，除非用户明确在问如何配置或页面已不可用`;
 }
 
@@ -31,10 +34,10 @@ export function buildPromptPageAgentProtocolSection(): string {
   return `### Page Agent 执行协议（重要）
 当你使用 \`pageagent_execute_task\` 时，要把它当成一个谨慎、逐步推进的网页代理。
 
-1. **每次 tool call 只做一个清晰动作**
-   - 优先让每次调用只包含一个明确的 UI 动作，或一次明确的页面观察
-   - 好的例子：“点击登录按钮” / “读取当前页面顶部的错误提示” / “在搜索框输入关键词 test”
-   - 除非用户明确要求把多个微小动作合并，且失败后仍然容易恢复，否则不要把很多动作塞进一次调用
+1. **每次 tool call 只承载一个清晰目标**
+   - 单页面简单任务可只包含一个 UI 动作或一次观察
+   - 跨页面任务应描述完整目标和页面间关系，让 PageAgent 在同一次调用中保留上下文
+   - 好的例子：“点击登录按钮” / “读取当前页面顶部的错误提示” / “打开帮助链接，在新标签页查到安装命令后回到原页面填写”
 
 2. **先观察，再继续**
    - 每次拿到 PageAgent 结果后，都要基于结果决定下一步
@@ -102,7 +105,8 @@ export function buildPromptPlanningSection(): string {
 
 export function buildPromptPageAgentSupportSection(): string {
   return `### 标签页感知
-- \`pageagent_execute_task\` 工作在用户已选择的标签页上（如果启用了“始终为当前”，则工作在当前活动标签页）
+- \`pageagent_execute_task\` 从用户选择的起始标签页开始（如果选择“从当前标签开始”，则从当前活动标签页开始）
+- 执行期间会跟踪任务打开的子标签页，并可在任务标签页之间切换；初始标签页不会被关闭
 - 如果执行过程中标签页不可用，立即停止并告知用户
 - 如果当前页面显然无法注入或不适合 PageAgent，就直接解释原因，不要假装还能继续
 
@@ -114,7 +118,7 @@ export function buildPromptPageAgentSupportSection(): string {
 export function buildPromptErrorHandlingSection(): string {
   return `## 错误处理
 - 当 \`pageagent_execute_task\` 返回错误时：
-  - 如果错误中包含 "__TAB_UNAVAILABLE__"：立即停止，并告知用户当前工作标签页不可用
+  - 如果错误表示任务标签页已关闭或不可用：立即停止，并告知用户当前任务无法继续
   - 如果错误表示页面未就绪、无法注入，或 PageAgent 初始化失败：立即停止，并清楚说明缺失的前置条件
   - 如果错误属于页面交互问题（找不到元素、点击失败、页面意外变化）：尝试在同一页面上拆成更小步骤，或换一种方式继续
   - 如果错误属于前置条件问题（需要登录、权限不足、被弹窗阻挡、缺少必填输入）：立即停止，并明确告诉用户需要先处理什么

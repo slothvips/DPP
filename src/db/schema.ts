@@ -89,4 +89,10 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(9).stores({
     totpAccounts: 'id, sortOrder, label, issuer, createdAt, deletedAt',
   });
+
+  // v10: TOTP 本地排序（仅本地，不参与同步）
+  // 拖动排序只写此表，不再更新 totpAccounts.sortOrder，避免产生上传记录。
+  db.version(10).stores({
+    totpLocalOrder: 'key',
+  });
 }

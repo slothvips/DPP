@@ -1,6 +1,13 @@
 import { stripThinkingContent } from './ollama';
 import { normalizeToolArgumentsJsonOrOriginal } from './providerShared';
-import type { AnthropicResponseContentBlock, ChatResponse, OpenAIToolCall } from './types';
+import { createTokenUsage } from './tokenUsage';
+import type {
+  AnthropicChatResponse,
+  AnthropicResponseContentBlock,
+  ChatResponse,
+  OpenAIChatResponse,
+  OpenAIToolCall,
+} from './types';
 
 interface PartialStreamingToolCall {
   id?: string;
@@ -21,9 +28,12 @@ export interface AnthropicStreamingState {
   currentThinkingBlock: Extract<AnthropicResponseContentBlock, { type: 'thinking' }> | null;
   currentToolUseBlock: Extract<AnthropicResponseContentBlock, { type: 'tool_use' }> | null;
   currentToolUseJsonBuffer: string;
+  model: string;
+  anthropicUsage?: AnthropicChatResponse['usage'];
+  openAIUsage?: OpenAIChatResponse['usage'];
 }
 
-export function createAnthropicStreamingState(): AnthropicStreamingState {
+export function createAnthropicStreamingState(model: string): AnthropicStreamingState {
   return {
     fullContent: '',
     openAIReasoningContent: '',
@@ -35,7 +45,29 @@ export function createAnthropicStreamingState(): AnthropicStreamingState {
     currentThinkingBlock: null,
     currentToolUseBlock: null,
     currentToolUseJsonBuffer: '',
+    model,
   };
+}
+
+export function mergeAnthropicStreamingUsage(
+  state: AnthropicStreamingState,
+  usage: Partial<AnthropicChatResponse['usage']>
+) {
+  state.anthropicUsage = {
+    input_tokens: usage.input_tokens ?? state.anthropicUsage?.input_tokens ?? 0,
+    output_tokens: usage.output_tokens ?? state.anthropicUsage?.output_tokens ?? 0,
+    cache_creation_input_tokens:
+      usage.cache_creation_input_tokens ?? state.anthropicUsage?.cache_creation_input_tokens,
+    cache_read_input_tokens:
+      usage.cache_read_input_tokens ?? state.anthropicUsage?.cache_read_input_tokens,
+  };
+}
+
+export function setAnthropicOpenAIStreamingUsage(
+  state: AnthropicStreamingState,
+  usage: OpenAIChatResponse['usage']
+) {
+  state.openAIUsage = usage;
 }
 
 export function appendAnthropicStreamingContent(
@@ -127,6 +159,11 @@ export function buildAnthropicStreamingResponse(state: AnthropicStreamingState):
   }));
 
   const finalToolCalls = anthropicToolCalls.length > 0 ? anthropicToolCalls : openAIToolCalls;
+  const cachedInputTokens = state.anthropicUsage?.cache_read_input_tokens;
+  const cacheWriteInputTokens = state.anthropicUsage?.cache_creation_input_tokens;
+  const anthropicInputTokens = state.anthropicUsage
+    ? state.anthropicUsage.input_tokens + (cachedInputTokens ?? 0) + (cacheWriteInputTokens ?? 0)
+    : undefined;
 
   return {
     message: {
@@ -140,5 +177,18 @@ export function buildAnthropicStreamingResponse(state: AnthropicStreamingState):
     },
     done: true,
     finishReason: state.finishReason,
+    usage: state.anthropicUsage
+      ? createTokenUsage({
+          inputTokens: anthropicInputTokens,
+          outputTokens: state.anthropicUsage.output_tokens,
+          cachedInputTokens,
+          cacheWriteInputTokens,
+        })
+      : createTokenUsage({
+          inputTokens: state.openAIUsage?.prompt_tokens,
+          outputTokens: state.openAIUsage?.completion_tokens,
+          totalTokens: state.openAIUsage?.total_tokens,
+          cachedInputTokens: state.openAIUsage?.prompt_tokens_details?.cached_tokens,
+        }),
   };
 }

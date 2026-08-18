@@ -96,9 +96,9 @@ export default defineConfig({
     // sidePanel: 侧边面板功能
     // alarms: 定时任务
     // activeTab: 获取标签页信息
-    // scripting: 编程式注入脚本（用于 Page Agent 注入，用户需先选择目标标签页）
+    // scripting: 仅用于向未及时建立 content script 的页面补发控制器
     // tabs: 获取标签页列表信息
-    permissions: ['storage', 'sidePanel', 'alarms', 'activeTab', 'scripting', 'tabs'],
+    permissions: ['storage', 'sidePanel', 'alarms', 'activeTab', 'scripting', 'tabs', 'tabGroups'],
     host_permissions: ['<all_urls>'],
     side_panel: {
       default_path: 'sidepanel.html',
@@ -119,7 +119,7 @@ export default defineConfig({
         resources: [
           'network-interceptor.js',
           'console-interceptor.js',
-          'content-scripts/pageAgent.js',
+          'content-scripts/pageAgentController.js',
         ],
         matches: ['<all_urls>'],
       },

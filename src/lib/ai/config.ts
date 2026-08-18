@@ -1,4 +1,4 @@
-import { isAnthropicProvider, readAISetting, resolveAIApiKey } from './configShared';
+import { readAISetting, resolveAIApiKey } from './configShared';
 import { DEFAULT_CONFIGS, createProvider } from './provider';
 import type { AIProviderType, ModelProvider } from './types';
 
@@ -7,7 +7,6 @@ export interface AIProviderConfig {
   baseUrl: string;
   model: string;
   apiKey: string;
-  isAnthropicProvider: boolean;
 }
 
 export async function loadAIProviderConfig(options?: {
@@ -42,7 +41,6 @@ export async function loadAIProviderConfig(options?: {
     baseUrl,
     model,
     apiKey,
-    isAnthropicProvider: isAnthropicProvider(providerType),
   };
 }
 

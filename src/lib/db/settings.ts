@@ -50,11 +50,6 @@ export interface AIConfigResult {
   baseUrl: string;
   model: string;
   apiKey: string;
-  isAnthropicProvider: boolean;
-}
-
-function isAnthropicProvider(provider: AIProviderType, _baseUrl: string): boolean {
-  return provider === 'anthropic';
 }
 
 /**
@@ -73,7 +68,6 @@ export async function getAIConfig(): Promise<AIConfigResult | null> {
       baseUrl: config.baseUrl,
       model: config.model,
       apiKey: config.apiKey,
-      isAnthropicProvider: isAnthropicProvider(config.providerType, config.baseUrl),
     };
   } catch {
     return null;

@@ -1,4 +1,4 @@
-import type { OpenAIToolCall, OpenAIToolDefinition } from './aiTypesShared';
+import type { OpenAIToolCall, OpenAIToolChoice, OpenAIToolDefinition } from './aiTypesShared';
 
 export interface OpenAIChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -13,9 +13,14 @@ export interface OpenAIChatRequest {
   model: string;
   messages: OpenAIChatMessage[];
   tools?: OpenAIToolDefinition[];
-  tool_choice?: 'auto' | 'none';
+  tool_choice?: OpenAIToolChoice;
   stream?: boolean;
   temperature?: number;
+  enable_thinking?: boolean;
+  thinking?: { type: string };
+  reasoning_effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high';
+  verbosity?: 'low' | 'medium' | 'high';
+  stream_options?: { include_usage: boolean };
 }
 
 export interface OpenAIChatResponse {
@@ -35,6 +40,9 @@ export interface OpenAIChatResponse {
     prompt_tokens: number;
     completion_tokens: number;
     total_tokens: number;
+    prompt_tokens_details?: {
+      cached_tokens?: number;
+    };
   };
 }
 
