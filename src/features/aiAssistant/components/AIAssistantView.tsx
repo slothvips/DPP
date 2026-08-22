@@ -5,6 +5,7 @@ import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { useAIAssistantConfig } from '../hooks/useAIAssistantConfig';
 import { useAIAssistantScroll } from '../hooks/useAIAssistantScroll';
 import { useAIChat } from '../hooks/useAIChat';
+import { usePageAgentProgress } from '../hooks/usePageAgentProgress';
 import { AIAssistantHeader } from './AIAssistantHeader';
 import { AIAssistantInputSection } from './AIAssistantInputSection';
 import { AIAssistantMessagesPanel } from './AIAssistantMessagesPanel';
@@ -31,6 +32,7 @@ export function AIAssistantView() {
     sessionId,
     isRunning,
     sendMessage,
+    editMessage,
     stop,
     confirmToolCall,
     confirmAllToolCalls,
@@ -53,6 +55,7 @@ export function AIAssistantView() {
 
   const { isNearBottom, messagesEndRef, messagesContainerRef, handleScroll, scrollToBottom } =
     useAIAssistantScroll(messages);
+  const pageAgentProgress = usePageAgentProgress(sessionId);
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -103,17 +106,10 @@ export function AIAssistantView() {
         sessions={sessions}
         currentSessionId={sessionId}
         isRunning={isRunning}
-        canClear={messages.length > 0}
-        canSummarize={
-          messages.length > 0 && status !== 'loading' && status !== 'streaming' && !isSummarizing
-        }
-        isSummarizing={isSummarizing}
+        isConfigMissing={isConfigMissing}
         onSelectSession={switchSession}
         onDeleteSession={deleteSession}
         onCreateSession={createNewSession}
-        onConfigSaved={handleConfigSaved}
-        onSummarize={handleSummarize}
-        onClear={clearMessages}
       />
 
       <AIAssistantMessagesPanel
@@ -127,6 +123,7 @@ export function AIAssistantView() {
         onScroll={handleScroll}
         onScrollToBottom={scrollToBottom}
         onConfigSaved={handleConfigSaved}
+        onEditMessage={editMessage}
       />
 
       <AIAssistantInputSection
@@ -135,9 +132,17 @@ export function AIAssistantView() {
         isConfirming={status === 'confirming'}
         presetPrompt={presetPrompt}
         usage={getLatestUsage(messages)}
+        canClear={messages.length > 0}
+        canSummarize={
+          messages.length > 0 && status !== 'loading' && status !== 'streaming' && !isSummarizing
+        }
+        isSummarizing={isSummarizing}
+        pageAgentProgress={pageAgentProgress}
         onConfigSaved={handleConfigSaved}
         onSend={handleSend}
         onStop={stop}
+        onSummarize={handleSummarize}
+        onClear={clearMessages}
       />
 
       <ToolConfirmationDialog

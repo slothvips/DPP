@@ -14,6 +14,54 @@ export interface HttpOptions extends RequestInit {
   debug?: boolean;
 }
 
+export class HttpResponseError extends Error {
+  readonly status: number;
+  readonly retryAfterMs?: number;
+  readonly details?: string;
+
+  constructor(response: Response, details?: string) {
+    const retryAfterMs = parseRetryAfter(response.headers.get('Retry-After'));
+    const retryHint = retryAfterMs
+      ? `（请在 ${Math.max(1, Math.round(retryAfterMs / 1000))} 秒后重试）`
+      : '';
+    super(
+      `HTTP ${response.status}: ${response.statusText}${details ? ` - ${details}` : ''}${retryHint}`
+    );
+    this.name = 'HttpResponseError';
+    this.status = response.status;
+    this.retryAfterMs = retryAfterMs;
+    this.details = details;
+  }
+}
+
+export function extractHttpErrorMessage(bodyText: string): string | undefined {
+  if (!bodyText) return undefined;
+  try {
+    const parsed = JSON.parse(bodyText) as unknown;
+    if (typeof parsed === 'object' && parsed !== null) {
+      const record = parsed as Record<string, unknown>;
+      const error =
+        typeof record.error === 'object' && record.error !== null
+          ? (record.error as Record<string, unknown>)
+          : undefined;
+      const message = error?.message ?? record.message;
+      if (typeof message === 'string' && message.trim()) return message.trim().slice(0, 300);
+    }
+  } catch {
+    // Fall back to the raw response body.
+  }
+  const text = bodyText.trim().slice(0, 300);
+  return text || undefined;
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? undefined : Math.max(0, timestamp - Date.now());
+}
+
 /**
  * Enhanced fetch with timeout and retry support
  *
@@ -120,7 +168,8 @@ export async function httpPost<T = unknown>(
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const bodyText = await response.text();
+    throw new HttpResponseError(response, extractHttpErrorMessage(bodyText));
   }
 
   return response.json() as Promise<T>;

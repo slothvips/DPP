@@ -2,6 +2,7 @@ import type Dexie from 'dexie';
 import { browser } from 'wxt/browser';
 import { logger } from '@/utils/logger';
 import { registerSyncHooks } from './SyncEngine.hooks';
+import { saveSyncOperationForRecovery } from './SyncEngine.recovery';
 import { generateUUID } from './SyncEngine.shared';
 import type { OperationType, SyncOperation, SyncStatus } from './types';
 
@@ -26,14 +27,15 @@ export function registerSyncEngine({
   setRegistered,
   processDeferredOperations,
   recordOperation,
-}: RegisterSyncEngineOptions) {
+}: RegisterSyncEngineOptions): Promise<void> {
   if (isRegistered()) {
     logger.warn('[Sync] Hooks already registered, skipping duplicate registration');
-    return;
+    return Promise.resolve();
   }
 
   setRegistered(true);
-  processDeferredOperations().catch((error) => {
+  const startup = processDeferredOperations();
+  startup.catch((error) => {
     logger.error('[Sync] Failed to process deferred operations on startup:', error);
   });
 
@@ -43,6 +45,7 @@ export function registerSyncEngine({
     isRegistered,
     recordOperation,
   });
+  return startup;
 }
 
 interface RecordSyncOperationOptions {
@@ -62,10 +65,8 @@ export async function recordSyncOperation({
   key,
   payload,
 }: RecordSyncOperationOptions) {
-  const clientId = await ensureClientId();
   const operation: SyncOperation = {
     id: generateUUID(),
-    clientId,
     table,
     type,
     key,
@@ -75,12 +76,14 @@ export async function recordSyncOperation({
   };
 
   try {
+    operation.clientId = await ensureClientId();
     await db.table('operations').add(operation);
     if (typeof browser !== 'undefined' && browser.runtime) {
       browser.runtime.sendMessage({ type: 'AUTO_SYNC_TRIGGER_PUSH' }).catch(() => {});
     }
   } catch (error) {
     logger.error(`[Sync] Failed to record operation for ${table}:`, error);
+    await saveSyncOperationForRecovery(db, operation);
   }
 }
 

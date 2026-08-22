@@ -1,8 +1,12 @@
+import { Scissors, Settings, Trash2 } from 'lucide-react';
+import { YoloButton } from '@/components/YoloButton';
 import { Button } from '@/components/ui/button';
 import type { TokenUsage } from '@/lib/ai/types';
+import type { PageAgentProgress } from '../hooks/usePageAgentProgress';
 import { AIConfigDialog } from './AIConfigDialog';
 import { AIUsageIndicator } from './AIUsageIndicator';
 import { ChatInput } from './ChatInput';
+import { PageAgentProgressPanel } from './PageAgentProgressPanel';
 
 interface AIAssistantInputSectionProps {
   isConfigMissing: boolean;
@@ -10,9 +14,15 @@ interface AIAssistantInputSectionProps {
   isConfirming: boolean;
   presetPrompt: string;
   usage?: TokenUsage;
+  canClear: boolean;
+  canSummarize: boolean;
+  isSummarizing: boolean;
+  pageAgentProgress: PageAgentProgress | null;
   onConfigSaved: () => void;
   onSend: (content: string) => Promise<void>;
   onStop: () => void;
+  onSummarize: () => void;
+  onClear: () => void;
 }
 
 export function AIAssistantInputSection({
@@ -21,20 +31,31 @@ export function AIAssistantInputSection({
   isConfirming,
   presetPrompt,
   usage,
+  canClear,
+  canSummarize,
+  isSummarizing,
+  pageAgentProgress,
   onConfigSaved,
   onSend,
   onStop,
+  onSummarize,
+  onClear,
 }: AIAssistantInputSectionProps) {
   const disabled = isRunning || isConfirming;
 
   return (
-    <div className="border-t border-border/60 bg-background/94 p-3 backdrop-blur">
+    <div className="border-t border-border/60 bg-background p-3 backdrop-blur">
       {isConfigMissing && (
-        <div className="mb-3 rounded-2xl border border-warning/16 bg-warning/5 p-3">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-warning/20 bg-warning/6 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-warning">未配置 AI 服务商，请先配置后才能对话</p>
+            <p className="text-xs text-warning">连接 AI 服务后开始对话</p>
             <AIConfigDialog onSaved={onConfigSaved}>
-              <Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs text-warning">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={isRunning}
+                className="h-7 rounded-lg text-xs text-warning"
+              >
                 去配置
               </Button>
             </AIConfigDialog>
@@ -42,9 +63,48 @@ export function AIAssistantInputSection({
         </div>
       )}
 
-      <AIUsageIndicator usage={usage} />
+      {pageAgentProgress && <PageAgentProgressPanel progress={pageAgentProgress} />}
 
-      <div className="rounded-2xl border border-border/60 bg-background/90 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <AIUsageIndicator usage={usage} />
+        <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/25 p-0.5">
+          <YoloButton disabled={isRunning} />
+          <AIConfigDialog onSaved={onConfigSaved}>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={isRunning}
+              className="h-8 w-8 rounded-md text-muted-foreground"
+              title="AI 设置"
+              data-testid="ai-config-button"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </AIConfigDialog>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-md text-muted-foreground"
+            onClick={onSummarize}
+            disabled={isRunning || !canSummarize || isSummarizing}
+            title="压缩当前会话到新会话"
+          >
+            <Scissors className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-md text-muted-foreground"
+            onClick={onClear}
+            disabled={isRunning || !canClear}
+            title="清空当前会话对话"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border/70 bg-muted/20 p-2 shadow-sm">
         <ChatInput
           onSend={onSend}
           onStop={onStop}

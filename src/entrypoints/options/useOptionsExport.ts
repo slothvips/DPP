@@ -45,6 +45,8 @@ export function useOptionsExport({
         )
       );
       const filteredSettings = safeSettings.filter((setting) => allowedKeys.has(setting.key));
+      const includeAIProfiles = selectedCategories.includes('ai_settings');
+      const aiProfiles = includeAIProfiles ? await db.aiProfiles.toArray() : [];
       const hasEncryptedAIKey = filteredSettings.some(
         (setting) =>
           SENSITIVE_EXPORT_SETTING_KEYS.has(setting.key as SettingKey) &&
@@ -64,6 +66,7 @@ export function useOptionsExport({
       const sensitiveKeys = filteredSettings
         .map((setting) => setting.key as SettingKey)
         .filter((key) => SENSITIVE_EXPORT_SETTING_KEYS.has(key));
+      if (aiProfiles.length > 0) sensitiveKeys.push('ai_api_key');
 
       if (sensitiveKeys.length > 0) {
         const confirmed = await confirm(
@@ -81,6 +84,7 @@ export function useOptionsExport({
         exportDate: new Date().toISOString(),
         data: {
           settings: filteredSettings,
+          ...(includeAIProfiles ? { aiProfiles } : {}),
         },
       };
 

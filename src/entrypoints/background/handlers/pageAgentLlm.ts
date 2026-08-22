@@ -1,9 +1,11 @@
 import { createConfiguredProvider } from '@/lib/ai/config';
 import type { ChatMessage, OpenAIChatRequest, ProviderRequestOptions } from '@/lib/ai/types';
+import { HttpResponseError } from '@/lib/http';
 import type {
   PageAgentLlmAbortMessage,
   PageAgentLlmRequestMessage,
 } from '@/lib/pageAgent/multiPageTypes';
+import { normalizeOpenCodePageAgentRequest } from '@/lib/pageAgent/openCodePageAgentProxy';
 import { logger } from '@/utils/logger';
 
 const activeRequests = new Map<string, AbortController>();
@@ -52,11 +54,15 @@ export async function handlePageAgentLlmRequest(request: PageAgentLlmRequestMess
   const controller = new AbortController();
   activeRequests.set(request.requestId, controller);
   try {
-    const pageRequest = parseRequest(request.body);
+    const parsedRequest = parseRequest(request.body);
     const { provider, model } = await createConfiguredProvider({
       includeLegacyFallback: false,
       logPrefix: '[PageAgent LLM Bridge]',
     });
+    const pageRequest =
+      provider.name === 'opencode'
+        ? normalizeOpenCodePageAgentRequest(parsedRequest)
+        : parsedRequest;
     const messages: ChatMessage[] = pageRequest.messages.map((message) => ({
       role: message.role,
       content: message.content || '',
@@ -67,15 +73,38 @@ export async function handlePageAgentLlmRequest(request: PageAgentLlmRequestMess
         ? { openAIReasoningContent: message.reasoning_content }
         : undefined,
     }));
-    const response = await provider.chat(messages, {
-      temperature: pageRequest.temperature,
+    const chatOptions = {
+      temperature: provider.name === 'opencode' ? undefined : pageRequest.temperature,
+      includeStreamUsage: provider.name !== 'opencode',
       tools: pageRequest.tools,
       toolChoice: normalizeToolChoice(pageRequest.tool_choice),
-      providerOptions: providerOptions(pageRequest),
+      providerOptions: provider.name === 'opencode' ? undefined : providerOptions(pageRequest),
       signal: controller.signal,
       stream: true,
       onChunk: () => {},
-    });
+    };
+    let response;
+    try {
+      response = await provider.chat(messages, chatOptions);
+    } catch (error) {
+      if (
+        provider.name !== 'opencode' ||
+        !(error instanceof HttpResponseError) ||
+        error.status !== 400 ||
+        !chatOptions.tools?.length ||
+        chatOptions.toolChoice === undefined
+      ) {
+        throw error;
+      }
+
+      logger.warn(
+        '[PageAgent LLM Bridge] OpenCode rejected required tool choice; retrying with auto'
+      );
+      response = await provider.chat(messages, {
+        ...chatOptions,
+        toolChoice: undefined,
+      });
+    }
     return {
       success: true as const,
       ok: true,
@@ -104,6 +133,7 @@ export async function handlePageAgentLlmRequest(request: PageAgentLlmRequestMess
     return {
       success: false as const,
       error: error instanceof Error ? error.message : '模型请求失败',
+      status: error instanceof HttpResponseError ? error.status : 502,
     };
   } finally {
     activeRequests.delete(request.requestId);

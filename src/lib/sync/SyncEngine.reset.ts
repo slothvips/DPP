@@ -31,10 +31,12 @@ export async function resetSyncState({
       db.table('syncMetadata'),
       db.table('operations'),
       db.table('deferred_ops'),
+      db.table('syncRecoveryOps'),
       async () => {
         await db.table('syncMetadata').clear();
         await db.table('operations').clear();
         await db.table('deferred_ops').clear();
+        await db.table('syncRecoveryOps').clear();
         resetRuntimeState();
       }
     );
@@ -86,7 +88,13 @@ export async function clearAllSyncData({
     const entityTables = preservePersonal
       ? tables.filter((tableName) => getTableDataScope(tableName) !== 'personal')
       : tables;
-    const tablesToClear = ['syncMetadata', 'operations', 'deferred_ops', ...entityTables];
+    const tablesToClear = [
+      'syncMetadata',
+      'operations',
+      'deferred_ops',
+      'syncRecoveryOps',
+      ...entityTables,
+    ];
     const skippedPersonal = preservePersonal
       ? tables.filter((tableName) => getTableDataScope(tableName) === 'personal')
       : [];

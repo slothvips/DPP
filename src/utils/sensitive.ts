@@ -1,5 +1,5 @@
 export const SENSITIVE_FIELD_PATTERN =
-  /api[-_]?key|private[-_]?key|access[-_]?key|token|password|passwd|pwd|secret|credential/i;
+  /api[-_]?key|private[-_]?key|access[-_]?key|encryption[-_]?key|token|password|passwd|pwd|secret|credential/i;
 
 export function isSensitiveFieldName(name: string): boolean {
   return SENSITIVE_FIELD_PATTERN.test(name);
@@ -28,7 +28,7 @@ export function redactSensitiveJsonObject(json: string): string {
     return JSON.stringify(redactSensitiveFields(parsed));
   } catch {
     return json.replace(
-      /("(?:api[-_]?key|private[-_]?key|access[-_]?key|token|password|passwd|pwd|secret|credential)[^"]*"\s*:\s*)"[^"]*"/gi,
+      /("(?:api[-_]?key|private[-_]?key|access[-_]?key|encryption[-_]?key|token|password|passwd|pwd|secret|credential)[^"]*"\s*:\s*)"[^"]*"/gi,
       '$1"[redacted]"'
     );
   }

@@ -269,6 +269,12 @@ const DPP_CONFIG_DEFINITIONS = {
     enum: AI_PROVIDER_TYPES,
     writable: true,
   },
+  ai_active_profile_id: {
+    category: 'ai',
+    description: 'Active AI profile ID',
+    type: 'string',
+    writable: true,
+  },
   ai_base_url: {
     category: 'ai',
     description: 'Legacy AI base URL',
@@ -575,6 +581,9 @@ function parseUpdates(args: unknown): Record<SettingKey, unknown> {
   for (const [key, value] of Object.entries(updatesValue)) {
     if (!isSettingKey(key)) {
       throw new Error(`Unknown DPP config key: ${key}`);
+    }
+    if (key.startsWith('ai_')) {
+      throw new Error('AI settings must be changed through ai_config_update');
     }
     updates[key] = value;
   }

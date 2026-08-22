@@ -76,6 +76,7 @@ export const SETTINGS_CATEGORIES: Array<{
     description: 'D仔服务商、模型配置',
     keys: [
       'ai_provider_type',
+      'ai_active_profile_id',
       ...AI_PROVIDER_DEFINITIONS.flatMap((provider) => [
         `ai_${provider.id}_base_url` as SettingKey,
         `ai_${provider.id}_model` as SettingKey,
@@ -170,6 +171,7 @@ const STRING_SETTING_KEYS = new Set<SettingKey>([
   'sync_client_id',
   'ai_base_url',
   'ai_model',
+  'ai_active_profile_id',
 ]);
 
 const AI_API_KEY_SETTING_KEYS = new Set<SettingKey>([

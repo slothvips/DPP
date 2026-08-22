@@ -13,6 +13,7 @@ export type PageAgentTaskStatus =
 
 export interface PageAgentTaskSummary {
   taskId: string;
+  sessionId?: string;
   task: string;
   groupName?: string;
   initialTabId: number;
@@ -28,6 +29,7 @@ export interface PageAgentTaskStartMessage {
   type: 'PAGE_AGENT_TASK_START';
   taskId: string;
   task: string;
+  sessionId?: string;
   groupName?: string;
   initialTabId: number;
 }

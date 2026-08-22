@@ -16,6 +16,9 @@ interface UseAIChatToolFlowExecutionOptions {
   onStatusChange: (status: 'idle' | 'loading' | 'confirming') => void;
   onPendingBuildChange: (build: PendingBuild | null) => void;
   onAIConfigChanged: () => void;
+  onExecutionStart: () => void;
+  isExecutionCancelled: () => boolean;
+  pageAgentSessionId: string | null;
 }
 
 export function useAIChatToolFlowExecution({
@@ -26,13 +29,19 @@ export function useAIChatToolFlowExecution({
   onStatusChange,
   onPendingBuildChange,
   onAIConfigChanged,
+  onExecutionStart,
+  isExecutionCancelled,
+  pageAgentSessionId,
 }: UseAIChatToolFlowExecutionOptions) {
   async function executePreparedCallsAndContinue(
     preparedToolCalls: ReturnType<typeof toPreparedToolCalls>
   ) {
     const { toolMessages, pendingBuild } = await executePreparedToolCalls(preparedToolCalls, {
       onAIConfigChanged,
+      pageAgentSessionId: pageAgentSessionId ?? undefined,
     });
+
+    if (isExecutionCancelled()) return false;
 
     appendMessages(toolMessages);
     await saveToolMessages(toolMessages);
@@ -51,6 +60,7 @@ export function useAIChatToolFlowExecution({
     assistantMessage: ChatMessage,
     onPendingToolCallsChange: (value: ReturnType<typeof createPendingToolCalls> | null) => void
   ) {
+    onExecutionStart();
     const toolCalls = assistantMessage.toolCalls || [];
     if (toolCalls.length === 0) {
       onStatusChange('idle');
@@ -66,7 +76,10 @@ export function useAIChatToolFlowExecution({
       onStatusChange('loading');
       const { toolMessages, pendingBuild } = await executePreparedToolCalls(toolCallsToExecute, {
         onAIConfigChanged,
+        pageAgentSessionId: pageAgentSessionId ?? undefined,
       });
+
+      if (isExecutionCancelled()) return;
 
       appendMessages(toolMessages);
       await saveToolMessages(toolMessages);
@@ -91,6 +104,7 @@ export function useAIChatToolFlowExecution({
     pendingToolCalls: Parameters<typeof splitPendingToolCalls>[0],
     onPendingToolCallsChange: (value: ReturnType<typeof createPendingToolCalls> | null) => void
   ) {
+    onExecutionStart();
     const { currentPreparedToolCall, remainingPendingToolCalls } =
       splitPendingToolCalls(pendingToolCalls);
 
@@ -101,8 +115,11 @@ export function useAIChatToolFlowExecution({
       [currentPreparedToolCall],
       {
         onAIConfigChanged,
+        pageAgentSessionId: pageAgentSessionId ?? undefined,
       }
     );
+
+    if (isExecutionCancelled()) return;
 
     appendMessages(toolMessages);
     await saveToolMessages(toolMessages);
@@ -129,6 +146,7 @@ export function useAIChatToolFlowExecution({
     pendingToolCalls: Parameters<typeof toPreparedToolCalls>[0],
     onPendingToolCallsChange: (value: ReturnType<typeof createPendingToolCalls> | null) => void
   ) {
+    onExecutionStart();
     onPendingToolCallsChange(null);
     onStatusChange('loading');
     await executePreparedCallsAndContinue(toPreparedToolCalls(pendingToolCalls));

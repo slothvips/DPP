@@ -270,13 +270,13 @@ AI 应通过统一的服务或命令接口调用能力，而不是直接操作�
 
 职责划分如下：
 
-| 模型 | 作用 |
-| --- | --- |
-| `entityRelations` | 谁和谁有关 |
-| `activityEvents` | 发生过什么 |
-| `workContexts` | 当前正在处理什么 |
-| `projects` | 项目和环境是什么 |
-| `workspaces` | 数据属于哪个工作区 |
+| 模型              | 作用               |
+| ----------------- | ------------------ |
+| `entityRelations` | 谁和谁有关         |
+| `activityEvents`  | 发生过什么         |
+| `workContexts`    | 当前正在处理什么   |
+| `projects`        | 项目和环境是什么   |
+| `workspaces`      | 数据属于哪个工作区 |
 
 新增 Dexie 表时必须增加新的版本迁移，不要修改已发布版本的 schema 定义。还需要明确每张表是否参与 SyncEngine，同步前继续遵守敏感数据加密边界。
 

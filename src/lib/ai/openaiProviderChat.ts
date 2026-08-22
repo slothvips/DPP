@@ -1,4 +1,4 @@
-import { httpPost } from '@/lib/http';
+import { HttpResponseError, httpPost } from '@/lib/http';
 import { logger } from '@/utils/logger';
 import {
   buildOpenAIChatRequest,
@@ -14,6 +14,7 @@ interface ExecuteOpenAIChatOptions {
   model: string;
   messages: ChatMessage[];
   options?: ChatOptions;
+  additionalHeaders?: HeadersInit;
 }
 
 export async function executeOpenAIChat({
@@ -22,6 +23,7 @@ export async function executeOpenAIChat({
   model,
   messages,
   options,
+  additionalHeaders,
 }: ExecuteOpenAIChatOptions): Promise<ChatResponse> {
   const url = `${baseUrl}/chat/completions`;
   const requestBody = buildOpenAIChatRequest(model, messages, options);
@@ -35,18 +37,23 @@ export async function executeOpenAIChat({
         apiKey,
         requestBody,
         options.onChunk,
-        options.signal
+        options.onReasoningChunk,
+        options.signal,
+        additionalHeaders
       );
     }
 
     const response = await httpPost<OpenAIChatResponse>(url, requestBody, {
       timeout: 120000,
-      headers: getOpenAIHeaders(apiKey),
+      headers: getOpenAIHeaders(apiKey, additionalHeaders),
     });
 
     return mapOpenAIResponse(response);
   } catch (error) {
     logger.error('[OpenAI] Chat request failed:', error);
+    if (error instanceof HttpResponseError) {
+      throw error;
+    }
     throw new Error(`OpenAI API error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }

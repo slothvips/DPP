@@ -18,8 +18,18 @@ export async function listOpenAIModels(baseUrl: string, apiKey: string): Promise
       throw new Error(`Failed to list models: ${response.status} ${response.statusText}`);
     }
 
-    const data = (await response.json()) as { data: { id: string }[] };
-    return data.data.map((model) => ({ name: model.id }));
+    const data = (await response.json()) as {
+      data: Array<{
+        id: string;
+        context_length?: number;
+        context_window?: number;
+        max_input_tokens?: number;
+      }>;
+    };
+    return data.data.map((model) => ({
+      name: model.id,
+      contextWindow: model.context_length ?? model.context_window ?? model.max_input_tokens,
+    }));
   } catch (error) {
     logger.error('[OpenAI] List models failed:', error);
     throw new Error(`OpenAI API error: ${error instanceof Error ? error.message : String(error)}`);

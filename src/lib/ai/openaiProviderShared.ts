@@ -10,10 +10,11 @@ import type {
   OpenAIChatResponse,
 } from './types';
 
-export function getOpenAIHeaders(apiKey: string): HeadersInit {
+export function getOpenAIHeaders(apiKey: string, additionalHeaders?: HeadersInit): HeadersInit {
   return {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
+    ...additionalHeaders,
   };
 }
 
@@ -40,7 +41,7 @@ export function buildOpenAIChatRequest(
     stream: options?.stream ?? false,
   };
 
-  if (requestBody.stream) {
+  if (requestBody.stream && options?.includeStreamUsage !== false) {
     requestBody.stream_options = { include_usage: true };
   }
 

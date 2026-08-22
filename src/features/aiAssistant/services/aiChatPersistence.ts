@@ -21,6 +21,7 @@ export async function saveUserMessage(sessionId: string | null, message: ChatMes
   try {
     await addMessage({
       sessionId,
+      id: message.id,
       role: 'user',
       content: message.content,
     });
@@ -37,6 +38,7 @@ export async function saveAssistantMessage(sessionId: string | null, message: Ch
   try {
     await addMessage({
       sessionId,
+      id: message.id,
       role: 'assistant',
       content: message.content,
       name: message.name,
@@ -59,6 +61,7 @@ export async function saveToolMessages(sessionId: string | null, toolMessages: C
       try {
         await addMessage({
           sessionId,
+          id: message.id,
           role: 'tool',
           content: message.content,
           name: message.name,

@@ -7,12 +7,14 @@ export class GoogleProvider implements ModelProvider {
   baseUrl: string;
   private apiKey: string;
   private _model: string;
+  private readonly contextWindow?: number;
   private delegatePromise?: Promise<AiSdkProvider>;
 
-  constructor(baseUrl: string, apiKey: string, model: string) {
+  constructor(baseUrl: string, apiKey: string, model: string, contextWindow?: number) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
     this._model = model;
+    this.contextWindow = contextWindow;
   }
 
   getModelName(): string {
@@ -20,6 +22,7 @@ export class GoogleProvider implements ModelProvider {
   }
 
   getContextWindow(): Promise<number | undefined> {
+    if (this.contextWindow !== undefined) return Promise.resolve(this.contextWindow);
     return resolveContextWindow({
       provider: this.name,
       baseUrl: this.baseUrl,
@@ -62,7 +65,8 @@ export class GoogleProvider implements ModelProvider {
 export function createGoogleProvider(
   baseUrl: string,
   apiKey: string,
-  model: string
+  model: string,
+  contextWindow?: number
 ): GoogleProvider {
-  return new GoogleProvider(baseUrl, apiKey, model);
+  return new GoogleProvider(baseUrl, apiKey, model, contextWindow);
 }

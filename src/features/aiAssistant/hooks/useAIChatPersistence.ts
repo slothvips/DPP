@@ -14,7 +14,6 @@ export function toProviderChatMessage(message: ChatMessage): ProviderChatMessage
     name: message.name,
     toolCallId: message.toolCallId,
     toolCalls: message.toolCalls,
-    providerMetadata: message.providerMetadata,
   };
 }
 

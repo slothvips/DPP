@@ -10,7 +10,11 @@ import { YOLO_MODE_KEY } from '@/lib/ai/tools';
 import { cn } from '@/utils/cn';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 
-export function YoloButton() {
+interface YoloButtonProps {
+  disabled?: boolean;
+}
+
+export function YoloButton({ disabled = false }: YoloButtonProps) {
   const [yoloMode, setYoloMode] = useState(false);
   const { confirm } = useConfirmDialog();
 
@@ -58,6 +62,7 @@ export function YoloButton() {
       variant="ghost"
       size="sm"
       onClick={toggleYoloMode}
+      disabled={disabled}
       title="YOLO 模式：自动确认所有工具调用"
       className={cn(
         'text-xs gap-1 transition-all duration-300 border border-border h-8 px-2',

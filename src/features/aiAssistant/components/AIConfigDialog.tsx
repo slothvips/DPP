@@ -27,11 +27,22 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     baseUrl,
     model,
     apiKey,
+    contextWindow,
+    profileName,
+    profiles,
+    selectedProfileId,
     loading,
     setBaseUrl,
     setModel,
     setApiKey,
+    setContextWindow,
+    setProfileName,
     handleProviderChange,
+    handleProfileChange,
+    modelOptions,
+    modelsLoading,
+    modelLoadError,
+    refreshModels,
     handleSave,
   } = useAIConfigDialog(open, onSaved);
 
@@ -63,10 +74,21 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
             baseUrl={baseUrl}
             model={model}
             apiKey={apiKey}
+            contextWindow={contextWindow}
+            profileName={profileName}
+            profiles={profiles}
+            selectedProfileId={selectedProfileId}
             onProviderChange={handleProviderChange}
             onBaseUrlChange={setBaseUrl}
             onModelChange={setModel}
             onApiKeyChange={setApiKey}
+            onContextWindowChange={setContextWindow}
+            onProfileNameChange={setProfileName}
+            onProfileChange={handleProfileChange}
+            modelOptions={modelOptions}
+            modelsLoading={modelsLoading}
+            modelLoadError={modelLoadError}
+            onRefreshModels={() => void refreshModels()}
           />
         </div>
         <DialogFooter className="pt-1">

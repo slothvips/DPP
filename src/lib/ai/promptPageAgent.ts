@@ -24,9 +24,9 @@ export function buildPromptWorkflowExamplesSection(): string {
 - 调用 \`pageagent_execute_task\` 时必须同时填写简短的 \`group_name\`，名称应概括本次任务目标，例如“比较 JS 异步文档”或“检查订单状态”
 - 仅用于网页交互类任务：点击、输入、选择、滚动、读取页面反馈、验证结果
 - **必须使用中文描述任务**
-- 从用户选择的起始标签页开始；若用户选择“从当前标签开始”，则从当前活动标签页开始
+- 从当前活动标签页开始
 - 同一次调用可打开、切换和关闭任务相关标签页，适合目标明确的跨页面流程
-- 用户要求 PageAgent 跨页面读取或操作时，必须把完整跨页目标交给一次 \`pageagent_execute_task\`；不要先用 \`browser_openUrl\` 代替它打开页面
+- 用户要求 PageAgent 跨页面读取或操作时，必须把完整跨页目标交给一次 \`pageagent_execute_task\`
 - 不要索要 URL，也不要让用户重复指定页面，除非用户明确在问如何配置或页面已不可用`;
 }
 
@@ -105,14 +105,12 @@ export function buildPromptPlanningSection(): string {
 
 export function buildPromptPageAgentSupportSection(): string {
   return `### 标签页感知
-- \`pageagent_execute_task\` 从用户选择的起始标签页开始（如果选择“从当前标签开始”，则从当前活动标签页开始）
+- \`pageagent_execute_task\` 从当前活动标签页开始
 - 执行期间会跟踪任务打开的子标签页，并可在任务标签页之间切换；初始标签页不会被关闭
 - 如果执行过程中标签页不可用，立即停止并告知用户
 - 如果当前页面显然无法注入或不适合 PageAgent，就直接解释原因，不要假装还能继续
 
-### 新闻数据
-- \`hotnews_get\` 读取的是本地缓存
-- 用户必须先打开 News 标签页，数据才会被抓取`;
+`;
 }
 
 export function buildPromptErrorHandlingSection(): string {

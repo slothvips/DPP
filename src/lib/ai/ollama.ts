@@ -16,10 +16,16 @@ export class OllamaProvider implements ModelProvider {
   name = 'ollama';
   baseUrl: string;
   private _model: string;
+  private readonly contextWindow?: number;
 
-  constructor(baseUrl: string = DEFAULT_OLLAMA_BASE_URL, model: string = DEFAULT_OLLAMA_MODEL) {
+  constructor(
+    baseUrl: string = DEFAULT_OLLAMA_BASE_URL,
+    model: string = DEFAULT_OLLAMA_MODEL,
+    contextWindow?: number
+  ) {
     this.baseUrl = baseUrl;
     this._model = model;
+    this.contextWindow = contextWindow;
   }
 
   getModelName(): string {
@@ -27,6 +33,7 @@ export class OllamaProvider implements ModelProvider {
   }
 
   getContextWindow(): Promise<number | undefined> {
+    if (this.contextWindow !== undefined) return Promise.resolve(this.contextWindow);
     return resolveContextWindow({
       provider: this.name,
       baseUrl: this.baseUrl,

@@ -18,6 +18,7 @@ interface HandleAnthropicStreamingChatOptions {
   model: string;
   requestBody: AnthropicChatRequest;
   onChunk: (chunk: string) => void;
+  onReasoningChunk?: (chunk: string) => void;
   signal?: AbortSignal;
 }
 
@@ -27,6 +28,7 @@ export async function handleAnthropicStreamingChat({
   model,
   requestBody,
   onChunk,
+  onReasoningChunk,
   signal,
 }: HandleAnthropicStreamingChatOptions): Promise<ChatResponse> {
   const nativeUrl = `${baseUrl}/v1/messages`;
@@ -124,6 +126,7 @@ export async function handleAnthropicStreamingChat({
           eventBlock,
           state,
           onChunk,
+          onReasoningChunk,
         });
       }
     }
@@ -133,6 +136,7 @@ export async function handleAnthropicStreamingChat({
         eventBlock: buffer,
         state,
         onChunk,
+        onReasoningChunk,
       });
     }
   } finally {

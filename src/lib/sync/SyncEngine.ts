@@ -14,6 +14,7 @@ import {
   registerSyncEngine,
   runSyncCommand,
 } from './SyncEngine.orchestration';
+import { processSyncOperationRecovery } from './SyncEngine.recovery';
 import {
   SyncEventBus,
   type SyncEventCallback,
@@ -49,6 +50,7 @@ export class SyncEngine {
   private _status: SyncStatus = 'idle';
   private _lastError: string | null = null;
   private _lastSyncTime: number | null = null;
+  private startupReady: Promise<void> = Promise.resolve();
   private readonly PUSH_BATCH_SIZE = 50;
   private readonly MAX_PULL_LOOPS = 100;
   private _registered = false;
@@ -134,7 +136,7 @@ export class SyncEngine {
   }
 
   public register() {
-    registerSyncEngine({
+    this.startupReady = registerSyncEngine({
       db: this.db,
       tables: this.tables,
       isRegistered: () => this._registered,
@@ -159,6 +161,7 @@ export class SyncEngine {
   }
 
   public async push() {
+    await this.startupReady;
     await runSyncCommand({
       syncLock: this.syncLock,
       action: 'push',
@@ -185,6 +188,7 @@ export class SyncEngine {
   }
 
   public async pull() {
+    await this.startupReady;
     await runSyncCommand({
       syncLock: this.syncLock,
       action: 'pull',
@@ -295,6 +299,7 @@ export class SyncEngine {
   }
 
   public async processDeferredOperations() {
+    await processSyncOperationRecovery(this.db, () => this.ensureClientId());
     await processDeferredOperations({
       db: this.db,
       tables: this.tables,

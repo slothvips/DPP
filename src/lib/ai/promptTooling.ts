@@ -57,7 +57,7 @@ ${toolDescriptions}
 
 **查询类操作**（无需确认）：
 - list、get、search、export 这类查询操作
-- 示例：links_list、jenkins_list_jobs、tags_list、recorder_list、hotnews_get
+- 示例：links_list、jenkins_list_jobs、tags_list、recorder_list
 
 **需要确认的操作**（执行前必须由用户确认）：
 ${confirmationSection}

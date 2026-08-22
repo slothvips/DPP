@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { ensureAIToolsRegistered } from '@/lib/ai';
-import { clearSessionMessages } from '@/lib/db/ai';
+import { clearSessionMessages, truncateSessionFromMessage } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
 import type { UseAIChatReturn } from './useAIChat.types';
 import { useAIChatActions } from './useAIChatActions';
@@ -33,11 +33,13 @@ export function useAIChatFacade(): UseAIChatReturn {
 
   const {
     messages,
+    reasoning,
     messagesRef,
     setMessagesWithRef,
     appendMessages,
     createAssistantPlaceholder,
     handleStreamChunk,
+    handleReasoningChunk,
     handleAssistantMessage,
     loadSessionMessages,
   } = useAIChatMessages();
@@ -60,6 +62,7 @@ export function useAIChatFacade(): UseAIChatReturn {
 
   const {
     currentProvider,
+    generateSessionTitle,
     runChatCompletion,
     stopRuntime,
     resetRuntimeState,
@@ -68,6 +71,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     createAssistantPlaceholder,
     onStreamStart: () => setStatus('streaming'),
     onStreamChunk: handleStreamChunk,
+    onReasoningChunk: handleReasoningChunk,
     onPersistAssistantMessage: saveAssistantMessage,
     onAssistantMessage: handleAssistantMessage,
   });
@@ -95,16 +99,19 @@ export function useAIChatFacade(): UseAIChatReturn {
     onContinueConversation: continueCurrentConversation,
     onStatusChange: setStatus,
     onAIConfigChanged: resetRuntimeProvider,
+    sessionId,
   });
 
-  const { sendMessage, continueConversation, stop, clearMessages } = useAIChatActions({
+  const { sendMessage, continueConversation, stop, clearMessages, editMessage } = useAIChatActions({
     sessionId,
     isFirstMessageRef,
     appendMessages,
+    messagesRef,
     setMessagesWithRef,
     saveUserMessage,
     loadSessions,
     runChatCompletion,
+    generateSessionTitle,
     processAssistantResponse,
     toLibChatMessage: toProviderChatMessage,
     resetRuntimeState,
@@ -114,6 +121,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     clearPersistedMessages: (currentSessionId) => {
       void clearSessionMessages(currentSessionId);
     },
+    truncatePersistedMessages: truncateSessionFromMessage,
     setStatus,
     setError,
   });
@@ -162,6 +170,7 @@ export function useAIChatFacade(): UseAIChatReturn {
 
   return {
     messages,
+    reasoning,
     status,
     error,
     pendingToolCall,
@@ -178,6 +187,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     confirmAllToolCalls,
     cancelToolCall,
     clearMessages,
+    editMessage,
     createNewSession,
     switchSession,
     deleteSession,

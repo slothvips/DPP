@@ -105,14 +105,11 @@ export function registerJenkinsTools() {
   // jenkins_trigger_build (requires confirmation)
   toolRegistry.register({
     name: 'jenkins_trigger_build',
-    description: 'Trigger a Jenkins build',
+    description:
+      'Open the confirmation dialog for a Jenkins build; configure parameters in the dialog',
     parameters: createToolParameter(
       {
         jobUrl: { type: 'string', description: 'The job URL to build' },
-        parameters: {
-          type: 'object',
-          description: 'Build parameters (optional)',
-        },
       },
       ['jobUrl']
     ),

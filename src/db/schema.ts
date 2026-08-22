@@ -95,4 +95,14 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(10).stores({
     totpLocalOrder: 'key',
   });
+
+  // v11: 持久化记录同步操作失败后的恢复队列。
+  db.version(11).stores({
+    syncRecoveryOps: 'id, timestamp',
+  });
+
+  // v12: multiple user-managed AI profiles for non-OpenCode providers.
+  db.version(12).stores({
+    aiProfiles: 'id, provider, updatedAt',
+  });
 }

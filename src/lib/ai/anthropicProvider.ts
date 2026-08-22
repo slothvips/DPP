@@ -7,11 +7,13 @@ export class AnthropicProvider implements ModelProvider {
   baseUrl: string;
   apiKey: string;
   private _model: string;
+  private readonly contextWindow?: number;
 
-  constructor(baseUrl: string, apiKey: string, model: string) {
+  constructor(baseUrl: string, apiKey: string, model: string, contextWindow?: number) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
     this._model = model;
+    this.contextWindow = contextWindow;
   }
 
   getModelName(): string {
@@ -20,6 +22,10 @@ export class AnthropicProvider implements ModelProvider {
 
   setModel(model: string): void {
     this._model = model;
+  }
+
+  getContextWindow(): Promise<number | undefined> {
+    return Promise.resolve(this.contextWindow);
   }
 
   async chat(messages: ChatMessage[], options?: ChatOptions): Promise<ChatResponse> {

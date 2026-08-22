@@ -52,6 +52,7 @@ interface BaseSettingMap {
   auto_sync_enabled: boolean;
   auto_sync_interval: number;
   ai_provider_type: AIProviderType;
+  ai_active_profile_id: string;
   ai_base_url: string;
   ai_model: string;
   ai_api_key: string | StoredEncryptedValue;

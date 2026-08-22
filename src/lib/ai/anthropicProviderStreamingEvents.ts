@@ -63,8 +63,9 @@ export function processAnthropicStreamingEventBlock(options: {
   eventBlock: string;
   state: AnthropicStreamingState;
   onChunk: (chunk: string) => void;
+  onReasoningChunk?: (chunk: string) => void;
 }) {
-  const { eventBlock, state, onChunk } = options;
+  const { eventBlock, state, onChunk, onReasoningChunk } = options;
   const data = getSSEDataPayload(eventBlock);
   if (!data || data === '[DONE]') {
     return;
@@ -89,7 +90,8 @@ export function processAnthropicStreamingEventBlock(options: {
           lastBlock.text += parsed.delta.text;
         }
       } else if (parsed.delta?.type === 'thinking_delta' && parsed.delta.thinking) {
-        appendAnthropicStreamingContent(state, parsed.delta.thinking, onChunk);
+        appendAnthropicOpenAIReasoningContent(state, parsed.delta.thinking);
+        onReasoningChunk?.(parsed.delta.thinking);
         if (state.currentThinkingBlock) {
           state.currentThinkingBlock.thinking += parsed.delta.thinking;
         }
@@ -157,9 +159,11 @@ export function processAnthropicStreamingEventBlock(options: {
       const choice = parsed.choices[0];
       if (choice.delta?.reasoning_content) {
         appendAnthropicOpenAIReasoningContent(state, choice.delta.reasoning_content);
+        onReasoningChunk?.(choice.delta.reasoning_content);
       }
       if (choice.message?.reasoning_content && !state.openAIReasoningContent) {
         appendAnthropicOpenAIReasoningContent(state, choice.message.reasoning_content);
+        onReasoningChunk?.(choice.message.reasoning_content);
       }
       if (choice.delta?.content) {
         appendAnthropicStreamingContent(state, choice.delta.content, onChunk);

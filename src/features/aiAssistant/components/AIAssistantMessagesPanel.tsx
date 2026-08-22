@@ -1,4 +1,4 @@
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Bot, Sparkles } from 'lucide-react';
 import type { RefObject, UIEventHandler } from 'react';
 import { Button } from '@/components/ui/button';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
@@ -17,6 +17,7 @@ interface AIAssistantMessagesPanelProps {
   onScroll: UIEventHandler<HTMLDivElement>;
   onScrollToBottom: () => void;
   onConfigSaved: () => void;
+  onEditMessage: (messageId: string, content: string) => Promise<void>;
 }
 
 const CAPABILITY_GROUPS = [
@@ -57,26 +58,31 @@ export function AIAssistantMessagesPanel({
   onScroll,
   onScrollToBottom,
   onConfigSaved,
+  onEditMessage,
 }: AIAssistantMessagesPanelProps) {
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden bg-gradient-to-b from-info/4 via-background to-background">
+    <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
       <div
         ref={messagesContainerRef}
         onScroll={onScroll}
-        className="absolute inset-0 space-y-4 overflow-y-auto px-4 py-4 custom-scrollbar"
+        className="absolute inset-0 overflow-y-auto bg-muted/15 px-3 py-5 custom-scrollbar sm:px-5"
       >
         {isConfigMissing && messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-center">
-            <div className="w-full max-w-md rounded-2xl border border-border/60 bg-background/90 px-6 py-8">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/9 text-2xl text-primary ring-1 ring-primary/12">
-                ⚙️
+          <div className="flex h-full items-center justify-center px-4 py-8">
+            <div className="w-full max-w-sm rounded-2xl border border-warning/25 bg-background p-5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning">
+                  <Bot className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">先连接一个 AI 服务</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    配置完成后即可开始使用 D 仔。
+                  </p>
+                </div>
               </div>
-              <p className="text-sm font-semibold text-foreground">需要配置 AI 服务</p>
-              <p className="mt-2 text-xs leading-6 text-muted-foreground">
-                请先配置 AI 服务商和模型
-              </p>
               <AIConfigDialog onSaved={onConfigSaved}>
-                <Button className="mt-5 rounded-xl px-4" size="sm">
+                <Button className="mt-4 rounded-lg px-4" size="sm">
                   去配置
                 </Button>
               </AIConfigDialog>
@@ -85,53 +91,66 @@ export function AIAssistantMessagesPanel({
         )}
 
         {!isConfigMissing && messages.length === 0 && (
-          <div className="flex min-h-full items-center justify-center px-4 py-8">
-            <div className="max-w-xl rounded-3xl border border-border/60 bg-background/90 p-6 text-center text-muted-foreground">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/9 text-2xl text-primary ring-1 ring-primary/12">
-                🤖
+          <div className="flex min-h-full items-center justify-center px-2 py-8">
+            <div className="w-full max-w-xl text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                <Sparkles className="h-6 w-6" />
               </div>
-              <p className="mt-4 text-sm font-semibold text-foreground">你好！我是 D仔</p>
-              <p className="mt-2 text-xs leading-6">
-                直接描述目标即可，我会调用 DPP 里的能力一步步完成。
+              <p className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+                你好，我是 D 仔
               </p>
-              <p className="mt-1 text-xs leading-6">
-                涉及新增、删除、构建、同步或页面操作时，会先和你确认。
+              <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-muted-foreground">
+                把目标告诉我，我可以帮你处理页面、链接、记录和工程任务。
               </p>
 
-              <div className="mt-5 space-y-3 text-xs leading-6">
+              <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
                 {CAPABILITY_GROUPS.map((group) => (
-                  <p key={group.title}>
-                    <span className="font-medium text-foreground">{group.title}：</span>
-                    <span>{group.items.join('、')}</span>
-                  </p>
+                  <div
+                    key={group.title}
+                    className="rounded-xl border border-border/55 bg-background px-3 py-2.5"
+                  >
+                    <p className="text-xs font-medium text-foreground">{group.title}</p>
+                    <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                      {group.items.slice(0, 3).join(' · ')}
+                    </p>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
         )}
 
-        {messages.map((message) => (
-          <MessageItem key={message.id} message={message} />
-        ))}
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+          {messages.map((message) => (
+            <MessageItem
+              key={message.id}
+              message={message}
+              canEdit={status !== 'loading' && status !== 'streaming' && status !== 'confirming'}
+              onEditMessage={onEditMessage}
+            />
+          ))}
 
-        {(status === 'loading' || status === 'streaming') && (
-          <div className="flex justify-start">
-            <div className="rounded-2xl border border-info/12 bg-info/6 px-4 py-3">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-medium text-foreground">思考中</span>
-                <span className="animate-pulse text-sm text-muted-foreground">...</span>
+          {(status === 'loading' || status === 'streaming') &&
+            (!messages[messages.length - 1] ||
+              messages[messages.length - 1].role !== 'assistant' ||
+              messages[messages.length - 1].content.length === 0) && (
+              <div className="flex items-center gap-3 rounded-xl border border-info/20 bg-info/6 px-4 py-3 text-xs font-medium text-info">
+                <span className="flex gap-1" aria-hidden="true">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info [animation-delay:-0.3s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info [animation-delay:-0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info" />
+                </span>
+                <span>正在准备回答</span>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {error && (
-          <div className="flex justify-center px-2">
-            <div className="rounded-2xl border border-destructive/16 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+          {error && (
+            <div className="rounded-xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+              <span className="mr-2 font-semibold">出错</span>
               {error}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div ref={messagesEndRef} />
       </div>
@@ -139,7 +158,7 @@ export function AIAssistantMessagesPanel({
       {!isNearBottom && (
         <button
           onClick={onScrollToBottom}
-          className="absolute bottom-4 right-4 rounded-full border border-border/70 bg-background/95 p-2 text-primary shadow-lg backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/18"
+          className="absolute bottom-4 right-4 rounded-xl border border-border/70 bg-background/95 p-2 text-primary shadow-lg backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/18"
           title="直达底部"
         >
           <ArrowDown className="h-5 w-5" />

@@ -3,7 +3,7 @@ import type { EntityTable } from 'dexie';
 import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
 import type { TotpAccountItem } from '@/features/totp/types';
-import type { AIMessage, AISession } from './typesAI';
+import type { AIMessage, AIProfile, AISession } from './typesAI';
 import type {
   HotNewsCache,
   JobItem,
@@ -16,7 +16,13 @@ import type {
   TagItem,
 } from './typesDomain';
 import type { Setting } from './typesSettings';
-import type { DeferredOp, RemoteActivityLog, SyncMetadata, SyncOperation } from './typesSync';
+import type {
+  DeferredOp,
+  RemoteActivityLog,
+  SyncMetadata,
+  SyncOperation,
+  SyncRecoveryOp,
+} from './typesSync';
 
 export interface TotpLocalOrderRecord {
   key: string;
@@ -41,7 +47,9 @@ export type DPPDatabase = Dexie & {
   operations: EntityTable<SyncOperation, 'id'>;
   syncMetadata: EntityTable<SyncMetadata, 'id'>;
   deferred_ops: EntityTable<DeferredOp, 'id'>;
+  syncRecoveryOps: EntityTable<SyncRecoveryOp, 'id'>;
   aiSessions: EntityTable<AISession, 'id'>;
   aiMessages: EntityTable<AIMessage, 'id'>;
+  aiProfiles: EntityTable<AIProfile, 'id'>;
   remoteActivityLog: EntityTable<RemoteActivityLog, 'id'>;
 };

@@ -46,15 +46,21 @@ export async function processDeferredOperationsForKnownTables({
             for (const entry of entries) {
               try {
                 await applyOperation(entry.op);
+                if (entry.id === undefined) {
+                  logger.error(
+                    `[Sync] Deferred op for ${tableName} has no id (operation: ${entry.op.id}), keeping it`
+                  );
+                  continue;
+                }
+
+                await db.table('deferred_ops').delete(entry.id);
               } catch (error) {
                 logger.error(
-                  `[Sync] Failed to apply deferred op for ${tableName} (id: ${entry.op.id}), skipping:`,
+                  `[Sync] Failed to apply deferred op for ${tableName} (id: ${entry.op.id}), keeping it:`,
                   error
                 );
               }
             }
-
-            await db.table('deferred_ops').where('table').equals(tableName).delete();
           }
         );
         logger.info(`[Sync] Successfully processed deferred operations for ${tableName}`);

@@ -1,5 +1,5 @@
 // AI Session List Component
-import { Check, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { AISession } from '../types';
@@ -50,11 +50,11 @@ export function AISessionList({
         size="sm"
         onClick={handleToggle}
         disabled={disabled}
-        className="h-8 max-w-[140px] rounded-xl border border-border/60 bg-background/78 px-3 text-xs font-normal"
+        className="h-8 max-w-[180px] rounded-lg border border-border/55 bg-muted/35 px-3 text-xs font-normal"
         title={currentSession?.title || '新会话'}
       >
         <span className="truncate">{currentSession?.title || '新会话'}</span>
-        <span className="ml-1 text-muted-foreground shrink-0">▼</span>
+        <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       </Button>
 
       {isOpen && (
@@ -63,7 +63,7 @@ export function AISessionList({
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
 
           {/* Dropdown */}
-          <div className="absolute left-0 top-full z-20 mt-1 max-h-56 w-72 overflow-y-auto rounded-2xl border border-border/60 bg-popover/98 p-1 shadow-md custom-scrollbar">
+          <div className="absolute left-0 top-full z-20 mt-2 max-h-56 w-72 overflow-y-auto rounded-xl border border-border/60 bg-popover/98 p-1.5 shadow-xl custom-scrollbar">
             <div className="p-1">
               {/* Session List */}
               {sessions.length === 0 ? (

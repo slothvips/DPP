@@ -181,6 +181,17 @@ export const AI_PROVIDER_REGISTRY = {
     modelPlaceholder: 'gpt-oss-120b',
     requiresApiKey: true,
   },
+  opencode: {
+    id: 'opencode',
+    label: 'OpenCode Free（内置）',
+    protocol: 'openai-compatible',
+    defaultBaseUrl: 'https://opencode.ai/zen/v1',
+    defaultModel: 'big-pickle',
+    apiKeyPlaceholder: '可选，留空使用公共免费身份',
+    baseUrlPlaceholder: 'https://opencode.ai/zen/v1',
+    modelPlaceholder: 'big-pickle',
+    requiresApiKey: false,
+  },
   custom: {
     id: 'custom',
     label: '其他 OpenAI 兼容服务',

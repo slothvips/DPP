@@ -1,3 +1,4 @@
+import { HttpResponseError, extractHttpErrorMessage } from '@/lib/http';
 import { logger } from '@/utils/logger';
 import { getOpenAIHeaders } from './openaiProviderShared';
 import { processOpenAIStreamingEventBlock } from './openaiProviderStreamingEvents';
@@ -13,11 +14,13 @@ export async function handleOpenAIStreamingChat(
   apiKey: string,
   requestBody: OpenAIChatRequest,
   onChunk: (chunk: string) => void,
-  signal?: AbortSignal
+  onReasoningChunk?: (chunk: string) => void,
+  signal?: AbortSignal,
+  additionalHeaders?: HeadersInit
 ): Promise<ChatResponse> {
   let response = await fetch(url, {
     method: 'POST',
-    headers: getOpenAIHeaders(apiKey),
+    headers: getOpenAIHeaders(apiKey, additionalHeaders),
     body: JSON.stringify({ ...requestBody, stream: true }),
     signal,
   });
@@ -25,10 +28,16 @@ export async function handleOpenAIStreamingChat(
   if (!response.ok && (response.status === 400 || response.status === 422)) {
     const fallbackRequestBody = { ...requestBody };
     delete fallbackRequestBody.stream_options;
-    logger.warn('[OpenAI] Streaming usage is unsupported; retrying without stream_options');
+    delete fallbackRequestBody.enable_thinking;
+    delete fallbackRequestBody.thinking;
+    delete fallbackRequestBody.reasoning_effort;
+    delete fallbackRequestBody.verbosity;
+    logger.warn(
+      '[OpenAI] Provider rejected optional request fields; retrying without stream and reasoning options'
+    );
     response = await fetch(url, {
       method: 'POST',
-      headers: getOpenAIHeaders(apiKey),
+      headers: getOpenAIHeaders(apiKey, additionalHeaders),
       body: JSON.stringify({ ...fallbackRequestBody, stream: true }),
       signal,
     });
@@ -36,9 +45,7 @@ export async function handleOpenAIStreamingChat(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(
-      `OpenAI streaming error: ${response.status} ${response.statusText} - ${errorText}`
-    );
+    throw new HttpResponseError(response, extractHttpErrorMessage(errorText));
   }
 
   if (!response.body) {
@@ -71,6 +78,7 @@ export async function handleOpenAIStreamingChat(
           eventBlock,
           state,
           onChunk,
+          onReasoningChunk,
         });
       }
     }
@@ -80,6 +88,7 @@ export async function handleOpenAIStreamingChat(
         eventBlock: buffer,
         state,
         onChunk,
+        onReasoningChunk,
       });
     }
   } finally {

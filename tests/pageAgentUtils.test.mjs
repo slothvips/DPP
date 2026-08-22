@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { resolvePageAgentApiKey } from '../src/lib/pageAgent/types.ts';
 import { resolveActivePageTabId } from '../src/lib/pageAgent/utils.ts';
+
+test('uses the bridge credential when the upstream provider has no API key', () => {
+  assert.equal(resolvePageAgentApiKey(), 'dpp-local-bridge');
+  assert.equal(resolvePageAgentApiKey(''), 'dpp-local-bridge');
+  assert.equal(resolvePageAgentApiKey('  '), 'dpp-local-bridge');
+  assert.equal(resolvePageAgentApiKey('provider-key'), 'provider-key');
+});
 
 test('selects the injectable active tab from the last focused window', async () => {
   let receivedQuery;

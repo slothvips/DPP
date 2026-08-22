@@ -3,6 +3,7 @@ export { getMostRecentSession, getMessagesBySession, getSession, listSessions } 
 export {
   addMessage,
   clearSessionMessages,
+  truncateSessionFromMessage,
   createSession,
   deleteSession,
   updateSession,

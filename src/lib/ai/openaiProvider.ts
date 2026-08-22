@@ -8,18 +8,28 @@ export class OpenAICompatibleProvider implements ModelProvider {
   baseUrl: string;
   apiKey: string;
   private _model: string;
+  private readonly contextWindow?: number;
 
-  constructor(baseUrl: string, apiKey: string, model: string) {
+  constructor(baseUrl: string, apiKey: string, model: string, contextWindow?: number) {
     this.baseUrl = baseUrl;
     this.apiKey = apiKey;
     this._model = model;
+    this.contextWindow = contextWindow;
   }
 
   getModelName(): string {
     return this._model;
   }
 
-  getContextWindow(): Promise<number | undefined> {
+  async getContextWindow(): Promise<number | undefined> {
+    if (this.contextWindow !== undefined) return this.contextWindow;
+    try {
+      const models = await this.listModels();
+      const model = models.find((item) => item.name === this._model);
+      if (model?.contextWindow !== undefined) return model.contextWindow;
+    } catch {
+      // Fall back to provider-specific capability lookup below.
+    }
     return resolveContextWindow({
       provider: this.name,
       baseUrl: this.baseUrl,

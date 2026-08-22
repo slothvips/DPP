@@ -3,6 +3,7 @@ import { MultiPageAgent } from '@/lib/pageAgent/multiPageAgent';
 import type { PageAgentTaskMessage, PageAgentTaskSummary } from '@/lib/pageAgent/multiPageTypes';
 import { PAGE_AGENT_TASK_STORAGE_KEY } from '@/lib/pageAgent/multiPageTypes';
 import { pageAgentProxyFetch } from '@/lib/pageAgent/pageAgentProxyFetch';
+import { resolvePageAgentApiKey } from '@/lib/pageAgent/types';
 import type { PageAgentConfig } from '@/lib/pageAgent/types';
 
 let activeAgent: MultiPageAgent | null = null;
@@ -61,6 +62,7 @@ async function startTask(
   const taskId = message.taskId;
   await writeSummary({
     taskId,
+    sessionId: message.sessionId,
     task: message.task,
     initialTabId: message.initialTabId,
     status: 'running',
@@ -72,22 +74,21 @@ async function startTask(
     const config = configResponse.config;
     activeAgent = new MultiPageAgent({
       baseURL: config.baseUrl,
-      apiKey: config.apiKey,
+      apiKey: resolvePageAgentApiKey(config.apiKey),
       model: config.model,
       language: 'zh-CN',
-      maxRetries: 0,
-      maxSteps: 200,
+      // PageAgent defaults to 40 steps. Use an explicit large ceiling so long tasks
+      // do not silently fall back to the library default.
+      // Retry transient LLM/network failures without restarting the whole task.
+      maxRetries: 3,
+      maxSteps: 1_000_000,
       initialTabId: message.initialTabId,
       groupName: message.groupName,
       customFetch: (input, options) => pageAgentProxyFetch(input, options, taskId),
-      onAfterStep: async (agent, history) =>
-        writeSummary({
-          taskId,
-          task: message.task,
-          initialTabId: message.initialTabId,
-          status: 'running',
+      onAfterStep: async (_agent, history) =>
+        updateSummary({
           history,
-          updatedAt: Date.now(),
+          status: 'running',
         }),
     });
     activeAgent.addEventListener('activity', (event: Event) => {
@@ -99,6 +100,7 @@ async function startTask(
   } catch (error) {
     await writeSummary({
       taskId,
+      sessionId: message.sessionId,
       task: message.task,
       initialTabId: message.initialTabId,
       status: 'failed',
@@ -129,6 +131,7 @@ async function runTask(
     const stopped = stopRequestedTaskId === taskId;
     await writeSummary({
       taskId,
+      sessionId: message.sessionId,
       task: message.task,
       initialTabId: message.initialTabId,
       status: stopped ? 'stopped' : result.success ? 'completed' : 'failed',

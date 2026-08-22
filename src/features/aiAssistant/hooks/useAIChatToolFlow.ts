@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '../types';
 import type { PendingBuild, PendingToolCall, PendingToolCalls } from './useAIChat.types';
 import { useAIChatBuildFlow } from './useAIChatBuildFlow';
@@ -12,6 +12,7 @@ interface UseAIChatToolFlowOptions {
   onContinueConversation: () => Promise<void>;
   onStatusChange: (status: 'idle' | 'loading' | 'confirming') => void;
   onAIConfigChanged: () => void;
+  sessionId: string | null;
 }
 
 interface UseAIChatToolFlowReturn {
@@ -35,8 +36,10 @@ export function useAIChatToolFlow({
   onContinueConversation,
   onStatusChange,
   onAIConfigChanged,
+  sessionId,
 }: UseAIChatToolFlowOptions): UseAIChatToolFlowReturn {
   const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
+  const executionCancelledRef = useRef(false);
   const { pendingBuild, setPendingBuild, completeBuild, cancelBuild, resetBuildFlowState } =
     useAIChatBuildFlow({
       appendMessages,
@@ -59,6 +62,11 @@ export function useAIChatToolFlow({
     onStatusChange,
     onPendingBuildChange: setPendingBuild,
     onAIConfigChanged,
+    onExecutionStart: () => {
+      executionCancelledRef.current = false;
+    },
+    isExecutionCancelled: () => executionCancelledRef.current,
+    pageAgentSessionId: sessionId,
   });
 
   const processAssistantResponse = useCallback(
@@ -100,6 +108,7 @@ export function useAIChatToolFlow({
   }, [appendMessages, onStatusChange, pendingToolCall, pendingToolCalls, saveToolMessages]);
 
   const cancelPendingToolFlow = useCallback(() => {
+    executionCancelledRef.current = true;
     if (pendingToolCalls) {
       const cancelMessages = createToolCallCancelMessages({
         pendingToolCalls,

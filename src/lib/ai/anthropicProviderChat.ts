@@ -37,6 +37,7 @@ export async function executeAnthropicChat({
         model,
         requestBody,
         onChunk: options.onChunk,
+        onReasoningChunk: options.onReasoningChunk,
         signal: options.signal,
       });
     }

@@ -1,15 +1,31 @@
 import {
   type StoredAIConfig,
+  activateAIProfile,
+  createAIProfile,
   loadAIConfig,
+  loadAIProfiles,
   loadProviderConfig,
   saveProviderConfig,
+  updateAIProfile,
 } from '@/features/aiAssistant/lib/aiConfigStorage';
 import { AI_PROVIDER_TYPES, isAIProviderType } from '@/lib/ai/providerIds';
 import type { AIProviderType } from '@/lib/ai/types';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
 
+type UserAIProvider = Exclude<AIProviderType, 'opencode'>;
+
 interface AIConfigSummary {
+  provider: AIProviderType;
+  baseUrl: string;
+  model: string;
+  contextWindow?: number;
+  apiKeyConfigured: boolean;
+}
+
+interface AIProfileSummary {
+  id: string;
+  name: string;
   provider: AIProviderType;
   baseUrl: string;
   model: string;
@@ -17,12 +33,15 @@ interface AIConfigSummary {
 }
 
 interface AIConfigUpdateArgs {
+  profileId?: string;
+  name?: string;
   provider?: AIProviderType;
   baseUrl?: string;
   model?: string;
   apiKey?: string;
   clearApiKey?: boolean;
   activateProvider?: boolean;
+  contextWindow?: number;
 }
 
 function readStringArg(args: Record<string, unknown>, key: string): string | undefined {
@@ -47,6 +66,15 @@ function readBooleanArg(args: Record<string, unknown>, key: string): boolean | u
   return value;
 }
 
+function readNumberArg(args: Record<string, unknown>, key: string): number | undefined {
+  const value = args[key];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`${key} must be a positive number`);
+  }
+  return value;
+}
+
 function parseObjectArgs(args: unknown): Record<string, unknown> {
   if (!args || typeof args !== 'object' || Array.isArray(args)) {
     throw new Error('Arguments must be an object');
@@ -59,21 +87,43 @@ function summarizeConfig(config: StoredAIConfig): AIConfigSummary {
     provider: config.provider,
     baseUrl: config.baseUrl,
     model: config.model,
+    contextWindow: config.contextWindow,
     apiKeyConfigured: Boolean(config.apiKey),
   };
 }
 
+function readProfileId(args: Record<string, unknown>): string | undefined {
+  return readStringArg(args, 'profileId');
+}
+
 async function ai_config_get() {
   const currentConfig = await loadAIConfig();
-  const providerConfigs = await Promise.all(
-    AI_PROVIDER_TYPES.map(async (provider) => summarizeConfig(await loadProviderConfig(provider)))
+  const profiles = await loadAIProfiles();
+  const providerConfigs: AIProfileSummary[] = await Promise.all(
+    profiles.map(async (profile) => ({
+      id: profile.id,
+      name: profile.name,
+      provider: profile.provider,
+      baseUrl: profile.baseUrl,
+      model: profile.model,
+      apiKeyConfigured: Boolean(profile.apiKey),
+    }))
   );
 
   return {
     currentProvider: currentConfig.provider,
     current: summarizeConfig(currentConfig),
-    providers: providerConfigs,
-    editableFields: ['provider', 'baseUrl', 'model', 'apiKey', 'clearApiKey', 'activateProvider'],
+    profiles: providerConfigs,
+    editableFields: [
+      'profileId',
+      'name',
+      'provider',
+      'baseUrl',
+      'model',
+      'apiKey',
+      'clearApiKey',
+      'activateProvider',
+    ],
     note: 'API Key 只返回是否已配置；修改时请通过 ai_config_update 传入新值。',
   };
 }
@@ -86,9 +136,12 @@ function parseUpdateArgs(args: unknown): AIConfigUpdateArgs {
   }
 
   return {
+    profileId: readProfileId(objectArgs),
+    name: readStringArg(objectArgs, 'name'),
     provider: providerValue,
     baseUrl: readStringArg(objectArgs, 'baseUrl'),
     model: readStringArg(objectArgs, 'model'),
+    contextWindow: readNumberArg(objectArgs, 'contextWindow'),
     apiKey: readStringArg(objectArgs, 'apiKey'),
     clearApiKey: readBooleanArg(objectArgs, 'clearApiKey'),
     activateProvider: readBooleanArg(objectArgs, 'activateProvider'),
@@ -98,8 +151,15 @@ function parseUpdateArgs(args: unknown): AIConfigUpdateArgs {
 async function ai_config_update(args: unknown) {
   const parsed = parseUpdateArgs(args);
   const currentConfig = await loadAIConfig();
-  const targetProvider = parsed.provider ?? currentConfig.provider;
-  const existingConfig = await loadProviderConfig(targetProvider);
+  const profiles = await loadAIProfiles();
+  const targetProfile = parsed.profileId
+    ? profiles.find((profile) => profile.id === parsed.profileId)
+    : undefined;
+  if (parsed.profileId && !targetProfile) {
+    throw new Error('profileId not found');
+  }
+  const targetProvider = targetProfile?.provider ?? parsed.provider ?? currentConfig.provider;
+  const existingConfig = targetProfile ?? (await loadProviderConfig(targetProvider));
   const activateProvider = parsed.activateProvider ?? true;
 
   if (parsed.clearApiKey && parsed.apiKey !== undefined) {
@@ -110,11 +170,38 @@ async function ai_config_update(args: unknown) {
     provider: targetProvider,
     baseUrl: parsed.baseUrl ?? existingConfig.baseUrl,
     model: parsed.model ?? existingConfig.model,
+    contextWindow: parsed.contextWindow ?? existingConfig.contextWindow,
     apiKey: parsed.clearApiKey ? '' : (parsed.apiKey ?? existingConfig.apiKey),
   };
   const preserveApiKey = parsed.apiKey === undefined && parsed.clearApiKey !== true;
 
-  await saveProviderConfig(nextConfig, { activateProvider, preserveApiKey });
+  if (targetProfile) {
+    await updateAIProfile(targetProfile.id, {
+      ...nextConfig,
+      name: parsed.name ?? targetProfile.name,
+      provider: targetProfile.provider as UserAIProvider,
+    });
+    if (activateProvider) await activateAIProfile(targetProfile.id);
+  } else {
+    const matchingProfile = profiles.find(
+      (profile) => profile.provider === targetProvider && profile.baseUrl === nextConfig.baseUrl
+    );
+    if (matchingProfile && parsed.name) {
+      await updateAIProfile(matchingProfile.id, {
+        ...nextConfig,
+        name: parsed.name,
+        provider: matchingProfile.provider as UserAIProvider,
+      });
+      if (activateProvider) await activateAIProfile(matchingProfile.id);
+    } else if (parsed.name && targetProvider !== 'opencode') {
+      await createAIProfile(
+        { ...nextConfig, name: parsed.name, provider: targetProvider as UserAIProvider },
+        { activate: activateProvider }
+      );
+    } else {
+      await saveProviderConfig(nextConfig, { activateProvider, preserveApiKey });
+    }
+  }
 
   return {
     success: true,
@@ -146,8 +233,17 @@ export function registerAIConfigTools() {
         provider: {
           type: 'string',
           description:
-            'Target provider to update. If omitted, updates the current provider. Default activation switches D仔 to this provider.',
-          enum: [...AI_PROVIDER_TYPES],
+            'Target protocol adapter to update. Use profileId for an existing profile. Defaults to the current configuration.',
+          enum: ['opencode', 'custom', 'anthropic', 'ollama', 'google'],
+        },
+        profileId: {
+          type: 'string',
+          description:
+            'Existing profile ID. Omit to update the current configuration or create one.',
+        },
+        name: {
+          type: 'string',
+          description: 'Profile display name.',
         },
         baseUrl: {
           type: 'string',

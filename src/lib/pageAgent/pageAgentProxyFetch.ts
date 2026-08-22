@@ -2,15 +2,16 @@ import { browser } from 'wxt/browser';
 import type { PageAgentLlmRequestMessage } from './multiPageTypes';
 import { serializeHeaders } from './utils';
 
-interface PageAgentLlmResponse {
-  success?: boolean;
-  error?: string;
-  ok: boolean;
-  status: number;
-  statusText: string;
-  headers: HeadersInit;
-  body: unknown;
-}
+type PageAgentLlmResponse =
+  | {
+      success: true;
+      ok: boolean;
+      status: number;
+      statusText: string;
+      headers: HeadersInit;
+      body: unknown;
+    }
+  | { success: false; error?: string; status?: number };
 
 export async function pageAgentProxyFetch(
   input: RequestInfo | URL,
@@ -60,7 +61,12 @@ export async function pageAgentProxyFetch(
     : await completion;
 
   if (response.success !== true) {
-    throw new Error(response.error || 'Proxy fetch failed');
+    const message = response.error || 'PageAgent 模型请求失败';
+    return new Response(JSON.stringify({ error: { message } }), {
+      status: response.status || 502,
+      statusText: 'PageAgent LLM Bridge Error',
+      headers: { 'content-type': 'application/json' },
+    });
   }
 
   return {

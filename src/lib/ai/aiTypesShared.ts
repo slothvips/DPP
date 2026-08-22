@@ -76,8 +76,10 @@ export interface ChatResponse {
 export interface ChatOptions {
   temperature?: number;
   stream?: boolean;
+  includeStreamUsage?: boolean;
   signal?: AbortSignal;
   onChunk?: (chunk: string) => void;
+  onReasoningChunk?: (chunk: string) => void;
   tools?: OpenAIToolDefinition[];
   toolChoice?: OpenAIToolChoice | null;
   providerOptions?: ProviderRequestOptions;
@@ -91,6 +93,9 @@ export interface Model {
   name: string;
   modified_at?: string;
   size?: number;
+  contextWindow?: number;
+  availability?: 'checking' | 'available' | 'unavailable';
+  availabilityError?: string;
 }
 
 export interface ModelProvider {

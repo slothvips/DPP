@@ -16,10 +16,12 @@ interface UseAIChatActionsOptions {
   sessionId: string | null;
   isFirstMessageRef: React.MutableRefObject<boolean>;
   appendMessages: (messages: ChatMessage[]) => ChatMessage[];
+  messagesRef: React.MutableRefObject<ChatMessage[]>;
   setMessagesWithRef: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
   saveUserMessage: (message: ChatMessage) => Promise<void>;
   loadSessions: () => Promise<void>;
   runChatCompletion: (apiMessages: ProviderChatMessage[]) => Promise<ChatMessage>;
+  generateSessionTitle: (userMessage: string) => Promise<string>;
   processAssistantResponse: (assistantMessage: ChatMessage) => Promise<void>;
   toLibChatMessage: (message: ChatMessage) => ProviderChatMessage;
   resetRuntimeState: () => void;
@@ -27,6 +29,7 @@ interface UseAIChatActionsOptions {
   cancelPendingToolFlow: () => void;
   resetToolFlowState: () => void;
   clearPersistedMessages: (sessionId: string) => void;
+  truncatePersistedMessages: (sessionId: string, messageId: string) => Promise<void>;
   setStatus: (status: AIChatStatus) => void;
   setError: (error: string | null) => void;
 }
@@ -36,16 +39,19 @@ interface UseAIChatActionsReturn {
   continueConversation: (allMessages: ChatMessage[]) => Promise<void>;
   stop: () => void;
   clearMessages: () => void;
+  editMessage: (messageId: string, content: string) => Promise<void>;
 }
 
 export function useAIChatActions({
   sessionId,
   isFirstMessageRef,
   appendMessages,
+  messagesRef,
   setMessagesWithRef,
   saveUserMessage,
   loadSessions,
   runChatCompletion,
+  generateSessionTitle,
   processAssistantResponse,
   toLibChatMessage,
   resetRuntimeState,
@@ -53,6 +59,7 @@ export function useAIChatActions({
   cancelPendingToolFlow,
   resetToolFlowState,
   clearPersistedMessages,
+  truncatePersistedMessages,
   setStatus,
   setError,
 }: UseAIChatActionsOptions): UseAIChatActionsReturn {
@@ -97,12 +104,6 @@ export function useAIChatActions({
 
       await saveUserMessage(userMessage);
 
-      if (sessionId && isFirstMessageRef.current) {
-        await updateSessionTitle(sessionId, content);
-        isFirstMessageRef.current = false;
-        await loadSessions();
-      }
-
       try {
         await resetPageAgentTaskGroup();
         const assistantMessage = await runChatCompletion(
@@ -112,12 +113,24 @@ export function useAIChatActions({
       } catch (error) {
         handleChatError('[AIChat] Chat error:', error);
       }
+
+      if (sessionId && isFirstMessageRef.current) {
+        isFirstMessageRef.current = false;
+        try {
+          const title = await generateSessionTitle(content);
+          await updateSessionTitle(sessionId, title);
+          await loadSessions();
+        } catch (error) {
+          logger.warn('[AIChat] Failed to generate session title:', error);
+        }
+      }
     },
     [
       appendMessages,
       handleChatError,
       isFirstMessageRef,
       loadSessions,
+      generateSessionTitle,
       processAssistantResponse,
       runChatCompletion,
       saveUserMessage,
@@ -174,10 +187,51 @@ export function useAIChatActions({
     setStatus,
   ]);
 
+  const editMessage = useCallback(
+    async (messageId: string, content: string) => {
+      const editedContent = content.trim();
+      if (!sessionId || !editedContent) return;
+
+      const messageIndex = messagesRef.current.findIndex((message) => message.id === messageId);
+      if (messageIndex === -1 || messagesRef.current[messageIndex].role !== 'user') return;
+
+      try {
+        stopRuntime();
+        cancelPendingToolFlow();
+        resetToolFlowState();
+        resetRuntimeState();
+        await truncatePersistedMessages(sessionId, messageId);
+        setMessagesWithRef((previous) => previous.slice(0, messageIndex));
+        setStatus('idle');
+        setError(null);
+        isFirstMessageRef.current = messageIndex === 0;
+        await sendMessage(editedContent);
+      } catch (error) {
+        handleChatError('[AIChat] Edit message error:', error);
+      }
+    },
+    [
+      cancelPendingToolFlow,
+      handleChatError,
+      isFirstMessageRef,
+      messagesRef,
+      resetRuntimeState,
+      resetToolFlowState,
+      sendMessage,
+      sessionId,
+      setError,
+      setMessagesWithRef,
+      setStatus,
+      stopRuntime,
+      truncatePersistedMessages,
+    ]
+  );
+
   return {
     sendMessage,
     continueConversation,
     stop,
     clearMessages,
+    editMessage,
   };
 }

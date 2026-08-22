@@ -7,17 +7,20 @@ function generateId(): string {
 
 interface UseAIChatMessagesReturn {
   messages: ChatMessage[];
+  reasoning: string;
   messagesRef: React.MutableRefObject<ChatMessage[]>;
   setMessagesWithRef: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
   appendMessages: (newMessages: ChatMessage[]) => ChatMessage[];
   createAssistantPlaceholder: () => void;
   handleStreamChunk: (chunk: string) => void;
+  handleReasoningChunk: (chunk: string) => void;
   handleAssistantMessage: (assistantMessage: ChatMessage) => void;
   loadSessionMessages: (loadedMessages: ChatMessage[]) => void;
 }
 
 export function useAIChatMessages(): UseAIChatMessagesReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [reasoning, setReasoning] = useState('');
   const messagesRef = useRef<ChatMessage[]>(messages);
 
   useEffect(() => {
@@ -44,6 +47,7 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
   }, []);
 
   const createAssistantPlaceholder = useCallback(() => {
+    setReasoning('');
     setMessagesWithRef((prev) => {
       const lastMsg = prev[prev.length - 1];
       if (lastMsg?.role === 'assistant') {
@@ -84,8 +88,34 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
     [setMessagesWithRef]
   );
 
+  const handleReasoningChunk = useCallback(
+    (chunk: string) => {
+      setReasoning((previous) => previous + chunk);
+      setMessagesWithRef((prev) => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage?.role !== 'assistant') {
+          return prev;
+        }
+
+        const previousReasoning = lastMessage.providerMetadata?.openAIReasoningContent || '';
+        return [
+          ...prev.slice(0, -1),
+          {
+            ...lastMessage,
+            providerMetadata: {
+              ...lastMessage.providerMetadata,
+              openAIReasoningContent: previousReasoning + chunk,
+            },
+          },
+        ];
+      });
+    },
+    [setMessagesWithRef]
+  );
+
   const handleAssistantMessage = useCallback(
     (assistantMessage: ChatMessage) => {
+      setReasoning('');
       setMessagesWithRef((prev) => {
         const lastMsg = prev[prev.length - 1];
         if (lastMsg?.role === 'assistant') {
@@ -105,11 +135,13 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
 
   return {
     messages,
+    reasoning,
     messagesRef,
     setMessagesWithRef,
     appendMessages,
     createAssistantPlaceholder,
     handleStreamChunk,
+    handleReasoningChunk,
     handleAssistantMessage,
     loadSessionMessages,
   };

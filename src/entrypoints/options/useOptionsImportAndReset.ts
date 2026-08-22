@@ -1,6 +1,7 @@
 import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
-import type { JenkinsEnvironment, Setting, StoredEncryptedValue } from '@/db/types';
+import type { AIProfile, JenkinsEnvironment, Setting, StoredEncryptedValue } from '@/db/types';
+import { isAIProviderType } from '@/lib/ai/providerIds';
 import { decryptData, exportKey, importKey, loadKey } from '@/lib/crypto/encryption';
 import { loadPersonalKey } from '@/lib/crypto/personalKey';
 import { clearAllLocalData } from '@/lib/db/clearAllLocalData';
@@ -57,11 +58,41 @@ async function validateEncryptedAISettings(settings: ImportedSetting[]): Promise
   }
 }
 
+function parseImportedProfiles(value: unknown): AIProfile[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) throw new Error('备份中的 AI profiles 格式无效');
+
+  return value.map((item): AIProfile => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      throw new Error('备份中的 AI profile 格式无效');
+    }
+    const profile = item as Record<string, unknown>;
+    if (
+      typeof profile.id !== 'string' ||
+      typeof profile.name !== 'string' ||
+      !isAIProviderType(profile.provider) ||
+      profile.provider === 'opencode' ||
+      typeof profile.baseUrl !== 'string' ||
+      typeof profile.model !== 'string' ||
+      (profile.contextWindow !== undefined && typeof profile.contextWindow !== 'number') ||
+      (typeof profile.apiKey !== 'string' && !isStoredEncryptedValue(profile.apiKey)) ||
+      typeof profile.createdAt !== 'number' ||
+      typeof profile.updatedAt !== 'number'
+    ) {
+      throw new Error('备份中的 AI profile 字段无效');
+    }
+    return profile as unknown as AIProfile;
+  });
+}
+
 export function useOptionsImportAndReset() {
   const { toast } = useToast();
   const { confirm } = useConfirmDialog();
 
-  const importSettings = async (importedSettings: ImportedSetting[]) => {
+  const importSettings = async (
+    importedSettings: ImportedSetting[],
+    importedProfiles: AIProfile[]
+  ) => {
     // 导入会删库重建；个人私钥及相关 bootstrap 标记必须从本机保留
     const preservedSettings = (
       await Promise.all(IMPORT_PRESERVED_SETTINGS.map((key) => db.settings.get(key)))
@@ -70,7 +101,7 @@ export function useOptionsImportAndReset() {
     await db.delete();
     await db.open();
 
-    await db.transaction('rw', db.settings, async () => {
+    await db.transaction('rw', [db.settings, db.aiProfiles], async () => {
       let settings = importedSettings.filter((setting) => !EXCLUDED_SETTINGS.includes(setting.key));
 
       const hasEnvironments = settings.some((setting) => setting.key === 'jenkins_environments');
@@ -99,6 +130,12 @@ export function useOptionsImportAndReset() {
       settings = settings.filter(
         (setting) => !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(setting.key)
       );
+
+      if (importedProfiles.length > 0) {
+        await db.aiProfiles.bulkAdd(importedProfiles);
+      } else {
+        settings = settings.filter((setting) => setting.key !== 'ai_active_profile_id');
+      }
 
       await db.settings.bulkAdd(settings as Parameters<typeof db.settings.bulkAdd>[0]);
 
@@ -135,10 +172,14 @@ export function useOptionsImportAndReset() {
         }
 
         const importedSettings = parseImportedSettings(parsed.data.settings as unknown[]);
+        const importedProfiles = parseImportedProfiles(parsed.data.aiProfiles);
         if (importedSettings.length === 0) {
           throw new Error('文件中没有可识别的设置项');
         }
-        await validateEncryptedAISettings(importedSettings);
+        const profileKeySettings: ImportedSetting[] = importedProfiles
+          .filter((profile) => isStoredEncryptedValue(profile.apiKey))
+          .map((profile) => ({ key: 'ai_api_key', value: profile.apiKey }));
+        await validateEncryptedAISettings([...importedSettings, ...profileKeySettings]);
 
         const hasKey = importedSettings.some((setting) => setting.key === 'sync_encryption_key');
         let hasLocalPersonalKey = false;
@@ -159,7 +200,7 @@ export function useOptionsImportAndReset() {
           return;
         }
 
-        await importSettings(importedSettings);
+        await importSettings(importedSettings, importedProfiles);
         toast('配置导入成功！即将刷新页面...', 'success');
         setTimeout(() => window.location.reload(), 1500);
       } catch (error) {

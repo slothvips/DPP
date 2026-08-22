@@ -8,6 +8,12 @@ export interface DeferredOp {
   receivedAt: number;
 }
 
+export interface SyncRecoveryOp {
+  id: string;
+  operation: SyncOperation;
+  timestamp: number;
+}
+
 export interface RemoteActivityLog {
   id: string;
   clientId: string;

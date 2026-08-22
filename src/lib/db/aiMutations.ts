@@ -2,7 +2,6 @@ import { db } from '@/db';
 import type { AIMessage, AISession } from '@/db/types';
 import {
   type NewAIMessage,
-  createSessionTitleFromMessage,
   generateAIId,
   getAIMessagesTable,
   getAISessionsTable,
@@ -41,8 +40,8 @@ export async function deleteSession(id: string): Promise<void> {
 export async function addMessage(message: NewAIMessage): Promise<AIMessage> {
   const newMessage: AIMessage = {
     ...message,
-    id: generateAIId(),
-    createdAt: Date.now(),
+    id: message.id ?? generateAIId(),
+    createdAt: message.createdAt ?? Date.now(),
   };
 
   await getAIMessagesTable().add(newMessage);
@@ -55,12 +54,23 @@ export async function clearSessionMessages(sessionId: string): Promise<void> {
   await getAIMessagesTable().where('sessionId').equals(sessionId).delete();
 }
 
-export async function updateSessionTitle(
+export async function truncateSessionFromMessage(
   sessionId: string,
-  firstUserMessage: string
+  messageId: string
 ): Promise<void> {
+  const messages = await getAIMessagesTable()
+    .where('sessionId')
+    .equals(sessionId)
+    .sortBy('createdAt');
+  const messageIndex = messages.findIndex((message) => message.id === messageId);
+  if (messageIndex === -1) return;
+
+  await getAIMessagesTable().bulkDelete(messages.slice(messageIndex).map((message) => message.id));
+}
+
+export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {
   await getAISessionsTable().update(sessionId, {
-    title: createSessionTitleFromMessage(firstUserMessage),
+    title: title.trim().slice(0, 30) || '新会话',
     updatedAt: Date.now(),
   });
 }

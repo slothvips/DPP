@@ -12,7 +12,11 @@ let activeTaskId: string | null = null;
 /**
  * Execute a natural language task from the current active page using PageAgent
  */
-async function pageagent_execute_task(args: { task: string; group_name?: string }): Promise<{
+async function pageagent_execute_task(args: {
+  task: string;
+  group_name: string;
+  session_id?: string;
+}): Promise<{
   success: boolean;
   message: string;
 }> {
@@ -37,6 +41,7 @@ async function pageagent_execute_task(args: { task: string; group_name?: string 
       type: 'PAGE_AGENT_TASK_START',
       taskId,
       task: args.task,
+      sessionId: args.session_id,
       groupName: args.group_name,
       initialTabId: tabId,
     })) as { success?: boolean; error?: string };
@@ -55,7 +60,7 @@ async function pageagent_execute_task(args: { task: string; group_name?: string 
     let errorMessage = '执行失败';
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
-        errorMessage = '多页面任务执行超时或被取消，请缩小任务范围后重试';
+        errorMessage = '多页面任务已被取消';
       } else if (error.message.includes('Extension context invalidated')) {
         errorMessage = '扩展上下文已失效，请重新加载扩展';
       } else if (error.message.includes('No receiving end')) {
@@ -87,7 +92,7 @@ async function waitForPageAgentTask(taskId: string): Promise<PageAgentTaskSummar
           .catch(() => undefined);
         reject(new Error('网页任务执行超时，已请求停止任务'));
       },
-      5 * 60 * 1000
+      30 * 60 * 1000
     );
 
     const finish = (summary: PageAgentTaskSummary) => {
@@ -206,7 +211,7 @@ export function registerPageAgentTools(): void {
             '为本次任务生成一个简短、明确、与任务目标相关的分组名称，建议 2-8 个中文词，不要包含 DPP 前缀。',
         },
       },
-      ['task']
+      ['task', 'group_name']
     ),
     handler: pageagent_execute_task as ToolHandler,
     requiresConfirmation: true,

@@ -29,6 +29,7 @@ export interface PendingBuild {
 
 export interface UseAIChatReturn {
   messages: import('../types').ChatMessage[];
+  reasoning: string;
   status: AIChatStatus;
   error: string | null;
   pendingToolCall: PendingToolCall | null;
@@ -46,6 +47,7 @@ export interface UseAIChatReturn {
   confirmAllToolCalls: () => Promise<void>;
   cancelToolCall: () => void;
   clearMessages: () => void;
+  editMessage: (messageId: string, content: string) => Promise<void>;
   createNewSession: () => Promise<void>;
   switchSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;

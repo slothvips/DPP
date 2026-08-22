@@ -1,77 +1,303 @@
+import { db } from '@/db';
+import type { AIProfile, StoredEncryptedValue } from '@/db/types';
 import { readAISetting, resolveAIApiKey } from '@/lib/ai/configShared';
+import { normalizeOpenCodeModel } from '@/lib/ai/openCodeProviderShared';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
+import { AI_PROVIDER_TYPES, DEFAULT_AI_PROVIDER } from '@/lib/ai/providerIds';
+import { isOpenAICompatibleProvider } from '@/lib/ai/providerRegistry';
 import type { AIProviderType } from '@/lib/ai/types';
-import { encryptData, loadKey } from '@/lib/crypto/encryption';
+import { encryptData, generateSyncKey, loadKey, storeKey } from '@/lib/crypto/encryption';
 import { updateSetting } from '@/lib/db/settings';
 
 export interface StoredAIConfig {
   provider: AIProviderType;
   baseUrl: string;
   model: string;
+  contextWindow?: number;
   apiKey: string;
 }
 
-export async function loadAIConfig(): Promise<StoredAIConfig> {
-  const provider = (await readAISetting('ai_provider_type')) || 'ollama';
-  return loadProviderConfig(provider);
+type UserAIProvider = Exclude<AIProviderType, 'opencode'>;
+
+export interface AIProfileSummary extends StoredAIConfig {
+  id: string;
+  name: string;
+  updatedAt: number;
 }
 
-export async function loadProviderConfig(provider: AIProviderType): Promise<StoredAIConfig> {
+function createProfileId(): string {
+  return `ai_profile_${crypto.randomUUID()}`;
+}
+
+function isOpenCodeProvider(provider: AIProviderType): provider is 'opencode' {
+  return provider === 'opencode';
+}
+
+async function encryptApiKey(apiKey: string): Promise<string | StoredEncryptedValue> {
+  if (!apiKey) {
+    return '';
+  }
+  const encryptionKey = await loadKey();
+  if (encryptionKey) {
+    return encryptData(apiKey, encryptionKey);
+  }
+
+  const generatedKey = await generateSyncKey();
+  await storeKey(generatedKey);
+  return encryptData(apiKey, generatedKey);
+}
+
+async function readLegacyProviderConfig(provider: AIProviderType): Promise<StoredAIConfig> {
   const baseUrlKey = `ai_${provider}_base_url` as const;
   const modelKey = `ai_${provider}_model` as const;
   const apiKeyKey = `ai_${provider}_api_key` as const;
-
   const [savedBaseUrl, savedModel, savedApiKey] = await Promise.all([
     readAISetting(baseUrlKey),
     readAISetting(modelKey),
     readAISetting(apiKeyKey),
   ]);
+  const storedModel = savedModel || DEFAULT_CONFIGS[provider].model || '';
+  const model = provider === 'opencode' ? normalizeOpenCodeModel(storedModel) : storedModel;
+  if (model !== storedModel) {
+    await updateSetting(modelKey, model);
+  }
 
   return {
     provider,
     baseUrl: savedBaseUrl || DEFAULT_CONFIGS[provider].baseUrl || '',
-    model: savedModel || DEFAULT_CONFIGS[provider].model || '',
+    model,
     apiKey: await resolveAIApiKey(savedApiKey, '[AIConfig]'),
   };
 }
 
+async function migrateLegacyProfiles(): Promise<void> {
+  if ((await db.aiProfiles.count()) > 0) {
+    return;
+  }
+
+  const activeProvider = await readAISetting('ai_provider_type');
+  const providers = AI_PROVIDER_TYPES.filter(
+    (provider): provider is Exclude<AIProviderType, 'opencode'> => !isOpenCodeProvider(provider)
+  );
+  const profiles: AIProfile[] = [];
+  const profileByLegacyProvider = new Map<AIProviderType, AIProfile>();
+
+  for (const provider of providers) {
+    const [baseUrl, model, apiKey] = await Promise.all([
+      readAISetting(`ai_${provider}_base_url` as const),
+      readAISetting(`ai_${provider}_model` as const),
+      readAISetting(`ai_${provider}_api_key` as const),
+    ]);
+    if (baseUrl === undefined && model === undefined && apiKey === undefined) {
+      continue;
+    }
+
+    const config = await readLegacyProviderConfig(provider);
+    const profileProvider = isOpenAICompatibleProvider(provider) ? 'custom' : provider;
+    const now = Date.now();
+    const profile: AIProfile = {
+      id: createProfileId(),
+      name: provider,
+      provider: profileProvider,
+      baseUrl: config.baseUrl,
+      model: config.model,
+      contextWindow: config.contextWindow,
+      apiKey: await encryptApiKey(config.apiKey),
+      createdAt: now,
+      updatedAt: now,
+    };
+    profiles.push(profile);
+    profileByLegacyProvider.set(provider, profile);
+  }
+
+  if (profiles.length > 0) {
+    await db.aiProfiles.bulkAdd(profiles);
+    const activeProfile = activeProvider ? profileByLegacyProvider.get(activeProvider) : undefined;
+    if (activeProfile) {
+      await updateSetting('ai_active_profile_id', activeProfile.id);
+    }
+  }
+}
+
+export async function loadAIProfiles(): Promise<AIProfileSummary[]> {
+  await migrateLegacyProfiles();
+  const profiles = await db.aiProfiles.orderBy('updatedAt').reverse().toArray();
+  return Promise.all(
+    profiles.map(async (profile) => ({
+      id: profile.id,
+      name: profile.name,
+      provider: profile.provider,
+      baseUrl: profile.baseUrl,
+      model: profile.model,
+      contextWindow: profile.contextWindow,
+      apiKey: await resolveAIApiKey(profile.apiKey, '[AIConfig]'),
+      updatedAt: profile.updatedAt,
+    }))
+  );
+}
+
+export async function loadAIConfig(): Promise<StoredAIConfig> {
+  const provider = (await readAISetting('ai_provider_type')) || DEFAULT_AI_PROVIDER;
+  if (provider !== 'opencode') {
+    await migrateLegacyProfiles();
+    const activeProfileId = await readAISetting('ai_active_profile_id');
+    const profile = activeProfileId ? await db.aiProfiles.get(activeProfileId) : undefined;
+    if (profile) {
+      return {
+        provider: profile.provider,
+        baseUrl: profile.baseUrl,
+        model: profile.model,
+        contextWindow: profile.contextWindow,
+        apiKey: await resolveAIApiKey(profile.apiKey, '[AIConfig]'),
+      };
+    }
+  }
+  return readLegacyProviderConfig(provider);
+}
+
+export async function loadProviderConfig(provider: AIProviderType): Promise<StoredAIConfig> {
+  if (provider !== 'opencode') {
+    await migrateLegacyProfiles();
+    const profile = (await loadAIProfiles()).find((item) => item.provider === provider);
+    if (profile) {
+      return profile;
+    }
+  }
+  return readLegacyProviderConfig(provider);
+}
+
 export async function saveAIConfig(config: StoredAIConfig): Promise<void> {
-  await saveProviderConfig(config, { activateProvider: true });
+  if (config.provider === 'opencode') {
+    await saveLegacyProviderConfig(config, true);
+    return;
+  }
+
+  const profiles = await loadAIProfiles();
+  const userConfig = { ...config, provider: config.provider as UserAIProvider };
+  const existing = profiles.find(
+    (profile) => profile.provider === userConfig.provider && profile.baseUrl === userConfig.baseUrl
+  );
+  if (existing) {
+    await updateAIProfile(existing.id, { ...userConfig, name: existing.name });
+  } else {
+    await createAIProfile({ ...userConfig, name: userConfig.provider });
+  }
+}
+
+export async function createAIProfile(
+  config: Omit<StoredAIConfig, 'provider'> & { name: string; provider: UserAIProvider },
+  options: { activate?: boolean } = {}
+): Promise<string> {
+  const now = Date.now();
+  const id = createProfileId();
+  await db.aiProfiles.add({
+    id,
+    name: config.name,
+    provider: config.provider,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    contextWindow: config.contextWindow,
+    apiKey: await encryptApiKey(config.apiKey),
+    createdAt: now,
+    updatedAt: now,
+  });
+  if (options.activate ?? true) {
+    await updateSetting('ai_active_profile_id', id);
+    await updateSetting('ai_provider_type', config.provider);
+  }
+  return id;
+}
+
+export async function updateAIProfile(
+  id: string,
+  config: Omit<StoredAIConfig, 'provider'> & { name: string; provider: UserAIProvider }
+): Promise<void> {
+  const existing = await db.aiProfiles.get(id);
+  if (!existing) {
+    throw new Error('AI profile not found');
+  }
+  await db.aiProfiles.update(id, {
+    name: config.name,
+    provider: config.provider,
+    baseUrl: config.baseUrl,
+    model: config.model,
+    contextWindow: config.contextWindow,
+    apiKey: await encryptApiKey(config.apiKey),
+    updatedAt: Date.now(),
+  });
+}
+
+export async function activateAIProfile(id: string): Promise<void> {
+  const profile = await db.aiProfiles.get(id);
+  if (!profile) {
+    throw new Error('AI profile not found');
+  }
+  await Promise.all([
+    updateSetting('ai_active_profile_id', id),
+    updateSetting('ai_provider_type', profile.provider),
+  ]);
+}
+
+export async function deleteAIProfile(id: string): Promise<void> {
+  const activeId = await readAISetting('ai_active_profile_id');
+  await db.aiProfiles.delete(id);
+  if (activeId === id) {
+    const next = await db.aiProfiles.orderBy('updatedAt').reverse().first();
+    if (next) {
+      await activateAIProfile(next.id);
+    } else {
+      await updateSetting('ai_provider_type', DEFAULT_AI_PROVIDER);
+    }
+  }
+}
+
+async function saveLegacyProviderConfig(config: StoredAIConfig, activate: boolean): Promise<void> {
+  const baseUrlKey = `ai_${config.provider}_base_url` as const;
+  const modelKey = `ai_${config.provider}_model` as const;
+  const apiKeyKey = `ai_${config.provider}_api_key` as const;
+  const updates: Array<Promise<void>> = [
+    updateSetting(baseUrlKey, config.baseUrl),
+    updateSetting(modelKey, config.model),
+    updateSetting(apiKeyKey, await encryptApiKey(config.apiKey)),
+  ];
+  if (activate) {
+    updates.push(updateSetting('ai_provider_type', config.provider));
+  }
+  await Promise.all(updates);
 }
 
 export async function saveProviderConfig(
   config: StoredAIConfig,
   options: { activateProvider?: boolean; preserveApiKey?: boolean } = {}
 ): Promise<void> {
-  const { provider, baseUrl, model, apiKey } = config;
-  const { activateProvider = false, preserveApiKey = false } = options;
-  const baseUrlKey = `ai_${provider}_base_url` as const;
-  const modelKey = `ai_${provider}_model` as const;
-  const apiKeyKey = `ai_${provider}_api_key` as const;
-
-  const updates: Array<Promise<void>> = [
-    updateSetting(baseUrlKey, baseUrl),
-    updateSetting(modelKey, model),
-  ];
-
-  if (activateProvider) {
-    updates.push(updateSetting('ai_provider_type', provider));
+  if (config.provider === 'opencode') {
+    await saveLegacyProviderConfig(config, options.activateProvider ?? false);
+    return;
   }
 
-  if (!preserveApiKey) {
-    let storedApiKey: string | Awaited<ReturnType<typeof encryptData>> = '';
-    if (apiKey) {
-      const encryptionKey = await loadKey();
-      storedApiKey = encryptionKey ? await encryptData(apiKey, encryptionKey) : apiKey;
+  const profiles = await loadAIProfiles();
+  const userConfig = { ...config, provider: config.provider as UserAIProvider };
+  const existing = profiles.find(
+    (profile) => profile.provider === userConfig.provider && profile.baseUrl === userConfig.baseUrl
+  );
+  const profileConfig = { ...userConfig, name: existing?.name ?? userConfig.provider };
+  let profileId = existing?.id;
+  if (existing) {
+    await updateAIProfile(existing.id, profileConfig);
+  } else {
+    profileId = await createAIProfile(profileConfig, {
+      activate: options.activateProvider ?? false,
+    });
+  }
+  if (options.activateProvider) {
+    if (!profileId) {
+      throw new Error('AI profile could not be activated');
     }
-    updates.push(updateSetting(apiKeyKey, storedApiKey));
+    await activateAIProfile(profileId);
   }
-
-  await Promise.all(updates);
 }
 
 export async function isAIConfigConfigured(): Promise<boolean> {
   const config = await loadAIConfig();
-
   return Boolean(config.baseUrl || config.model || config.apiKey);
 }

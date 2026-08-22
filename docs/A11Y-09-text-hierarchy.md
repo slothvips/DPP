@@ -8,18 +8,18 @@ After Phase 2 token fixes, the base `--muted-foreground` token provides sufficie
 
 ## Approved Hierarchy
 
-| Level | Token | Light Mode | Dark Mode (Fixed) | Usage |
-|-------|-------|------------|-------------------|-------|
-| Primary | `--foreground` | 4.9% l | 98% l | Headlines, important text |
-| Secondary | `--secondary-foreground` | 11.2% l | 98% l | Subheadings, labels |
-| Muted | `--muted-foreground` | 46.9% l | 75% l | Metadata, captions |
+| Level     | Token                    | Light Mode | Dark Mode (Fixed) | Usage                     |
+| --------- | ------------------------ | ---------- | ----------------- | ------------------------- |
+| Primary   | `--foreground`           | 4.9% l     | 98% l             | Headlines, important text |
+| Secondary | `--secondary-foreground` | 11.2% l    | 98% l             | Subheadings, labels       |
+| Muted     | `--muted-foreground`     | 46.9% l    | 75% l             | Metadata, captions        |
 
 ## Discouraged Patterns
 
-| Pattern | Reason | Alternative |
-|---------|--------|------------|
-| `text-muted-foreground/70` | Compounds contrast issue | Use base token only |
-| `text-muted-foreground/50` | Drops below 3:1 in dark | Use base token only |
+| Pattern                         | Reason                   | Alternative         |
+| ------------------------------- | ------------------------ | ------------------- |
+| `text-muted-foreground/70`      | Compounds contrast issue | Use base token only |
+| `text-muted-foreground/50`      | Drops below 3:1 in dark  | Use base token only |
 | `dark:text-muted-foreground/60` | ~40% effective lightness | Use base token only |
 
 ## Enforcement

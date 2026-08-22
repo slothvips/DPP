@@ -1,4 +1,17 @@
+import type { AIProviderType } from '@/lib/ai/providerIds';
 import type { OpenAIToolCall, ProviderMessageMetadata, TokenUsage } from '@/lib/ai/types';
+
+export interface AIProfile {
+  id: string;
+  name: string;
+  provider: Exclude<AIProviderType, 'opencode'>;
+  baseUrl: string;
+  model: string;
+  contextWindow?: number;
+  apiKey: string | { ciphertext: string; iv: string };
+  createdAt: number;
+  updatedAt: number;
+}
 
 export interface AISession {
   id: string;

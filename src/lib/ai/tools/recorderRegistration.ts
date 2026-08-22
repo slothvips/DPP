@@ -60,7 +60,7 @@ export function registerRecorderTools() {
           description: 'The ID of the recording to delete',
         },
       },
-      []
+      ['id']
     ),
     handler: recorder_delete as ToolHandler,
     requiresConfirmation: true,
@@ -88,7 +88,7 @@ export function registerRecorderTools() {
           description: 'The new title for the recording',
         },
       },
-      []
+      ['id', 'title']
     ),
     handler: recorder_updateTitle as ToolHandler,
   });
@@ -107,7 +107,7 @@ export function registerRecorderTools() {
           description: 'Optional title for the imported recording',
         },
       },
-      []
+      ['events']
     ),
     handler: recorder_import as ToolHandler,
     requiresConfirmation: true,
@@ -123,8 +123,9 @@ export function registerRecorderTools() {
           description: 'The ID of the recording to export',
         },
       },
-      []
+      ['id']
     ),
     handler: recorder_export as ToolHandler,
+    requiresConfirmation: true,
   });
 }

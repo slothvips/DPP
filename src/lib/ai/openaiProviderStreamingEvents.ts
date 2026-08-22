@@ -43,8 +43,9 @@ export function processOpenAIStreamingEventBlock(options: {
   eventBlock: string;
   state: OpenAIStreamingState;
   onChunk: (chunk: string) => void;
+  onReasoningChunk?: (chunk: string) => void;
 }) {
-  const { eventBlock, state, onChunk } = options;
+  const { eventBlock, state, onChunk, onReasoningChunk } = options;
 
   try {
     const data = getSSEDataPayload(eventBlock);
@@ -62,10 +63,12 @@ export function processOpenAIStreamingEventBlock(options: {
 
     if (delta?.reasoning_content) {
       appendOpenAIStreamingReasoningContent(state, delta.reasoning_content);
+      onReasoningChunk?.(delta.reasoning_content);
     }
 
     if (choice?.message?.reasoning_content && !state.reasoningContent) {
       appendOpenAIStreamingReasoningContent(state, choice.message.reasoning_content);
+      onReasoningChunk?.(choice.message.reasoning_content);
     }
 
     if (delta?.content) {

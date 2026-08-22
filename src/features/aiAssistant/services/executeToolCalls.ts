@@ -31,14 +31,14 @@ export async function executePreparedToolCalls(preparedToolCalls: PreparedToolCa
 }>;
 export async function executePreparedToolCalls(
   preparedToolCalls: PreparedToolCall[],
-  options: { onAIConfigChanged?: () => void }
+  options: { onAIConfigChanged?: () => void; pageAgentSessionId?: string }
 ): Promise<{
   toolMessages: ChatMessage[];
   pendingBuild: PendingBuild | null;
 }>;
 export async function executePreparedToolCalls(
   preparedToolCalls: PreparedToolCall[],
-  options?: { onAIConfigChanged?: () => void }
+  options?: { onAIConfigChanged?: () => void; pageAgentSessionId?: string }
 ): Promise<{
   toolMessages: ChatMessage[];
   pendingBuild: PendingBuild | null;
@@ -56,7 +56,11 @@ export async function executePreparedToolCalls(
         args: redactSensitiveFields(args),
         availableTools: availableToolNames,
       });
-      const result = await toolRegistry.execute(toolCall.function.name, args);
+      const toolArgs =
+        toolCall.function.name === 'pageagent_execute_task' && options?.pageAgentSessionId
+          ? { ...args, session_id: options.pageAgentSessionId }
+          : args;
+      const result = await toolRegistry.execute(toolCall.function.name, toolArgs);
       const resultObj = result as {
         action?: string;
         jobUrl?: string;
