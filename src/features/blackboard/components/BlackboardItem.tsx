@@ -1,7 +1,9 @@
 import { format } from 'date-fns';
-import { Lock, Pin, Trash2, Unlock } from 'lucide-react';
+import { Copy, Lock, Pin, Trash2, Unlock } from 'lucide-react';
 import React from 'react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
+import { logger } from '@/utils/logger';
 import type { BlackboardItem } from '../types';
 import { BlackboardMarkdownPreview } from './BlackboardMarkdownPreview';
 import { useBlackboardItemEditor } from './useBlackboardItemEditor';
@@ -31,6 +33,7 @@ export function BlackboardItemView({
   isFocused,
   onFocusHandled,
 }: BlackboardItemProps) {
+  const { toast } = useToast();
   const {
     content,
     containerRef,
@@ -54,6 +57,16 @@ export function BlackboardItemView({
     fontFamily: '"Comic Sans MS", "Chalkboard SE", "Marker Felt", sans-serif',
     lineHeight: '1.6',
   };
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast('已复制到剪贴板', 'success');
+    } catch (error) {
+      logger.error('Failed to copy blackboard item', error);
+      toast('复制失败', 'error');
+    }
+  }
 
   return (
     <div
@@ -102,57 +115,71 @@ export function BlackboardItemView({
       </div>
 
       {/* Action Bar - Only visible on hover */}
-      {!readOnly && (
-        <div className="mt-4 flex items-end justify-between border-t border-black/6 pt-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-          <div className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-mono text-foreground/65">
-            {format(item.createdAt, 'MM-dd HH:mm')}
-          </div>
-          <div className="flex gap-1.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-black/6 hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                onPin(item.id, !item.pinned);
-              }}
-              title={item.pinned ? '取消置顶' : '置顶'}
-            >
-              <Pin
-                className={`h-3.5 w-3.5 ${item.pinned ? 'fill-foreground text-foreground' : 'text-current'}`}
-              />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-black/6 hover:text-foreground"
-              onClick={(e) => {
-                e.stopPropagation();
-                onLock(item.id, !item.locked);
-              }}
-              title={item.locked ? '解锁' : '锁定'}
-            >
-              {item.locked ? (
-                <Unlock className="h-3.5 w-3.5 text-warning" />
-              ) : (
-                <Lock className="h-3.5 w-3.5 text-current" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-destructive/10 hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(item.id);
-              }}
-              title="删除"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+      <div className="mt-4 flex items-end justify-between border-t border-black/6 pt-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <div className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-mono text-foreground/65">
+          {format(item.createdAt, 'MM-dd HH:mm')}
         </div>
-      )}
+        <div className="flex gap-1.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-black/6 hover:text-foreground"
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleCopy();
+            }}
+            title="复制"
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+          {!readOnly && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-black/6 hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPin(item.id, !item.pinned);
+                }}
+                title={item.pinned ? '取消置顶' : '置顶'}
+              >
+                <Pin
+                  className={`h-3.5 w-3.5 ${item.pinned ? 'fill-foreground text-foreground' : 'text-current'}`}
+                />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-black/6 hover:text-foreground"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onLock(item.id, !item.locked);
+                }}
+                title={item.locked ? '解锁' : '锁定'}
+              >
+                {item.locked ? (
+                  <Unlock className="h-3.5 w-3.5 text-warning" />
+                ) : (
+                  <Lock className="h-3.5 w-3.5 text-current" />
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-xl bg-black/3 text-foreground/70 hover:bg-destructive/10 hover:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(item.id);
+                }}
+                title="删除"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

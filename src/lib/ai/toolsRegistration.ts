@@ -1,9 +1,9 @@
 import { registerAIConfigTools } from './tools/aiConfig';
 import { registerBlackboardTools } from './tools/blackboard';
+import { registerBrowserTaskTools } from './tools/browserTask';
 import { registerDPPConfigTools } from './tools/dppConfig';
 import { registerJenkinsTools } from './tools/jenkins';
 import { registerLinksTools } from './tools/links';
-import { registerPageAgentTools } from './tools/pageAgent';
 import { registerRecentActivitiesTools } from './tools/recentActivities';
 import { registerRecorderTools } from './tools/recorder';
 import { registerTagsTools } from './tools/tags';
@@ -23,7 +23,7 @@ export function ensureAIToolsRegistered(): void {
   registerRecorderTools();
   registerBlackboardTools();
   registerRecentActivitiesTools();
-  registerPageAgentTools();
+  registerBrowserTaskTools();
 
   aiToolsRegistered = true;
 }

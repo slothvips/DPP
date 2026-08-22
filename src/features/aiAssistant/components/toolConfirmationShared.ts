@@ -37,10 +37,10 @@ export function getToolConfirmationContent(
       };
     case 'jenkins_trigger_build':
       return {
-        title: '确认触发构建',
-        description: '此操作将触发 Jenkins 构建任务，可能需要一些时间完成。',
-        impact: `将触发 Jenkins 构建任务: ${args.jobUrl || '未知任务'}`,
-        confirmText: '确认构建',
+        title: '确认打开构建配置',
+        description: '此操作将打开 Jenkins 构建配置对话框，构建仍需您在对话框中确认后才会开始。',
+        impact: `将打开 Jenkins 构建配置: ${args.jobUrl || '未知任务'}`,
+        confirmText: '打开配置',
         isDestructive: false,
       };
     case 'recorder_start':

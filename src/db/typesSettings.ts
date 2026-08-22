@@ -41,6 +41,7 @@ interface BaseSettingMap {
   feature_blackboard_enabled: boolean;
   feature_jenkins_enabled: boolean;
   feature_recorder_enabled: boolean;
+  feature_testing_enabled: boolean;
   feature_ai_assistant_enabled: boolean;
   feature_playground_enabled: boolean;
   feature_totp_enabled: boolean;

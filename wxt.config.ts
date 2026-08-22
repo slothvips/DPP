@@ -1,3 +1,4 @@
+import { resolve as resolvePath } from 'node:path';
 import UnoCSS from 'unocss/vite';
 import babel from 'vite-plugin-babel';
 import { defineConfig } from 'wxt';
@@ -6,6 +7,12 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   vite: () => ({
+    resolve: {
+      alias: {
+        '@browser-engine-upstream': resolvePath(process.cwd(), 'src/lib/browserEngine/upstream'),
+        '@src': resolvePath(process.cwd(), 'src/lib/browserEngine/upstream'),
+      },
+    },
     server: {
       port: 3001,
       strictPort: true,
@@ -25,6 +32,12 @@ export default defineConfig({
     ],
     esbuild: {
       charset: 'ascii',
+      tsconfigRaw: {
+        compilerOptions: {
+          target: 'ES2022',
+          useDefineForClassFields: true,
+        },
+      },
     },
     build: {
       // 警告阈值设为 4000KB:
@@ -36,10 +49,6 @@ export default defineConfig({
       chunkSizeWarningLimit: 4000,
       rollupOptions: {
         onwarn(warning, warn) {
-          // 忽略 page-agent 依赖中的 eval 警告
-          if (warning.code === 'EVAL' && warning.message.includes('@page-agent/page-controller')) {
-            return;
-          }
           // 忽略 Radix UI 的 "use client" 指令警告
           // Radix UI 为 React Server Components 标注 "use client",
           // 在浏览器扩展 bundling 中无意义,Rollup 会安全忽略
@@ -98,7 +107,17 @@ export default defineConfig({
     // activeTab: 获取标签页信息
     // scripting: 仅用于向未及时建立 content script 的页面补发控制器
     // tabs: 获取标签页列表信息
-    permissions: ['storage', 'sidePanel', 'alarms', 'activeTab', 'scripting', 'tabs', 'tabGroups'],
+    permissions: [
+      'storage',
+      'sidePanel',
+      'alarms',
+      'activeTab',
+      'scripting',
+      'tabs',
+      'tabGroups',
+      'webNavigation',
+      'debugger',
+    ],
     host_permissions: ['<all_urls>'],
     side_panel: {
       default_path: 'sidepanel.html',
@@ -116,12 +135,8 @@ export default defineConfig({
     omnibox: { keyword: 'dpp' },
     web_accessible_resources: [
       {
-        resources: [
-          'network-interceptor.js',
-          'console-interceptor.js',
-          'content-scripts/pageAgentController.js',
-        ],
-        matches: ['<all_urls>'],
+        resources: ['network-interceptor.js', 'console-interceptor.js'],
+        matches: ['http://*/*', 'https://*/*'],
       },
     ],
   },

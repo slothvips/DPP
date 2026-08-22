@@ -1,7 +1,6 @@
 // AI library exports
 
 export * from './types';
-export * from './ollama';
 export * from './provider';
 export * from './tools';
 export * from './prompt';
@@ -15,4 +14,4 @@ export * from './tools/jenkins';
 export * from './tools/recorder';
 export * from './tools/blackboard';
 export * from './tools/recentActivities';
-export * from './tools/pageAgent';
+export * from './tools/browserTask';

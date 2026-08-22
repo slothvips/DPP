@@ -1,19 +1,13 @@
 import { browser } from 'wxt/browser';
 import { syncJenkinsCredentials } from '@/lib/db/jenkins';
 import { logger } from '@/utils/logger';
-import { validateAIConfig } from './pageAgentConfig';
 
 export type GeneralMessage =
-  | { type: 'PAGE_AGENT_GET_CONFIG' }
   | { type: 'OPEN_SIDE_PANEL' }
   | { type: 'SAVE_JENKINS_TOKEN'; payload: { token: string; host: string; user: string } }
   | { type: 'CAPTURE_VISIBLE_TAB' };
 
 export function handleGeneralMessage(message: GeneralMessage): unknown {
-  if (message.type === 'PAGE_AGENT_GET_CONFIG') {
-    return validateAIConfig();
-  }
-
   if (message.type === 'CAPTURE_VISIBLE_TAB') {
     return (async () => {
       try {

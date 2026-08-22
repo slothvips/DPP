@@ -1,22 +1,4 @@
-export const AI_PROVIDER_TYPES = [
-  'ollama',
-  'anthropic',
-  'google',
-  'openai',
-  'deepseek',
-  'qwen',
-  'groq',
-  'xai',
-  'mistral',
-  'moonshot',
-  'minimax',
-  'openrouter',
-  'together',
-  'fireworks',
-  'cerebras',
-  'opencode',
-  'custom',
-] as const;
+export const AI_PROVIDER_TYPES = ['anthropic', 'google', 'opencode', 'custom'] as const;
 
 export type AIProviderType = (typeof AI_PROVIDER_TYPES)[number];
 

@@ -66,7 +66,7 @@ export function useAIChatToolFlow({
       executionCancelledRef.current = false;
     },
     isExecutionCancelled: () => executionCancelledRef.current,
-    pageAgentSessionId: sessionId,
+    browserTaskSessionId: sessionId,
   });
 
   const processAssistantResponse = useCallback(

@@ -10,6 +10,7 @@ interface ToolConfirmationDialogProps {
   onConfirm: () => void;
   onConfirmAll: () => void;
   onCancel: () => void;
+  onEnableYolo: () => void;
 }
 
 export function ToolConfirmationDialog({
@@ -18,6 +19,7 @@ export function ToolConfirmationDialog({
   onConfirm,
   onConfirmAll,
   onCancel,
+  onEnableYolo,
 }: ToolConfirmationDialogProps) {
   const hasMultiple = !!pendingToolCalls && pendingToolCalls.toolCalls.length > 1;
   const isOpen = !!pendingToolCall || hasMultiple;
@@ -35,12 +37,14 @@ export function ToolConfirmationDialog({
           pendingToolCalls={pendingToolCalls}
           onConfirmAll={onConfirmAll}
           onCancel={onCancel}
+          onEnableYolo={onEnableYolo}
         />
       ) : (
         <ToolConfirmationSingleView
           pendingToolCall={pendingToolCall}
           onConfirm={onConfirm}
           onCancel={onCancel}
+          onEnableYolo={onEnableYolo}
         />
       )}
     </Dialog>

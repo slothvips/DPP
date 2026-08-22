@@ -1,6 +1,5 @@
 export { AnthropicProvider } from './anthropicProvider';
 export { createGoogleProvider } from './googleProvider';
-export { OllamaProvider } from './ollama';
 export { OpenAICompatibleProvider } from './openaiProvider';
 export { OpenCodeProvider } from './openCodeProvider';
 export { DEFAULT_CONFIGS } from './providerShared';

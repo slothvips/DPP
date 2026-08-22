@@ -4,8 +4,10 @@
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@browser-engine-upstream/*": ["./src/lib/browserEngine/upstream/*"],
+      "@src/*": ["./src/lib/browserEngine/upstream/*"]
     }
   },
-  "exclude": ["packages"]
+  "exclude": ["packages", "vendor/nanobrowser"]
 }

@@ -106,7 +106,7 @@ export function registerJenkinsTools() {
   toolRegistry.register({
     name: 'jenkins_trigger_build',
     description:
-      'Open the confirmation dialog for a Jenkins build; configure parameters in the dialog',
+      'Open the Jenkins build configuration dialog; the build does not start until the user confirms it in the dialog',
     parameters: createToolParameter(
       {
         jobUrl: { type: 'string', description: 'The job URL to build' },

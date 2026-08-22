@@ -201,6 +201,12 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'boolean',
     writable: true,
   },
+  feature_testing_enabled: {
+    category: 'features',
+    description: 'Show testing feature',
+    type: 'boolean',
+    writable: true,
+  },
   feature_ai_assistant_enabled: {
     category: 'features',
     description: 'Show D仔 feature',

@@ -8,6 +8,7 @@ const FEATURE_OPTIONS = [
   { key: 'links', label: '链接' },
   { key: 'totp', label: '验证器' },
   { key: 'recorder', label: '录制' },
+  { key: 'testing', label: '测试' },
   { key: 'hotNews', label: '资讯' },
   { key: 'aiAssistant', label: 'D仔' },
   { key: 'playground', label: '游乐园' },

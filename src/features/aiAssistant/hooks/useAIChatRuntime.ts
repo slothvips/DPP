@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
 import { toolRegistry } from '@/lib/ai/tools';
-import { stopActivePageAgentTask } from '@/lib/ai/tools/pageAgent';
+import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import type { AIProviderType, ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
 import type { ChatMessage } from '../types';
 import { useAIChatProvider } from './useAIChatProvider';
@@ -139,7 +139,7 @@ export function useAIChatRuntime({
   );
 
   const stopRuntime = useCallback(() => {
-    stopActivePageAgentTask();
+    stopActiveBrowserTask();
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;

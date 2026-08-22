@@ -8,4 +8,4 @@ export * from './tags';
 export * from './recorder';
 export * from './hotnews';
 export * from './recentActivities';
-export * from './pageAgent';
+export * from './browserTask';

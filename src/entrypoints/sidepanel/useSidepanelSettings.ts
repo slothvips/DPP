@@ -16,6 +16,7 @@ export function useSidepanelSettings() {
       const blackboard = await db.settings.get('feature_blackboard_enabled');
       const jenkins = await db.settings.get('feature_jenkins_enabled');
       const recorder = await db.settings.get('feature_recorder_enabled');
+      const testing = await db.settings.get('feature_testing_enabled');
       const aiAssistant = await db.settings.get('feature_ai_assistant_enabled');
       const playground = await db.settings.get('feature_playground_enabled');
       const totp = await db.settings.get('feature_totp_enabled');
@@ -26,6 +27,7 @@ export function useSidepanelSettings() {
         blackboard: blackboard?.value !== false,
         jenkins: jenkins?.value !== false,
         recorder: recorder?.value !== false,
+        testing: testing?.value !== false,
         aiAssistant: aiAssistant?.value !== false,
         playground: playground?.value !== false,
         totp: totp?.value !== false,

@@ -1,3 +1,4 @@
+import { Copy, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +34,8 @@ interface AIConfigFormFieldsProps {
   onContextWindowChange: (value: number | undefined) => void;
   onProfileNameChange: (value: string) => void;
   onProfileChange: (value: string) => void;
+  onDuplicateProfile: () => void;
+  onDeleteProfile: () => void;
   modelOptions: Model[];
   modelsLoading: boolean;
   modelLoadError: string | null;
@@ -55,6 +58,8 @@ export function AIConfigFormFields({
   onContextWindowChange,
   onProfileNameChange,
   onProfileChange,
+  onDuplicateProfile,
+  onDeleteProfile,
   modelOptions,
   modelsLoading,
   modelLoadError,
@@ -85,7 +90,33 @@ export function AIConfigFormFields({
 
       {provider !== 'opencode' && (
         <div className="grid gap-2">
-          <Label htmlFor="ai-profile">配置档案</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="ai-profile">配置档案</Label>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                title="复制当前档案"
+                onClick={onDuplicateProfile}
+                disabled={!selectedProfileId}
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                title="删除当前档案"
+                onClick={onDeleteProfile}
+                disabled={!selectedProfileId}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+          </div>
           <Select value={selectedProfileId ?? 'new'} onValueChange={onProfileChange}>
             <SelectTrigger id="ai-profile">
               <SelectValue placeholder="新建配置档案" />

@@ -91,6 +91,7 @@ export function registerRecorderTools() {
       ['id', 'title']
     ),
     handler: recorder_updateTitle as ToolHandler,
+    requiresConfirmation: true,
   });
 
   toolRegistry.register({

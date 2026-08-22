@@ -1,7 +1,6 @@
 import { logger } from '@/utils/logger';
 import { AnthropicProvider } from './anthropicProvider';
 import { createGoogleProvider } from './googleProvider';
-import { OllamaProvider } from './ollama';
 import { OpenCodeProvider } from './openCodeProvider';
 import { OpenAICompatibleProvider } from './openaiProvider';
 import { getAIProviderDefinition } from './providerRegistry';
@@ -17,8 +16,6 @@ export function createProvider(
   const definition = getAIProviderDefinition(providerType);
 
   switch (definition.protocol) {
-    case 'ollama':
-      return new OllamaProvider(baseUrl, model, contextWindow);
     case 'anthropic':
       return new AnthropicProvider(baseUrl, apiKey || '', model, contextWindow);
     case 'google':
@@ -34,5 +31,5 @@ export function createProvider(
   }
 
   logger.warn(`[AI Provider] Unsupported provider type: ${providerType}`);
-  return new OllamaProvider(baseUrl, model);
+  return new OpenAICompatibleProvider(baseUrl, apiKey || '', model, contextWindow);
 }

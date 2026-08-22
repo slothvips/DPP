@@ -1,12 +1,13 @@
-import { Scissors, Settings, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Scissors, Settings, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { YoloButton } from '@/components/YoloButton';
 import { Button } from '@/components/ui/button';
 import type { TokenUsage } from '@/lib/ai/types';
-import type { PageAgentProgress } from '../hooks/usePageAgentProgress';
+import { BROWSER_TASK_FOLLOW_STORAGE_KEY } from '@/lib/browserTask/types';
 import { AIConfigDialog } from './AIConfigDialog';
 import { AIUsageIndicator } from './AIUsageIndicator';
 import { ChatInput } from './ChatInput';
-import { PageAgentProgressPanel } from './PageAgentProgressPanel';
 
 interface AIAssistantInputSectionProps {
   isConfigMissing: boolean;
@@ -17,7 +18,6 @@ interface AIAssistantInputSectionProps {
   canClear: boolean;
   canSummarize: boolean;
   isSummarizing: boolean;
-  pageAgentProgress: PageAgentProgress | null;
   onConfigSaved: () => void;
   onSend: (content: string) => Promise<void>;
   onStop: () => void;
@@ -34,7 +34,6 @@ export function AIAssistantInputSection({
   canClear,
   canSummarize,
   isSummarizing,
-  pageAgentProgress,
   onConfigSaved,
   onSend,
   onStop,
@@ -42,6 +41,20 @@ export function AIAssistantInputSection({
   onClear,
 }: AIAssistantInputSectionProps) {
   const disabled = isRunning || isConfirming;
+  const [isFollowing, setIsFollowing] = useState(false);
+
+  useEffect(() => {
+    void browser.storage.session
+      .get(BROWSER_TASK_FOLLOW_STORAGE_KEY)
+      .then((stored) => setIsFollowing(stored[BROWSER_TASK_FOLLOW_STORAGE_KEY] === true))
+      .catch(() => undefined);
+  }, []);
+
+  const toggleFollowing = () => {
+    const next = !isFollowing;
+    setIsFollowing(next);
+    void browser.storage.session.set({ [BROWSER_TASK_FOLLOW_STORAGE_KEY]: next });
+  };
 
   return (
     <div className="border-t border-border/60 bg-background p-3 backdrop-blur">
@@ -63,12 +76,20 @@ export function AIAssistantInputSection({
         </div>
       )}
 
-      {pageAgentProgress && <PageAgentProgressPanel progress={pageAgentProgress} />}
-
       <div className="mb-2 flex items-center justify-between gap-2">
         <AIUsageIndicator usage={usage} />
         <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/25 p-0.5">
           <YoloButton disabled={isRunning} />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-md text-muted-foreground"
+            onClick={toggleFollowing}
+            aria-pressed={isFollowing}
+            title={isFollowing ? '关闭跟随网页任务标签页' : '跟随网页任务当前标签页'}
+          >
+            {isFollowing ? <Eye className="h-4 w-4 text-info" /> : <EyeOff className="h-4 w-4" />}
+          </Button>
           <AIConfigDialog onSaved={onConfigSaved}>
             <Button
               variant="ghost"

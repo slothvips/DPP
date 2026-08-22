@@ -1,9 +1,9 @@
 import { db } from '@/db';
-import type { AIProfile, StoredEncryptedValue } from '@/db/types';
+import type { AIProfile, SettingKey, StoredEncryptedValue } from '@/db/types';
 import { readAISetting, resolveAIApiKey } from '@/lib/ai/configShared';
 import { normalizeOpenCodeModel } from '@/lib/ai/openCodeProviderShared';
 import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
-import { AI_PROVIDER_TYPES, DEFAULT_AI_PROVIDER } from '@/lib/ai/providerIds';
+import { AI_PROVIDER_TYPES, DEFAULT_AI_PROVIDER, isAIProviderType } from '@/lib/ai/providerIds';
 import { isOpenAICompatibleProvider } from '@/lib/ai/providerRegistry';
 import type { AIProviderType } from '@/lib/ai/types';
 import { encryptData, generateSyncKey, loadKey, storeKey } from '@/lib/crypto/encryption';
@@ -31,6 +31,19 @@ function createProfileId(): string {
 
 function isOpenCodeProvider(provider: AIProviderType): provider is 'opencode' {
   return provider === 'opencode';
+}
+
+function normalizeProviderValue(value: unknown): AIProviderType {
+  if (value === 'openai') {
+    return 'custom';
+  }
+  return isAIProviderType(value) ? value : DEFAULT_AI_PROVIDER;
+}
+
+const LEGACY_OPENAI_COMPATIBLE_PROVIDERS = new Set(['deepseek', 'qwen', 'groq', 'openrouter']);
+
+function legacyProvider(value: unknown): string | null {
+  return typeof value === 'string' && value !== 'openai' && !isAIProviderType(value) ? value : null;
 }
 
 async function encryptApiKey(apiKey: string): Promise<string | StoredEncryptedValue> {
@@ -70,12 +83,64 @@ async function readLegacyProviderConfig(provider: AIProviderType): Promise<Store
   };
 }
 
+async function migrateLegacyOpenAIProfile(): Promise<AIProfile | undefined> {
+  const [baseUrl, model, apiKey] = await Promise.all(
+    ['ai_openai_base_url', 'ai_openai_model', 'ai_openai_api_key'].map((key) =>
+      db.settings.get(key as unknown as SettingKey)
+    )
+  );
+  const baseUrlValue = baseUrl?.value as string | undefined;
+  const modelValue = model?.value as string | undefined;
+  const apiKeyValue = apiKey?.value as string | StoredEncryptedValue | undefined;
+  if (baseUrlValue === undefined && modelValue === undefined && apiKeyValue === undefined) {
+    return undefined;
+  }
+  return {
+    id: createProfileId(),
+    name: 'openai',
+    provider: 'custom',
+    baseUrl: baseUrlValue || '',
+    model: modelValue || '',
+    contextWindow: undefined,
+    apiKey: await encryptApiKey(await resolveAIApiKey(apiKeyValue, '[AIConfig]')),
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+}
+
 async function migrateLegacyProfiles(): Promise<void> {
   if ((await db.aiProfiles.count()) > 0) {
     return;
   }
 
-  const activeProvider = await readAISetting('ai_provider_type');
+  const activeProviderValue = (await readAISetting('ai_provider_type')) as unknown;
+  const legacyActiveProvider = legacyProvider(activeProviderValue);
+  if (legacyActiveProvider) {
+    const [baseUrl, model, apiKey] = await Promise.all([
+      readAISetting(`ai_${legacyActiveProvider}_base_url` as SettingKey),
+      readAISetting(`ai_${legacyActiveProvider}_model` as SettingKey),
+      readAISetting(`ai_${legacyActiveProvider}_api_key` as SettingKey),
+    ]);
+    if (baseUrl !== undefined || model !== undefined || apiKey !== undefined) {
+      const now = Date.now();
+      const profile: AIProfile = {
+        id: createProfileId(),
+        name: LEGACY_OPENAI_COMPATIBLE_PROVIDERS.has(legacyActiveProvider)
+          ? legacyActiveProvider
+          : `${legacyActiveProvider}（请确认迁移）`,
+        provider: 'custom',
+        baseUrl: typeof baseUrl === 'string' ? baseUrl : '',
+        model: typeof model === 'string' ? model : '',
+        apiKey: await encryptApiKey(await resolveAIApiKey(apiKey, '[AIConfig]')),
+        createdAt: now,
+        updatedAt: now,
+      };
+      await db.aiProfiles.add(profile);
+      await updateSetting('ai_active_profile_id', profile.id);
+      await updateSetting('ai_provider_type', 'custom');
+      return;
+    }
+  }
   const providers = AI_PROVIDER_TYPES.filter(
     (provider): provider is Exclude<AIProviderType, 'opencode'> => !isOpenCodeProvider(provider)
   );
@@ -110,9 +175,19 @@ async function migrateLegacyProfiles(): Promise<void> {
     profileByLegacyProvider.set(provider, profile);
   }
 
+  const legacyOpenAIProfile = await migrateLegacyOpenAIProfile();
+  if (legacyOpenAIProfile) {
+    profiles.push(legacyOpenAIProfile);
+  }
+
   if (profiles.length > 0) {
     await db.aiProfiles.bulkAdd(profiles);
-    const activeProfile = activeProvider ? profileByLegacyProvider.get(activeProvider) : undefined;
+    const activeProfile =
+      activeProviderValue === 'openai'
+        ? legacyOpenAIProfile
+        : isAIProviderType(activeProviderValue)
+          ? profileByLegacyProvider.get(activeProviderValue)
+          : undefined;
     if (activeProfile) {
       await updateSetting('ai_active_profile_id', activeProfile.id);
     }
@@ -126,7 +201,7 @@ export async function loadAIProfiles(): Promise<AIProfileSummary[]> {
     profiles.map(async (profile) => ({
       id: profile.id,
       name: profile.name,
-      provider: profile.provider,
+      provider: normalizeProviderValue(profile.provider),
       baseUrl: profile.baseUrl,
       model: profile.model,
       contextWindow: profile.contextWindow,
@@ -137,14 +212,14 @@ export async function loadAIProfiles(): Promise<AIProfileSummary[]> {
 }
 
 export async function loadAIConfig(): Promise<StoredAIConfig> {
-  const provider = (await readAISetting('ai_provider_type')) || DEFAULT_AI_PROVIDER;
+  await migrateLegacyProfiles();
+  const provider = normalizeProviderValue((await readAISetting('ai_provider_type')) as unknown);
   if (provider !== 'opencode') {
-    await migrateLegacyProfiles();
     const activeProfileId = await readAISetting('ai_active_profile_id');
     const profile = activeProfileId ? await db.aiProfiles.get(activeProfileId) : undefined;
     if (profile) {
       return {
-        provider: profile.provider,
+        provider: normalizeProviderValue(profile.provider),
         baseUrl: profile.baseUrl,
         model: profile.model,
         contextWindow: profile.contextWindow,
@@ -236,6 +311,23 @@ export async function activateAIProfile(id: string): Promise<void> {
     updateSetting('ai_active_profile_id', id),
     updateSetting('ai_provider_type', profile.provider),
   ]);
+}
+
+export async function duplicateAIProfile(id: string): Promise<string> {
+  const original = await db.aiProfiles.get(id);
+  if (!original) {
+    throw new Error('AI profile not found');
+  }
+  const now = Date.now();
+  const newId = createProfileId();
+  await db.aiProfiles.add({
+    ...original,
+    id: newId,
+    name: `${original.name} 副本`,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return newId;
 }
 
 export async function deleteAIProfile(id: string): Promise<void> {

@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import type { TagItem } from '@/db/types';
 import {
@@ -7,10 +7,8 @@ import {
   deleteTag,
   getActiveEntityTagIds,
   getAllActiveTags,
-  getTagUsageCount,
   toggleTagAssociation,
 } from '@/lib/db/tags';
-import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 
 interface UseCommonTagSelectorOptions {
@@ -29,7 +27,7 @@ export function useCommonTagSelector({
   availableTags,
 }: UseCommonTagSelectorOptions) {
   const { toast } = useToast();
-  const { confirm } = useConfirmDialog();
+  const [tagToDelete, setTagToDelete] = useState<{ id: string; name: string } | null>(null);
 
   const tags =
     useLiveQuery(() => (availableTags ? availableTags : getAllActiveTags()), [availableTags]) || [];
@@ -53,24 +51,18 @@ export function useCommonTagSelector({
     }
   };
 
-  const handleDeleteTag = async (tagId: string, tagName: string) => {
-    try {
-      const totalCount = await getTagUsageCount(tagId);
-      if (totalCount > 0) {
-        toast(`无法删除标签 "${tagName}"：有 ${totalCount} 个项目正在使用它。`, 'error');
-        return;
-      }
+  const handleDeleteTag = (tagId: string, tagName: string) => {
+    setTagToDelete({ id: tagId, name: tagName });
+  };
 
-      const confirmed = await confirm(`确定要删除标签 "${tagName}" 吗？`, '确认删除', 'danger');
-      if (!confirmed) {
-        return;
-      }
-
-      await deleteTag({ id: tagId });
-      toast('标签已删除', 'success');
-    } catch (error) {
-      toast(error instanceof Error ? error.message : '删除标签失败', 'error');
+  const handleConfirmDeleteTag = async () => {
+    if (!tagToDelete) {
+      return;
     }
+
+    await deleteTag({ id: tagToDelete.id });
+    setTagToDelete(null);
+    toast('标签已删除', 'success');
   };
 
   const handleCreateTag = async (tagName: string) => {
@@ -114,6 +106,9 @@ export function useCommonTagSelector({
     activeTagIds,
     handleToggleTag,
     handleDeleteTag,
+    handleConfirmDeleteTag,
+    tagToDelete,
+    setTagToDelete,
     handleCreateTag,
   };
 }

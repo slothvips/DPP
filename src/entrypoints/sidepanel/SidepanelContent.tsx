@@ -32,6 +32,11 @@ const RecordingsView = React.lazy(() =>
     default: module.RecordingsView,
   }))
 );
+const TestingView = React.lazy(() =>
+  import('@/features/testing/components/TestingView').then((module) => ({
+    default: module.TestingView,
+  }))
+);
 const ToolboxView = React.lazy(() =>
   import('@/features/toolbox/components/ToolboxView').then((module) => ({
     default: module.ToolboxView,
@@ -113,6 +118,15 @@ export function SidepanelContent({
         >
           <ErrorBoundary moduleName={TAB_CONFIG.blackboard.label} className="h-full">
             <BlackboardView />
+          </ErrorBoundary>
+        </LazyTabPanel>
+        <LazyTabPanel
+          active={activeTab === 'testing'}
+          visible={featureToggles.testing}
+          fallback={<SidepanelLoadingFallback />}
+        >
+          <ErrorBoundary moduleName={TAB_CONFIG.testing.label} className="h-full">
+            <TestingView />
           </ErrorBoundary>
         </LazyTabPanel>
         <LazyTabPanel

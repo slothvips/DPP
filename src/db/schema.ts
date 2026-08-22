@@ -105,4 +105,9 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(12).stores({
     aiProfiles: 'id, provider, updatedAt',
   });
+
+  db.version(13).stores({
+    testCases: '&id, createdAt, updatedAt, enabled',
+    testRuns: '&id, testCaseId, startedAt, status',
+  });
 }

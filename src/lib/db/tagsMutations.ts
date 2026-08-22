@@ -162,9 +162,23 @@ export async function deleteTag(args: {
   const now = Date.now();
 
   await db.transaction('rw', db.tags, getLinkTagsTable(), getJobTagsTable(), async () => {
+    const [linkCount, jobCount] = await Promise.all([
+      db.linkTags
+        .where('tagId')
+        .equals(args.id)
+        .filter((item) => !item.deletedAt)
+        .count(),
+      db.jobTags
+        .where('tagId')
+        .equals(args.id)
+        .filter((item) => !item.deletedAt)
+        .count(),
+    ]);
+    if (linkCount + jobCount > 0) {
+      throw new Error('标签仍有关联项目，请先取消所有关联');
+    }
+
     await db.tags.update(args.id, { deletedAt: now });
-    await db.linkTags.where({ tagId: args.id }).modify({ deletedAt: now });
-    await db.jobTags.where({ tagId: args.id }).modify({ deletedAt: now });
   });
 
   return {

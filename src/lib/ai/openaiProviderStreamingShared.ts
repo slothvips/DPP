@@ -1,5 +1,5 @@
-import { stripThinkingContent } from './ollama';
 import { normalizeToolArgumentsJsonOrOriginal } from './providerShared';
+import { stripThinkingContent } from './stripThinking';
 import { createTokenUsage } from './tokenUsage';
 import type { ChatResponse, OpenAIChatResponse, OpenAIToolCall } from './types';
 

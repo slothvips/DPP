@@ -39,6 +39,8 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     setProfileName,
     handleProviderChange,
     handleProfileChange,
+    handleDuplicateProfile,
+    handleDeleteProfile,
     modelOptions,
     modelsLoading,
     modelLoadError,
@@ -85,6 +87,8 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
             onContextWindowChange={setContextWindow}
             onProfileNameChange={setProfileName}
             onProfileChange={handleProfileChange}
+            onDuplicateProfile={() => void handleDuplicateProfile()}
+            onDeleteProfile={() => void handleDeleteProfile()}
             modelOptions={modelOptions}
             modelsLoading={modelsLoading}
             modelLoadError={modelLoadError}

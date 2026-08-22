@@ -44,6 +44,12 @@ export function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    const handleOpenAISession = () => handleTabChange('aiAssistant');
+    window.addEventListener('dpp:open-ai-session', handleOpenAISession);
+    return () => window.removeEventListener('dpp:open-ai-session', handleOpenAISession);
+  }, [handleTabChange]);
+
   return (
     <ToastProvider>
       <ConfirmDialogProvider>

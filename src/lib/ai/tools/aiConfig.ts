@@ -234,7 +234,7 @@ export function registerAIConfigTools() {
           type: 'string',
           description:
             'Target protocol adapter to update. Use profileId for an existing profile. Defaults to the current configuration.',
-          enum: ['opencode', 'custom', 'anthropic', 'ollama', 'google'],
+          enum: ['opencode', 'custom', 'anthropic', 'google'],
         },
         profileId: {
           type: 'string',

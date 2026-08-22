@@ -1,10 +1,11 @@
-import { stripThinkingContent } from './ollama';
+import { describeOpenAIResponseBody } from './openAIResponseGuards';
 import {
   anthropicTools,
   buildAnthropicOpenAIRequest,
   mapOpenAIToolCalls,
   normalizeToolArgumentsJsonForRequest,
 } from './providerShared';
+import { stripThinkingContent } from './stripThinking';
 import { createTokenUsage } from './tokenUsage';
 import type {
   AnthropicChatMessage,
@@ -188,7 +189,10 @@ export function mapAnthropicResponse(
   response: AnthropicChatResponse | OpenAIChatResponse
 ): ChatResponse {
   if ('choices' in response) {
-    const choice = response.choices[0];
+    const choice = response.choices?.[0];
+    if (!choice?.message) {
+      throw new Error(`OpenAI 响应缺少 choices：${describeOpenAIResponseBody(response)}`);
+    }
     return {
       message: {
         role: 'assistant',
@@ -207,6 +211,10 @@ export function mapAnthropicResponse(
         cachedInputTokens: response.usage?.prompt_tokens_details?.cached_tokens,
       }),
     };
+  }
+
+  if (!Array.isArray(response.content)) {
+    throw new Error(`Anthropic 响应缺少 content：${describeOpenAIResponseBody(response)}`);
   }
 
   const textContent = response.content

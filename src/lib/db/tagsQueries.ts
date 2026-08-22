@@ -1,6 +1,13 @@
 import { db } from '@/db';
 import type { JobTagItem, TagItem, TagWithCounts } from '@/db/types';
 
+export interface TagAssociation {
+  entityId: string;
+  entityType: 'link' | 'job';
+  name: string;
+  detail?: string;
+}
+
 export async function getAllActiveTags(): Promise<TagItem[]> {
   return db.tags.filter((tag) => !tag.deletedAt).toArray();
 }
@@ -82,4 +89,44 @@ export async function getTagUsageCount(tagId: string): Promise<number> {
     .count();
 
   return jobCount + linkCount;
+}
+
+export async function getTagAssociations(tagId: string): Promise<TagAssociation[]> {
+  const [linkTags, jobTags] = await Promise.all([
+    db.linkTags
+      .where('tagId')
+      .equals(tagId)
+      .filter((item) => !item.deletedAt)
+      .toArray(),
+    db.jobTags
+      .where('tagId')
+      .equals(tagId)
+      .filter((item) => !item.deletedAt)
+      .toArray(),
+  ]);
+  const [links, jobs] = await Promise.all([
+    db.links.bulkGet(linkTags.map((linkTag) => linkTag.linkId)),
+    db.jobs.bulkGet(jobTags.map((jobTag) => jobTag.jobUrl)),
+  ]);
+
+  return [
+    ...linkTags.map((linkTag, index) => {
+      const link = links[index];
+      return {
+        entityId: linkTag.linkId,
+        entityType: 'link' as const,
+        name: link?.name ?? linkTag.linkId,
+        detail: link?.url,
+      };
+    }),
+    ...jobTags.map((jobTag, index) => {
+      const job = jobs[index];
+      return {
+        entityId: jobTag.jobUrl,
+        entityType: 'job' as const,
+        name: job?.fullName ?? job?.name ?? jobTag.jobUrl,
+        detail: jobTag.jobUrl,
+      };
+    }),
+  ];
 }

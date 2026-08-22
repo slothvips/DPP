@@ -18,7 +18,7 @@ interface UseAIChatToolFlowExecutionOptions {
   onAIConfigChanged: () => void;
   onExecutionStart: () => void;
   isExecutionCancelled: () => boolean;
-  pageAgentSessionId: string | null;
+  browserTaskSessionId: string | null;
 }
 
 export function useAIChatToolFlowExecution({
@@ -31,14 +31,14 @@ export function useAIChatToolFlowExecution({
   onAIConfigChanged,
   onExecutionStart,
   isExecutionCancelled,
-  pageAgentSessionId,
+  browserTaskSessionId,
 }: UseAIChatToolFlowExecutionOptions) {
   async function executePreparedCallsAndContinue(
     preparedToolCalls: ReturnType<typeof toPreparedToolCalls>
   ) {
     const { toolMessages, pendingBuild } = await executePreparedToolCalls(preparedToolCalls, {
       onAIConfigChanged,
-      pageAgentSessionId: pageAgentSessionId ?? undefined,
+      browserTaskSessionId: browserTaskSessionId ?? undefined,
     });
 
     if (isExecutionCancelled()) return false;
@@ -76,7 +76,7 @@ export function useAIChatToolFlowExecution({
       onStatusChange('loading');
       const { toolMessages, pendingBuild } = await executePreparedToolCalls(toolCallsToExecute, {
         onAIConfigChanged,
-        pageAgentSessionId: pageAgentSessionId ?? undefined,
+        browserTaskSessionId: browserTaskSessionId ?? undefined,
       });
 
       if (isExecutionCancelled()) return;
@@ -115,7 +115,7 @@ export function useAIChatToolFlowExecution({
       [currentPreparedToolCall],
       {
         onAIConfigChanged,
-        pageAgentSessionId: pageAgentSessionId ?? undefined,
+        browserTaskSessionId: browserTaskSessionId ?? undefined,
       }
     );
 

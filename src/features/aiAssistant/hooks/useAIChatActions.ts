@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { resetPageAgentTaskGroup } from '@/lib/ai/tools/pageAgent';
+import { resetBrowserTaskGroup, stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import type { ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
 import { updateSessionTitle } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
@@ -105,7 +105,7 @@ export function useAIChatActions({
       await saveUserMessage(userMessage);
 
       try {
-        await resetPageAgentTaskGroup();
+        await resetBrowserTaskGroup();
         const assistantMessage = await runChatCompletion(
           buildSendMessagePayload(nextMessages, userMessage, toLibChatMessage)
         );
@@ -142,6 +142,7 @@ export function useAIChatActions({
   );
 
   const stop = useCallback(() => {
+    void stopActiveBrowserTask();
     stopRuntime();
     cancelPendingToolFlow();
     resetToolFlowState();

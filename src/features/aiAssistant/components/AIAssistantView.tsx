@@ -1,11 +1,13 @@
 // AI Assistant View - Main conversation interface
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { useToast } from '@/components/ui/toast';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
+import { YOLO_MODE_KEY } from '@/lib/ai/tools';
 import { useAIAssistantConfig } from '../hooks/useAIAssistantConfig';
 import { useAIAssistantScroll } from '../hooks/useAIAssistantScroll';
 import { useAIChat } from '../hooks/useAIChat';
-import { usePageAgentProgress } from '../hooks/usePageAgentProgress';
+import { useBrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import { AIAssistantHeader } from './AIAssistantHeader';
 import { AIAssistantInputSection } from './AIAssistantInputSection';
 import { AIAssistantMessagesPanel } from './AIAssistantMessagesPanel';
@@ -45,6 +47,7 @@ export function AIAssistantView() {
     completeBuild,
     cancelBuild,
     summarizeSession,
+    setYoloMode,
   } = useAIChat();
 
   const { toast } = useToast();
@@ -55,7 +58,24 @@ export function AIAssistantView() {
 
   const { isNearBottom, messagesEndRef, messagesContainerRef, handleScroll, scrollToBottom } =
     useAIAssistantScroll(messages);
-  const pageAgentProgress = usePageAgentProgress(sessionId);
+  const browserTaskProgress = useBrowserTaskProgress(sessionId);
+
+  const enableYoloAndConfirm = useCallback(async () => {
+    setYoloMode(true);
+    await browser.storage.session.set({ [YOLO_MODE_KEY]: true });
+    await confirmAllToolCalls();
+  }, [confirmAllToolCalls, setYoloMode]);
+
+  useEffect(() => {
+    const handleOpenSession = () => {
+      const targetSessionId = sessionStorage.getItem('ai_current_session_id');
+      if (targetSessionId && targetSessionId !== sessionId) {
+        void switchSession(targetSessionId);
+      }
+    };
+    window.addEventListener('dpp:open-ai-session', handleOpenSession);
+    return () => window.removeEventListener('dpp:open-ai-session', handleOpenSession);
+  }, [sessionId, switchSession]);
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -124,6 +144,7 @@ export function AIAssistantView() {
         onScrollToBottom={scrollToBottom}
         onConfigSaved={handleConfigSaved}
         onEditMessage={editMessage}
+        browserTaskProgress={browserTaskProgress}
       />
 
       <AIAssistantInputSection
@@ -137,7 +158,6 @@ export function AIAssistantView() {
           messages.length > 0 && status !== 'loading' && status !== 'streaming' && !isSummarizing
         }
         isSummarizing={isSummarizing}
-        pageAgentProgress={pageAgentProgress}
         onConfigSaved={handleConfigSaved}
         onSend={handleSend}
         onStop={stop}
@@ -151,6 +171,7 @@ export function AIAssistantView() {
         onConfirm={confirmToolCall}
         onConfirmAll={confirmAllToolCalls}
         onCancel={cancelToolCall}
+        onEnableYolo={() => void enableYoloAndConfirm()}
       />
 
       {pendingBuild && (

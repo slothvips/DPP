@@ -1,6 +1,7 @@
 import { HttpResponseError, httpPost } from '@/lib/http';
 import { logger } from '@/utils/logger';
 import {
+  buildOpenAIApiUrl,
   buildOpenAIChatRequest,
   getOpenAIHeaders,
   mapOpenAIResponse,
@@ -25,7 +26,7 @@ export async function executeOpenAIChat({
   options,
   additionalHeaders,
 }: ExecuteOpenAIChatOptions): Promise<ChatResponse> {
-  const url = `${baseUrl}/chat/completions`;
+  const url = buildOpenAIApiUrl(baseUrl, 'chat/completions');
   const requestBody = buildOpenAIChatRequest(model, messages, options);
 
   logger.debug(`[OpenAI] Sending chat request to ${url}`);

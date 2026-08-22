@@ -76,3 +76,22 @@ export async function toggleTagAssociation(args: {
     message: `Tag "${tag.name}" added to job`,
   };
 }
+
+export async function removeTagAssociation(args: {
+  tagId: string;
+  entityId: string;
+  entityType: 'link' | 'job';
+}): Promise<void> {
+  const now = Date.now();
+
+  if (args.entityType === 'link') {
+    await db.linkTags
+      .where({ linkId: args.entityId, tagId: args.tagId })
+      .modify({ deletedAt: now, updatedAt: now });
+    return;
+  }
+
+  await db.jobTags
+    .where({ jobUrl: args.entityId, tagId: args.tagId })
+    .modify({ deletedAt: now, updatedAt: now });
+}

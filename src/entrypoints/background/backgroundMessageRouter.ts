@@ -1,9 +1,8 @@
 import {
+  handleBrowserTaskMessage,
+  handleBrowserTaskRemoteMessage,
   handleGeneralMessage,
   handleJenkinsMessage,
-  handlePageAgentLlmAbort,
-  handlePageAgentLlmRequest,
-  handlePageAgentRemoteMessage,
   handleProxyMessage,
   handleRecorderMessage,
   handleRemoteRecordingMessage,
@@ -60,28 +59,27 @@ const messageHandlers: Array<{
       ),
   },
   {
-    match: (type) => type === 'PAGE_AGENT_PAGE_CONTROL' || type === 'PAGE_AGENT_TAB_CONTROL',
+    match: (type) =>
+      type === 'BROWSER_TASK_START' ||
+      type === 'BROWSER_TASK_STOP' ||
+      type === 'BROWSER_TASK_RESUME' ||
+      type === 'BROWSER_TASK_GET_STATUS' ||
+      type === 'BROWSER_TASK_SUBSCRIBE',
     handler: (message) =>
-      handlePageAgentRemoteMessage(message as Parameters<typeof handlePageAgentRemoteMessage>[0]),
+      handleBrowserTaskMessage(message as Parameters<typeof handleBrowserTaskMessage>[0]),
+  },
+  {
+    match: (type) => type === 'BROWSER_CONTROL',
+    handler: (message) =>
+      handleBrowserTaskRemoteMessage(
+        message as Parameters<typeof handleBrowserTaskRemoteMessage>[0]
+      ),
   },
   {
     match: (type) =>
-      type === 'PAGE_AGENT_GET_CONFIG' ||
-      type === 'OPEN_SIDE_PANEL' ||
-      type === 'SAVE_JENKINS_TOKEN' ||
-      type === 'CAPTURE_VISIBLE_TAB',
+      type === 'OPEN_SIDE_PANEL' || type === 'SAVE_JENKINS_TOKEN' || type === 'CAPTURE_VISIBLE_TAB',
     handler: (message) =>
       handleGeneralMessage(message as Parameters<typeof handleGeneralMessage>[0]),
-  },
-  {
-    match: (type) => type === 'PAGE_AGENT_LLM_REQUEST',
-    handler: (message) =>
-      handlePageAgentLlmRequest(message as Parameters<typeof handlePageAgentLlmRequest>[0]),
-  },
-  {
-    match: (type) => type === 'PAGE_AGENT_LLM_ABORT',
-    handler: (message) =>
-      handlePageAgentLlmAbort(message as Parameters<typeof handlePageAgentLlmAbort>[0]),
   },
 ];
 

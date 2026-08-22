@@ -7,6 +7,7 @@ import {
   getOpenCodeModelHeaders,
   isOpenCodeFreeModel,
 } from './openCodeProviderShared';
+import { buildOpenAIApiUrl } from './openaiProviderShared';
 import type { Model } from './types';
 
 const MODEL_CACHE_TTL_MS = 60_000;
@@ -56,7 +57,7 @@ export async function listOpenCodeModels(baseUrl: string, apiKey?: string): Prom
   }
 
   try {
-    const response = await http(`${baseUrl.replace(/\/$/, '')}/models`, {
+    const response = await http(buildOpenAIApiUrl(baseUrl, 'models'), {
       timeout: 10_000,
       headers: getOpenCodeModelHeaders(apiKey),
     });
@@ -109,7 +110,7 @@ async function probeOpenCodeModel(
 
   try {
     await httpPost<unknown>(
-      `${baseUrl.replace(/\/$/, '')}/chat/completions`,
+      buildOpenAIApiUrl(baseUrl, 'chat/completions'),
       {
         model: model.name,
         messages: [{ role: 'user', content: 'Reply with OK.' }],

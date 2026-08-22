@@ -1,10 +1,10 @@
 import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
-import { getOpenAIHeaders } from './openaiProviderShared';
+import { buildOpenAIApiUrl, getOpenAIHeaders } from './openaiProviderShared';
 import type { Model } from './types';
 
 export async function listOpenAIModels(baseUrl: string, apiKey: string): Promise<Model[]> {
-  const url = `${baseUrl}/models`;
+  const url = buildOpenAIApiUrl(baseUrl, 'models');
 
   logger.debug(`[OpenAI] Listing models from ${url}`);
 

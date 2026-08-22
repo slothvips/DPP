@@ -129,6 +129,7 @@ export function registerBlackboardTools() {
       ['id']
     ),
     handler: blackboard_togglePin as ToolHandler,
+    requiresConfirmation: true,
   });
 
   // blackboard_toggleLock
@@ -142,5 +143,6 @@ export function registerBlackboardTools() {
       ['id']
     ),
     handler: blackboard_toggleLock as ToolHandler,
+    requiresConfirmation: true,
   });
 }

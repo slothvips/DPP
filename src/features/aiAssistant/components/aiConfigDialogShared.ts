@@ -3,10 +3,9 @@ import type { AIProviderType } from '@/lib/ai/types';
 
 export const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
   { value: 'opencode', label: 'OpenCode Free（内置）' },
-  { value: 'custom', label: 'OpenAI 兼容' },
   { value: 'anthropic', label: 'Anthropic 兼容' },
-  { value: 'ollama', label: 'Ollama（本地）' },
   { value: 'google', label: 'Google Gemini' },
+  { value: 'custom', label: 'OpenAI 兼容' },
 ];
 
 export function toConfigProvider(provider: AIProviderType): AIProviderType {

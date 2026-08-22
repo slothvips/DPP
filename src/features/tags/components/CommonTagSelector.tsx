@@ -1,6 +1,7 @@
 import React from 'react';
 import { TagSelector } from '@/components/ui/tag-selector';
 import type { TagItem } from '@/db/types';
+import { TagDeleteDialog } from './TagDeleteDialog';
 import { useCommonTagSelector } from './useCommonTagSelector';
 
 interface CommonTagSelectorProps {
@@ -18,22 +19,41 @@ export function CommonTagSelector({
   onPendingToggle,
   availableTags,
 }: CommonTagSelectorProps) {
-  const { tags, activeTagIds, handleToggleTag, handleDeleteTag, handleCreateTag } =
-    useCommonTagSelector({
-      type,
-      id,
-      pendingSelectedIds,
-      onPendingToggle,
-      availableTags,
-    });
+  const {
+    tags,
+    activeTagIds,
+    handleToggleTag,
+    handleDeleteTag,
+    handleConfirmDeleteTag,
+    tagToDelete,
+    setTagToDelete,
+    handleCreateTag,
+  } = useCommonTagSelector({
+    type,
+    id,
+    pendingSelectedIds,
+    onPendingToggle,
+    availableTags,
+  });
 
   return (
-    <TagSelector
-      availableTags={tags}
-      selectedTagIds={activeTagIds}
-      onToggleTag={handleToggleTag}
-      onCreateTag={handleCreateTag}
-      onDeleteTag={handleDeleteTag}
-    />
+    <>
+      <TagSelector
+        availableTags={tags}
+        selectedTagIds={activeTagIds}
+        onToggleTag={handleToggleTag}
+        onCreateTag={handleCreateTag}
+        onDeleteTag={handleDeleteTag}
+      />
+      <TagDeleteDialog
+        tag={tagToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTagToDelete(null);
+          }
+        }}
+        onDelete={handleConfirmDeleteTag}
+      />
+    </>
   );
 }

@@ -1,5 +1,6 @@
-import { stripThinkingContent } from './ollama';
+import { describeOpenAIResponseBody } from './openAIResponseGuards';
 import { mapOpenAIToolCalls, openAIToolChoice } from './providerShared';
+import { stripThinkingContent } from './stripThinking';
 import { createTokenUsage } from './tokenUsage';
 import type {
   ChatMessage,
@@ -16,6 +17,10 @@ export function getOpenAIHeaders(apiKey: string, additionalHeaders?: HeadersInit
     'Content-Type': 'application/json',
     ...additionalHeaders,
   };
+}
+
+export function buildOpenAIApiUrl(baseUrl: string, path: string): string {
+  return `${baseUrl.replace(/\/+$/, '').replace(/\/chat\/completions$/i, '')}/${path}`;
 }
 
 export function toOpenAIMessage(message: ChatMessage): OpenAIChatMessage {
@@ -66,7 +71,12 @@ export function buildOpenAIChatRequest(
 }
 
 export function mapOpenAIResponse(response: OpenAIChatResponse): ChatResponse {
-  const choice = response.choices[0];
+  const choice = response.choices?.[0];
+  if (!choice?.message) {
+    // 部分 OpenAI 兼容服务在配额、限流或参数问题时仍返回 HTTP 200，
+    // 响应体不含 choices（如 {"error":{...}}），必须把真实原因抛给上层
+    throw new Error(`OpenAI 响应缺少 choices：${describeOpenAIResponseBody(response)}`);
+  }
   return {
     message: {
       role: choice.message.role,

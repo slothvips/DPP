@@ -2,7 +2,7 @@ import { browser } from 'wxt/browser';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
-import { setupAutoSync, setupOmnibox } from './handlers';
+import { recoverInterruptedBrowserTask, setupAutoSync, setupOmnibox } from './handlers';
 
 export function registerBackgroundLifecycle() {
   browser.sidePanel
@@ -10,6 +10,9 @@ export function registerBackgroundLifecycle() {
     .catch((error) => logger.error('Failed to set side panel behavior:', error));
 
   void setupAutoSync();
+  void recoverInterruptedBrowserTask().catch((error) =>
+    logger.error('Failed to recover interrupted browser task:', error)
+  );
 
   if (browser.alarms) {
     browser.alarms.onAlarm.addListener(async (alarm) => {

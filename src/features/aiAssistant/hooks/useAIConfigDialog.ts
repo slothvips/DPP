@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useToast } from '@/components/ui/toast';
 import { checkOpenCodeModels } from '@/lib/ai/openCodeProviderModels';
 import { DEFAULT_CONFIGS, createProvider } from '@/lib/ai/provider';
 import { DEFAULT_AI_PROVIDER } from '@/lib/ai/providerIds';
 import type { AIProviderType, Model } from '@/lib/ai/types';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { toConfigProvider } from '../components/aiConfigDialogShared';
 import {
   type AIProfileSummary,
   activateAIProfile,
   createAIProfile,
+  deleteAIProfile,
+  duplicateAIProfile,
   loadAIConfig,
   loadAIProfiles,
   loadProviderConfig,
@@ -17,6 +21,8 @@ import {
 } from '../lib/aiConfigStorage';
 
 export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
+  const { confirm } = useConfirmDialog();
+  const { toast } = useToast();
   const [provider, setProvider] = useState<AIProviderType>(DEFAULT_AI_PROVIDER);
   const [baseUrl, setBaseUrl] = useState(DEFAULT_CONFIGS[DEFAULT_AI_PROVIDER].baseUrl);
   const [model, setModel] = useState(DEFAULT_CONFIGS[DEFAULT_AI_PROVIDER].model);
@@ -132,6 +138,45 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
     }
   }, [apiKey, baseUrl, model, provider]);
 
+  const handleDuplicateProfile = useCallback(async () => {
+    if (!selectedProfileId) return;
+    try {
+      const newId = await duplicateAIProfile(selectedProfileId);
+      const nextProfiles = await loadAIProfiles();
+      setProfiles(nextProfiles);
+      const copy = nextProfiles.find((item) => item.id === newId);
+      if (copy) {
+        setSelectedProfileId(copy.id);
+        setProfileName(copy.name);
+      }
+      toast('已复制配置档案', 'success');
+    } catch (err) {
+      logger.error('[AIConfig] Failed to duplicate profile:', err);
+      toast('复制失败，请稍后重试', 'error');
+    }
+  }, [selectedProfileId, toast]);
+
+  const handleDeleteProfile = useCallback(async () => {
+    if (!selectedProfileId) return;
+    const profile = profiles.find((item) => item.id === selectedProfileId);
+    const confirmed = await confirm(
+      `确定要删除「${profile?.name ?? '该配置档案'}」吗？`,
+      '删除配置档案',
+      'danger'
+    );
+    if (!confirmed) return;
+    try {
+      await deleteAIProfile(selectedProfileId);
+      setSelectedProfileId(null);
+      setProfileName('');
+      setProfiles(await loadAIProfiles());
+      toast('已删除配置档案', 'success');
+    } catch (err) {
+      logger.error('[AIConfig] Failed to delete profile:', err);
+      toast('删除失败，请稍后重试', 'error');
+    }
+  }, [confirm, profiles, selectedProfileId, toast]);
+
   const handleSave = useCallback(async () => {
     setLoading(true);
     try {
@@ -185,6 +230,8 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
     setProfileName,
     handleProviderChange,
     handleProfileChange,
+    handleDuplicateProfile,
+    handleDeleteProfile,
     modelOptions,
     modelsLoading,
     modelLoadError,

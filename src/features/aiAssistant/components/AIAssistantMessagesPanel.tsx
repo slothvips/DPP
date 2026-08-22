@@ -2,8 +2,10 @@ import { ArrowDown, Bot, Sparkles } from 'lucide-react';
 import type { RefObject, UIEventHandler } from 'react';
 import { Button } from '@/components/ui/button';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
+import type { BrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import type { ChatMessage } from '../types';
 import { AIConfigDialog } from './AIConfigDialog';
+import { BrowserTaskProgressPanel } from './BrowserTaskProgressPanel';
 import { MessageItem } from './MessageItem';
 
 interface AIAssistantMessagesPanelProps {
@@ -18,6 +20,7 @@ interface AIAssistantMessagesPanelProps {
   onScrollToBottom: () => void;
   onConfigSaved: () => void;
   onEditMessage: (messageId: string, content: string) => Promise<void>;
+  browserTaskProgress: BrowserTaskProgress | null;
 }
 
 const CAPABILITY_GROUPS = [
@@ -59,6 +62,7 @@ export function AIAssistantMessagesPanel({
   onScrollToBottom,
   onConfigSaved,
   onEditMessage,
+  browserTaskProgress,
 }: AIAssistantMessagesPanelProps) {
   return (
     <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
@@ -143,6 +147,8 @@ export function AIAssistantMessagesPanel({
                 <span>正在准备回答</span>
               </div>
             )}
+
+          {browserTaskProgress && <BrowserTaskProgressPanel progress={browserTaskProgress} />}
 
           {error && (
             <div className="rounded-xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">

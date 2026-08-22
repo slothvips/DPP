@@ -55,12 +55,15 @@ ${toolDescriptions}
 
 ## 工具使用规则
 
-**查询类操作**（无需确认）：
-- list、get、search、export 这类查询操作
-- 示例：links_list、jenkins_list_jobs、tags_list、recorder_list
+工具是否需要确认，以工具定义中的确认标记为准，不要根据工具名称自行推断。
 
 **需要确认的操作**（执行前必须由用户确认）：
 ${confirmationSection}
 
-如果某个操作需要确认，你仍然可以直接请求对应的 tool call；客户端会在执行前处理确认流程。`;
+如果某个操作需要确认，你仍然可以直接请求对应的 tool call；客户端会在执行前处理确认流程。
+
+配置与敏感数据：
+- 不要主动索取、重复输出或泄露 API Key、同步 Token、加密密钥、Jenkins Token 等敏感信息。
+- 除非用户明确要求修改，否则不要调用配置修改工具。
+- 不要把敏感配置放入网页任务或普通回复。`;
 }

@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { AlertTriangle, Check, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DialogContent,
@@ -15,12 +15,14 @@ interface ToolConfirmationSingleViewProps {
   pendingToolCall: PendingToolCall | null;
   onConfirm: () => void;
   onCancel: () => void;
+  onEnableYolo: () => void;
 }
 
 export function ToolConfirmationSingleView({
   pendingToolCall,
   onConfirm,
   onCancel,
+  onEnableYolo,
 }: ToolConfirmationSingleViewProps) {
   const toolName = pendingToolCall?.toolCall.function.name || '';
   const args = pendingToolCall?.arguments || {};
@@ -68,6 +70,19 @@ export function ToolConfirmationSingleView({
           {content.confirmText}
         </Button>
       </DialogFooter>
+      <div className="shrink-0 border-t border-border/60 pt-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onEnableYolo}
+          data-testid="tool-confirmation-yolo"
+          title="开启 YOLO 并继续执行"
+          className="yolo-button-active h-8 w-full gap-1 border border-border px-2 text-xs transition-all duration-300"
+        >
+          <Zap className="h-3.5 w-3.5 fill-primary text-primary" />
+          <span className="font-medium text-primary">聒噪,YOLO!</span>
+        </Button>
+      </div>
     </DialogContent>
   );
 }
