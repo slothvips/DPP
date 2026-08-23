@@ -16,6 +16,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { logger } from '@/utils/logger';
+import { redactSensitiveJsonObject } from '@/utils/sensitive';
 import type { ChatMessage } from '../types';
 
 interface MessageItemProps {
@@ -35,20 +36,60 @@ const MARKDOWN_COMPONENTS: Components = {
       />
     );
   },
+  blockquote: function MarkdownBlockquote({ node: _node, ...props }) {
+    return (
+      <blockquote
+        {...props}
+        className="my-3 border-l-3 border-border bg-muted/35 py-1 pl-3 pr-2 text-muted-foreground"
+      />
+    );
+  },
+  code: function MarkdownCode({ node: _node, className, children, ...props }) {
+    const isBlock = Boolean(className?.startsWith('language-')) || String(children).includes('\n');
+    return (
+      <code
+        {...props}
+        className={`${className || ''} ${
+          isBlock
+            ? 'bg-transparent p-0 text-foreground'
+            : 'rounded border border-border/60 bg-muted px-1 py-0.5 text-foreground'
+        }`}
+      >
+        {children}
+      </code>
+    );
+  },
   pre: function MarkdownPre({ node: _node, ...props }) {
     return (
       <pre
         {...props}
-        className="my-3 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-muted/60 p-3"
+        className="my-3 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-muted/60 p-3 text-foreground"
       />
     );
   },
   table: function MarkdownTable({ node: _node, ...props }) {
     return (
       <div className="my-3 max-w-full overflow-x-auto">
-        <table {...props} className="w-full min-w-[420px]" />
+        <table {...props} className="w-full min-w-[420px] border-collapse text-foreground" />
       </div>
     );
+  },
+  th: function MarkdownTableHead({ node: _node, ...props }) {
+    return (
+      <th
+        {...props}
+        className="border border-border bg-muted/70 px-3 py-2 text-left font-semibold text-foreground"
+      />
+    );
+  },
+  td: function MarkdownTableCell({ node: _node, ...props }) {
+    return <td {...props} className="border border-border px-3 py-2 text-foreground" />;
+  },
+  hr: function MarkdownRule({ node: _node, ...props }) {
+    return <hr {...props} className="my-5 border-border" />;
+  },
+  input: function MarkdownInput({ node: _node, ...props }) {
+    return <input {...props} className="accent-primary" />;
   },
   img: function MarkdownImage({ node: _node, ...props }) {
     return <img {...props} className="h-auto max-w-full object-contain" />;
@@ -75,6 +116,15 @@ function getReasoningContent(message: ChatMessage): string {
     .join('\n');
 }
 
+function formatToolArguments(argumentsJson: string): string {
+  const redactedArguments = redactSensitiveJsonObject(argumentsJson);
+  try {
+    return JSON.stringify(JSON.parse(redactedArguments) as unknown, null, 2);
+  } catch {
+    return redactedArguments;
+  }
+}
+
 /**
  * Message item component with memoization to prevent unnecessary re-renders.
  * Uses React.memo with custom comparison for optimal performance.
@@ -89,10 +139,11 @@ export const MessageItem = memo(
     const isUser = message.role === 'user';
     const isToolResult = message.role === 'tool';
     const contentClassName =
-      'min-w-0 w-full max-w-full overflow-hidden prose prose-sm break-words dark:prose-invert [overflow-wrap:anywhere] [&_*]:max-w-full [&_code]:break-all [&_code]:whitespace-pre-wrap [&_td]:break-words [&_th]:break-words [&_ul]:min-w-0 [&_ol]:min-w-0';
+      'min-w-0 w-full max-w-full overflow-hidden prose prose-sm break-words text-foreground dark:prose-invert [overflow-wrap:anywhere] [&_*]:max-w-full [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_h4]:text-foreground [&_h5]:text-foreground [&_h6]:text-foreground [&_p]:text-foreground [&_strong]:text-foreground [&_em]:text-foreground [&_del]:text-muted-foreground [&_li]:text-foreground [&_li::marker]:text-muted-foreground [&_small]:text-muted-foreground [&_code]:break-all [&_code]:whitespace-pre-wrap [&_td]:break-words [&_th]:break-words [&_ul]:min-w-0 [&_ol]:min-w-0';
     const roleLabel = isUser ? '你' : isToolResult ? message.name || '工具' : 'D仔';
     const RoleIcon = isUser ? UserRound : isToolResult ? Wrench : Bot;
     const reasoning = message.role === 'assistant' ? getReasoningContent(message) : '';
+    const toolCalls = message.toolCalls || [];
 
     useEffect(() => {
       return () => {
@@ -192,6 +243,37 @@ export const MessageItem = memo(
             </details>
           )}
 
+          {toolCalls.length > 0 && (
+            <details className="group mb-3 min-w-0 max-w-full rounded-lg border border-warning/20 bg-warning/5 text-xs text-muted-foreground">
+              <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 font-medium text-warning outline-none transition-colors hover:bg-warning/8 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
+                <span className="flex-1">工具调用 ({toolCalls.length})</span>
+                <span className="group-open:hidden">展开</span>
+                <span className="hidden group-open:inline">收起</span>
+              </summary>
+              <div className="grid gap-2 border-t border-warning/20 px-3 py-3">
+                {toolCalls.map((toolCall) => (
+                  <div
+                    key={toolCall.id}
+                    className="min-w-0 rounded-md border border-border/55 bg-background/70 p-2.5"
+                  >
+                    <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="font-semibold text-foreground">
+                        {toolCall.function.name}
+                      </span>
+                      <code className="break-all text-[11px] text-muted-foreground">
+                        {toolCall.id}
+                      </code>
+                    </div>
+                    <pre className="mt-2 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-2 font-mono text-[11px] leading-5 text-foreground [overflow-wrap:anywhere]">
+                      {formatToolArguments(toolCall.function.arguments)}
+                    </pre>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
           {isEditing ? (
             <div className="grid gap-2">
               <Textarea
@@ -265,6 +347,8 @@ export const MessageItem = memo(
       prevProps.message.content === nextProps.message.content &&
       prevProps.message.role === nextProps.message.role &&
       prevProps.message.name === nextProps.message.name &&
+      prevProps.message.toolCallId === nextProps.message.toolCallId &&
+      JSON.stringify(prevProps.message.toolCalls) === JSON.stringify(nextProps.message.toolCalls) &&
       prevProps.canEdit === nextProps.canEdit &&
       prevProps.onEditMessage === nextProps.onEditMessage &&
       getReasoningContent(prevProps.message) === getReasoningContent(nextProps.message)

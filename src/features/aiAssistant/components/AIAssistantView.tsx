@@ -53,13 +53,14 @@ export function AIAssistantView() {
 
   const { toast } = useToast();
   const [isSummarizing, setIsSummarizing] = useState(false);
+  const [browserTaskRevision, setBrowserTaskRevision] = useState(0);
 
   const { isConfigMissing, presetPrompt, handleConfigSaved, ensureConfigReady } =
     useAIAssistantConfig({ resetProvider });
 
   const { isNearBottom, messagesEndRef, messagesContainerRef, handleScroll, scrollToBottom } =
     useAIAssistantScroll(messages);
-  const browserTaskProgress = useBrowserTaskProgress(sessionId);
+  const browserTaskProgress = useBrowserTaskProgress(sessionId, browserTaskRevision);
   const plan = useAIPlan(sessionId);
 
   useEffect(() => {
@@ -105,6 +106,19 @@ export function AIAssistantView() {
     },
     [ensureConfigReady, sendMessage]
   );
+
+  const handleEditMessage = useCallback(
+    async (messageId: string, content: string) => {
+      await editMessage(messageId, content);
+      setBrowserTaskRevision((revision) => revision + 1);
+    },
+    [editMessage]
+  );
+
+  const handleClearMessages = useCallback(async () => {
+    await clearMessages();
+    setBrowserTaskRevision((revision) => revision + 1);
+  }, [clearMessages]);
 
   const handleSummarize = useCallback(async () => {
     if (isSummarizing) {
@@ -161,7 +175,7 @@ export function AIAssistantView() {
         onScroll={handleScroll}
         onScrollToBottom={scrollToBottom}
         onConfigSaved={handleConfigSaved}
-        onEditMessage={editMessage}
+        onEditMessage={handleEditMessage}
         browserTaskProgress={browserTaskProgress}
         plan={plan}
       />
@@ -181,7 +195,7 @@ export function AIAssistantView() {
         onSend={handleSend}
         onStop={stop}
         onSummarize={handleSummarize}
-        onClear={clearMessages}
+        onClear={handleClearMessages}
       />
 
       <ToolConfirmationDialog

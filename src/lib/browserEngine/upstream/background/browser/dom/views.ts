@@ -1,4 +1,5 @@
 import type { CoordinateSet, HashedDomElement, ViewportInfo } from './history/view';
+import type { RawDomScrollInfo } from './raw_types';
 import { HistoryTreeProcessor } from './history/service';
 import { capTextLength } from '../util';
 
@@ -82,6 +83,7 @@ export class DOMElementNode extends DOMBaseNode {
   viewportCoordinates?: CoordinateSet;
   pageCoordinates?: CoordinateSet;
   viewportInfo?: ViewportInfo;
+  scrollInfo?: RawDomScrollInfo;
 
   /*
 	### State injected by the browser context.
@@ -104,6 +106,7 @@ export class DOMElementNode extends DOMBaseNode {
     viewportCoordinates?: CoordinateSet;
     pageCoordinates?: CoordinateSet;
     viewportInfo?: ViewportInfo;
+    scrollInfo?: RawDomScrollInfo;
     isNew?: boolean | null;
     parent?: DOMElementNode | null;
   }) {
@@ -120,6 +123,7 @@ export class DOMElementNode extends DOMBaseNode {
     this.viewportCoordinates = params.viewportCoordinates;
     this.pageCoordinates = params.pageCoordinates;
     this.viewportInfo = params.viewportInfo;
+    this.scrollInfo = params.scrollInfo;
     this.isNew = params.isNew ?? null;
   }
 

@@ -1,6 +1,7 @@
 import type {
   BrowserControlMessage,
   BrowserElementRef,
+  BrowserScrollInfo,
   BrowserSnapshot,
 } from '@/lib/browserTask/types';
 
@@ -75,13 +76,18 @@ async function execute(message: BrowserControlMessage) {
       select(requireElement(payload), readString(payload, 'option'));
       await waitForPageStable();
       return { success: true, message: '已选择目标选项' };
-    case 'scroll':
+    case 'scroll': {
+      const direction = readScrollDirection(payload);
       window.scrollBy({
-        top: readString(payload, 'direction') === 'up' ? -window.innerHeight : window.innerHeight,
+        top:
+          direction === 'up' ? -window.innerHeight : direction === 'down' ? window.innerHeight : 0,
+        left:
+          direction === 'left' ? -window.innerWidth : direction === 'right' ? window.innerWidth : 0,
         behavior: 'smooth',
       });
       await waitForPageStable();
       return { success: true, message: '已滚动页面' };
+    }
     case 'go_back':
       history.back();
       await waitForPageStable();
@@ -135,8 +141,44 @@ function buildSnapshot(
     title: document.title,
     text: cleanText(document.body?.innerText || '').slice(0, 12000),
     elements,
+    scroll: getPageScrollInfo(),
     readiness,
   };
+}
+
+function getPageScrollInfo(): BrowserScrollInfo | undefined {
+  const clientWidth = window.visualViewport?.width || window.innerWidth;
+  const clientHeight = window.visualViewport?.height || window.innerHeight;
+  const scrollingElement = document.scrollingElement || document.documentElement;
+  const scrollWidth = Math.max(scrollingElement.scrollWidth, document.body?.scrollWidth || 0);
+  const scrollHeight = Math.max(scrollingElement.scrollHeight, document.body?.scrollHeight || 0);
+  const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
+  const rawScrollLeft = window.scrollX;
+  const scrollLeft =
+    getComputedStyle(document.documentElement).direction === 'rtl'
+      ? Math.max(0, Math.min(maxScrollLeft, maxScrollLeft + rawScrollLeft))
+      : rawScrollLeft;
+  if (scrollWidth <= clientWidth && scrollHeight <= clientHeight) return undefined;
+  return {
+    scrollLeft,
+    clientWidth,
+    scrollWidth,
+    scrollTop: window.scrollY,
+    clientHeight,
+    scrollHeight,
+    canScrollLeft: scrollLeft > 1,
+    canScrollRight: scrollLeft < maxScrollLeft - 1,
+    canScrollUp: window.scrollY > 1,
+    canScrollDown: window.scrollY < scrollHeight - clientHeight - 1,
+  };
+}
+
+function readScrollDirection(payload: Record<string, unknown>): 'up' | 'down' | 'left' | 'right' {
+  const direction = readString(payload, 'direction');
+  if (direction === 'up' || direction === 'down' || direction === 'left' || direction === 'right') {
+    return direction;
+  }
+  throw new Error('direction 必须是 up、down、left 或 right');
 }
 
 function requireElement(payload: Record<string, unknown>): HTMLElement {

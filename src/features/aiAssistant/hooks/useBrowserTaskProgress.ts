@@ -120,14 +120,21 @@ export async function resumeBrowserTask(taskId: string): Promise<boolean> {
   }
 }
 
-export function useBrowserTaskProgress(sessionId: string | null): BrowserTaskProgress[] {
+export function useBrowserTaskProgress(
+  sessionId: string | null,
+  revision = 0
+): BrowserTaskProgress[] {
   const [progressByTask, setProgressByTask] = useState<Record<string, BrowserTaskProgress>>({});
   const currentSessionIdRef = useRef(sessionId);
 
   currentSessionIdRef.current = sessionId;
 
   useEffect(() => {
+    setProgressByTask({});
+    let active = true;
+
     const storeProgress = (nextProgress: BrowserTaskProgress) => {
+      if (!active) return;
       const taskSessionId = nextProgress.sessionId || currentSessionIdRef.current;
       if (!taskSessionId) return;
 
@@ -151,6 +158,7 @@ export function useBrowserTaskProgress(sessionId: string | null): BrowserTaskPro
     browser.runtime.onMessage.addListener(handleMessage);
     void listBrowserTaskRecords(sessionId || undefined)
       .then((records) => {
+        if (!active) return;
         for (const record of records) {
           const nextProgress = readTaskProgress({
             type: 'BROWSER_TASK_EVENT',
@@ -161,8 +169,11 @@ export function useBrowserTaskProgress(sessionId: string | null): BrowserTaskPro
         }
       })
       .catch(() => undefined);
-    return () => browser.runtime.onMessage.removeListener(handleMessage);
-  }, [sessionId]);
+    return () => {
+      active = false;
+      browser.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, [revision, sessionId]);
 
   return sessionId
     ? Object.values(progressByTask)

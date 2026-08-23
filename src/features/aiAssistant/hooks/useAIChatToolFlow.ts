@@ -25,7 +25,7 @@ interface UseAIChatToolFlowReturn {
   cancelToolCall: () => void;
   completeBuild: () => void;
   cancelBuild: () => void;
-  cancelPendingToolFlow: () => void;
+  cancelPendingToolFlow: (appendCancellationMessages?: boolean) => void;
   resetToolFlowState: () => void;
 }
 
@@ -108,21 +108,37 @@ export function useAIChatToolFlow({
     onStatusChange('idle');
   }, [appendMessages, onStatusChange, pendingToolCall, pendingToolCalls, saveToolMessages]);
 
-  const cancelPendingToolFlow = useCallback(() => {
-    executionCancelledRef.current = true;
-    if (pendingToolCalls) {
-      const cancelMessages = createToolCallCancelMessages({
-        pendingToolCalls,
-      });
-      appendMessages(cancelMessages);
-      void saveToolMessages(cancelMessages);
-      setPendingToolCalls(null);
-    }
+  const cancelPendingToolFlow = useCallback(
+    (appendCancellationMessages = true) => {
+      executionCancelledRef.current = true;
+      if (pendingToolCalls) {
+        if (appendCancellationMessages) {
+          const cancelMessages = createToolCallCancelMessages({
+            pendingToolCalls,
+          });
+          appendMessages(cancelMessages);
+          void saveToolMessages(cancelMessages);
+        }
+        setPendingToolCalls(null);
+      }
 
-    if (pendingBuild) {
-      cancelBuild();
-    }
-  }, [appendMessages, cancelBuild, pendingBuild, pendingToolCalls, saveToolMessages]);
+      if (pendingBuild) {
+        if (appendCancellationMessages) {
+          cancelBuild();
+        } else {
+          resetBuildFlowState();
+        }
+      }
+    },
+    [
+      appendMessages,
+      cancelBuild,
+      pendingBuild,
+      pendingToolCalls,
+      resetBuildFlowState,
+      saveToolMessages,
+    ]
+  );
 
   const resetToolFlowState = useCallback(() => {
     setPendingToolCalls(null);

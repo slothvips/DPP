@@ -7,7 +7,7 @@ const INDEX: ToolProperty = {
 };
 const LOCAL_INDEX: ToolProperty = {
   ...INDEX,
-  description: '可选。局部滚动时传区域内任一可见元素的 index；省略时滚动整个页面',
+  description: '可选。观察结果中带有 scroll 信息的元素 index 用于局部滚动；省略时滚动整个页面',
 };
 const TEXT: ToolProperty = { type: 'string', description: '文本内容', maxLength: 12000 };
 
@@ -28,7 +28,10 @@ function tool(
 
 export function createBrowserTaskTools(visionEnabled = false): OpenAIToolDefinition[] {
   const tools = [
-    tool('browser_observe', '刷新并返回完整浏览器状态。'),
+    tool(
+      'browser_observe',
+      '刷新并返回完整浏览器状态。快照顶层 scroll 表示页面滚动状态；元素上的 scroll 表示其所在的局部滚动区域，局部滚动时传该元素 index。'
+    ),
     tool('browser_click', '点击观察结果中的元素。', parameters({ index: INDEX }, ['index'])),
     tool(
       'browser_fill',
@@ -53,10 +56,14 @@ export function createBrowserTaskTools(visionEnabled = false): OpenAIToolDefinit
     ),
     tool(
       'browser_scroll',
-      '向上或向下滚动一屏。',
+      '按一屏的尺寸向上、下、左或右滚动；传入带 scroll 信息的元素 index 可滚动局部区域。',
       parameters(
         {
-          direction: { type: 'string', enum: ['up', 'down'], description: '滚动方向' },
+          direction: {
+            type: 'string',
+            enum: ['up', 'down', 'left', 'right'],
+            description: '滚动方向',
+          },
           index: LOCAL_INDEX,
         },
         ['direction']
@@ -64,10 +71,14 @@ export function createBrowserTaskTools(visionEnabled = false): OpenAIToolDefinit
     ),
     tool(
       'browser_scroll_page',
-      '按视口或局部容器高度翻页式滚动。',
+      '按视口或局部容器尺寸翻页式滚动；传入带 scroll 信息的元素 index 可滚动局部区域，支持上下左右。',
       parameters(
         {
-          direction: { type: 'string', enum: ['up', 'down'], description: '滚动方向' },
+          direction: {
+            type: 'string',
+            enum: ['up', 'down', 'left', 'right'],
+            description: '滚动方向',
+          },
           index: LOCAL_INDEX,
         },
         ['direction']

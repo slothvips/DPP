@@ -88,7 +88,10 @@ export async function truncateSessionFromMessage(
 
   const removedMessages = messages.slice(messageIndex);
   const removedToolCallIds = new Set(
-    removedMessages.flatMap((message) => message.toolCalls?.map((toolCall) => toolCall.id) || [])
+    removedMessages.flatMap((message) => [
+      ...(message.toolCalls?.map((toolCall) => toolCall.id) || []),
+      ...(message.toolCallId ? [message.toolCallId] : []),
+    ])
   );
 
   await db.transaction('rw', getAIMessagesTable(), db.aiPlans, db.browserTasks, async () => {

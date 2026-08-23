@@ -1,6 +1,15 @@
 import type { CoordinateSet, ViewportInfo } from './history/view';
 // define the raw types used in pure javascript files that are injected into the page
 
+export type RawDomScrollInfo = {
+  scrollLeft: number;
+  clientWidth: number;
+  scrollWidth: number;
+  scrollTop: number;
+  clientHeight: number;
+  scrollHeight: number;
+};
+
 export type RawDomTextNode = {
   type: string;
   text: string;
@@ -21,6 +30,7 @@ export type RawDomElementNode = {
   viewportCoordinates?: CoordinateSet;
   pageCoordinates?: CoordinateSet;
   viewportInfo?: ViewportInfo;
+  scrollInfo?: RawDomScrollInfo;
   shadowRoot?: boolean;
 };
 

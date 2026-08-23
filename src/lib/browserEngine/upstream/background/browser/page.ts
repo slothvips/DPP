@@ -40,8 +40,11 @@ export function build_initial_state(tabId?: number, url?: string, title?: string
     title: title || '',
     screenshot: null,
     scrollY: 0,
+    scrollX: 0,
     scrollHeight: 0,
+    scrollWidth: 0,
     visualViewportHeight: 0,
+    visualViewportWidth: 0,
   };
 }
 
@@ -192,9 +195,9 @@ export default class Page {
   }
 
   // Get scroll position information for the current page.
-  async getScrollInfo(): Promise<[number, number, number]> {
+  async getScrollInfo(): Promise<[number, number, number, number, number, number]> {
     if (!this._validWebPage) {
-      return [0, 0, 0];
+      return [0, 0, 0, 0, 0, 0];
     }
     return _getScrollInfo(this._tabId);
   }
@@ -232,24 +235,25 @@ export default class Page {
    * @param element The element to start searching from
    * @returns The nearest scrollable ancestor or null if none found
    */
-  private async _findNearestScrollableElement(element: ElementHandle): Promise<ElementHandle | null> {
+  private async _findNearestScrollableElement(
+    element: ElementHandle,
+    axis: 'vertical' | 'horizontal' = 'vertical',
+  ): Promise<ElementHandle | null> {
     if (!this._puppeteerPage) {
       return null;
     }
 
     // Check if the current element is scrollable
-    const isScrollable = await element.evaluate((el: Element) => {
+    const isScrollable = await element.evaluate((el: Element, targetAxis) => {
       if (!(el instanceof HTMLElement)) return false;
       const style = window.getComputedStyle(el);
-      const hasVerticalScrollbar = el.scrollHeight > el.clientHeight;
-      const canScrollVertically =
-        style.overflowY === 'scroll' ||
-        style.overflowY === 'auto' ||
-        style.overflow === 'scroll' ||
-        style.overflow === 'auto';
-
-      return hasVerticalScrollbar && canScrollVertically;
-    });
+      const isVertical = targetAxis === 'vertical';
+      const hasOverflow = isVertical ? el.scrollHeight > el.clientHeight : el.scrollWidth > el.clientWidth;
+      const canScroll = isVertical
+        ? ['scroll', 'auto'].includes(style.overflowY) || ['scroll', 'auto'].includes(style.overflow)
+        : ['scroll', 'auto'].includes(style.overflowX) || ['scroll', 'auto'].includes(style.overflow);
+      return hasOverflow && canScroll;
+    }, axis);
 
     if (isScrollable) {
       return element;
@@ -273,15 +277,16 @@ export default class Page {
           break;
         }
 
-        const parentIsScrollable = await parentElement.evaluate((el: Element) => {
+        const parentIsScrollable = await parentElement.evaluate((el: Element, targetAxis) => {
           if (!(el instanceof HTMLElement)) return false;
           const style = window.getComputedStyle(el);
-          const hasVerticalScrollbar = el.scrollHeight > el.clientHeight;
-          const canScrollVertically =
-            ['scroll', 'auto'].includes(style.overflowY) || ['scroll', 'auto'].includes(style.overflow);
-
-          return hasVerticalScrollbar && canScrollVertically;
-        });
+          const isVertical = targetAxis === 'vertical';
+          const hasOverflow = isVertical ? el.scrollHeight > el.clientHeight : el.scrollWidth > el.clientWidth;
+          const canScroll = isVertical
+            ? ['scroll', 'auto'].includes(style.overflowY) || ['scroll', 'auto'].includes(style.overflow)
+            : ['scroll', 'auto'].includes(style.overflowX) || ['scroll', 'auto'].includes(style.overflow);
+          return hasOverflow && canScroll;
+        }, axis);
 
         if (parentIsScrollable) {
           // Found a scrollable ancestor – return it (the caller should dispose when finished)
@@ -308,10 +313,12 @@ export default class Page {
     try {
       const bodyElement = await this._puppeteerPage.$('body');
       if (bodyElement) {
-        const bodyIsScrollable = await bodyElement.evaluate(el => {
+        const bodyIsScrollable = await bodyElement.evaluate((el, targetAxis) => {
           if (!(el instanceof HTMLElement)) return false;
-          return el.scrollHeight > el.clientHeight;
-        });
+          return targetAxis === 'vertical'
+            ? el.scrollHeight > el.clientHeight
+            : el.scrollWidth > el.clientWidth;
+        }, axis);
         if (bodyIsScrollable) {
           return bodyElement;
         }
@@ -419,7 +426,8 @@ export default class Page {
 
       // Take screenshot if needed
       const screenshot = useVision ? await this.takeScreenshot() : null;
-      const [scrollY, visualViewportHeight, scrollHeight] = await this.getScrollInfo();
+      const [scrollX, scrollY, visualViewportWidth, visualViewportHeight, scrollWidth, scrollHeight] =
+        await this.getScrollInfo();
 
       // update the state
       this._state.elementTree = content.elementTree;
@@ -427,8 +435,11 @@ export default class Page {
       this._state.url = this._puppeteerPage?.url() || '';
       this._state.title = (await this._puppeteerPage?.title()) || '';
       this._state.screenshot = screenshot;
+      this._state.scrollX = scrollX;
       this._state.scrollY = scrollY;
+      this._state.visualViewportWidth = visualViewportWidth;
       this._state.visualViewportHeight = visualViewportHeight;
+      this._state.scrollWidth = scrollWidth;
       this._state.scrollHeight = scrollHeight;
       return this._state;
     } catch (error) {
@@ -615,7 +626,10 @@ export default class Page {
       }
 
       // Find the nearest scrollable ancestor
-      const scrollableElement = await this._findNearestScrollableElement(element);
+      const scrollableElement = await this._findNearestScrollableElement(
+        element,
+        'vertical',
+      );
       if (!scrollableElement) {
         throw new Error(`No scrollable ancestor found for element: ${elementNode}`);
       }
@@ -633,18 +647,18 @@ export default class Page {
     }
   }
 
-  async scrollBy(y: number, elementNode?: DOMElementNode): Promise<void> {
+  async scrollBy(y: number, elementNode?: DOMElementNode, x = 0): Promise<void> {
     if (!this._puppeteerPage) {
       throw new Error('Puppeteer is not connected');
     }
     if (!elementNode) {
-      await this._puppeteerPage.evaluate(y => {
-        window.scrollBy({
-          top: y,
-          left: 0,
-          behavior: 'smooth',
-        });
-      }, y);
+        await this._puppeteerPage.evaluate(({ x, y }) => {
+          window.scrollBy({
+            top: y,
+            left: x,
+            behavior: 'smooth',
+          });
+        }, { x, y });
     } else {
       const element = await this.locateElement(elementNode);
       if (!element) {
@@ -652,17 +666,20 @@ export default class Page {
       }
 
       // Find the nearest scrollable ancestor
-      const scrollableElement = await this._findNearestScrollableElement(element);
+      const scrollableElement = await this._findNearestScrollableElement(
+        element,
+        x === 0 ? 'vertical' : 'horizontal',
+      );
       if (!scrollableElement) {
         throw new Error(`No scrollable ancestor found for element: ${elementNode}`);
       }
-      await scrollableElement.evaluate((el, y) => {
+      await scrollableElement.evaluate((el, { x, y }) => {
         el.scrollBy({
           top: y,
-          left: 0,
+          left: x,
           behavior: 'smooth',
         });
-      }, y);
+      }, { x, y });
     }
   }
 

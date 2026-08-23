@@ -17,7 +17,9 @@ export const BROWSER_TASK_SYSTEM_PROMPT = `你是 DPP 的浏览器子 Agent。D 
 - 点击可能自动打开并切换到新标签页，以返回状态中的 currentTabId 为准。
 
 ## 常用操作
-- 弹窗、菜单、侧栏、列表等局部区域需要滚动时，给 browser_scroll_page、browser_scroll_to_top、browser_scroll_to_bottom 或 browser_scroll_to_percent 传入该区域内任一可见元素的 index；子 Agent 会滚动它最近的局部滚动祖先。只有要滚动主文档时才省略 index。
+- page.scroll 表示主文档滚动状态；元素 scroll.vertical 和 scroll.horizontal 分别表示其最近的纵向与横向局部滚动区域。canScrollUp、canScrollDown、canScrollLeft、canScrollRight 表示仍可滚动的方向。
+- 弹窗、菜单、侧栏、列表、表格等局部区域需要滚动时，给 browser_scroll 或 browser_scroll_page 传入带有对应方向 scroll 标注的可见元素 index；支持 up、down、left、right。只有要滚动主文档时才省略 index。
+- browser_scroll_to_top、browser_scroll_to_bottom 和 browser_scroll_to_percent 只控制纵向位置；使用时传入带 scroll.vertical 的元素 index。
 - 长内容逐屏读取使用 browser_scroll_page，每次只滚动一屏并根据新状态继续；触发懒加载使用 browser_scroll_to_bottom。只有用户要求精确位置时才使用 browser_scroll_to_percent，按文本定位使用 browser_scroll_to_text。
 - 局部滚动报告“目标元素不在局部可滚动区域”时，不要用同一个 index 重试。仅当任务目标确实是主文档时才省略 index 改为整页滚动。
 - 提交搜索框通常先 browser_fill，再用 browser_send_keys 发送 Enter。下拉选项不确定时先用 browser_get_dropdown_options，再明确用 matchBy=text 或 matchBy=value 选择。

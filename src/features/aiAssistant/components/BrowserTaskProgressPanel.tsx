@@ -1,4 +1,18 @@
-import { Bot, Check, CircleAlert, Loader2, Play, Square } from 'lucide-react';
+import {
+  Bot,
+  Check,
+  CircleAlert,
+  ExternalLink,
+  Eye,
+  FileText,
+  Loader2,
+  MousePointerClick,
+  Navigation,
+  Play,
+  Square,
+  UserRound,
+  Wrench,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   Dialog,
@@ -8,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { type AIPlan, getPlan } from '@/lib/ai/plan';
+import { redactSensitiveJsonObject } from '@/utils/sensitive';
 import type { BrowserTaskDetail, BrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import { getBrowserTaskDetail, resumeBrowserTask } from '../hooks/useBrowserTaskProgress';
 import { AIPlanPanel } from './AIPlanPanel';
@@ -39,44 +54,263 @@ function getMessageLabel(role: string, name?: string): string {
   return '子 Agent';
 }
 
+const TOOL_LABELS: Record<string, string> = {
+  browser_click: '点击页面元素',
+  browser_close_tab: '关闭标签页',
+  browser_done: '确认任务完成',
+  browser_fill: '填写输入内容',
+  browser_get_dropdown_options: '读取下拉选项',
+  browser_go_back: '返回上一页',
+  browser_go_forward: '前进到下一页',
+  browser_navigate: '打开网页',
+  browser_observe: '查看当前页面',
+  browser_observe_visual: '查看页面截图',
+  browser_open_tab: '打开新标签页',
+  browser_refresh: '刷新页面',
+  browser_request_user: '等待用户操作',
+  browser_scroll: '滚动页面',
+  browser_scroll_page: '翻页浏览',
+  browser_scroll_to_bottom: '滚动到底部',
+  browser_scroll_to_percent: '滚动到指定位置',
+  browser_scroll_to_text: '查找并定位文本',
+  browser_scroll_to_top: '滚动到顶部',
+  browser_select: '选择下拉选项',
+  browser_send_keys: '发送键盘操作',
+  browser_switch_tab: '切换标签页',
+  browser_wait: '等待页面变化',
+};
+
+const ARGUMENT_LABELS: Record<string, string> = {
+  direction: '方向',
+  index: '元素',
+  keys: '按键',
+  matchBy: '匹配方式',
+  nth: '第几个',
+  option: '选项',
+  percent: '位置',
+  reason: '原因',
+  seconds: '等待时间',
+  tabId: '标签页',
+  text: '内容',
+  url: '网址',
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseToolContent(content: string): unknown {
+  const taggedContent = content.match(
+    /<dpp_untrusted_content[^>]*>\s*([\s\S]*?)\s*<\/dpp_untrusted_content>/
+  );
+  const candidate = taggedContent?.[1] || content.trim();
+  try {
+    return JSON.parse(candidate) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function formatArgumentValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '未提供';
+  }
+}
+
+function formatJson(value: string): string {
+  const redactedValue = redactSensitiveJsonObject(value);
+  try {
+    return JSON.stringify(JSON.parse(redactedValue) as unknown, null, 2);
+  } catch {
+    return redactedValue;
+  }
+}
+
+function getActionDetails(name: string, args: string): string[] {
+  const parsed = parseToolContent(args);
+  if (!isRecord(parsed)) return [];
+
+  return Object.entries(parsed)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${ARGUMENT_LABELS[key] || key}: ${formatArgumentValue(value)}`);
+}
+
+function getActionIcon(name: string) {
+  if (name.includes('navigate') || name.includes('tab') || name.includes('refresh')) {
+    return Navigation;
+  }
+  if (name.includes('observe')) return Eye;
+  if (name.includes('click') || name.includes('fill') || name.includes('select')) {
+    return MousePointerClick;
+  }
+  return Wrench;
+}
+
+function getToolResult(content: string): { message: string; url?: string; title?: string } {
+  const parsed = parseToolContent(content);
+  if (!isRecord(parsed)) return { message: content.replace(/<[^>]+>/g, '').trim() };
+
+  const state = isRecord(parsed.state) ? parsed.state : undefined;
+  const page = state && isRecord(state.page) ? state.page : undefined;
+  const message = typeof parsed.message === 'string' ? parsed.message : '已完成这一步';
+  return {
+    message,
+    url: page && typeof page.url === 'string' ? page.url : undefined,
+    title: page && typeof page.title === 'string' ? page.title : undefined,
+  };
+}
+
+function getUserMessageContent(content: string): string {
+  const request = content.match(/<dpp_user_request>\s*([\s\S]*?)\s*<\/dpp_user_request>/);
+  return request?.[1]?.trim() || content.trim();
+}
+
+function TechnicalDetails({ content }: { content: string }) {
+  return (
+    <details className="mt-2 rounded-md border border-border/50 bg-background/50 px-2 py-1.5">
+      <summary className="cursor-pointer text-[11px] text-muted-foreground">
+        查看工具原始响应
+      </summary>
+      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-4 text-muted-foreground">
+        {formatJson(content)}
+      </pre>
+    </details>
+  );
+}
+
+function ToolCallDetails({
+  toolCalls,
+}: {
+  toolCalls: NonNullable<BrowserTaskDetail['conversation'][number]['toolCalls']>;
+}) {
+  return (
+    <details className="mt-2 rounded-md border border-warning/20 bg-warning/5 px-2 py-1.5">
+      <summary className="cursor-pointer text-[11px] text-warning">
+        查看工具调用 ({toolCalls.length})
+      </summary>
+      <div className="mt-2 grid gap-2">
+        {toolCalls.map((toolCall) => (
+          <div
+            key={toolCall.id}
+            className="min-w-0 rounded-md border border-border/50 bg-background/60 p-2"
+          >
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px]">
+              <span className="font-semibold text-foreground">{toolCall.function.name}</span>
+              <code className="break-all text-muted-foreground">{toolCall.id}</code>
+            </div>
+            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-2 font-mono text-[10px] leading-4 text-foreground [overflow-wrap:anywhere]">
+              {formatJson(toolCall.function.arguments)}
+            </pre>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function BrowserTaskStep({
+  message,
+  index,
+}: {
+  message: BrowserTaskDetail['conversation'][number];
+  index: number;
+}) {
+  const isToolResult = message.role === 'tool';
+  const isUserMessage = message.role === 'user';
+  const toolCall = message.toolCalls?.[0];
+  const toolCalls = message.toolCalls || [];
+  const toolName = toolCall?.function.name || message.name || '';
+  const actionLabel = TOOL_LABELS[toolName] || getMessageLabel(message.role, message.name);
+  const ActionIcon = isUserMessage ? UserRound : isToolResult ? Check : getActionIcon(toolName);
+  const result = isToolResult ? getToolResult(message.content) : null;
+  const actionDetails = toolCall ? getActionDetails(toolName, toolCall.function.arguments) : [];
+  const content = message.content.trim();
+
+  return (
+    <div className="relative flex gap-3">
+      <div className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background">
+        <ActionIcon className="h-3.5 w-3.5 text-info" />
+      </div>
+      <article className="min-w-0 flex-1 pb-4">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-xs font-semibold text-foreground">
+            {isToolResult ? `${actionLabel}完成` : actionLabel}
+          </span>
+          <span className="shrink-0 text-[10px] text-muted-foreground">步骤 {index}</span>
+        </div>
+
+        {isUserMessage && (
+          <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
+            {getUserMessageContent(content) || '已接收任务'}
+          </p>
+        )}
+
+        {!isToolResult && !isUserMessage && content && (
+          <div className="mt-1 rounded-md border border-info/20 bg-info/5 px-2.5 py-2">
+            {toolCalls.length > 0 && (
+              <p className="mb-1 text-[11px] font-medium text-info">模型输出</p>
+            )}
+            <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
+              {content}
+            </p>
+          </div>
+        )}
+
+        {actionDetails.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {actionDetails.map((detail) => (
+              <span
+                key={detail}
+                className="max-w-full break-words rounded-md bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground"
+              >
+                {detail}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {toolCalls.length > 0 && <ToolCallDetails toolCalls={toolCalls} />}
+
+        {result && (
+          <div className="mt-2 rounded-md border border-success/20 bg-success/5 px-2.5 py-2">
+            <p className="text-xs leading-5 text-foreground">{result.message}</p>
+            {(result.title || result.url) && (
+              <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
+                <ExternalLink className="h-3 w-3 shrink-0" />
+                <span className="truncate">{result.title || result.url}</span>
+              </p>
+            )}
+          </div>
+        )}
+
+        {isToolResult && <TechnicalDetails content={message.content} />}
+      </article>
+    </div>
+  );
+}
+
 function BrowserTaskDetailView({ detail }: { detail: BrowserTaskDetail }) {
   const messages = detail.conversation.filter((message) => message.role !== 'system');
 
   return (
     <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain pr-1 custom-scrollbar">
-      <div className="flex min-w-0 w-full flex-col gap-2">
+      <div className="relative min-w-0 w-full pl-1">
+        <div className="absolute bottom-4 left-[14px] top-4 w-px bg-border/70" />
         {messages.map((message, index) => (
-          <article
+          <BrowserTaskStep
             key={`${detail.taskId}-message-${index}`}
-            className="min-w-0 w-full shrink-0 border-b border-border/45 pb-3 last:border-b-0"
-          >
-            <div className="mb-1 flex min-w-0 items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <Bot className="h-3.5 w-3.5 text-info" />
-              <span>{getMessageLabel(message.role, message.name)}</span>
-              {message.toolCalls && message.toolCalls.length > 0 && (
-                <span className="truncate font-normal">
-                  {message.toolCalls.map((call) => call.function.name).join(', ')}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0 w-full max-w-full overflow-x-hidden rounded-md bg-muted/20 px-2 py-1">
-              <pre
-                className="m-0 min-w-0 w-full font-sans text-xs leading-5 text-foreground"
-                style={{
-                  whiteSpace: 'pre-wrap',
-                  overflowWrap: 'anywhere',
-                  wordBreak: 'break-all',
-                }}
-              >
-                {message.content || '无文本内容'}
-              </pre>
-            </div>
-          </article>
+            message={message}
+            index={index + 1}
+          />
         ))}
 
         {messages.length === 0 && (
           <div className="px-2 py-8 text-center text-xs text-muted-foreground">
-            子 Agent 正在准备任务
+            <FileText className="mx-auto mb-2 h-5 w-5 opacity-60" />子 Agent 正在准备任务
           </div>
         )}
       </div>

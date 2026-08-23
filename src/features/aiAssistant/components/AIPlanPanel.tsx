@@ -1,7 +1,21 @@
-import { Check, CircleAlert, ListTodo, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, CircleAlert, ListTodo, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
 import type { AIPlan, AIPlanStepStatus } from '@/lib/ai/plan';
 
-export function AIPlanPanel({ plan, title = '当前计划' }: { plan: AIPlan | null; title?: string }) {
+interface AIPlanPanelProps {
+  plan: AIPlan | null;
+  title?: string;
+  defaultExpanded?: boolean;
+}
+
+export function AIPlanPanel({
+  plan,
+  title = '当前计划',
+  defaultExpanded = true,
+}: AIPlanPanelProps) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
   if (!plan) return null;
 
   return (
@@ -15,25 +29,43 @@ export function AIPlanPanel({ plan, title = '当前计划' }: { plan: AIPlan | n
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold text-foreground">{title}</p>
             <span className="text-[11px] text-muted-foreground">{getPlanProgress(plan)}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-7 w-7 rounded-md text-muted-foreground"
+              onClick={() => setIsExpanded((expanded) => !expanded)}
+              aria-expanded={isExpanded}
+              aria-label={isExpanded ? '收起计划' : '展开计划'}
+              title={isExpanded ? '收起计划' : '展开计划'}
+            >
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
           </div>
-          <p className="mt-1 break-words text-xs text-muted-foreground">{plan.goal}</p>
-          <ol className="mt-2 space-y-1.5">
-            {plan.steps.map((step) => (
-              <li key={step.id} className="flex min-w-0 items-start gap-2 text-xs">
-                <StepIcon status={step.status} />
-                <span
-                  className={
-                    step.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'
-                  }
-                >
-                  {step.title}
-                  {step.note && (
-                    <span className="ml-1 text-[11px] text-muted-foreground">({step.note})</span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ol>
+          {isExpanded && (
+            <>
+              <p className="mt-1 break-words text-xs text-muted-foreground">{plan.goal}</p>
+              <ol className="mt-2 space-y-1.5">
+                {plan.steps.map((step) => (
+                  <li key={step.id} className="flex min-w-0 items-start gap-2 text-xs">
+                    <StepIcon status={step.status} />
+                    <span
+                      className={
+                        step.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'
+                      }
+                    >
+                      {step.title}
+                      {step.note && (
+                        <span className="ml-1 text-[11px] text-muted-foreground">
+                          ({step.note})
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
         </div>
       </div>
     </section>

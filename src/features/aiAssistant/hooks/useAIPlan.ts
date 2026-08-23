@@ -1,51 +1,54 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
-import { type AIPlan, getPlan } from '@/lib/ai/plan';
+import { getPlan } from '@/lib/ai/plan';
+import type { AIPlan } from '@/lib/ai/plan';
 
 export function useAIPlan(sessionId: string | null): AIPlan | null {
-  const [plan, setPlan] = useState<AIPlan | null>(null);
+  const databasePlan = useLiveQuery(
+    () => (sessionId ? getPlan({ type: 'ai_session', id: sessionId }) : Promise.resolve(undefined)),
+    [sessionId]
+  );
   const latestUpdatedAtRef = useRef(0);
+  const [eventPlan, setEventPlan] = useState<{ plan: AIPlan | null; updatedAt: number } | null>(
+    null
+  );
 
   useEffect(() => {
-    if (!sessionId) {
-      latestUpdatedAtRef.current = 0;
-      setPlan(null);
-      return;
-    }
+    latestUpdatedAtRef.current = databasePlan?.updatedAt || 0;
+  }, [databasePlan]);
 
-    let disposed = false;
+  useEffect(() => {
     latestUpdatedAtRef.current = 0;
-    const owner = { type: 'ai_session' as const, id: sessionId };
-    const applyPlan = (nextPlan: AIPlan | null, updatedAt: number) => {
-      if (updatedAt < latestUpdatedAtRef.current) return;
-      latestUpdatedAtRef.current = updatedAt;
-      setPlan(nextPlan);
-    };
-    const loadPlan = async () => {
-      const nextPlan = await getPlan(owner);
-      if (!disposed && (!nextPlan || isAIPlan(nextPlan))) {
-        applyPlan(nextPlan || null, nextPlan?.updatedAt || 0);
-      }
-    };
-    const handleMessage = (message: unknown) => {
-      if (!isRecord(message) || message.type !== 'AI_PLAN_EVENT' || !isRecord(message.owner))
+    setEventPlan(null);
+
+    const handlePlanEvent = (message: unknown) => {
+      if (!isRecord(message) || message.type !== 'AI_PLAN_EVENT' || !isRecord(message.owner)) {
         return;
-      if (message.owner.type !== owner.type || message.owner.id !== owner.id) return;
-      const nextPlan = isAIPlan(message.plan) ? message.plan : null;
-      const updatedAt =
-        typeof message.updatedAt === 'number' ? message.updatedAt : nextPlan?.updatedAt || 0;
-      applyPlan(nextPlan, updatedAt);
+      }
+      if (
+        message.owner.type !== 'ai_session' ||
+        message.owner.id !== sessionId ||
+        typeof message.updatedAt !== 'number' ||
+        message.updatedAt < latestUpdatedAtRef.current
+      ) {
+        return;
+      }
+
+      const plan = message.plan === null || isAIPlan(message.plan) ? message.plan : undefined;
+      if (plan === undefined) return;
+      latestUpdatedAtRef.current = message.updatedAt;
+      setEventPlan({ plan, updatedAt: message.updatedAt });
     };
 
-    browser.runtime.onMessage.addListener(handleMessage);
-    void loadPlan().catch(() => undefined);
-    return () => {
-      disposed = true;
-      browser.runtime.onMessage.removeListener(handleMessage);
-    };
+    browser.runtime.onMessage.addListener(handlePlanEvent);
+    return () => browser.runtime.onMessage.removeListener(handlePlanEvent);
   }, [sessionId]);
 
-  return plan;
+  if (eventPlan && eventPlan.updatedAt >= (databasePlan?.updatedAt || 0)) {
+    return eventPlan.plan;
+  }
+  return databasePlan ?? null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -53,28 +56,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isAIPlan(value: unknown): value is AIPlan {
-  if (!isRecord(value) || typeof value.goal !== 'string' || typeof value.updatedAt !== 'number') {
-    return false;
-  }
-  if (
-    value.status !== 'active' &&
-    value.status !== 'completed' &&
-    value.status !== 'blocked' &&
-    value.status !== 'cancelled'
-  ) {
+  if (!isRecord(value) || typeof value.goal !== 'string' || !Array.isArray(value.steps)) {
     return false;
   }
   return (
-    Array.isArray(value.steps) &&
-    value.steps.every(
-      (step) =>
-        isRecord(step) &&
-        typeof step.id === 'string' &&
-        typeof step.title === 'string' &&
-        (step.status === 'pending' ||
-          step.status === 'in_progress' ||
-          step.status === 'completed' ||
-          step.status === 'blocked')
-    )
+    (value.status === 'active' ||
+      value.status === 'completed' ||
+      value.status === 'blocked' ||
+      value.status === 'cancelled') &&
+    typeof value.updatedAt === 'number'
   );
 }

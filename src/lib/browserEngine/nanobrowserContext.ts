@@ -1,5 +1,11 @@
 import { browser } from 'wxt/browser';
-import type { BrowserAction, BrowserElementRef, BrowserSnapshot } from '@/lib/browserTask/types';
+import type {
+  BrowserAction,
+  BrowserElementRef,
+  BrowserElementScrollInfo,
+  BrowserScrollInfo,
+  BrowserSnapshot,
+} from '@/lib/browserTask/types';
 import { removeHighlights } from '@browser-engine-upstream/background/browser/dom/service';
 import type { DOMElementNode } from '@browser-engine-upstream/background/browser/dom/views';
 import Page from '@browser-engine-upstream/background/browser/page';
@@ -29,10 +35,16 @@ export interface BrowserEngineActResult {
 }
 
 interface ScrollInfo {
+  scrollLeft: number;
+  clientWidth: number;
+  scrollWidth: number;
   scrollTop: number;
   clientHeight: number;
   scrollHeight: number;
 }
+
+type ScrollAxis = 'vertical' | 'horizontal';
+type ScrollDirection = 'up' | 'down' | 'left' | 'right';
 
 export class NanobrowserContext {
   private readonly pages = new Map<number, Page>();
@@ -133,47 +145,59 @@ export class NanobrowserContext {
       };
     }
     if (action === 'scroll') {
-      const direction = readString(payload, 'direction');
-      const before = await getTargetScrollInfo(page, index, scrollElement);
+      const direction = readScrollDirection(payload);
+      const before = await getTargetScrollInfo(page, index, scrollElement, scrollAxis(direction));
       if (direction === 'up' && isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
-      if (direction !== 'up' && isAtBottom(before))
+      if (direction === 'down' && isAtBottom(before))
         return { message: scrollBoundary(index, '底部') };
+      if (direction === 'left' && isAtLeft(before))
+        return { message: scrollBoundary(index, '左侧') };
+      if (direction === 'right' && isAtRight(before))
+        return { message: scrollBoundary(index, '右侧') };
       await page.scrollBy(
-        direction === 'up' ? -before.clientHeight : before.clientHeight,
-        scrollElement
+        direction === 'up' ? -before.clientHeight : direction === 'down' ? before.clientHeight : 0,
+        scrollElement,
+        direction === 'left' ? -before.clientWidth : direction === 'right' ? before.clientWidth : 0
       );
-      return { message: await scrollResult(page, index, scrollElement, before) };
+      return { message: await scrollResult(page, index, scrollElement, before, direction) };
     }
     if (action === 'scroll_to_percent') {
       const percent = readNumber(payload, 'percent');
       if (percent < 0 || percent > 100) throw new Error('percent 必须在 0-100 之间');
-      const before = await getTargetScrollInfo(page, index, scrollElement);
+      const before = await getTargetScrollInfo(page, index, scrollElement, 'vertical');
       if (Math.abs(before.scrollTop - scrollTopAtPercent(before, percent)) < 1)
         return { message: `${scrollScope(index)}已在 ${percent}% 位置` };
       await page.scrollToPercent(percent, scrollElement);
-      return { message: await scrollResult(page, index, scrollElement, before) };
+      return { message: await scrollResult(page, index, scrollElement, before, 'down') };
     }
     if (action === 'scroll_to_top') {
-      const before = await getTargetScrollInfo(page, index, scrollElement);
+      const before = await getTargetScrollInfo(page, index, scrollElement, 'vertical');
       if (isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
       await page.scrollToPercent(0, scrollElement);
-      return { message: await scrollResult(page, index, scrollElement, before) };
+      return { message: await scrollResult(page, index, scrollElement, before, 'down') };
     }
     if (action === 'scroll_to_bottom') {
-      const before = await getTargetScrollInfo(page, index, scrollElement);
+      const before = await getTargetScrollInfo(page, index, scrollElement, 'vertical');
       if (isAtBottom(before)) return { message: scrollBoundary(index, '底部') };
       await page.scrollToPercent(100, scrollElement);
-      return { message: await scrollResult(page, index, scrollElement, before) };
+      return { message: await scrollResult(page, index, scrollElement, before, 'down') };
     }
     if (action === 'scroll_page') {
-      const direction = readString(payload, 'direction');
-      const before = await getTargetScrollInfo(page, index, scrollElement);
+      const direction = readScrollDirection(payload);
+      const before = await getTargetScrollInfo(page, index, scrollElement, scrollAxis(direction));
       if (direction === 'up' && isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
-      if (direction !== 'up' && isAtBottom(before))
+      if (direction === 'down' && isAtBottom(before))
         return { message: scrollBoundary(index, '底部') };
-      if (direction === 'up') await page.scrollToPreviousPage(scrollElement);
-      else await page.scrollToNextPage(scrollElement);
-      return { message: await scrollResult(page, index, scrollElement, before) };
+      if (direction === 'left' && isAtLeft(before))
+        return { message: scrollBoundary(index, '左侧') };
+      if (direction === 'right' && isAtRight(before))
+        return { message: scrollBoundary(index, '右侧') };
+      await page.scrollBy(
+        direction === 'up' ? -before.clientHeight : direction === 'down' ? before.clientHeight : 0,
+        scrollElement,
+        direction === 'left' ? -before.clientWidth : direction === 'right' ? before.clientWidth : 0
+      );
+      return { message: await scrollResult(page, index, scrollElement, before, direction) };
     }
     if (action === 'scroll_to_text') {
       const text = readString(payload, 'text');
@@ -321,6 +345,14 @@ async function toBrowserSnapshot(state: PageState): Promise<BrowserSnapshot> {
     title: state.title,
     text: state.elementTree.getAllTextTillNextClickableElement().slice(0, 12000),
     elements,
+    scroll: toBrowserScrollInfo(
+      state.scrollX,
+      state.scrollY,
+      state.visualViewportWidth,
+      state.visualViewportHeight,
+      state.scrollWidth,
+      state.scrollHeight
+    ),
     readiness: {
       documentReadyState: 'complete',
       stable: true,
@@ -335,6 +367,12 @@ async function toElementRef(index: number, node: DOMElementNode): Promise<Browse
   const label =
     attributes['aria-label'] || attributes.placeholder || attributes.name || attributes.title || '';
   const hash = await node.hash();
+  const verticalScroll = getNearestScrollInfo(node, 'vertical');
+  const horizontalScroll = getNearestScrollInfo(node, 'horizontal');
+  const scroll: BrowserElementScrollInfo = {
+    ...(verticalScroll ? { vertical: toBrowserScrollInfoFromNode(verticalScroll) } : {}),
+    ...(horizontalScroll ? { horizontal: toBrowserScrollInfoFromNode(horizontalScroll) } : {}),
+  };
   return {
     id: String(index),
     tag: node.tagName || '',
@@ -345,6 +383,67 @@ async function toElementRef(index: number, node: DOMElementNode): Promise<Browse
     fingerprint: JSON.stringify(hash),
     href: attributes.href,
     fileUploader: isFileUploaderNode(node),
+    ...(Object.keys(scroll).length > 0 ? { scroll } : {}),
+  };
+}
+
+function getNearestScrollInfo(
+  node: DOMElementNode,
+  axis: ScrollAxis
+): NonNullable<DOMElementNode['scrollInfo']> | undefined {
+  let current: DOMElementNode | null = node;
+  while (current) {
+    const info = current.scrollInfo;
+    if (
+      info &&
+      (axis === 'vertical'
+        ? info.scrollHeight > info.clientHeight
+        : info.scrollWidth > info.clientWidth)
+    ) {
+      return info;
+    }
+    current = current.parent;
+  }
+  return undefined;
+}
+
+function toBrowserScrollInfo(
+  scrollLeft: number,
+  scrollTop: number,
+  clientWidth: number,
+  clientHeight: number,
+  scrollWidth: number,
+  scrollHeight: number
+): BrowserScrollInfo | undefined {
+  if (scrollHeight <= clientHeight && scrollWidth <= clientWidth) return undefined;
+  return {
+    scrollLeft,
+    clientWidth,
+    scrollWidth,
+    scrollTop,
+    clientHeight,
+    scrollHeight,
+    canScrollLeft: scrollLeft > 1,
+    canScrollRight: scrollLeft < scrollWidth - clientWidth - 1,
+    canScrollUp: scrollTop > 1,
+    canScrollDown: scrollTop < scrollHeight - clientHeight - 1,
+  };
+}
+
+function toBrowserScrollInfoFromNode(
+  info: NonNullable<DOMElementNode['scrollInfo']>
+): BrowserScrollInfo {
+  return {
+    scrollLeft: info.scrollLeft,
+    clientWidth: info.clientWidth,
+    scrollWidth: info.scrollWidth,
+    scrollTop: info.scrollTop,
+    clientHeight: info.clientHeight,
+    scrollHeight: info.scrollHeight,
+    canScrollLeft: info.scrollLeft > 1,
+    canScrollRight: info.scrollLeft < info.scrollWidth - info.clientWidth - 1,
+    canScrollUp: info.scrollTop > 1,
+    canScrollDown: info.scrollTop < info.scrollHeight - info.clientHeight - 1,
   };
 }
 
@@ -380,28 +479,44 @@ function readOptionalScrollElement(
 async function getTargetScrollInfo(
   page: Page,
   index: number | null,
-  element: DOMElementNode | undefined
+  element: DOMElementNode | undefined,
+  axis: ScrollAxis
 ): Promise<ScrollInfo> {
   if (!element) {
-    const [scrollTop, clientHeight, scrollHeight] = await page.getScrollInfo();
-    return { scrollTop, clientHeight, scrollHeight };
+    const [scrollLeft, scrollTop, clientWidth, clientHeight, scrollWidth, scrollHeight] =
+      await page.getScrollInfo();
+    return { scrollLeft, scrollTop, clientWidth, clientHeight, scrollWidth, scrollHeight };
   }
   if (index === null) throw new Error('局部滚动需要元素 index');
 
   const handle = await page.getElementByIndex(index);
   if (!handle) throw new Error('滚动目标元素不存在，请重新观察页面');
   try {
-    const info = await handle.evaluate((target) => {
+    const info = await handle.evaluate((target, targetAxis) => {
       let current: Element | null = target;
-      const { body, documentElement } = target.ownerDocument;
-      while (current && current !== body && current !== documentElement) {
+      const { documentElement } = target.ownerDocument;
+      while (current && current !== documentElement) {
         if (current instanceof HTMLElement) {
           const style = window.getComputedStyle(current);
-          const canScroll =
-            ['auto', 'scroll'].includes(style.overflowY) ||
-            ['auto', 'scroll'].includes(style.overflow);
-          if (canScroll && current.scrollHeight > current.clientHeight) {
+          const isVertical = targetAxis === 'vertical';
+          const canScroll = isVertical
+            ? ['auto', 'scroll'].includes(style.overflowY) ||
+              ['auto', 'scroll'].includes(style.overflow)
+            : ['auto', 'scroll'].includes(style.overflowX) ||
+              ['auto', 'scroll'].includes(style.overflow);
+          const hasOverflow = isVertical
+            ? current.scrollHeight > current.clientHeight
+            : current.scrollWidth > current.clientWidth;
+          if (canScroll && hasOverflow) {
+            const maxScrollLeft = Math.max(0, current.scrollWidth - current.clientWidth);
+            const scrollLeft =
+              style.direction === 'rtl'
+                ? Math.max(0, Math.min(maxScrollLeft, maxScrollLeft + current.scrollLeft))
+                : current.scrollLeft;
             return {
+              scrollLeft,
+              clientWidth: current.clientWidth,
+              scrollWidth: current.scrollWidth,
               scrollTop: current.scrollTop,
               clientHeight: current.clientHeight,
               scrollHeight: current.scrollHeight,
@@ -411,7 +526,7 @@ async function getTargetScrollInfo(
         current = current.parentElement;
       }
       return null;
-    });
+    }, axis);
     if (!info) {
       throw new Error(`元素 ${index} 不在局部可滚动区域；省略 index 才会滚动整个页面`);
     }
@@ -425,18 +540,32 @@ async function scrollResult(
   page: Page,
   index: number | null,
   element: DOMElementNode | undefined,
-  before: ScrollInfo
+  before: ScrollInfo,
+  direction: ScrollDirection
 ): Promise<string> {
   await sleep(300);
-  const after = await getTargetScrollInfo(page, index, element).catch(() => null);
+  const after = await getTargetScrollInfo(page, index, element, scrollAxis(direction)).catch(
+    () => null
+  );
   if (!after) return `已滚动${scrollScope(index)}`;
-  if (Math.abs(after.scrollTop - before.scrollTop) < 1) {
-    if (isAtTop(after)) return scrollBoundary(index, '顶部');
-    if (isAtBottom(after)) return scrollBoundary(index, '底部');
+  const positionChanged =
+    direction === 'left' || direction === 'right'
+      ? Math.abs(after.scrollLeft - before.scrollLeft) >= 1
+      : Math.abs(after.scrollTop - before.scrollTop) >= 1;
+  if (!positionChanged) {
+    if (direction === 'up' && isAtTop(after)) return scrollBoundary(index, '顶部');
+    if (direction === 'down' && isAtBottom(after)) return scrollBoundary(index, '底部');
+    if (direction === 'left' && isAtLeft(after)) return scrollBoundary(index, '左侧');
+    if (direction === 'right' && isAtRight(after)) return scrollBoundary(index, '右侧');
     return `${scrollScope(index)}的滚动位置未变化`;
   }
-  const maxScrollTop = Math.max(0, after.scrollHeight - after.clientHeight);
-  const percent = maxScrollTop === 0 ? 100 : Math.round((after.scrollTop / maxScrollTop) * 100);
+  const maxScroll =
+    direction === 'left' || direction === 'right'
+      ? Math.max(0, after.scrollWidth - after.clientWidth)
+      : Math.max(0, after.scrollHeight - after.clientHeight);
+  const position =
+    direction === 'left' || direction === 'right' ? after.scrollLeft : after.scrollTop;
+  const percent = maxScroll === 0 ? 100 : Math.round((position / maxScroll) * 100);
   return `已滚动${scrollScope(index)}，当前位置约 ${percent}%`;
 }
 
@@ -448,6 +577,14 @@ function isAtBottom(info: ScrollInfo): boolean {
   return info.scrollTop + info.clientHeight >= info.scrollHeight - 1;
 }
 
+function isAtLeft(info: ScrollInfo): boolean {
+  return info.scrollLeft <= 1;
+}
+
+function isAtRight(info: ScrollInfo): boolean {
+  return info.scrollLeft + info.clientWidth >= info.scrollWidth - 1;
+}
+
 function scrollTopAtPercent(info: ScrollInfo, percent: number): number {
   return Math.max(0, info.scrollHeight - info.clientHeight) * (percent / 100);
 }
@@ -456,8 +593,20 @@ function scrollScope(index: number | null): string {
   return index === null ? '页面' : `元素 ${index} 所在的局部区域`;
 }
 
-function scrollBoundary(index: number | null, boundary: '顶部' | '底部'): string {
+function scrollBoundary(index: number | null, boundary: '顶部' | '底部' | '左侧' | '右侧'): string {
   return `${scrollScope(index)}已在${boundary}`;
+}
+
+function scrollAxis(direction: ScrollDirection): ScrollAxis {
+  return direction === 'left' || direction === 'right' ? 'horizontal' : 'vertical';
+}
+
+function readScrollDirection(payload: Record<string, unknown>): ScrollDirection {
+  const direction = readString(payload, 'direction');
+  if (direction === 'up' || direction === 'down' || direction === 'left' || direction === 'right') {
+    return direction;
+  }
+  throw new Error('direction 必须是 up、down、left 或 right');
 }
 
 function readString(payload: Record<string, unknown>, key: string): string {

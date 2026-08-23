@@ -179,6 +179,24 @@ test('clearing a session stops its active runtime before deleting task state', (
   assert.match(mutations, /db\.browserTasks\.where\('sessionId'\)/);
 });
 
+test('editing a message discards the old branch without persisting cancellation nodes', () => {
+  const actions = readFileSync(
+    new URL('../src/features/aiAssistant/hooks/useAIChatActions.ts', import.meta.url),
+    'utf8'
+  );
+  const toolFlow = readFileSync(
+    new URL('../src/features/aiAssistant/hooks/useAIChatToolFlow.ts', import.meta.url),
+    'utf8'
+  );
+  const mutations = readFileSync(new URL('../src/lib/db/aiMutations.ts', import.meta.url), 'utf8');
+
+  assert.match(actions, /queuedMessagesRef\.current = \[\]/);
+  assert.match(actions, /cancelPendingToolFlow\(false\)/);
+  assert.match(actions, /await stopActiveBrowserTask\(sessionId, 'chat'\)/);
+  assert.match(toolFlow, /appendCancellationMessages = true/);
+  assert.match(mutations, /message\.toolCallId/);
+});
+
 test('plan context is bounded and marked as data, and UI gates stale events', () => {
   const plan = readFileSync(new URL('../src/lib/ai/plan.ts', import.meta.url), 'utf8');
   const hook = readFileSync(
@@ -194,7 +212,8 @@ test('plan context is bounded and marked as data, and UI gates stale events', ()
 
 test('browser sub-agent targets local scroll containers by element index', () => {
   assert.match(BROWSER_TASK_SYSTEM_PROMPT, /局部区域需要滚动时/);
-  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /区域内任一可见元素的 index/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /scroll\.vertical 和 scroll\.horizontal/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /支持 up、down、left、right/);
   assert.match(BROWSER_TASK_SYSTEM_PROMPT, /只有要滚动主文档时才省略 index/);
 });
 
@@ -223,9 +242,9 @@ test('rejects invalid browser task argument types, ranges, enums, and unknown ke
     () => parseBrowserTaskArguments('{"percent":101}', browserTool('browser_scroll_to_percent')),
     /不能大于 100/
   );
-  assert.throws(
-    () => parseBrowserTaskArguments('{"direction":"left"}', browserTool('browser_scroll')),
-    /必须是 up、down/
+  assert.deepEqual(
+    parseBrowserTaskArguments('{"direction":"left"}', browserTool('browser_scroll')),
+    { direction: 'left' }
   );
   assert.throws(
     () => parseBrowserTaskArguments('{"index":1,"extra":true}', browserTool('browser_click')),

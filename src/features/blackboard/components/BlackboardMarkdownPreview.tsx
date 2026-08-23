@@ -59,6 +59,20 @@ export function BlackboardMarkdownPreview({
                 {...props}
               />
             ),
+            table: ({ node: _node, ...props }) => (
+              <div className="my-2 max-w-full overflow-x-auto">
+                <table className="min-w-max border-collapse text-sm" {...props} />
+              </div>
+            ),
+            th: ({ node: _node, ...props }) => (
+              <th
+                className="whitespace-nowrap border border-border/60 bg-muted px-2 py-1 text-left align-top"
+                {...props}
+              />
+            ),
+            td: ({ node: _node, ...props }) => (
+              <td className="border border-border/60 px-2 py-1 align-top" {...props} />
+            ),
             a: ({ node: _node, ...props }) => (
               <a
                 className={`cursor-pointer rounded bg-blue-500/10 px-1 py-0.5 text-blue-600 hover:bg-blue-500/20 dark:bg-blue-400/20 dark:text-blue-300 dark:hover:bg-blue-400/30 ${LONG_TEXT_WRAP_CLASS}`}

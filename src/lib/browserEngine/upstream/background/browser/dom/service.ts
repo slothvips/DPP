@@ -500,6 +500,7 @@ export function _parse_node(nodeData: RawDomTreeNode): [DOMBaseNode | null, stri
     shadowRoot: elementData.shadowRoot ?? false,
     parent: null,
     viewportInfo: viewportInfo,
+    scrollInfo: elementData.scrollInfo,
   });
 
   const childrenIds = elementData.children || [];
@@ -556,17 +557,28 @@ export async function removeHighlights(tabId: number): Promise<void> {
 //   return [result.pixels_above, result.pixels_below];
 // }
 
-export async function getScrollInfo(tabId: number): Promise<[number, number, number]> {
+export async function getScrollInfo(tabId: number): Promise<[number, number, number, number, number, number]> {
   const results = await chrome.scripting.executeScript({
     target: { tabId: tabId },
     func: () => {
       const scrollY = window.scrollY;
       const visualViewportHeight = window.visualViewport?.height || window.innerHeight;
-      const scrollHeight = document.body.scrollHeight;
+      const visualViewportWidth = window.visualViewport?.width || window.innerWidth;
+      const scrollHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+      const scrollWidth = Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);
+      const maxScrollX = Math.max(0, scrollWidth - visualViewportWidth);
+      const rawScrollX = window.scrollX;
+      const scrollX =
+        getComputedStyle(document.documentElement).direction === 'rtl'
+          ? Math.max(0, Math.min(maxScrollX, maxScrollX + rawScrollX))
+          : rawScrollX;
       return {
+        scrollX,
         scrollY: scrollY,
+        visualViewportWidth,
         visualViewportHeight: visualViewportHeight,
         scrollHeight: scrollHeight,
+        scrollWidth,
       };
     },
   });
@@ -575,7 +587,14 @@ export async function getScrollInfo(tabId: number): Promise<[number, number, num
   if (!result) {
     throw new Error('Failed to get scroll information');
   }
-  return [result.scrollY, result.visualViewportHeight, result.scrollHeight];
+  return [
+    result.scrollX,
+    result.scrollY,
+    result.visualViewportWidth,
+    result.visualViewportHeight,
+    result.scrollWidth,
+    result.scrollHeight,
+  ];
 }
 
 // Function to check if script is already injected

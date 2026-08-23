@@ -119,7 +119,7 @@ export function AIAssistantMessagesPanel({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <AIPlanPanel plan={plan} />
+      <AIPlanPanel plan={plan} defaultExpanded={false} />
       <div
         ref={messagesContainerRef}
         onScroll={onScroll}

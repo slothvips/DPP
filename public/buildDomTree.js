@@ -1423,6 +1423,38 @@ window.buildDomTree = (
       children: [],
     };
 
+    const scrollStyle = getCachedComputedStyle(node);
+    const canScrollVertically =
+      scrollStyle &&
+      (scrollStyle.overflowY === 'auto' ||
+        scrollStyle.overflowY === 'scroll' ||
+        scrollStyle.overflow === 'auto' ||
+        scrollStyle.overflow === 'scroll');
+    const canScrollHorizontally =
+      scrollStyle &&
+      (scrollStyle.overflowX === 'auto' ||
+        scrollStyle.overflowX === 'scroll' ||
+        scrollStyle.overflow === 'auto' ||
+        scrollStyle.overflow === 'scroll');
+    if (
+      (canScrollVertically && node.scrollHeight > node.clientHeight) ||
+      (canScrollHorizontally && node.scrollWidth > node.clientWidth)
+    ) {
+      const maxScrollLeft = Math.max(0, node.scrollWidth - node.clientWidth);
+      const scrollLeft =
+        scrollStyle.direction === 'rtl'
+          ? Math.max(0, Math.min(maxScrollLeft, maxScrollLeft + node.scrollLeft))
+          : node.scrollLeft;
+      nodeData.scrollInfo = {
+        scrollLeft,
+        clientWidth: node.clientWidth,
+        scrollWidth: node.scrollWidth,
+        scrollTop: node.scrollTop,
+        clientHeight: node.clientHeight,
+        scrollHeight: node.scrollHeight,
+      };
+    }
+
     // Get attributes for interactive elements or potential text containers
     if (
       isInteractiveCandidate(node) ||

@@ -21,6 +21,25 @@ export interface BrowserElementRef {
   fingerprint: string;
   href?: string;
   fileUploader?: boolean;
+  scroll?: BrowserElementScrollInfo;
+}
+
+export interface BrowserElementScrollInfo {
+  vertical?: BrowserScrollInfo;
+  horizontal?: BrowserScrollInfo;
+}
+
+export interface BrowserScrollInfo {
+  scrollLeft: number;
+  clientWidth: number;
+  scrollWidth: number;
+  scrollTop: number;
+  clientHeight: number;
+  scrollHeight: number;
+  canScrollLeft: boolean;
+  canScrollRight: boolean;
+  canScrollUp: boolean;
+  canScrollDown: boolean;
 }
 
 export interface BrowserSnapshot {
@@ -28,6 +47,7 @@ export interface BrowserSnapshot {
   title: string;
   text: string;
   elements: BrowserElementRef[];
+  scroll?: BrowserScrollInfo;
   readiness: BrowserReadiness;
 }
 

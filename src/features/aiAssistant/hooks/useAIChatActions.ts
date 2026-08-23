@@ -27,7 +27,7 @@ interface UseAIChatActionsOptions {
   toLibChatMessage: (message: ChatMessage) => ProviderChatMessage;
   resetRuntimeState: () => void;
   stopRuntime: (sessionId?: string | null, stopBrowserTask?: boolean) => void;
-  cancelPendingToolFlow: () => void;
+  cancelPendingToolFlow: (appendCancellationMessages?: boolean) => void;
   resetToolFlowState: () => void;
   clearPersistedMessages: (sessionId: string) => Promise<void>;
   truncatePersistedMessages: (sessionId: string, messageId: string) => Promise<void>;
@@ -237,10 +237,12 @@ export function useAIChatActions({
       if (messageIndex === -1 || messagesRef.current[messageIndex].role !== 'user') return;
 
       try {
-        stopRuntime();
-        cancelPendingToolFlow();
+        queuedMessagesRef.current = [];
+        stopRuntime(sessionId, false);
+        cancelPendingToolFlow(false);
         resetToolFlowState();
         resetRuntimeState();
+        await stopActiveBrowserTask(sessionId, 'chat');
         await truncatePersistedMessages(sessionId, messageId);
         setMessagesWithRef((previous) => previous.slice(0, messageIndex));
         setStatus('idle');

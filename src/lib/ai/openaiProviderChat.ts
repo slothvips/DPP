@@ -45,7 +45,7 @@ export async function executeOpenAIChat({
     }
 
     const response = await httpPost<OpenAIChatResponse>(url, requestBody, {
-      timeout: 120000,
+      timeout: 300000,
       headers: getOpenAIHeaders(apiKey, additionalHeaders),
     });
 
