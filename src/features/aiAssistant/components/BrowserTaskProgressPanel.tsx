@@ -78,6 +78,7 @@ const TOOL_LABELS: Record<string, string> = {
   browser_send_keys: '发送键盘操作',
   browser_switch_tab: '切换标签页',
   browser_wait: '等待页面变化',
+  manage_plan: '更新任务计划',
 };
 
 const ARGUMENT_LABELS: Record<string, string> = {

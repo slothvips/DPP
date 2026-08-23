@@ -122,6 +122,37 @@ test('browser sub-agent treats page content as data and protects consequential a
   assert.match(BROWSER_TASK_SYSTEM_PROMPT, /每轮只调用一个浏览器工具/);
 });
 
+test('browser sub-agent absorbs planner rules without changing the tool protocol', () => {
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /执行前先评估：当前目标、已经完成的内容/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /已有 browser_task plan 时先读取并延续它/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /优先处理当前 viewport 中已经可见/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /已知目标 URL 时直接使用 browser_navigate/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /分析当前状态 -> 判断是否足够 -> 保存当前结果 -> 单页滚动/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /逐项核对目标、数量、筛选条件和必需字段/);
+  assert.doesNotMatch(BROWSER_TASK_SYSTEM_PROMPT, /always respond with valid JSON/i);
+});
+
+test('browser_done reports the child task result rather than the parent task', () => {
+  assert.match(browserTool('browser_done').function.description, /当前传入子任务/);
+  assert.match(browserTool('browser_done').function.description, /不要声称整个父任务已经完成/);
+});
+
+test('browser observation tools describe uncertainty gates instead of mandatory polling', () => {
+  const observeDescription = browserTool('browser_observe').function.description;
+  assert.match(observeDescription, /页面仍在加载/);
+  assert.match(observeDescription, /上一步结果异常/);
+  assert.match(observeDescription, /需要重新获取元素 index/);
+  assert.match(observeDescription, /状态明确时不要为了重复确认而调用/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /目标元素明确且页面稳定时直接执行/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /动作结果异常时也必须先观察/);
+  assert.match(BROWSER_TASK_SYSTEM_PROMPT, /页面状态明确时不要为了重复确认而调用它/);
+  assert.match(
+    createBrowserTaskTools(true).find((tool) => tool.function.name === 'browser_observe_visual')
+      ?.function.description || '',
+    /DOM 信息足够时不要调用/
+  );
+});
+
 test('browser sub-agent has an isolated plan owner and plan guidance', () => {
   const handler = readFileSync(
     new URL('../src/entrypoints/background/handlers/browserTask.ts', import.meta.url),
@@ -215,6 +246,19 @@ test('browser sub-agent targets local scroll containers by element index', () =>
   assert.match(BROWSER_TASK_SYSTEM_PROMPT, /scroll\.vertical 和 scroll\.horizontal/);
   assert.match(BROWSER_TASK_SYSTEM_PROMPT, /支持 up、down、left、right/);
   assert.match(BROWSER_TASK_SYSTEM_PROMPT, /只有要滚动主文档时才省略 index/);
+});
+
+test('browser scrolling uses nano page steps and waits for the final position', () => {
+  const context = readFileSync(
+    new URL('../src/lib/browserEngine/nanobrowserContext.ts', import.meta.url),
+    'utf8'
+  );
+  assert.match(context, /action === 'scroll' \|\| action === 'scroll_page'/);
+  assert.match(context, /page\.scrollToPreviousPage\(scrollElement\)/);
+  assert.match(context, /page\.scrollToNextPage\(scrollElement\)/);
+  assert.match(context, /target - before\.scrollTop/);
+  assert.match(context, /waitForScrollSettled/);
+  assert.doesNotMatch(context, /sleep\(300\)/);
 });
 
 test('preserves typed browser task arguments including index zero', () => {
@@ -318,6 +362,48 @@ test('keeps the browser task report simple and inspectable', () => {
   assert.match(panel, /message\.role !== 'system'/);
   assert.doesNotMatch(panel, /<MessageItem/);
   assert.doesNotMatch(panel, /重试并继续|BROWSER_TASK_RESUME|onStop/);
+});
+
+test('browser task details retain every recorded tool call in a collapsible section', () => {
+  const handler = readFileSync(
+    new URL('../src/entrypoints/background/handlers/browserTask.ts', import.meta.url),
+    'utf8'
+  );
+  const panel = readFileSync(
+    new URL('../src/features/aiAssistant/components/BrowserTaskProgressPanel.tsx', import.meta.url),
+    'utf8'
+  );
+  assert.match(handler, /toolCalls: response\.message\.toolCalls/);
+  assert.match(handler, /createTaskDetailConversation\(messages\)/);
+  assert.match(panel, /function ToolCallDetails/);
+  assert.match(panel, /toolCalls\.map\(\(toolCall\)/);
+  assert.match(panel, /<details className="mt-2 rounded-md border border-warning\/20/);
+  assert.match(panel, /查看工具调用 \(\{toolCalls\.length\}\)/);
+  assert.match(panel, /manage_plan: '更新任务计划'/);
+});
+
+test('refreshes browser state before each subsequent model request', () => {
+  const handler = readFileSync(
+    new URL('../src/entrypoints/background/handlers/browserTask.ts', import.meta.url),
+    'utf8'
+  );
+  assert.match(handler, /let latestToolResult: Record<string, unknown> \| undefined/);
+  assert.match(
+    handler,
+    /if \(step > 0 && latestToolResult\)[\s\S]*?currentState = await buildTaskState\([\s\S]*?lastMessage\.content = formatToolResult\([\s\S]*?const response = await runAgentTurn/
+  );
+  assert.match(handler, /latestToolResult = result;/);
+});
+
+test('browser_observe performs a real observation in its tool branch', () => {
+  const handler = readFileSync(
+    new URL('../src/entrypoints/background/handlers/browserTask.ts', import.meta.url),
+    'utf8'
+  );
+  assert.match(
+    handler,
+    /if \(name === 'browser_observe'\) \{[\s\S]*?await targetRuntime\.observe\(\);/
+  );
 });
 
 test('keeps terminal browser tasks anchored in the D assistant conversation', () => {

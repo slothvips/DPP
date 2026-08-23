@@ -17,6 +17,9 @@ import type {
 import { DEFAULT_BROWSER_CONTEXT_CONFIG } from '@browser-engine-upstream/background/browser/views';
 
 const PAGE_WAIT_TIMEOUT_MS = 8000;
+const SCROLL_SETTLE_INTERVAL_MS = 50;
+const SCROLL_SETTLE_SAMPLES = 3;
+const SCROLL_SETTLE_TIMEOUT_MS = 2000;
 
 export interface BrowserEngineState {
   currentTabId: number;
@@ -144,7 +147,7 @@ export class NanobrowserContext {
         ),
       };
     }
-    if (action === 'scroll') {
+    if (action === 'scroll' || action === 'scroll_page') {
       const direction = readScrollDirection(payload);
       const before = await getTargetScrollInfo(page, index, scrollElement, scrollAxis(direction));
       if (direction === 'up' && isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
@@ -154,50 +157,45 @@ export class NanobrowserContext {
         return { message: scrollBoundary(index, '左侧') };
       if (direction === 'right' && isAtRight(before))
         return { message: scrollBoundary(index, '右侧') };
-      await page.scrollBy(
-        direction === 'up' ? -before.clientHeight : direction === 'down' ? before.clientHeight : 0,
-        scrollElement,
-        direction === 'left' ? -before.clientWidth : direction === 'right' ? before.clientWidth : 0
-      );
+      if (direction === 'up') await page.scrollToPreviousPage(scrollElement);
+      else if (direction === 'down') await page.scrollToNextPage(scrollElement);
+      else
+        await page.scrollBy(
+          0,
+          scrollElement,
+          direction === 'left' ? -before.clientWidth : before.clientWidth
+        );
       return { message: await scrollResult(page, index, scrollElement, before, direction) };
     }
     if (action === 'scroll_to_percent') {
       const percent = readNumber(payload, 'percent');
       if (percent < 0 || percent > 100) throw new Error('percent 必须在 0-100 之间');
       const before = await getTargetScrollInfo(page, index, scrollElement, 'vertical');
-      if (Math.abs(before.scrollTop - scrollTopAtPercent(before, percent)) < 1)
+      const target = scrollTopAtPercent(before, percent);
+      if (Math.abs(before.scrollTop - target) < 1)
         return { message: `${scrollScope(index)}已在 ${percent}% 位置` };
-      await page.scrollToPercent(percent, scrollElement);
-      return { message: await scrollResult(page, index, scrollElement, before, 'down') };
+      await page.scrollBy(target - before.scrollTop, scrollElement);
+      return {
+        message: await scrollResult(
+          page,
+          index,
+          scrollElement,
+          before,
+          target > before.scrollTop ? 'down' : 'up'
+        ),
+      };
     }
     if (action === 'scroll_to_top') {
       const before = await getTargetScrollInfo(page, index, scrollElement, 'vertical');
       if (isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
-      await page.scrollToPercent(0, scrollElement);
-      return { message: await scrollResult(page, index, scrollElement, before, 'down') };
+      await page.scrollBy(-before.scrollTop, scrollElement);
+      return { message: await scrollResult(page, index, scrollElement, before, 'up') };
     }
     if (action === 'scroll_to_bottom') {
       const before = await getTargetScrollInfo(page, index, scrollElement, 'vertical');
       if (isAtBottom(before)) return { message: scrollBoundary(index, '底部') };
-      await page.scrollToPercent(100, scrollElement);
+      await page.scrollBy(scrollTopAtPercent(before, 100) - before.scrollTop, scrollElement);
       return { message: await scrollResult(page, index, scrollElement, before, 'down') };
-    }
-    if (action === 'scroll_page') {
-      const direction = readScrollDirection(payload);
-      const before = await getTargetScrollInfo(page, index, scrollElement, scrollAxis(direction));
-      if (direction === 'up' && isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
-      if (direction === 'down' && isAtBottom(before))
-        return { message: scrollBoundary(index, '底部') };
-      if (direction === 'left' && isAtLeft(before))
-        return { message: scrollBoundary(index, '左侧') };
-      if (direction === 'right' && isAtRight(before))
-        return { message: scrollBoundary(index, '右侧') };
-      await page.scrollBy(
-        direction === 'up' ? -before.clientHeight : direction === 'down' ? before.clientHeight : 0,
-        scrollElement,
-        direction === 'left' ? -before.clientWidth : direction === 'right' ? before.clientWidth : 0
-      );
-      return { message: await scrollResult(page, index, scrollElement, before, direction) };
     }
     if (action === 'scroll_to_text') {
       const text = readString(payload, 'text');
@@ -543,10 +541,7 @@ async function scrollResult(
   before: ScrollInfo,
   direction: ScrollDirection
 ): Promise<string> {
-  await sleep(300);
-  const after = await getTargetScrollInfo(page, index, element, scrollAxis(direction)).catch(
-    () => null
-  );
+  const after = await waitForScrollSettled(page, index, element, before, direction);
   if (!after) return `已滚动${scrollScope(index)}`;
   const positionChanged =
     direction === 'left' || direction === 'right'
@@ -565,8 +560,35 @@ async function scrollResult(
       : Math.max(0, after.scrollHeight - after.clientHeight);
   const position =
     direction === 'left' || direction === 'right' ? after.scrollLeft : after.scrollTop;
-  const percent = maxScroll === 0 ? 100 : Math.round((position / maxScroll) * 100);
+  const percent =
+    maxScroll === 0 ? 100 : Math.max(0, Math.min(100, Math.round((position / maxScroll) * 100)));
   return `已滚动${scrollScope(index)}，当前位置约 ${percent}%`;
+}
+
+async function waitForScrollSettled(
+  page: Page,
+  index: number | null,
+  element: DOMElementNode | undefined,
+  before: ScrollInfo,
+  direction: ScrollDirection
+): Promise<ScrollInfo | null> {
+  const axis = scrollAxis(direction);
+  const deadline = Date.now() + SCROLL_SETTLE_TIMEOUT_MS;
+  let previous = before;
+  let stableSamples = 0;
+
+  while (Date.now() < deadline) {
+    await sleep(SCROLL_SETTLE_INTERVAL_MS);
+    const current = await getTargetScrollInfo(page, index, element, axis).catch(() => null);
+    if (!current) return null;
+    const currentPosition = axis === 'horizontal' ? current.scrollLeft : current.scrollTop;
+    const previousPosition = axis === 'horizontal' ? previous.scrollLeft : previous.scrollTop;
+    stableSamples = Math.abs(currentPosition - previousPosition) < 1 ? stableSamples + 1 : 0;
+    if (stableSamples >= SCROLL_SETTLE_SAMPLES) return current;
+    previous = current;
+  }
+
+  return previous;
 }
 
 function isAtTop(info: ScrollInfo): boolean {

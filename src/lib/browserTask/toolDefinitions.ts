@@ -30,7 +30,7 @@ export function createBrowserTaskTools(visionEnabled = false): OpenAIToolDefinit
   const tools = [
     tool(
       'browser_observe',
-      '刷新并返回完整浏览器状态。快照顶层 scroll 表示页面滚动状态；元素上的 scroll 表示其所在的局部滚动区域，局部滚动时传该元素 index。'
+      '重新观察当前页面并返回最新完整浏览器状态。页面仍在加载、上一步结果异常、页面发生变化、需要重新获取元素 index 或当前目标不明确时调用；状态明确时不要为了重复确认而调用。快照顶层 scroll 表示页面滚动状态；元素上的 scroll 表示其所在的局部滚动区域，局部滚动时传该元素 index。'
     ),
     tool('browser_click', '点击观察结果中的元素。', parameters({ index: INDEX }, ['index'])),
     tool(
@@ -151,7 +151,7 @@ export function createBrowserTaskTools(visionEnabled = false): OpenAIToolDefinit
     ),
     tool(
       'browser_done',
-      '报告整个网页任务已经完成并提交复核。',
+      '报告当前传入子任务已验证的结果并提交上级 D 仔复核；不要声称整个父任务已经完成。',
       parameters({ result: { ...TEXT, description: '已验证的最终结果' } }, ['result'])
     ),
   ];
@@ -159,7 +159,10 @@ export function createBrowserTaskTools(visionEnabled = false): OpenAIToolDefinit
     tools.splice(
       1,
       0,
-      tool('browser_observe_visual', '仅在 DOM 信息不足时获取带元素标记的当前视口截图。')
+      tool(
+        'browser_observe_visual',
+        '仅在最新 DOM 信息无法判断布局、遮挡、视觉控件或元素关系时获取带元素标记的当前视口截图；DOM 信息足够时不要调用。'
+      )
     );
   }
   return tools;

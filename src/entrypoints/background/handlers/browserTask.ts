@@ -218,8 +218,16 @@ async function runBrowserAgent(
       { role: 'user', content: formatTaskInput(message.task, currentState) },
     ];
     activeTask!.conversation = messages;
+    let latestToolResult: Record<string, unknown> | undefined;
     for (let step = 0; step < 200; step += 1) {
       if (signal.aborted) throw new DOMException('网页任务已停止', 'AbortError');
+      if (step > 0 && latestToolResult) {
+        currentState = await buildTaskState(currentTabId, trackedTabs, visitedUrls, recentActions);
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage?.role === 'tool') {
+          lastMessage.content = formatToolResult(latestToolResult, currentState);
+        }
+      }
       const childPlan = await getPlan({ type: 'browser_task', id: message.taskId });
       messages[0] = {
         role: 'system',
@@ -309,6 +317,7 @@ async function runBrowserAgent(
         recentActions.push(actionRecord);
         if (recentActions.length > BROWSER_TASK_CONTEXT_ACTIONS) recentActions.shift();
         currentState = { ...afterState, recentActions: [...recentActions] };
+        latestToolResult = result;
         messages.push({
           role: 'tool',
           content: formatToolResult(result, currentState),
@@ -363,7 +372,11 @@ async function executeTool(
   signal: AbortSignal
 ): Promise<Record<string, unknown>> {
   if (await isFollowEnabled()) await browser.tabs.update(tabId, { active: true });
-  if (name === 'browser_observe') return { message: '已刷新浏览器状态' };
+  const targetRuntime = new BrowserRuntime(tabId);
+  if (name === 'browser_observe') {
+    await targetRuntime.observe();
+    return { message: '已刷新浏览器状态' };
+  }
   if (name === 'browser_done') return { message: readStringArg(args, 'result') };
   if (name === 'browser_wait') {
     const seconds = typeof args.seconds === 'number' ? args.seconds : 3;
@@ -387,7 +400,6 @@ async function executeTool(
     await updateSummary({ status: 'running', activity: undefined });
     return { message: '用户已完成接管操作，继续执行任务' };
   }
-  const targetRuntime = new BrowserRuntime(tabId);
   if (name === 'browser_open_tab') {
     const url = readStringArg(args, 'url');
     assertNavigableUrl(url);
