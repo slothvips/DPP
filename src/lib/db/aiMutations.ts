@@ -31,10 +31,23 @@ export async function updateSession(
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  await db.transaction('rw', getAISessionsTable(), getAIMessagesTable(), async () => {
-    await getAIMessagesTable().where('sessionId').equals(id).delete();
-    await getAISessionsTable().delete(id);
-  });
+  await db.transaction(
+    'rw',
+    getAISessionsTable(),
+    getAIMessagesTable(),
+    db.aiPlans,
+    db.browserTasks,
+    async () => {
+      const taskIds = await db.browserTasks.where('sessionId').equals(id).primaryKeys();
+      if (taskIds.length > 0) {
+        await db.aiPlans.bulkDelete(taskIds.map((taskId) => `browser_task:${taskId}`));
+      }
+      await db.browserTasks.where('sessionId').equals(id).delete();
+      await getAIMessagesTable().where('sessionId').equals(id).delete();
+      await db.aiPlans.delete(`ai_session:${id}`);
+      await getAISessionsTable().delete(id);
+    }
+  );
 }
 
 export async function addMessage(message: NewAIMessage): Promise<AIMessage> {
@@ -51,7 +64,15 @@ export async function addMessage(message: NewAIMessage): Promise<AIMessage> {
 }
 
 export async function clearSessionMessages(sessionId: string): Promise<void> {
-  await getAIMessagesTable().where('sessionId').equals(sessionId).delete();
+  await db.transaction('rw', getAIMessagesTable(), db.aiPlans, db.browserTasks, async () => {
+    const taskIds = await db.browserTasks.where('sessionId').equals(sessionId).primaryKeys();
+    if (taskIds.length > 0) {
+      await db.aiPlans.bulkDelete(taskIds.map((taskId) => `browser_task:${taskId}`));
+    }
+    await db.browserTasks.where('sessionId').equals(sessionId).delete();
+    await getAIMessagesTable().where('sessionId').equals(sessionId).delete();
+    await db.aiPlans.delete(`ai_session:${sessionId}`);
+  });
 }
 
 export async function truncateSessionFromMessage(
@@ -65,7 +86,26 @@ export async function truncateSessionFromMessage(
   const messageIndex = messages.findIndex((message) => message.id === messageId);
   if (messageIndex === -1) return;
 
-  await getAIMessagesTable().bulkDelete(messages.slice(messageIndex).map((message) => message.id));
+  const removedMessages = messages.slice(messageIndex);
+  const removedToolCallIds = new Set(
+    removedMessages.flatMap((message) => message.toolCalls?.map((toolCall) => toolCall.id) || [])
+  );
+
+  await db.transaction('rw', getAIMessagesTable(), db.aiPlans, db.browserTasks, async () => {
+    if (removedToolCallIds.size > 0) {
+      const taskIds = (await db.browserTasks.where('sessionId').equals(sessionId).toArray())
+        .filter(({ summary }) =>
+          summary.toolCallId ? removedToolCallIds.has(summary.toolCallId) : false
+        )
+        .map(({ taskId }) => taskId);
+      if (taskIds.length > 0) {
+        await db.aiPlans.bulkDelete(taskIds.map((taskId) => `browser_task:${taskId}`));
+        await db.browserTasks.bulkDelete(taskIds);
+      }
+    }
+    await getAIMessagesTable().bulkDelete(removedMessages.map((message) => message.id));
+    await db.aiPlans.delete(`ai_session:${sessionId}`);
+  });
 }
 
 export async function updateSessionTitle(sessionId: string, title: string): Promise<void> {

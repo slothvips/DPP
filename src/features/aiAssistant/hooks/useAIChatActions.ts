@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { resetBrowserTaskGroup, stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
+import { useCallback, useRef } from 'react';
+import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import type { ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
 import { updateSessionTitle } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
@@ -14,6 +14,7 @@ import {
 
 interface UseAIChatActionsOptions {
   sessionId: string | null;
+  status: AIChatStatus;
   isFirstMessageRef: React.MutableRefObject<boolean>;
   appendMessages: (messages: ChatMessage[]) => ChatMessage[];
   messagesRef: React.MutableRefObject<ChatMessage[]>;
@@ -25,10 +26,10 @@ interface UseAIChatActionsOptions {
   processAssistantResponse: (assistantMessage: ChatMessage) => Promise<void>;
   toLibChatMessage: (message: ChatMessage) => ProviderChatMessage;
   resetRuntimeState: () => void;
-  stopRuntime: () => void;
+  stopRuntime: (sessionId?: string | null, stopBrowserTask?: boolean) => void;
   cancelPendingToolFlow: () => void;
   resetToolFlowState: () => void;
-  clearPersistedMessages: (sessionId: string) => void;
+  clearPersistedMessages: (sessionId: string) => Promise<void>;
   truncatePersistedMessages: (sessionId: string, messageId: string) => Promise<void>;
   setStatus: (status: AIChatStatus) => void;
   setError: (error: string | null) => void;
@@ -38,12 +39,13 @@ interface UseAIChatActionsReturn {
   sendMessage: (content: string) => Promise<void>;
   continueConversation: (allMessages: ChatMessage[]) => Promise<void>;
   stop: () => void;
-  clearMessages: () => void;
+  clearMessages: () => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
 }
 
 export function useAIChatActions({
   sessionId,
+  status,
   isFirstMessageRef,
   appendMessages,
   messagesRef,
@@ -63,6 +65,7 @@ export function useAIChatActions({
   setStatus,
   setError,
 }: UseAIChatActionsOptions): UseAIChatActionsReturn {
+  const queuedMessagesRef = useRef<ChatMessage[]>([]);
   const handleChatError = useCallback(
     (label: string, error: unknown) => {
       handleAIChatActionError({
@@ -98,14 +101,20 @@ export function useAIChatActions({
   const sendMessage = useCallback(
     async (content: string) => {
       const userMessage = createUserChatMessage(content);
+      if (status === 'loading' || status === 'streaming' || status === 'confirming') {
+        appendMessages([userMessage]);
+        await saveUserMessage(userMessage);
+        queuedMessagesRef.current.push(userMessage);
+        return;
+      }
       const nextMessages = appendMessages([userMessage]);
+      resetToolFlowState();
       setStatus('loading');
       setError(null);
 
       await saveUserMessage(userMessage);
 
       try {
-        await resetBrowserTaskGroup();
         const assistantMessage = await runChatCompletion(
           buildSendMessagePayload(nextMessages, userMessage, toLibChatMessage)
         );
@@ -124,51 +133,81 @@ export function useAIChatActions({
           logger.warn('[AIChat] Failed to generate session title:', error);
         }
       }
+
+      while (queuedMessagesRef.current.length > 0) {
+        const queuedMessage = queuedMessagesRef.current.shift();
+        if (!queuedMessage) continue;
+        resetToolFlowState();
+        setStatus('loading');
+        setError(null);
+        try {
+          const assistantMessage = await runChatCompletion(
+            buildSendMessagePayload(messagesRef.current, queuedMessage, toLibChatMessage)
+          );
+          await processAssistantResponse(assistantMessage);
+        } catch (error) {
+          handleChatError('[AIChat] Queued chat error:', error);
+        }
+      }
     },
     [
       appendMessages,
       handleChatError,
       isFirstMessageRef,
       loadSessions,
+      messagesRef,
       generateSessionTitle,
       processAssistantResponse,
+      resetToolFlowState,
       runChatCompletion,
       saveUserMessage,
       sessionId,
       setError,
       setStatus,
+      status,
       toLibChatMessage,
     ]
   );
 
-  const stop = useCallback(() => {
-    void stopActiveBrowserTask();
-    stopRuntime();
-    cancelPendingToolFlow();
-    resetToolFlowState();
+  const stop = useCallback(
+    (stopBrowserTask = true) => {
+      stopRuntime(sessionId, stopBrowserTask);
+      cancelPendingToolFlow();
+      resetToolFlowState();
+      queuedMessagesRef.current = [];
 
-    const stopMessage = createStoppedChatMessage();
+      const stopMessage = createStoppedChatMessage();
 
-    appendMessages([stopMessage]);
-    void saveUserMessage(stopMessage);
+      appendMessages([stopMessage]);
+      void saveUserMessage(stopMessage);
 
-    setStatus('idle');
-    setError(null);
+      setStatus('idle');
+      setError(null);
 
-    logger.info('[AIChat] AI task stopped by user');
-  }, [
-    appendMessages,
-    cancelPendingToolFlow,
-    resetToolFlowState,
-    saveUserMessage,
-    setError,
-    setStatus,
-    stopRuntime,
-  ]);
+      logger.info('[AIChat] AI task stopped by user');
+    },
+    [
+      appendMessages,
+      cancelPendingToolFlow,
+      resetToolFlowState,
+      saveUserMessage,
+      sessionId,
+      setError,
+      setStatus,
+      stopRuntime,
+    ]
+  );
 
-  const clearMessages = useCallback(() => {
+  const clearMessages = useCallback(async () => {
+    queuedMessagesRef.current = [];
+    stopRuntime(sessionId, false);
     if (sessionId) {
-      clearPersistedMessages(sessionId);
+      try {
+        await stopActiveBrowserTask(sessionId, 'chat');
+      } catch (error) {
+        logger.error('[AIChat] Failed to stop browser tasks before clearing:', error);
+      }
+      await clearPersistedMessages(sessionId);
     }
 
     setMessagesWithRef(() => []);
@@ -186,6 +225,7 @@ export function useAIChatActions({
     setError,
     setMessagesWithRef,
     setStatus,
+    stopRuntime,
   ]);
 
   const editMessage = useCallback(

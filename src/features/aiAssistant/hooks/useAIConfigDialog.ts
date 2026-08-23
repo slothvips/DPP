@@ -27,6 +27,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
   const [baseUrl, setBaseUrl] = useState(DEFAULT_CONFIGS[DEFAULT_AI_PROVIDER].baseUrl);
   const [model, setModel] = useState(DEFAULT_CONFIGS[DEFAULT_AI_PROVIDER].model);
   const [contextWindow, setContextWindow] = useState<number | undefined>();
+  const [visionEnabled, setVisionEnabled] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [profileName, setProfileName] = useState('');
   const [profiles, setProfiles] = useState<AIProfileSummary[]>([]);
@@ -50,6 +51,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
       setBaseUrl(config.baseUrl);
       setModel(config.model);
       setContextWindow(config.contextWindow);
+      setVisionEnabled(config.visionEnabled === true);
       setApiKey(config.apiKey);
       setProfiles(nextProfiles);
       setSelectedProfileId(matchingProfile?.id ?? null);
@@ -103,6 +105,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
         setBaseUrl(DEFAULT_CONFIGS[provider].baseUrl);
         setModel(DEFAULT_CONFIGS[provider].model);
         setContextWindow(undefined);
+        setVisionEnabled(false);
         setApiKey('');
         return;
       }
@@ -113,6 +116,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
       setBaseUrl(profile.baseUrl);
       setModel(profile.model);
       setContextWindow(profile.contextWindow);
+      setVisionEnabled(profile.visionEnabled === true);
       setApiKey(profile.apiKey);
     },
     [profiles, provider]
@@ -181,7 +185,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
     setLoading(true);
     try {
       if (provider === 'opencode') {
-        await saveAIConfig({ provider, baseUrl, model, apiKey, contextWindow });
+        await saveAIConfig({ provider, baseUrl, model, apiKey, contextWindow, visionEnabled });
       } else if (selectedProfileId) {
         await updateAIProfile(selectedProfileId, {
           provider,
@@ -190,6 +194,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
           model,
           apiKey,
           contextWindow,
+          visionEnabled,
         });
         await activateAIProfile(selectedProfileId);
       } else {
@@ -200,6 +205,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
           model,
           apiKey,
           contextWindow,
+          visionEnabled,
         });
         setSelectedProfileId(id);
       }
@@ -211,7 +217,17 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
     } finally {
       setLoading(false);
     }
-  }, [apiKey, baseUrl, contextWindow, model, onSaved, profileName, provider, selectedProfileId]);
+  }, [
+    apiKey,
+    baseUrl,
+    contextWindow,
+    model,
+    onSaved,
+    profileName,
+    provider,
+    selectedProfileId,
+    visionEnabled,
+  ]);
 
   return {
     provider,
@@ -219,6 +235,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
     model,
     apiKey,
     contextWindow,
+    visionEnabled,
     profileName,
     profiles,
     selectedProfileId,
@@ -227,6 +244,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
     setModel,
     setApiKey,
     setContextWindow,
+    setVisionEnabled,
     setProfileName,
     handleProviderChange,
     handleProfileChange,

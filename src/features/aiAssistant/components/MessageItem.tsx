@@ -31,9 +31,27 @@ const MARKDOWN_COMPONENTS: Components = {
         {...props}
         target="_blank"
         rel="noopener noreferrer"
-        className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+        className="max-w-full break-all font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
       />
     );
+  },
+  pre: function MarkdownPre({ node: _node, ...props }) {
+    return (
+      <pre
+        {...props}
+        className="my-3 max-w-full overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-muted/60 p-3"
+      />
+    );
+  },
+  table: function MarkdownTable({ node: _node, ...props }) {
+    return (
+      <div className="my-3 max-w-full overflow-x-auto">
+        <table {...props} className="w-full min-w-[420px]" />
+      </div>
+    );
+  },
+  img: function MarkdownImage({ node: _node, ...props }) {
+    return <img {...props} className="h-auto max-w-full object-contain" />;
   },
 };
 
@@ -71,7 +89,7 @@ export const MessageItem = memo(
     const isUser = message.role === 'user';
     const isToolResult = message.role === 'tool';
     const contentClassName =
-      'prose prose-sm max-w-none break-words dark:prose-invert [&_code]:break-all [&_pre]:max-w-full [&_pre]:overflow-x-auto';
+      'min-w-0 w-full max-w-full overflow-hidden prose prose-sm break-words dark:prose-invert [overflow-wrap:anywhere] [&_*]:max-w-full [&_code]:break-all [&_code]:whitespace-pre-wrap [&_td]:break-words [&_th]:break-words [&_ul]:min-w-0 [&_ol]:min-w-0';
     const roleLabel = isUser ? '你' : isToolResult ? message.name || '工具' : 'D仔';
     const RoleIcon = isUser ? UserRound : isToolResult ? Wrench : Bot;
     const reasoning = message.role === 'assistant' ? getReasoningContent(message) : '';
@@ -105,31 +123,21 @@ export const MessageItem = memo(
     }
 
     return (
-      <article
-        className={`flex gap-2.5 px-1 py-1 transition-colors sm:px-2 ${isUser ? 'justify-end' : ''}`}
-      >
+      <article className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 border-b border-border/45 px-1 py-4 last:border-b-0 sm:grid-cols-[36px_minmax(0,1fr)] sm:gap-4 sm:px-2">
         <div
-          className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border sm:h-8 sm:w-8 ${
+          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border sm:h-9 sm:w-9 ${
             isUser
-              ? 'border-primary/35 bg-primary/12 text-primary'
+              ? 'border-primary/35 bg-primary/10 text-primary'
               : isToolResult
-                ? 'border-border bg-muted text-muted-foreground'
+                ? 'border-border/70 bg-muted/60 text-muted-foreground'
                 : 'border-info/35 bg-info/10 text-info'
           }`}
         >
           <RoleIcon className="h-4 w-4" />
         </div>
 
-        <div
-          className={`min-w-0 max-w-[88%] rounded-2xl px-3.5 py-3 ${
-            isUser
-              ? 'order-first border border-primary/20 bg-primary/10'
-              : isToolResult
-                ? 'border border-border/55 bg-muted/35'
-                : 'border border-border/55 bg-background'
-          }`}
-        >
-          <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold text-foreground">
+        <div className="min-w-0">
+          <div className="mb-2 flex min-h-6 items-center gap-2 text-[11px] font-semibold text-foreground">
             <span>{roleLabel}</span>
             {isToolResult && (
               <span className="border-l border-border pl-2 font-normal text-muted-foreground">
@@ -172,13 +180,13 @@ export const MessageItem = memo(
           </div>
 
           {reasoning && (
-            <details className="group mb-3 rounded-lg border border-info/20 bg-info/5 text-xs text-muted-foreground">
+            <details className="group mb-3 min-w-0 max-w-full rounded-lg border border-info/20 bg-info/5 text-xs text-muted-foreground">
               <summary className="flex cursor-pointer list-none items-center gap-2 px-1 py-2.5 font-medium text-info outline-none transition-colors hover:bg-info/8 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                 <Brain className="h-3.5 w-3.5 shrink-0" />
                 <span className="flex-1">思考过程</span>
                 <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-90" />
               </summary>
-              <p className="border-t border-info/20 px-1 py-3 whitespace-pre-wrap leading-6 text-foreground/80">
+              <p className="max-w-full border-t border-info/20 px-1 py-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-6 text-foreground/80">
                 {reasoning}
               </p>
             </details>
@@ -222,7 +230,7 @@ export const MessageItem = memo(
               </div>
             </div>
           ) : isToolResult ? (
-            <details className="group rounded-lg border border-border/55 bg-background/45">
+            <details className="group border-l-2 border-border/60 bg-muted/20 pl-3">
               <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                 <span className="min-w-0 flex-1 truncate">查看详细结果</span>
@@ -238,7 +246,9 @@ export const MessageItem = memo(
               </div>
             </details>
           ) : (
-            <div className={contentClassName}>
+            <div
+              className={`${contentClassName} ${isUser ? 'border-l-2 border-primary/35 pl-3' : ''}`}
+            >
               <ReactMarkdown components={MARKDOWN_COMPONENTS} remarkPlugins={[remarkGfm]}>
                 {message.content}
               </ReactMarkdown>

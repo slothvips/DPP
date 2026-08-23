@@ -14,6 +14,7 @@ export interface StoredAIConfig {
   baseUrl: string;
   model: string;
   contextWindow?: number;
+  visionEnabled?: boolean;
   apiKey: string;
 }
 
@@ -64,10 +65,11 @@ async function readLegacyProviderConfig(provider: AIProviderType): Promise<Store
   const baseUrlKey = `ai_${provider}_base_url` as const;
   const modelKey = `ai_${provider}_model` as const;
   const apiKeyKey = `ai_${provider}_api_key` as const;
-  const [savedBaseUrl, savedModel, savedApiKey] = await Promise.all([
+  const [savedBaseUrl, savedModel, savedApiKey, visionEnabled] = await Promise.all([
     readAISetting(baseUrlKey),
     readAISetting(modelKey),
     readAISetting(apiKeyKey),
+    provider === 'opencode' ? readAISetting('ai_opencode_vision_enabled') : false,
   ]);
   const storedModel = savedModel || DEFAULT_CONFIGS[provider].model || '';
   const model = provider === 'opencode' ? normalizeOpenCodeModel(storedModel) : storedModel;
@@ -79,6 +81,7 @@ async function readLegacyProviderConfig(provider: AIProviderType): Promise<Store
     provider,
     baseUrl: savedBaseUrl || DEFAULT_CONFIGS[provider].baseUrl || '',
     model,
+    visionEnabled: visionEnabled === true,
     apiKey: await resolveAIApiKey(savedApiKey, '[AIConfig]'),
   };
 }
@@ -205,6 +208,7 @@ export async function loadAIProfiles(): Promise<AIProfileSummary[]> {
       baseUrl: profile.baseUrl,
       model: profile.model,
       contextWindow: profile.contextWindow,
+      visionEnabled: profile.visionEnabled === true,
       apiKey: await resolveAIApiKey(profile.apiKey, '[AIConfig]'),
       updatedAt: profile.updatedAt,
     }))
@@ -223,6 +227,7 @@ export async function loadAIConfig(): Promise<StoredAIConfig> {
         baseUrl: profile.baseUrl,
         model: profile.model,
         contextWindow: profile.contextWindow,
+        visionEnabled: profile.visionEnabled === true,
         apiKey: await resolveAIApiKey(profile.apiKey, '[AIConfig]'),
       };
     }
@@ -272,6 +277,7 @@ export async function createAIProfile(
     baseUrl: config.baseUrl,
     model: config.model,
     contextWindow: config.contextWindow,
+    visionEnabled: config.visionEnabled === true,
     apiKey: await encryptApiKey(config.apiKey),
     createdAt: now,
     updatedAt: now,
@@ -297,6 +303,7 @@ export async function updateAIProfile(
     baseUrl: config.baseUrl,
     model: config.model,
     contextWindow: config.contextWindow,
+    visionEnabled: config.visionEnabled === true,
     apiKey: await encryptApiKey(config.apiKey),
     updatedAt: Date.now(),
   });
@@ -352,6 +359,9 @@ async function saveLegacyProviderConfig(config: StoredAIConfig, activate: boolea
     updateSetting(modelKey, config.model),
     updateSetting(apiKeyKey, await encryptApiKey(config.apiKey)),
   ];
+  if (config.provider === 'opencode') {
+    updates.push(updateSetting('ai_opencode_vision_enabled', config.visionEnabled === true));
+  }
   if (activate) {
     updates.push(updateSetting('ai_provider_type', config.provider));
   }

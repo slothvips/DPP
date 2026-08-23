@@ -5,7 +5,7 @@ import { logger } from '@/utils/logger';
 export async function handleBrowserTaskRemoteMessage(
   message: BrowserControlMessage
 ): Promise<BrowserControlResponse | unknown> {
-  if (message.action !== 'set_locked') {
+  if (message.action !== 'get_readiness') {
     throw new Error(`后台不接受未经任务授权的标签页操作：${message.action}`);
   }
 

@@ -14,9 +14,11 @@ export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_end',
   main() {
+    document
+      .querySelectorAll('[data-dpp-browser-task-overlay]')
+      .forEach((element) => element.remove());
     if (window.__DPP_BROWSER_CONTROLLER_ACTIVE__) return;
     window.__DPP_BROWSER_CONTROLLER_ACTIVE__ = true;
-    let overlay: HTMLDivElement | null = null;
 
     const listener = (
       rawMessage: unknown,
@@ -24,15 +26,7 @@ export default defineContentScript({
       sendResponse: (response: unknown) => void
     ): true | undefined => {
       if (!isControlMessage(rawMessage)) return;
-      execute(rawMessage, (locked) => {
-        setInteractionLocked(
-          locked,
-          () => overlay,
-          (next) => {
-            overlay = next;
-          }
-        );
-      })
+      execute(rawMessage)
         .then(sendResponse)
         .catch((error: unknown) =>
           sendResponse({
@@ -60,11 +54,15 @@ function isControlMessage(message: unknown): message is BrowserControlMessage {
   );
 }
 
-async function execute(message: BrowserControlMessage, setLocked: (locked: boolean) => void) {
+async function execute(message: BrowserControlMessage) {
   const payload = message.payload || {};
   switch (message.action) {
     case 'observe':
       return { success: true, snapshot: observe(await waitForPageStable()) };
+    case 'get_readiness': {
+      const readiness = await waitForPageStable();
+      return { success: true, readiness, snapshot: buildSnapshot(readiness) };
+    }
     case 'click':
       click(requireElement(payload));
       await waitForPageStable();
@@ -84,9 +82,6 @@ async function execute(message: BrowserControlMessage, setLocked: (locked: boole
       });
       await waitForPageStable();
       return { success: true, message: '已滚动页面' };
-    case 'set_locked':
-      setLocked(payload.locked === true);
-      return { success: true, message: payload.locked === true ? '页面已锁定' : '页面已解锁' };
     case 'go_back':
       history.back();
       await waitForPageStable();
@@ -94,38 +89,6 @@ async function execute(message: BrowserControlMessage, setLocked: (locked: boole
     default:
       throw new Error(`页面不支持操作 ${message.action}`);
   }
-}
-
-function setInteractionLocked(
-  locked: boolean,
-  getOverlay: () => HTMLDivElement | null,
-  setOverlay: (overlay: HTMLDivElement | null) => void
-): void {
-  const current = getOverlay();
-  if (!locked) {
-    current?.remove();
-    setOverlay(null);
-    return;
-  }
-  if (current) return;
-
-  const overlay = document.createElement('div');
-  overlay.dataset.dppBrowserTaskOverlay = 'true';
-  overlay.setAttribute('aria-label', 'DPP 正在执行网页任务');
-  overlay.style.cssText = [
-    'position: fixed',
-    'inset: 0',
-    'z-index: 2147483646',
-    'cursor: wait',
-    'background: rgba(15, 23, 42, 0.08)',
-    'pointer-events: auto',
-  ].join(';');
-  overlay.addEventListener('click', (event) => event.stopPropagation());
-  overlay.addEventListener('pointerdown', (event) => event.stopPropagation());
-  overlay.addEventListener('keydown', (event) => event.stopPropagation());
-  document.documentElement.appendChild(overlay);
-  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-  setOverlay(overlay);
 }
 
 function observe(readiness: BrowserSnapshot['readiness']): BrowserSnapshot {
@@ -160,6 +123,13 @@ function observe(readiness: BrowserSnapshot['readiness']): BrowserSnapshot {
     element.dataset.dppBrowserTaskId = id;
   }
 
+  return buildSnapshot(readiness, elements);
+}
+
+function buildSnapshot(
+  readiness: BrowserSnapshot['readiness'],
+  elements: BrowserElementRef[] = []
+): BrowserSnapshot {
   return {
     url: location.href,
     title: document.title,

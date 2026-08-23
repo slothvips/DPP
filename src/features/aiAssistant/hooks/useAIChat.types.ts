@@ -42,11 +42,11 @@ export interface UseAIChatReturn {
   setYoloMode: (value: boolean) => void;
   isRunning: boolean;
   sendMessage: (content: string) => Promise<void>;
-  stop: () => void;
+  stop: (stopBrowserTask?: boolean) => void;
   confirmToolCall: () => Promise<void>;
   confirmAllToolCalls: () => Promise<void>;
   cancelToolCall: () => void;
-  clearMessages: () => void;
+  clearMessages: () => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   createNewSession: () => Promise<void>;
   switchSession: (id: string) => Promise<void>;

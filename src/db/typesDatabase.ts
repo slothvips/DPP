@@ -4,6 +4,8 @@ import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
 import type { TestCase, TestRun } from '@/features/testing/types';
 import type { TotpAccountItem } from '@/features/totp/types';
+import type { AIPlan, AIPlanOwnerType } from '@/lib/ai/plan';
+import type { BrowserTaskSummary } from '@/lib/browserTask/types';
 import type { AIMessage, AIProfile, AISession } from './typesAI';
 import type {
   HotNewsCache,
@@ -28,6 +30,21 @@ import type {
 export interface TotpLocalOrderRecord {
   key: string;
   orderedIds: string[];
+}
+
+export interface BrowserTaskRecord {
+  taskId: string;
+  sessionId?: string;
+  summary: BrowserTaskSummary;
+  updatedAt: number;
+}
+
+export interface AIPlanRecord {
+  id: string;
+  ownerType: AIPlanOwnerType;
+  ownerId: string;
+  plan: AIPlan;
+  updatedAt: number;
 }
 
 export type DPPDatabase = Dexie & {
@@ -55,4 +72,6 @@ export type DPPDatabase = Dexie & {
   aiMessages: EntityTable<AIMessage, 'id'>;
   aiProfiles: EntityTable<AIProfile, 'id'>;
   remoteActivityLog: EntityTable<RemoteActivityLog, 'id'>;
+  browserTasks: EntityTable<BrowserTaskRecord, 'taskId'>;
+  aiPlans: EntityTable<AIPlanRecord, 'id'>;
 };

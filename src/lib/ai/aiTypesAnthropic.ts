@@ -11,6 +11,15 @@ export interface AnthropicTextBlock {
   text: string;
 }
 
+export interface AnthropicImageBlock {
+  type: 'image';
+  source: {
+    type: 'base64';
+    media_type: 'image/jpeg' | 'image/png';
+    data: string;
+  };
+}
+
 export interface AnthropicThinkingBlock {
   type: 'thinking';
   thinking: string;
@@ -37,6 +46,7 @@ export interface AnthropicToolResultBlock {
 
 export type AnthropicMessageContentBlock =
   | AnthropicTextBlock
+  | AnthropicImageBlock
   | AnthropicThinkingBlock
   | AnthropicRedactedThinkingBlock
   | AnthropicToolUseBlock

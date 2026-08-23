@@ -64,7 +64,7 @@ const messageHandlers: Array<{
       type === 'BROWSER_TASK_STOP' ||
       type === 'BROWSER_TASK_RESUME' ||
       type === 'BROWSER_TASK_GET_STATUS' ||
-      type === 'BROWSER_TASK_SUBSCRIBE',
+      type === 'BROWSER_TASK_GET_DETAIL',
     handler: (message) =>
       handleBrowserTaskMessage(message as Parameters<typeof handleBrowserTaskMessage>[0]),
   },

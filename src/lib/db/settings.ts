@@ -26,13 +26,15 @@ export async function getSettingByKey(key: string): Promise<Setting | undefined>
 export async function updateSetting<K extends SettingKey>(
   key: K,
   value: SettingValue<K>
-): Promise<void> {
-  const existing = await db.settings.get(key);
+): Promise<void>;
+export async function updateSetting(key: string, value: unknown): Promise<void>;
+export async function updateSetting(key: string, value: unknown): Promise<void> {
+  const existing = await db.settings.get(key as SettingKey);
   if (existing && Object.is(existing.value, value)) {
     return;
   }
 
-  await db.settings.put({ key, value });
+  await db.settings.put({ key: key as SettingKey, value: value as SettingValue<SettingKey> });
 }
 
 /**

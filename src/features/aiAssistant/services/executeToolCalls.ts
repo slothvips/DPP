@@ -31,14 +31,22 @@ export async function executePreparedToolCalls(preparedToolCalls: PreparedToolCa
 }>;
 export async function executePreparedToolCalls(
   preparedToolCalls: PreparedToolCall[],
-  options: { onAIConfigChanged?: () => void; browserTaskSessionId?: string }
+  options: {
+    onAIConfigChanged?: () => void;
+    browserTaskSessionId?: string;
+    sessionId?: string;
+  }
 ): Promise<{
   toolMessages: ChatMessage[];
   pendingBuild: PendingBuild | null;
 }>;
 export async function executePreparedToolCalls(
   preparedToolCalls: PreparedToolCall[],
-  options?: { onAIConfigChanged?: () => void; browserTaskSessionId?: string }
+  options?: {
+    onAIConfigChanged?: () => void;
+    browserTaskSessionId?: string;
+    sessionId?: string;
+  }
 ): Promise<{
   toolMessages: ChatMessage[];
   pendingBuild: PendingBuild | null;
@@ -57,9 +65,15 @@ export async function executePreparedToolCalls(
         availableTools: availableToolNames,
       });
       const toolArgs =
-        toolCall.function.name === 'browser_execute_task' && options?.browserTaskSessionId
-          ? { ...args, session_id: options.browserTaskSessionId }
-          : args;
+        toolCall.function.name === 'delegate_browser_agent' && options?.browserTaskSessionId
+          ? {
+              ...args,
+              session_id: options.browserTaskSessionId,
+              tool_call_id: toolCall.id,
+            }
+          : toolCall.function.name === 'manage_plan' && options?.sessionId
+            ? { ...args, __ownerType: 'ai_session', __ownerId: options.sessionId }
+            : args;
       const result = await toolRegistry.execute(toolCall.function.name, toolArgs);
       const resultObj = result as {
         action?: string;

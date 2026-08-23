@@ -1,4 +1,4 @@
-import type { OpenAIToolDefinition, ToolParameter } from './types';
+import type { OpenAIToolDefinition, ToolParameter, ToolProperty } from './types';
 
 export const YOLO_MODE_KEY = '__dpp_yolo_mode';
 
@@ -24,7 +24,7 @@ export function toOpenAIToolDefinition(tool: AIToolMetadata): OpenAIToolDefiniti
 }
 
 export function createToolParameter(
-  properties: Record<string, { type: string; description: string; enum?: string[] }>,
+  properties: Record<string, ToolProperty>,
   required: string[] = []
 ): ToolParameter {
   return {

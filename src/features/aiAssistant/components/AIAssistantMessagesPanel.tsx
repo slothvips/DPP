@@ -1,10 +1,12 @@
 import { ArrowDown, Bot, Sparkles } from 'lucide-react';
-import type { RefObject, UIEventHandler } from 'react';
+import { Fragment, type RefObject, type UIEventHandler } from 'react';
 import { Button } from '@/components/ui/button';
+import type { AIPlan } from '@/lib/ai/plan';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
 import type { BrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import type { ChatMessage } from '../types';
 import { AIConfigDialog } from './AIConfigDialog';
+import { AIPlanPanel } from './AIPlanPanel';
 import { BrowserTaskProgressPanel } from './BrowserTaskProgressPanel';
 import { MessageItem } from './MessageItem';
 
@@ -20,7 +22,8 @@ interface AIAssistantMessagesPanelProps {
   onScrollToBottom: () => void;
   onConfigSaved: () => void;
   onEditMessage: (messageId: string, content: string) => Promise<void>;
-  browserTaskProgress: BrowserTaskProgress | null;
+  browserTaskProgress: BrowserTaskProgress[];
+  plan: AIPlan | null;
 }
 
 const CAPABILITY_GROUPS = [
@@ -50,6 +53,53 @@ const CAPABILITY_GROUPS = [
   },
 ] as const;
 
+function readBrowserTaskArgument(argumentsJson: string): string | undefined {
+  try {
+    const args: unknown = JSON.parse(argumentsJson);
+    if (typeof args !== 'object' || args === null || !('task' in args)) return undefined;
+    return typeof args.task === 'string' ? args.task : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function placeBrowserTasks(messages: ChatMessage[], progress: BrowserTaskProgress[]) {
+  const anchoredTaskIds = new Set<string>();
+  const tasksByMessageId = new Map<string, BrowserTaskProgress[]>();
+
+  for (const message of messages) {
+    for (const toolCall of message.toolCalls || []) {
+      if (toolCall.function.name !== 'delegate_browser_agent') continue;
+
+      const exactMatches = progress.filter(
+        (task) => task.toolCallId === toolCall.id && !anchoredTaskIds.has(task.taskId)
+      );
+      const taskArgument = readBrowserTaskArgument(toolCall.function.arguments);
+      const matches =
+        exactMatches.length > 0
+          ? exactMatches
+          : progress
+              .filter(
+                (task) =>
+                  !task.toolCallId &&
+                  !anchoredTaskIds.has(task.taskId) &&
+                  taskArgument !== undefined &&
+                  task.task === taskArgument
+              )
+              .slice(0, 1);
+
+      if (matches.length === 0) continue;
+      tasksByMessageId.set(message.id, [...(tasksByMessageId.get(message.id) || []), ...matches]);
+      for (const task of matches) anchoredTaskIds.add(task.taskId);
+    }
+  }
+
+  return {
+    tasksByMessageId,
+    unanchoredTasks: progress.filter((task) => !anchoredTaskIds.has(task.taskId)),
+  };
+}
+
 export function AIAssistantMessagesPanel({
   messages,
   status,
@@ -63,13 +113,17 @@ export function AIAssistantMessagesPanel({
   onConfigSaved,
   onEditMessage,
   browserTaskProgress,
+  plan,
 }: AIAssistantMessagesPanelProps) {
+  const { tasksByMessageId, unanchoredTasks } = placeBrowserTasks(messages, browserTaskProgress);
+
   return (
-    <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <AIPlanPanel plan={plan} />
       <div
         ref={messagesContainerRef}
         onScroll={onScroll}
-        className="absolute inset-0 overflow-y-auto bg-muted/15 px-3 py-5 custom-scrollbar sm:px-5"
+        className="relative min-h-0 flex-1 overflow-y-auto bg-muted/15 px-3 py-3 custom-scrollbar sm:px-5 sm:py-4"
       >
         {isConfigMissing && messages.length === 0 && (
           <div className="flex h-full items-center justify-center px-4 py-8">
@@ -124,21 +178,25 @@ export function AIAssistantMessagesPanel({
           </div>
         )}
 
-        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+        <div className="mx-auto flex w-full max-w-3xl flex-col">
           {messages.map((message) => (
-            <MessageItem
-              key={message.id}
-              message={message}
-              canEdit={status !== 'loading' && status !== 'streaming' && status !== 'confirming'}
-              onEditMessage={onEditMessage}
-            />
+            <Fragment key={message.id}>
+              <MessageItem
+                message={message}
+                canEdit={status !== 'loading' && status !== 'streaming' && status !== 'confirming'}
+                onEditMessage={onEditMessage}
+              />
+              {(tasksByMessageId.get(message.id) || []).length > 0 && (
+                <BrowserTaskProgressPanel progress={tasksByMessageId.get(message.id) || []} />
+              )}
+            </Fragment>
           ))}
 
           {(status === 'loading' || status === 'streaming') &&
             (!messages[messages.length - 1] ||
               messages[messages.length - 1].role !== 'assistant' ||
               messages[messages.length - 1].content.length === 0) && (
-              <div className="flex items-center gap-3 rounded-xl border border-info/20 bg-info/6 px-4 py-3 text-xs font-medium text-info">
+              <div className="flex items-center gap-3 border-b border-info/20 border-t border-info/20 bg-info/5 px-1 py-4 text-xs font-medium text-info sm:px-2">
                 <span className="flex gap-1" aria-hidden="true">
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info [animation-delay:-0.3s]" />
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info [animation-delay:-0.15s]" />
@@ -148,10 +206,10 @@ export function AIAssistantMessagesPanel({
               </div>
             )}
 
-          {browserTaskProgress && <BrowserTaskProgressPanel progress={browserTaskProgress} />}
+          {unanchoredTasks.length > 0 && <BrowserTaskProgressPanel progress={unanchoredTasks} />}
 
           {error && (
-            <div className="rounded-xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+            <div className="border-b border-destructive/25 border-t border-destructive/25 bg-destructive/6 px-1 py-4 text-sm text-destructive sm:px-2">
               <span className="mr-2 font-semibold">出错</span>
               {error}
             </div>

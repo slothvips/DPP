@@ -110,4 +110,12 @@ export function registerDatabaseSchema(db: Dexie) {
     testCases: '&id, createdAt, updatedAt, enabled',
     testRuns: '&id, testCaseId, startedAt, status',
   });
+
+  db.version(14).stores({
+    browserTasks: 'taskId, sessionId, updatedAt',
+  });
+
+  db.version(15).stores({
+    aiPlans: 'id, [ownerType+ownerId], updatedAt',
+  });
 }

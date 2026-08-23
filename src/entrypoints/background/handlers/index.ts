@@ -18,7 +18,7 @@ export { handleProxyMessage } from './proxy';
 export type { ProxyMessage } from './proxy';
 
 export { handleBrowserTaskRemoteMessage } from './browserTaskRemote';
-export { handleBrowserTaskMessage } from './browserTask';
+export { handleBrowserTaskMessage, stopActiveBrowserTask } from './browserTask';
 export { recoverInterruptedBrowserTask } from './browserTask';
 
 export { handleGeneralMessage } from './general';

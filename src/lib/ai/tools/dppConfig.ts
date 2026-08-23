@@ -300,6 +300,12 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'string',
     writable: true,
   },
+  ai_opencode_vision_enabled: {
+    category: 'ai',
+    description: 'Allow the current OpenCode model to receive browser screenshots',
+    type: 'boolean',
+    writable: true,
+  },
   ...AI_PROVIDER_CONFIG_DEFINITIONS,
   links_sort_by: {
     category: 'links',

@@ -12,11 +12,22 @@ export class BrowserRuntime {
     return (await browserContext.getState(this.tabId)).page;
   }
 
+  async observeVisual(): Promise<{ image: string; page: BrowserSnapshot }> {
+    const state = await browserContext.getState(this.tabId, true);
+    if (!state.screenshot) throw new Error('当前页面截图失败');
+    return {
+      image: state.screenshot,
+      page: state.page,
+    };
+  }
+
   async act(
     action: BrowserControlMessage['action'],
     payload: Record<string, unknown> = {}
   ): Promise<BrowserEngineActResult> {
-    if (action !== 'set_locked') return browserContext.act(this.tabId, action, payload);
+    if (action !== 'get_readiness') {
+      return browserContext.act(this.tabId, action, payload);
+    }
     const response = await this.send(action, payload);
     return { message: response.message || '操作已完成' };
   }

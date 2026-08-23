@@ -9,6 +9,7 @@ interface ChatInputProps {
   onStop?: () => void;
   disabled: boolean;
   isRunning?: boolean;
+  queueWhileRunning?: boolean;
   placeholder: string;
   /** Initial input value (used for preset prompts from other tabs) */
   initialInput?: string;
@@ -27,6 +28,7 @@ export const ChatInput = memo(function ChatInput({
   onStop,
   disabled,
   isRunning = false,
+  queueWhileRunning = false,
   placeholder,
   initialInput = '',
   rightSlot,
@@ -77,18 +79,37 @@ export const ChatInput = memo(function ChatInput({
           rows={1}
           data-testid="ai-chat-input"
         />
+        {isRunning && queueWhileRunning && (
+          <Button
+            onClick={onStop}
+            disabled={false}
+            size="icon"
+            title="停止当前任务"
+            className="h-[52px] w-[42px] rounded-2xl border border-destructive/40 bg-destructive/8 hover:bg-destructive/12"
+          >
+            <Square className="h-3 w-3 fill-destructive text-destructive" />
+          </Button>
+        )}
         <Button
-          onClick={isRunning ? onStop : handleSend}
-          disabled={isRunning ? false : !input.trim() || disabled}
+          onClick={isRunning && !queueWhileRunning ? onStop : handleSend}
+          disabled={
+            isRunning && queueWhileRunning
+              ? !input.trim()
+              : isRunning
+                ? false
+                : !input.trim() || disabled
+          }
           size="icon"
-          data-testid={isRunning ? 'ai-chat-stop' : 'ai-chat-send'}
+          data-testid={isRunning && !queueWhileRunning ? 'ai-chat-stop' : 'ai-chat-send'}
           title={isRunning ? '停止' : '发送'}
           className={cn(
             'h-[52px] w-[52px] rounded-2xl transition-all duration-200',
-            isRunning && 'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
+            isRunning &&
+              !queueWhileRunning &&
+              'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
           )}
         >
-          {isRunning ? (
+          {isRunning && !queueWhileRunning ? (
             <div className="relative flex items-center justify-center">
               <Square className="h-3 w-3 fill-destructive text-destructive" />
             </div>

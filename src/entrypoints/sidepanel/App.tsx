@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { browser } from 'wxt/browser';
 import { ToastProvider } from '@/components/ui/toast';
 import { useTheme } from '@/hooks/useTheme';
+import { BROWSER_TASK_HOST_PORT_NAME } from '@/lib/browserTask/types';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import { SidepanelContent } from './SidepanelContent';
 import { SidepanelHeader } from './SidepanelHeader';
@@ -12,6 +14,11 @@ import { useSidepanelTabs } from './useSidepanelTabs';
 export function App() {
   useTheme();
   useSidepanelAutoPull();
+
+  useEffect(() => {
+    const port = browser.runtime.connect({ name: BROWSER_TASK_HOST_PORT_NAME });
+    return () => port.disconnect();
+  }, []);
 
   const { featureToggles, isMinimalMode, showJenkinsTab, showSyncButton } = useSidepanelSettings();
   const [isSideNavExpanded, setIsSideNavExpanded] = useState(false);

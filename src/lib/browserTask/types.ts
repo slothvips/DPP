@@ -1,9 +1,15 @@
-export const BROWSER_TASK_STORAGE_KEY = '__dpp_browser_task';
-export const BROWSER_TASK_GROUP_STORAGE_KEY = '__dpp_browser_task_group';
-export const BROWSER_TASK_FOLLOW_STORAGE_KEY = '__dpp_browser_task_follow';
-export const BROWSER_TASK_CHECKPOINT_STORAGE_KEY = '__dpp_browser_task_checkpoint';
+import type { ChatMessage } from '@/lib/ai/types';
 
-export type BrowserTaskStatus = 'running' | 'waiting_user' | 'completed' | 'failed' | 'stopped';
+export const BROWSER_TASK_HOST_PORT_NAME = 'DPP_BROWSER_TASK_HOST';
+
+export type BrowserTaskStatus =
+  | 'queued'
+  | 'running'
+  | 'waiting_user'
+  | 'completed'
+  | 'failed'
+  | 'stopped';
+export type BrowserTaskStopSource = 'chat' | 'browser' | 'system';
 
 export interface BrowserElementRef {
   id: string;
@@ -14,6 +20,7 @@ export interface BrowserElementRef {
   locator: string;
   fingerprint: string;
   href?: string;
+  fileUploader?: boolean;
 }
 
 export interface BrowserSnapshot {
@@ -35,6 +42,8 @@ export type DocumentReadyState = 'loading' | 'interactive' | 'complete';
 
 export type BrowserAction =
   | 'observe'
+  | 'hover'
+  | 'inspect'
   | 'click'
   | 'fill'
   | 'select'
@@ -51,7 +60,9 @@ export type BrowserAction =
   | 'switch_tab'
   | 'close_tab'
   | 'go_back'
-  | 'set_locked';
+  | 'go_forward'
+  | 'refresh'
+  | 'get_readiness';
 
 export interface BrowserTabState {
   id: number;
@@ -94,20 +105,25 @@ export interface BrowserControlResponse {
   success: boolean;
   message?: string;
   snapshot?: BrowserSnapshot;
+  readiness?: BrowserReadiness;
 }
 
 export interface BrowserTaskSummary {
   taskId: string;
+  agentRole?: 'browser';
   sessionId?: string;
+  toolCallId?: string;
   task: string;
-  groupName?: string;
+  groupId?: number | null;
   initialTabId: number;
   status: BrowserTaskStatus;
+  stopSource?: BrowserTaskStopSource;
   history: unknown[];
+  conversation?: ChatMessage[];
   activity?: unknown;
-  modelOutput?: string;
   result?: string;
   error?: string;
+  createdAt?: number;
   updatedAt: number;
 }
 
@@ -116,25 +132,14 @@ export interface BrowserTaskStartMessage {
   taskId: string;
   task: string;
   sessionId?: string;
-  groupName?: string;
+  toolCallId?: string;
   initialTabId: number;
-  resumeTaskId?: string;
-}
-
-export interface BrowserTaskCheckpoint {
-  taskId: string;
-  task: string;
-  currentTabId: number;
-  tabs: BrowserTabState[];
-  ownedTabIds?: number[];
-  recentActions: BrowserActionState[];
-  visitedUrls: string[];
-  updatedAt: number;
 }
 
 export interface BrowserTaskStopMessage {
   type: 'BROWSER_TASK_STOP';
   taskId: string;
+  source?: BrowserTaskStopSource;
 }
 
 export interface BrowserTaskResumeMessage {
@@ -143,7 +148,7 @@ export interface BrowserTaskResumeMessage {
 }
 
 export interface BrowserTaskStatusMessage {
-  type: 'BROWSER_TASK_GET_STATUS' | 'BROWSER_TASK_SUBSCRIBE';
+  type: 'BROWSER_TASK_GET_STATUS' | 'BROWSER_TASK_GET_DETAIL';
   taskId: string;
 }
 

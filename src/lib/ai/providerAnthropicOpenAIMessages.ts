@@ -46,9 +46,23 @@ export function anthropicMessageToOpenAIMessage(message: AnthropicChatMessage): 
     .map((block) => block.thinking)
     .join('');
 
+  const imageContent = message.content
+    .filter(
+      (block): block is Extract<AnthropicMessageContentBlock, { type: 'image' }> =>
+        block.type === 'image'
+    )
+    .map((block) => ({
+      type: 'image_url' as const,
+      image_url: {
+        url: `data:${block.source.media_type};base64,${block.source.data}`,
+      },
+    }));
   const openAIMessage: OpenAIChatMessage = {
     role: message.role,
-    content: textContent,
+    content:
+      imageContent.length > 0
+        ? [{ type: 'text', text: textContent }, ...imageContent]
+        : textContent,
   };
 
   if (message.role === 'assistant' && thinkingContent) {

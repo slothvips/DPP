@@ -20,6 +20,7 @@ interface AIConfigSummary {
   baseUrl: string;
   model: string;
   contextWindow?: number;
+  visionEnabled: boolean;
   apiKeyConfigured: boolean;
 }
 
@@ -29,6 +30,7 @@ interface AIProfileSummary {
   provider: AIProviderType;
   baseUrl: string;
   model: string;
+  visionEnabled: boolean;
   apiKeyConfigured: boolean;
 }
 
@@ -42,6 +44,7 @@ interface AIConfigUpdateArgs {
   clearApiKey?: boolean;
   activateProvider?: boolean;
   contextWindow?: number;
+  visionEnabled?: boolean;
 }
 
 function readStringArg(args: Record<string, unknown>, key: string): string | undefined {
@@ -88,6 +91,7 @@ function summarizeConfig(config: StoredAIConfig): AIConfigSummary {
     baseUrl: config.baseUrl,
     model: config.model,
     contextWindow: config.contextWindow,
+    visionEnabled: config.visionEnabled === true,
     apiKeyConfigured: Boolean(config.apiKey),
   };
 }
@@ -106,6 +110,7 @@ async function ai_config_get() {
       provider: profile.provider,
       baseUrl: profile.baseUrl,
       model: profile.model,
+      visionEnabled: profile.visionEnabled === true,
       apiKeyConfigured: Boolean(profile.apiKey),
     }))
   );
@@ -123,6 +128,8 @@ async function ai_config_get() {
       'apiKey',
       'clearApiKey',
       'activateProvider',
+      'contextWindow',
+      'visionEnabled',
     ],
     note: 'API Key 只返回是否已配置；修改时请通过 ai_config_update 传入新值。',
   };
@@ -142,6 +149,7 @@ function parseUpdateArgs(args: unknown): AIConfigUpdateArgs {
     baseUrl: readStringArg(objectArgs, 'baseUrl'),
     model: readStringArg(objectArgs, 'model'),
     contextWindow: readNumberArg(objectArgs, 'contextWindow'),
+    visionEnabled: readBooleanArg(objectArgs, 'visionEnabled'),
     apiKey: readStringArg(objectArgs, 'apiKey'),
     clearApiKey: readBooleanArg(objectArgs, 'clearApiKey'),
     activateProvider: readBooleanArg(objectArgs, 'activateProvider'),
@@ -171,6 +179,7 @@ async function ai_config_update(args: unknown) {
     baseUrl: parsed.baseUrl ?? existingConfig.baseUrl,
     model: parsed.model ?? existingConfig.model,
     contextWindow: parsed.contextWindow ?? existingConfig.contextWindow,
+    visionEnabled: parsed.visionEnabled ?? existingConfig.visionEnabled,
     apiKey: parsed.clearApiKey ? '' : (parsed.apiKey ?? existingConfig.apiKey),
   };
   const preserveApiKey = parsed.apiKey === undefined && parsed.clearApiKey !== true;
@@ -265,6 +274,14 @@ export function registerAIConfigTools() {
           type: 'boolean',
           description:
             'Whether to switch D仔 to the target provider after updating. Defaults to true.',
+        },
+        contextWindow: {
+          type: 'number',
+          description: 'Optional positive context window override.',
+        },
+        visionEnabled: {
+          type: 'boolean',
+          description: 'Whether the target model accepts browser screenshot image input.',
         },
       },
       []

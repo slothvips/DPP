@@ -1,4 +1,6 @@
 import { useCallback, useRef } from 'react';
+import { hasAssistantOutput, runAgentTurn } from '@/lib/ai/agentRuntime';
+import { formatPlanContext, getPlan } from '@/lib/ai/plan';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
@@ -12,6 +14,7 @@ import {
 } from './useAIChatRuntimeShared';
 
 interface UseAIChatRuntimeOptions {
+  sessionId: string | null;
   createAssistantPlaceholder: () => void;
   onStreamStart: () => void;
   onStreamChunk: (chunk: string) => void;
@@ -24,12 +27,13 @@ interface UseAIChatRuntimeReturn {
   currentProvider: AIProviderType | null;
   runChatCompletion: (apiMessages: ProviderChatMessage[]) => Promise<ChatMessage>;
   generateSessionTitle: (userMessage: string) => Promise<string>;
-  stopRuntime: () => void;
+  stopRuntime: (sessionId?: string | null, stopBrowserTask?: boolean) => void;
   resetRuntimeState: () => void;
   resetProvider: () => void;
 }
 
 export function useAIChatRuntime({
+  sessionId,
   createAssistantPlaceholder,
   onStreamStart,
   onStreamChunk,
@@ -52,7 +56,8 @@ export function useAIChatRuntime({
   const runChatCompletion = useCallback(
     async (apiMessages: ProviderChatMessage[]) => {
       const provider = await getProvider();
-      const systemPrompt = generateSystemPrompt();
+      const plan = sessionId ? await getPlan({ type: 'ai_session', id: sessionId }) : undefined;
+      const systemPrompt = `${generateSystemPrompt()}\n\n${formatPlanContext(plan, 'ai_session')}`;
       const tools = toolRegistry.getOpenAITools();
 
       resetRuntimeState();
@@ -60,7 +65,9 @@ export function useAIChatRuntime({
       abortControllerRef.current = new AbortController();
       const contextWindowPromise = provider.getContextWindow?.();
 
-      const response = await provider.chat(buildRuntimeRequestMessages(systemPrompt, apiMessages), {
+      const response = await runAgentTurn({
+        provider,
+        messages: buildRuntimeRequestMessages(systemPrompt, apiMessages),
         stream: true,
         signal: abortControllerRef.current.signal,
         tools,
@@ -103,7 +110,9 @@ export function useAIChatRuntime({
       );
 
       onAssistantMessage(assistantMessage);
-      await onPersistAssistantMessage(assistantMessage);
+      if (hasAssistantOutput(assistantMessage)) {
+        await onPersistAssistantMessage(assistantMessage);
+      }
       return assistantMessage;
     },
     [
@@ -115,6 +124,7 @@ export function useAIChatRuntime({
       onStreamChunk,
       onStreamStart,
       resetRuntimeState,
+      sessionId,
     ]
   );
 
@@ -138,14 +148,19 @@ export function useAIChatRuntime({
     [getProvider]
   );
 
-  const stopRuntime = useCallback(() => {
-    stopActiveBrowserTask();
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    resetRuntimeState();
-  }, [resetRuntimeState]);
+  const stopRuntime = useCallback(
+    (targetSessionId = sessionId, stopBrowserTask = true) => {
+      if (stopBrowserTask) {
+        void stopActiveBrowserTask(targetSessionId || undefined, 'chat');
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      resetRuntimeState();
+    },
+    [resetRuntimeState, sessionId]
+  );
 
   return {
     currentProvider,

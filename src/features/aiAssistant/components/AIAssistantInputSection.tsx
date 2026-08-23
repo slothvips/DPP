@@ -1,10 +1,9 @@
 import { Eye, EyeOff, Scissors, Settings, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { browser } from 'wxt/browser';
 import { YoloButton } from '@/components/YoloButton';
 import { Button } from '@/components/ui/button';
 import type { TokenUsage } from '@/lib/ai/types';
-import { BROWSER_TASK_FOLLOW_STORAGE_KEY } from '@/lib/browserTask/types';
+import { getSetting, updateSetting } from '@/lib/db/settings';
 import { AIConfigDialog } from './AIConfigDialog';
 import { AIUsageIndicator } from './AIUsageIndicator';
 import { ChatInput } from './ChatInput';
@@ -40,20 +39,19 @@ export function AIAssistantInputSection({
   onSummarize,
   onClear,
 }: AIAssistantInputSectionProps) {
-  const disabled = isRunning || isConfirming;
+  const disabled = isConfirming;
   const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
-    void browser.storage.session
-      .get(BROWSER_TASK_FOLLOW_STORAGE_KEY)
-      .then((stored) => setIsFollowing(stored[BROWSER_TASK_FOLLOW_STORAGE_KEY] === true))
+    void getSetting('browser_task_follow')
+      .then((value) => setIsFollowing(value === true))
       .catch(() => undefined);
   }, []);
 
   const toggleFollowing = () => {
     const next = !isFollowing;
     setIsFollowing(next);
-    void browser.storage.session.set({ [BROWSER_TASK_FOLLOW_STORAGE_KEY]: next });
+    void updateSetting('browser_task_follow', next);
   };
 
   return (
@@ -131,6 +129,7 @@ export function AIAssistantInputSection({
           onStop={onStop}
           disabled={disabled}
           isRunning={isRunning}
+          queueWhileRunning={isRunning}
           placeholder="发送消息... (Shift+Enter 换行)"
           initialInput={presetPrompt}
         />

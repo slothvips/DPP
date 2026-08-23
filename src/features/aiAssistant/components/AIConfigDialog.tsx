@@ -28,6 +28,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     model,
     apiKey,
     contextWindow,
+    visionEnabled,
     profileName,
     profiles,
     selectedProfileId,
@@ -36,6 +37,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
     setModel,
     setApiKey,
     setContextWindow,
+    setVisionEnabled,
     setProfileName,
     handleProviderChange,
     handleProfileChange,
@@ -77,6 +79,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
             model={model}
             apiKey={apiKey}
             contextWindow={contextWindow}
+            visionEnabled={visionEnabled}
             profileName={profileName}
             profiles={profiles}
             selectedProfileId={selectedProfileId}
@@ -85,6 +88,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
             onModelChange={setModel}
             onApiKeyChange={setApiKey}
             onContextWindowChange={setContextWindow}
+            onVisionEnabledChange={setVisionEnabled}
             onProfileNameChange={setProfileName}
             onProfileChange={handleProfileChange}
             onDuplicateProfile={() => void handleDuplicateProfile()}

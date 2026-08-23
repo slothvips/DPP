@@ -1,8 +1,12 @@
 import type { OpenAIToolCall, OpenAIToolChoice, OpenAIToolDefinition } from './aiTypesShared';
 
+export type OpenAIMessageContent =
+  | string
+  | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }>;
+
 export interface OpenAIChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: OpenAIMessageContent;
   name?: string;
   reasoning_content?: string;
   tool_call_id?: string;

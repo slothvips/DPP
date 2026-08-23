@@ -1,14 +1,30 @@
 // Background script - Main entry point
 // This file handles startup wiring and delegates lifecycle/message routing
 import { browser } from 'wxt/browser';
+import { BROWSER_TASK_HOST_PORT_NAME } from '@/lib/browserTask/types';
 import { logger } from '@/utils/logger';
 import { registerBackgroundLifecycle } from './background/backgroundLifecycle';
 import { routeBackgroundMessage } from './background/backgroundMessageRouter';
+import { stopActiveBrowserTask } from './background/handlers';
 
 export default defineBackground(() => {
   logger.info('Background started');
 
   registerBackgroundLifecycle();
+
+  const taskHostPorts = new Set<Browser.runtime.Port>();
+  browser.runtime.onConnect.addListener((port) => {
+    if (port.name !== BROWSER_TASK_HOST_PORT_NAME) return;
+    taskHostPorts.add(port);
+    port.onDisconnect.addListener(() => {
+      taskHostPorts.delete(port);
+      if (taskHostPorts.size === 0) {
+        void stopActiveBrowserTask().catch((error: unknown) =>
+          logger.error('Failed to stop browser task after host disconnect:', error)
+        );
+      }
+    });
+  });
 
   browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const result = routeBackgroundMessage(message as { type: string; payload?: unknown }, sender);

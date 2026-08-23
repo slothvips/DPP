@@ -1,5 +1,6 @@
 import { Copy, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -24,6 +25,7 @@ interface AIConfigFormFieldsProps {
   model: string;
   apiKey: string;
   contextWindow?: number;
+  visionEnabled: boolean;
   profileName: string;
   profiles: Array<{ id: string; name: string; provider: AIProviderType }>;
   selectedProfileId: string | null;
@@ -32,6 +34,7 @@ interface AIConfigFormFieldsProps {
   onModelChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onContextWindowChange: (value: number | undefined) => void;
+  onVisionEnabledChange: (value: boolean) => void;
   onProfileNameChange: (value: string) => void;
   onProfileChange: (value: string) => void;
   onDuplicateProfile: () => void;
@@ -48,6 +51,7 @@ export function AIConfigFormFields({
   model,
   apiKey,
   contextWindow,
+  visionEnabled,
   profileName,
   profiles,
   selectedProfileId,
@@ -56,6 +60,7 @@ export function AIConfigFormFields({
   onModelChange,
   onApiKeyChange,
   onContextWindowChange,
+  onVisionEnabledChange,
   onProfileNameChange,
   onProfileChange,
   onDuplicateProfile,
@@ -86,6 +91,18 @@ export function AIConfigFormFields({
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      <div className="flex items-start gap-2">
+        <Checkbox
+          id="ai-vision-enabled"
+          checked={visionEnabled}
+          onCheckedChange={(checked) => onVisionEnabledChange(checked === true)}
+        />
+        <div className="grid gap-0.5">
+          <Label htmlFor="ai-vision-enabled">当前模型支持图片输入</Label>
+          <p className="text-xs text-muted-foreground">仅供网页任务在 DOM 信息不足时发送截图</p>
+        </div>
       </div>
 
       {provider !== 'opencode' && (

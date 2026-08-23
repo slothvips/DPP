@@ -656,13 +656,13 @@ export default class Page {
       if (!scrollableElement) {
         throw new Error(`No scrollable ancestor found for element: ${elementNode}`);
       }
-      await scrollableElement.evaluate(el => {
+      await scrollableElement.evaluate((el, y) => {
         el.scrollBy({
           top: y,
           left: 0,
           behavior: 'smooth',
         });
-      });
+      }, y);
     }
   }
 
@@ -948,7 +948,7 @@ export default class Page {
     }
   }
 
-  async selectDropdownOption(index: number, text: string): Promise<string> {
+  async selectDropdownOption(index: number, optionInput: string, matchBy: 'text' | 'value'): Promise<string> {
     const selectorMap = this.getSelectorMap();
     const element = selectorMap?.get(index);
 
@@ -956,7 +956,7 @@ export default class Page {
       throw new Error('Element not found or puppeteer is not connected');
     }
 
-    logger.debug(`Attempting to select '${text}' from dropdown`);
+    logger.debug(`Attempting to select '${optionInput}' from dropdown by ${matchBy}`);
     logger.debug(`Element attributes: ${JSON.stringify(element.attributes)}`);
     logger.debug(`Element tag: ${element.tagName}`);
 
@@ -976,7 +976,7 @@ export default class Page {
 
       // Verify dropdown and select option in one call
       const result = await elementHandle.evaluate(
-        (select, optionText, elementIndex) => {
+        (select, requestedOption, requestedMatchBy, elementIndex) => {
           if (!(select instanceof HTMLSelectElement)) {
             return {
               found: false,
@@ -985,13 +985,17 @@ export default class Page {
           }
 
           const options = Array.from(select.options);
-          const option = options.find(opt => opt.text.trim() === optionText);
+          const option = options.find(opt =>
+            requestedMatchBy === 'value'
+              ? opt.value === requestedOption
+              : opt.text.trim() === requestedOption,
+          );
 
           if (!option) {
             const availableOptions = options.map(o => o.text.trim()).join('", "');
             return {
               found: false,
-              message: `Option "${optionText}" not found in dropdown element with index ${elementIndex}. Available options: "${availableOptions}"`,
+              message: `Option "${requestedOption}" not found by ${requestedMatchBy} in dropdown element with index ${elementIndex}. Available options: "${availableOptions}"`,
             };
           }
 
@@ -1007,15 +1011,16 @@ export default class Page {
 
           return {
             found: true,
-            message: `Selected option "${optionText}" with value "${option.value}"`,
+            message: `Selected option "${option.text.trim()}" with value "${option.value}"`,
           };
         },
-        text,
+        optionInput,
+        matchBy,
         index,
       );
 
       logger.debug('Selection result:', result);
-      // whether found or not, return the message
+      if (!result.found) throw new Error(result.message);
       return result.message;
     } catch (error) {
       const errorMessage = `${error instanceof Error ? error.message : String(error)}`;
@@ -1323,6 +1328,78 @@ export default class Page {
         `Failed to click element: ${elementNode}. Error: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  async hoverElement(index: number): Promise<void> {
+    const elementNode = this.getDomElementByIndex(index);
+    if (!elementNode || !this._puppeteerPage) {
+      throw new Error(`Element with index ${index} not found`);
+    }
+
+    const element = await this.locateElement(elementNode);
+    if (!element) throw new Error(`Element with index ${index} not found`);
+    await element.hover();
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+
+  async inspectElement(index: number): Promise<Record<string, unknown>> {
+    const elementNode = this.getDomElementByIndex(index);
+    if (!elementNode || !this._puppeteerPage) {
+      throw new Error(`Element with index ${index} not found`);
+    }
+
+    const element = await this.locateElement(elementNode);
+    if (!element) throw new Error(`Element with index ${index} not found`);
+
+    const liveDetails = await element.evaluate(el => {
+      const rect = el.getBoundingClientRect();
+      const style = window.getComputedStyle(el);
+      const attributes = Object.fromEntries(
+        Array.from(el.attributes, attribute => [attribute.name, attribute.value])
+      );
+      const ancestors: Array<Record<string, string>> = [];
+      let current = el.parentElement;
+      while (current && ancestors.length < 8) {
+        ancestors.push({
+          tag: current.tagName.toLowerCase(),
+          id: current.id,
+          className: typeof current.className === 'string' ? current.className : '',
+        });
+        current = current.parentElement;
+      }
+
+      return {
+        tagName: el.tagName.toLowerCase(),
+        attributes,
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 2000),
+        html: el.outerHTML.slice(0, 10000),
+        rect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        },
+        style: {
+          display: style.display,
+          visibility: style.visibility,
+          opacity: style.opacity,
+          cursor: style.cursor,
+          pointerEvents: style.pointerEvents,
+          position: style.position,
+        },
+        ancestors,
+        hasShadowRoot: el.shadowRoot !== null,
+        ownerDocumentUrl: el.ownerDocument.defaultView?.location.href || '',
+      };
+    });
+
+    return {
+      index,
+      xpath: elementNode.xpath,
+      shadowRoot: elementNode.shadowRoot,
+      recordedAttributes: elementNode.attributes,
+      ...liveDetails,
+    };
   }
 
   getSelectorMap(): Map<number, DOMElementNode> {

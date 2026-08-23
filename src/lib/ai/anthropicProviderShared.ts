@@ -83,6 +83,23 @@ export function toAnthropicMessage(message: ChatMessage): AnthropicChatMessage {
     };
   }
 
+  if (message.images?.length) {
+    return {
+      role: 'user',
+      content: [
+        { type: 'text', text: message.content },
+        ...message.images.map((image) => ({
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: image.mediaType,
+            data: image.data,
+          },
+        })),
+      ],
+    };
+  }
+
   return {
     role: message.role,
     content: message.content,

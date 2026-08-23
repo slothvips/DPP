@@ -1,9 +1,23 @@
 export type { AIProviderType } from './providerIds';
 
+export interface ToolProperty {
+  type: 'array' | 'boolean' | 'integer' | 'number' | 'object' | 'string';
+  description: string;
+  enum?: string[];
+  minimum?: number;
+  maximum?: number;
+  maxLength?: number;
+  items?: ToolProperty;
+  properties?: Record<string, ToolProperty>;
+  required?: string[];
+  additionalProperties?: boolean;
+}
+
 export interface ToolParameter {
   type: 'object';
-  properties: Record<string, { type: string; description: string; enum?: string[] }>;
+  properties: Record<string, ToolProperty>;
   required?: string[];
+  additionalProperties?: boolean;
 }
 
 export interface OpenAIToolCall {
@@ -59,6 +73,12 @@ export interface ChatMessage {
   toolCallId?: string;
   toolCalls?: OpenAIToolCall[];
   providerMetadata?: ProviderMessageMetadata;
+  images?: ChatImage[];
+}
+
+export interface ChatImage {
+  data: string;
+  mediaType: 'image/jpeg' | 'image/png';
 }
 
 export interface ChatResponse {

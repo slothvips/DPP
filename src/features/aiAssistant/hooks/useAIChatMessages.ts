@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { hasAssistantOutput } from '@/lib/ai/agentRuntime';
 import type { ChatMessage } from '../types';
 
 function generateId(): string {
@@ -117,6 +118,13 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
     (assistantMessage: ChatMessage) => {
       setReasoning('');
       setMessagesWithRef((prev) => {
+        if (!hasAssistantOutput(assistantMessage)) {
+          const lastMessage = prev[prev.length - 1];
+          return lastMessage?.role === 'assistant' && !hasAssistantOutput(lastMessage)
+            ? prev.slice(0, -1)
+            : prev;
+        }
+
         const lastMsg = prev[prev.length - 1];
         if (lastMsg?.role === 'assistant') {
           return [...prev.slice(0, -1), { ...lastMsg, ...assistantMessage, id: lastMsg.id }];

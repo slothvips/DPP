@@ -7,6 +7,7 @@ import { YOLO_MODE_KEY } from '@/lib/ai/tools';
 import { useAIAssistantConfig } from '../hooks/useAIAssistantConfig';
 import { useAIAssistantScroll } from '../hooks/useAIAssistantScroll';
 import { useAIChat } from '../hooks/useAIChat';
+import { useAIPlan } from '../hooks/useAIPlan';
 import { useBrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import { AIAssistantHeader } from './AIAssistantHeader';
 import { AIAssistantInputSection } from './AIAssistantInputSection';
@@ -59,6 +60,23 @@ export function AIAssistantView() {
   const { isNearBottom, messagesEndRef, messagesContainerRef, handleScroll, scrollToBottom } =
     useAIAssistantScroll(messages);
   const browserTaskProgress = useBrowserTaskProgress(sessionId);
+  const plan = useAIPlan(sessionId);
+
+  useEffect(() => {
+    const handleBrowserTaskStopped = (message: unknown) => {
+      if (typeof message !== 'object' || message === null || !('event' in message)) return;
+      const event = message.event;
+      if (typeof event !== 'object' || event === null) return;
+      if (!('status' in event) || event.status !== 'stopped') return;
+      if (!('sessionId' in event) || event.sessionId !== sessionId) return;
+      if ('stopSource' in event && event.stopSource === 'chat') return;
+      if (status !== 'loading' && status !== 'streaming' && status !== 'confirming') return;
+      stop(false);
+    };
+
+    browser.runtime.onMessage.addListener(handleBrowserTaskStopped);
+    return () => browser.runtime.onMessage.removeListener(handleBrowserTaskStopped);
+  }, [sessionId, status, stop]);
 
   const enableYoloAndConfirm = useCallback(async () => {
     setYoloMode(true);
@@ -145,6 +163,7 @@ export function AIAssistantView() {
         onConfigSaved={handleConfigSaved}
         onEditMessage={editMessage}
         browserTaskProgress={browserTaskProgress}
+        plan={plan}
       />
 
       <AIAssistantInputSection

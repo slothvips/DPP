@@ -19,6 +19,7 @@ interface UseAIChatToolFlowExecutionOptions {
   onExecutionStart: () => void;
   isExecutionCancelled: () => boolean;
   browserTaskSessionId: string | null;
+  sessionId: string | null;
 }
 
 export function useAIChatToolFlowExecution({
@@ -32,6 +33,7 @@ export function useAIChatToolFlowExecution({
   onExecutionStart,
   isExecutionCancelled,
   browserTaskSessionId,
+  sessionId,
 }: UseAIChatToolFlowExecutionOptions) {
   async function executePreparedCallsAndContinue(
     preparedToolCalls: ReturnType<typeof toPreparedToolCalls>
@@ -39,6 +41,7 @@ export function useAIChatToolFlowExecution({
     const { toolMessages, pendingBuild } = await executePreparedToolCalls(preparedToolCalls, {
       onAIConfigChanged,
       browserTaskSessionId: browserTaskSessionId ?? undefined,
+      sessionId: sessionId ?? undefined,
     });
 
     if (isExecutionCancelled()) return false;
@@ -77,6 +80,7 @@ export function useAIChatToolFlowExecution({
       const { toolMessages, pendingBuild } = await executePreparedToolCalls(toolCallsToExecute, {
         onAIConfigChanged,
         browserTaskSessionId: browserTaskSessionId ?? undefined,
+        sessionId: sessionId ?? undefined,
       });
 
       if (isExecutionCancelled()) return;
@@ -116,6 +120,7 @@ export function useAIChatToolFlowExecution({
       {
         onAIConfigChanged,
         browserTaskSessionId: browserTaskSessionId ?? undefined,
+        sessionId: sessionId ?? undefined,
       }
     );
 

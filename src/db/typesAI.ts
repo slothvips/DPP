@@ -8,6 +8,7 @@ export interface AIProfile {
   baseUrl: string;
   model: string;
   contextWindow?: number;
+  visionEnabled?: boolean;
   apiKey: string | { ciphertext: string; iv: string };
   createdAt: number;
   updatedAt: number;

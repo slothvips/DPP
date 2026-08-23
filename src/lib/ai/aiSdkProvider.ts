@@ -22,14 +22,16 @@ interface AiSdkProviderOptions {
 }
 
 function parseToolInput(value: string): unknown {
+  if (!value.trim()) return {};
   try {
-    return JSON.parse(value) as unknown;
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
-    return value;
+    return {};
   }
 }
 
-function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
+export function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
   return messages.flatMap((message): ModelMessage[] => {
     if (message.role === 'assistant' && message.providerMetadata?.aiSdkResponseMessages?.length) {
       return message.providerMetadata.aiSdkResponseMessages as ModelMessage[];
@@ -63,6 +65,21 @@ function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
               toolName: message.name || 'unknown_tool',
               output: { type: 'text', value: message.content },
             },
+          ],
+        },
+      ];
+    }
+
+    if (message.role === 'user' && message.images?.length) {
+      return [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: message.content },
+            ...message.images.map((image) => ({
+              type: 'image' as const,
+              image: `data:${image.mediaType};base64,${image.data}`,
+            })),
           ],
         },
       ];

@@ -1,5 +1,5 @@
 import { browser } from 'wxt/browser';
-import { executeBrowserTask } from '@/lib/ai/tools/browserTask';
+import { delegateBrowserAgent } from '@/lib/ai/tools/browserTask';
 import { resolveRecorderTabId, sendRecorderMessage } from '@/lib/ai/tools/recorderShared';
 import { addMessage, createSession } from '@/lib/db/ai';
 import { createTestRun, updateTestRun } from '@/lib/db/testing';
@@ -139,9 +139,8 @@ export async function runTestCase(testCase: TestCase, recordingEnabled: boolean)
       await startRecording(tabId);
     }
 
-    const result = await executeBrowserTask({
+    const result = await delegateBrowserAgent({
       task: userMessage,
-      group_name: `测试 ${testCase.name}`,
       session_id: session.id,
       onUpdate: (event) => {
         if (!event.status || event.status === 'running') {

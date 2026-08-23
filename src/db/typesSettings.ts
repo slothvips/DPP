@@ -57,6 +57,7 @@ interface BaseSettingMap {
   ai_base_url: string;
   ai_model: string;
   ai_api_key: string | StoredEncryptedValue;
+  ai_opencode_vision_enabled: boolean;
   links_sort_by: 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt';
   /** 验证器 PIN 哈希（Base64，PBKDF2）；空字符串表示未设置 */
   totp_pin_hash: string;

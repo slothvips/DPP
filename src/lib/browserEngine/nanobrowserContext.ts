@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import type { BrowserAction, BrowserElementRef, BrowserSnapshot } from '@/lib/browserTask/types';
+import { removeHighlights } from '@browser-engine-upstream/background/browser/dom/service';
 import type { DOMElementNode } from '@browser-engine-upstream/background/browser/dom/views';
 import Page from '@browser-engine-upstream/background/browser/page';
 import type {
@@ -15,6 +16,7 @@ export interface BrowserEngineState {
   currentTabId: number;
   page: BrowserSnapshot;
   tabs: TabInfo[];
+  screenshot?: string;
 }
 
 export interface BrowserEngineActResult {
@@ -26,6 +28,12 @@ export interface BrowserEngineActResult {
   data?: Record<string, unknown>;
 }
 
+interface ScrollInfo {
+  scrollTop: number;
+  clientHeight: number;
+  scrollHeight: number;
+}
+
 export class NanobrowserContext {
   private readonly pages = new Map<number, Page>();
   private currentTabId: number | null = null;
@@ -35,14 +43,15 @@ export class NanobrowserContext {
     this.config = { ...DEFAULT_BROWSER_CONTEXT_CONFIG, ...config };
   }
 
-  async getState(tabId?: number): Promise<BrowserEngineState> {
+  async getState(tabId?: number, useVision = false): Promise<BrowserEngineState> {
     const currentPage = await this.getCurrentPage(tabId);
-    const pageState = await currentPage.getState(false, true);
+    const pageState = await currentPage.getState(useVision, true);
     const tabs = await this.getTabInfos();
     return {
       currentTabId: currentPage.tabId,
       page: await toBrowserSnapshot(pageState),
       tabs,
+      ...(pageState.screenshot ? { screenshot: pageState.screenshot } : {}),
     };
   }
 
@@ -55,9 +64,19 @@ export class NanobrowserContext {
     const state = await page.getState(false, true);
     const index = readIndex(payload);
     const element = index === null ? null : state.selectorMap.get(index);
+    const scrollElement =
+      action.startsWith('scroll') && action !== 'scroll_to_text'
+        ? readOptionalScrollElement(payload, index, element)
+        : undefined;
 
     if (action === 'click') {
       if (!element) throw new Error('目标元素不存在，请重新观察页面');
+      if (page.isFileUploader(element)) {
+        return {
+          message: '目标是文件上传控件，已阻止自动点击；请调用 browser_request_user 让用户选择文件',
+          data: { requiresUser: true },
+        };
+      }
       const tabIdsBefore = await this.getWindowTabIds(tabId);
       let clickError: unknown;
       try {
@@ -86,6 +105,18 @@ export class NanobrowserContext {
       }
       return { message: '已点击目标元素' };
     }
+    if (action === 'hover') {
+      if (index === null || !element) throw new Error('目标元素不存在，请重新观察页面');
+      await page.hoverElement(index);
+      return { message: `已将鼠标悬停在元素 ${index} 上` };
+    }
+    if (action === 'inspect') {
+      if (index === null || !element) throw new Error('目标元素不存在，请重新观察页面');
+      return {
+        message: `已获取元素 ${index} 的详细信息`,
+        data: await page.inspectElement(index),
+      };
+    }
     if (action === 'fill') {
       if (!element) throw new Error('目标输入元素不存在，请重新观察页面');
       await page.inputTextElementNode(false, element, readString(payload, 'text'));
@@ -93,41 +124,65 @@ export class NanobrowserContext {
     }
     if (action === 'select') {
       if (index === null) throw new Error('select 需要元素 index');
-      return { message: await page.selectDropdownOption(index, readString(payload, 'option')) };
+      return {
+        message: await page.selectDropdownOption(
+          index,
+          readString(payload, 'option'),
+          readString(payload, 'matchBy') as 'text' | 'value'
+        ),
+      };
     }
     if (action === 'scroll') {
-      const [, , viewportHeight] = await page.getScrollInfo();
       const direction = readString(payload, 'direction');
+      const before = await getTargetScrollInfo(page, index, scrollElement);
+      if (direction === 'up' && isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
+      if (direction !== 'up' && isAtBottom(before))
+        return { message: scrollBoundary(index, '底部') };
       await page.scrollBy(
-        direction === 'up' ? -viewportHeight : viewportHeight,
-        element || undefined
+        direction === 'up' ? -before.clientHeight : before.clientHeight,
+        scrollElement
       );
-      return { message: '已滚动页面' };
+      return { message: await scrollResult(page, index, scrollElement, before) };
     }
     if (action === 'scroll_to_percent') {
-      const percent = clampPercent(readNumber(payload, 'percent'));
-      await page.scrollToPercent(percent, element || undefined);
-      return { message: `已滚动到页面 ${percent}% 位置` };
+      const percent = readNumber(payload, 'percent');
+      if (percent < 0 || percent > 100) throw new Error('percent 必须在 0-100 之间');
+      const before = await getTargetScrollInfo(page, index, scrollElement);
+      if (Math.abs(before.scrollTop - scrollTopAtPercent(before, percent)) < 1)
+        return { message: `${scrollScope(index)}已在 ${percent}% 位置` };
+      await page.scrollToPercent(percent, scrollElement);
+      return { message: await scrollResult(page, index, scrollElement, before) };
     }
     if (action === 'scroll_to_top') {
-      await page.scrollToPercent(0, element || undefined);
-      return { message: '已滚动到页面顶部' };
+      const before = await getTargetScrollInfo(page, index, scrollElement);
+      if (isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
+      await page.scrollToPercent(0, scrollElement);
+      return { message: await scrollResult(page, index, scrollElement, before) };
     }
     if (action === 'scroll_to_bottom') {
-      await page.scrollToPercent(100, element || undefined);
-      return { message: '已滚动到页面底部' };
+      const before = await getTargetScrollInfo(page, index, scrollElement);
+      if (isAtBottom(before)) return { message: scrollBoundary(index, '底部') };
+      await page.scrollToPercent(100, scrollElement);
+      return { message: await scrollResult(page, index, scrollElement, before) };
     }
     if (action === 'scroll_page') {
       const direction = readString(payload, 'direction');
-      if (direction === 'up') await page.scrollToPreviousPage(element || undefined);
-      else await page.scrollToNextPage(element || undefined);
-      return { message: direction === 'up' ? '已向上翻页滚动' : '已向下翻页滚动' };
+      const before = await getTargetScrollInfo(page, index, scrollElement);
+      if (direction === 'up' && isAtTop(before)) return { message: scrollBoundary(index, '顶部') };
+      if (direction !== 'up' && isAtBottom(before))
+        return { message: scrollBoundary(index, '底部') };
+      if (direction === 'up') await page.scrollToPreviousPage(scrollElement);
+      else await page.scrollToNextPage(scrollElement);
+      return { message: await scrollResult(page, index, scrollElement, before) };
     }
     if (action === 'scroll_to_text') {
       const text = readString(payload, 'text');
-      const found = await page.scrollToText(text);
+      const nth = payload.nth === undefined ? 1 : readNumber(payload, 'nth');
+      const found = await page.scrollToText(text, nth);
       return {
-        message: found ? `已滚动到包含「${text}」的位置` : `页面上未找到「${text}」，未滚动`,
+        message: found
+          ? `已滚动到第 ${nth} 个包含「${text}」的位置`
+          : `页面上未找到第 ${nth} 个「${text}」，未滚动`,
       };
     }
     if (action === 'send_keys') {
@@ -149,6 +204,14 @@ export class NanobrowserContext {
     if (action === 'go_back') {
       await page.goBack();
       return { message: '已返回上一页' };
+    }
+    if (action === 'go_forward') {
+      await page.goForward();
+      return { message: '已前进到下一页' };
+    }
+    if (action === 'refresh') {
+      await page.refreshPage();
+      return { message: '已刷新当前页面' };
     }
     throw new Error(`浏览器内核不支持动作 ${action}`);
   }
@@ -206,6 +269,8 @@ export class NanobrowserContext {
   }
 
   async cleanup(): Promise<void> {
+    const tabIds = [...this.pages.keys()];
+    await Promise.all(tabIds.map((tabId) => removeHighlights(tabId)));
     for (const page of this.pages.values()) await page.detachPuppeteer().catch(() => undefined);
     this.pages.clear();
     this.currentTabId = null;
@@ -279,14 +344,120 @@ async function toElementRef(index: number, node: DOMElementNode): Promise<Browse
     locator: node.getEnhancedCssSelector(),
     fingerprint: JSON.stringify(hash),
     href: attributes.href,
+    fileUploader: isFileUploaderNode(node),
   };
+}
+
+function isFileUploaderNode(node: DOMElementNode, depth = 0): boolean {
+  if (
+    node.tagName?.toLowerCase() === 'input' &&
+    (node.attributes.type?.toLowerCase() === 'file' || Boolean(node.attributes.accept))
+  ) {
+    return true;
+  }
+  if (depth >= 3) return false;
+  return node.children.some(
+    (child) => 'tagName' in child && isFileUploaderNode(child as DOMElementNode, depth + 1)
+  );
 }
 
 function readIndex(payload: Record<string, unknown>): number | null {
   const value = payload.index;
-  if (typeof value !== 'string' || !value) return null;
-  const index = Number(value);
-  return Number.isInteger(index) ? index : null;
+  if (value === undefined) return null;
+  return typeof value === 'number' && Number.isInteger(value) ? value : null;
+}
+
+function readOptionalScrollElement(
+  payload: Record<string, unknown>,
+  index: number | null,
+  element: DOMElementNode | null | undefined
+): DOMElementNode | undefined {
+  if (payload.index === undefined) return undefined;
+  if (index === null || !element) throw new Error('滚动目标元素不存在，请重新观察页面');
+  return element;
+}
+
+async function getTargetScrollInfo(
+  page: Page,
+  index: number | null,
+  element: DOMElementNode | undefined
+): Promise<ScrollInfo> {
+  if (!element) {
+    const [scrollTop, clientHeight, scrollHeight] = await page.getScrollInfo();
+    return { scrollTop, clientHeight, scrollHeight };
+  }
+  if (index === null) throw new Error('局部滚动需要元素 index');
+
+  const handle = await page.getElementByIndex(index);
+  if (!handle) throw new Error('滚动目标元素不存在，请重新观察页面');
+  try {
+    const info = await handle.evaluate((target) => {
+      let current: Element | null = target;
+      const { body, documentElement } = target.ownerDocument;
+      while (current && current !== body && current !== documentElement) {
+        if (current instanceof HTMLElement) {
+          const style = window.getComputedStyle(current);
+          const canScroll =
+            ['auto', 'scroll'].includes(style.overflowY) ||
+            ['auto', 'scroll'].includes(style.overflow);
+          if (canScroll && current.scrollHeight > current.clientHeight) {
+            return {
+              scrollTop: current.scrollTop,
+              clientHeight: current.clientHeight,
+              scrollHeight: current.scrollHeight,
+            };
+          }
+        }
+        current = current.parentElement;
+      }
+      return null;
+    });
+    if (!info) {
+      throw new Error(`元素 ${index} 不在局部可滚动区域；省略 index 才会滚动整个页面`);
+    }
+    return info;
+  } finally {
+    await handle.dispose();
+  }
+}
+
+async function scrollResult(
+  page: Page,
+  index: number | null,
+  element: DOMElementNode | undefined,
+  before: ScrollInfo
+): Promise<string> {
+  await sleep(300);
+  const after = await getTargetScrollInfo(page, index, element).catch(() => null);
+  if (!after) return `已滚动${scrollScope(index)}`;
+  if (Math.abs(after.scrollTop - before.scrollTop) < 1) {
+    if (isAtTop(after)) return scrollBoundary(index, '顶部');
+    if (isAtBottom(after)) return scrollBoundary(index, '底部');
+    return `${scrollScope(index)}的滚动位置未变化`;
+  }
+  const maxScrollTop = Math.max(0, after.scrollHeight - after.clientHeight);
+  const percent = maxScrollTop === 0 ? 100 : Math.round((after.scrollTop / maxScrollTop) * 100);
+  return `已滚动${scrollScope(index)}，当前位置约 ${percent}%`;
+}
+
+function isAtTop(info: ScrollInfo): boolean {
+  return info.scrollTop <= 1;
+}
+
+function isAtBottom(info: ScrollInfo): boolean {
+  return info.scrollTop + info.clientHeight >= info.scrollHeight - 1;
+}
+
+function scrollTopAtPercent(info: ScrollInfo, percent: number): number {
+  return Math.max(0, info.scrollHeight - info.clientHeight) * (percent / 100);
+}
+
+function scrollScope(index: number | null): string {
+  return index === null ? '页面' : `元素 ${index} 所在的局部区域`;
+}
+
+function scrollBoundary(index: number | null, boundary: '顶部' | '底部'): string {
+  return `${scrollScope(index)}已在${boundary}`;
 }
 
 function readString(payload: Record<string, unknown>, key: string): string {
@@ -297,13 +468,8 @@ function readString(payload: Record<string, unknown>, key: string): string {
 
 function readNumber(payload: Record<string, unknown>, key: string): number {
   const value = payload[key];
-  const num = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(num)) throw new Error(`${key} 必须是数字`);
-  return num;
-}
-
-function clampPercent(percent: number): number {
-  return Math.min(100, Math.max(0, Math.round(percent)));
+  if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error(`${key} 必须是数字`);
+  return value;
 }
 
 async function getActiveTabId(): Promise<number | null> {

@@ -68,6 +68,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     resetRuntimeState,
     resetProvider: resetRuntimeProvider,
   } = useAIChatRuntime({
+    sessionId,
     createAssistantPlaceholder,
     onStreamStart: () => setStatus('streaming'),
     onStreamChunk: handleStreamChunk,
@@ -104,6 +105,7 @@ export function useAIChatFacade(): UseAIChatReturn {
 
   const { sendMessage, continueConversation, stop, clearMessages, editMessage } = useAIChatActions({
     sessionId,
+    status,
     isFirstMessageRef,
     appendMessages,
     messagesRef,
@@ -118,9 +120,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     stopRuntime,
     cancelPendingToolFlow,
     resetToolFlowState,
-    clearPersistedMessages: (currentSessionId) => {
-      void clearSessionMessages(currentSessionId);
-    },
+    clearPersistedMessages: clearSessionMessages,
     truncatePersistedMessages: truncateSessionFromMessage,
     setStatus,
     setError,
@@ -129,11 +129,11 @@ export function useAIChatFacade(): UseAIChatReturn {
   continueConversationRef.current = continueConversation;
 
   const resetBeforeLeavingSession = useCallback(() => {
-    stopRuntime();
+    stopRuntime(sessionId);
     cancelPendingToolFlow();
     resetToolFlowState();
     resetSessionScopedState();
-  }, [cancelPendingToolFlow, resetSessionScopedState, resetToolFlowState, stopRuntime]);
+  }, [cancelPendingToolFlow, resetSessionScopedState, resetToolFlowState, sessionId, stopRuntime]);
 
   const createNewSession = useCallback(async () => {
     resetBeforeLeavingSession();

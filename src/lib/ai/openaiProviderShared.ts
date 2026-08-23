@@ -26,7 +26,16 @@ export function buildOpenAIApiUrl(baseUrl: string, path: string): string {
 export function toOpenAIMessage(message: ChatMessage): OpenAIChatMessage {
   return {
     role: message.role,
-    content: message.content,
+    content:
+      message.role === 'user' && message.images?.length
+        ? [
+            { type: 'text', text: message.content },
+            ...message.images.map((image) => ({
+              type: 'image_url' as const,
+              image_url: { url: `data:${image.mediaType};base64,${image.data}` },
+            })),
+          ]
+        : message.content,
     name: message.name,
     reasoning_content:
       message.role === 'assistant' ? message.providerMetadata?.openAIReasoningContent : undefined,

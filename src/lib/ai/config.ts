@@ -9,6 +9,7 @@ export interface AIProviderConfig {
   model: string;
   apiKey: string;
   contextWindow?: number;
+  visionEnabled: boolean;
 }
 
 export async function loadAIProviderConfig(options?: {
@@ -40,6 +41,7 @@ export async function loadAIProviderConfig(options?: {
     model,
     apiKey,
     contextWindow: config.contextWindow,
+    visionEnabled: config.visionEnabled === true,
   };
 }
 

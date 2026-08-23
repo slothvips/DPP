@@ -577,6 +577,12 @@ window.buildDomTree = (
     const tagName = element.tagName.toLowerCase();
     const style = getCachedComputedStyle(element);
 
+    // Framework event handlers are invisible to page scripts; the document-start
+    // content script marks elements that register mouse/pointer handlers.
+    if (element.getAttribute('data-dpp-interactive') === 'true') {
+      return true;
+    }
+
     // Define interactive cursors
     const interactiveCursors = new Set([
       'pointer', // Link/clickable elements
