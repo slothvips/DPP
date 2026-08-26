@@ -13,7 +13,6 @@ export interface FeatureTogglesState {
   blackboard: boolean;
   jenkins: boolean;
   recorder: boolean;
-  testing: boolean;
   aiAssistant: boolean;
   playground: boolean;
   totp: boolean;

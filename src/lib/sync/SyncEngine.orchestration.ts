@@ -113,8 +113,7 @@ export async function runSyncCommand<T>({
   emit,
 }: RunSyncCommandOptions<T>) {
   if (syncLock) {
-    logger.warn(`[Sync] Sync already in progress, skipping ${action}`);
-    return;
+    throw new Error(`Cannot ${action} while sync is already in progress`);
   }
 
   try {
@@ -138,6 +137,7 @@ export async function runSyncCommand<T>({
     );
     setStatus('error', errorMessage);
     emit('sync-error', { type: action, error: errorMessage });
+    throw error;
   } finally {
     setSyncLock(false);
   }

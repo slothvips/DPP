@@ -9,11 +9,13 @@ export async function encryptOperation(op: SyncOperation, key: CryptoKey): Promi
     key: op.key,
     payload: op.payload,
   };
-  const encrypted = await encryptData(sensitivePayload, key);
-  const keyHash = await getKeyHash(key);
+  const encrypted = op.encryptedPayload ?? (await encryptData(sensitivePayload, key));
+  const keyHash = op.keyHash ?? (await getKeyHash(key));
+  const operationWithoutCache = { ...op };
+  delete operationWithoutCache.encryptedPayload;
 
   return {
-    ...op,
+    ...operationWithoutCache,
     table: 'encrypted',
     type: 'create', // Store as 'create' on server to append to log
     key: op.id, // Use op ID as key for the blob

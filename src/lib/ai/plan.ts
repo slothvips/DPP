@@ -105,10 +105,11 @@ export async function runPlanTool(
     if (!goal || steps.length === 0) throw new Error('创建计划需要 goal 和至少一个 steps');
     if (goal.length > MAX_PLAN_GOAL_LENGTH)
       throw new Error(`计划目标最多 ${MAX_PLAN_GOAL_LENGTH} 个字符`);
+    validatePlanStepStatuses(steps);
     const plan = await savePlan(owner, {
       goal,
       steps,
-      status: 'active',
+      status: getPlanStatus(steps),
       updatedAt: Date.now(),
     });
     return { success: true, message: '已创建计划', plan };
@@ -132,12 +133,7 @@ export async function runPlanTool(
     const steps = current.steps.map((item) =>
       item.id === stepId ? { ...item, status, ...(note ? { note } : {}) } : item
     );
-    const planStatus: AIPlanStatus =
-      status === 'blocked'
-        ? 'blocked'
-        : steps.every((item) => item.status === 'completed')
-          ? 'completed'
-          : 'active';
+    const planStatus = getPlanStatus(steps);
     const plan = await savePlan(owner, { ...current, steps, status: planStatus });
     return { success: true, message: '已更新计划', plan };
   }
@@ -282,4 +278,16 @@ function readSteps(value: unknown): AIPlanStep[] {
   if (new Set(steps.map((step) => step.id)).size !== steps.length)
     throw new Error('计划步骤 ID 不能重复');
   return steps;
+}
+
+function validatePlanStepStatuses(steps: AIPlanStep[]): void {
+  if (steps.filter((step) => step.status === 'in_progress').length > 1) {
+    throw new Error('计划同时只能有一个 in_progress 步骤');
+  }
+}
+
+function getPlanStatus(steps: AIPlanStep[]): AIPlanStatus {
+  if (steps.some((step) => step.status === 'blocked')) return 'blocked';
+  if (steps.every((step) => step.status === 'completed')) return 'completed';
+  return 'active';
 }

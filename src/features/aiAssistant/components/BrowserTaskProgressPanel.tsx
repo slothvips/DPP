@@ -1,31 +1,17 @@
 import {
   Bot,
   Check,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
-  ExternalLink,
-  Eye,
-  FileText,
   Loader2,
-  MousePointerClick,
-  Navigation,
   Play,
   Square,
-  UserRound,
-  Wrench,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { type AIPlan, getPlan } from '@/lib/ai/plan';
+import { useEffect, useRef, useState } from 'react';
 import { redactSensitiveJsonObject } from '@/utils/sensitive';
 import type { BrowserTaskDetail, BrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import { getBrowserTaskDetail, resumeBrowserTask } from '../hooks/useBrowserTaskProgress';
-import { AIPlanPanel } from './AIPlanPanel';
 
 interface BrowserTaskProgressPanelProps {
   progress: BrowserTaskProgress[];
@@ -48,273 +34,170 @@ function StatusIcon({ status }: { status: BrowserTaskProgress['status'] }) {
   return <Loader2 className="h-3.5 w-3.5 animate-spin text-info" />;
 }
 
-function getMessageLabel(role: string, name?: string): string {
-  if (role === 'user') return '任务';
-  if (role === 'tool') return name || '工具结果';
-  return '子 Agent';
-}
-
 const TOOL_LABELS: Record<string, string> = {
-  browser_click: '点击页面元素',
-  browser_close_tab: '关闭标签页',
-  browser_done: '确认任务完成',
-  browser_fill: '填写输入内容',
-  browser_get_dropdown_options: '读取下拉选项',
-  browser_go_back: '返回上一页',
-  browser_go_forward: '前进到下一页',
-  browser_navigate: '打开网页',
-  browser_observe: '查看当前页面',
-  browser_observe_visual: '查看页面截图',
-  browser_open_tab: '打开新标签页',
-  browser_refresh: '刷新页面',
+  click_element: '点击页面元素',
+  input_text: '填写输入内容',
+  select_option: '选择下拉选项',
+  scroll: '滚动页面',
+  scroll_horizontally: '横向滚动页面',
+  open_new_tab: '打开新标签页',
+  switch_to_tab: '切换标签页',
+  close_tab: '关闭标签页',
   browser_request_user: '等待用户操作',
-  browser_scroll: '滚动页面',
-  browser_scroll_page: '翻页浏览',
-  browser_scroll_to_bottom: '滚动到底部',
-  browser_scroll_to_percent: '滚动到指定位置',
-  browser_scroll_to_text: '查找并定位文本',
-  browser_scroll_to_top: '滚动到顶部',
-  browser_select: '选择下拉选项',
-  browser_send_keys: '发送键盘操作',
-  browser_switch_tab: '切换标签页',
-  browser_wait: '等待页面变化',
-  manage_plan: '更新任务计划',
-};
-
-const ARGUMENT_LABELS: Record<string, string> = {
-  direction: '方向',
-  index: '元素',
-  keys: '按键',
-  matchBy: '匹配方式',
-  nth: '第几个',
-  option: '选项',
-  percent: '位置',
-  reason: '原因',
-  seconds: '等待时间',
-  tabId: '标签页',
-  text: '内容',
-  url: '网址',
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function parseToolContent(content: string): unknown {
-  const taggedContent = content.match(
-    /<dpp_untrusted_content[^>]*>\s*([\s\S]*?)\s*<\/dpp_untrusted_content>/
-  );
-  const candidate = taggedContent?.[1] || content.trim();
-  try {
-    return JSON.parse(candidate) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function formatArgumentValue(value: unknown): string {
-  if (typeof value === 'string') return value;
+function getReadableText(value: unknown, fallback: string): string {
+  if (typeof value === 'string') return value.trim() || fallback;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) {
+    const text = value
+      .map((item) => getReadableText(item, ''))
+      .filter(Boolean)
+      .join('、');
+    return text || fallback;
+  }
+  if (isRecord(value)) {
+    for (const key of ['message', 'text', 'summary', 'description', 'reason', 'output']) {
+      const text = getReadableText(value[key], '');
+      if (text) return text;
+    }
+  }
+  return fallback;
+}
+
+function getRawHistoryText(value: unknown): string {
+  const serialized = JSON.stringify(value);
+  if (!serialized) return '无法显示原始记录';
   try {
-    return JSON.stringify(value);
+    const redacted = redactSensitiveJsonObject(serialized);
+    return JSON.stringify(JSON.parse(redacted) as unknown, null, 2);
   } catch {
-    return '未提供';
+    return '无法显示原始记录';
   }
 }
 
-function formatJson(value: string): string {
-  const redactedValue = redactSensitiveJsonObject(value);
-  try {
-    return JSON.stringify(JSON.parse(redactedValue) as unknown, null, 2);
-  } catch {
-    return redactedValue;
-  }
+function getHistoryLabel(type: string, actionName?: string): string {
+  if (actionName) return TOOL_LABELS[actionName] || actionName;
+  if (type === 'reflection') return 'Agent 判断';
+  if (type === 'action') return '页面操作';
+  if (type === 'result') return '执行结果';
+  return '执行记录';
 }
 
-function getActionDetails(name: string, args: string): string[] {
-  const parsed = parseToolContent(args);
-  if (!isRecord(parsed)) return [];
+function PageAgentHistory({ history }: { history: unknown[] }) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const shouldFollowRef = useRef(true);
 
-  return Object.entries(parsed)
-    .filter(([, value]) => value !== undefined && value !== '')
-    .map(([key, value]) => `${ARGUMENT_LABELS[key] || key}: ${formatArgumentValue(value)}`);
-}
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container && shouldFollowRef.current) container.scrollTop = container.scrollHeight;
+  }, [history.length]);
 
-function getActionIcon(name: string) {
-  if (name.includes('navigate') || name.includes('tab') || name.includes('refresh')) {
-    return Navigation;
-  }
-  if (name.includes('observe')) return Eye;
-  if (name.includes('click') || name.includes('fill') || name.includes('select')) {
-    return MousePointerClick;
-  }
-  return Wrench;
-}
-
-function getToolResult(content: string): { message: string; url?: string; title?: string } {
-  const parsed = parseToolContent(content);
-  if (!isRecord(parsed)) return { message: content.replace(/<[^>]+>/g, '').trim() };
-
-  const state = isRecord(parsed.state) ? parsed.state : undefined;
-  const page = state && isRecord(state.page) ? state.page : undefined;
-  const message = typeof parsed.message === 'string' ? parsed.message : '已完成这一步';
-  return {
-    message,
-    url: page && typeof page.url === 'string' ? page.url : undefined,
-    title: page && typeof page.title === 'string' ? page.title : undefined,
-  };
-}
-
-function getUserMessageContent(content: string): string {
-  const request = content.match(/<dpp_user_request>\s*([\s\S]*?)\s*<\/dpp_user_request>/);
-  return request?.[1]?.trim() || content.trim();
-}
-
-function TechnicalDetails({ content }: { content: string }) {
   return (
-    <details className="mt-2 rounded-md border border-border/50 bg-background/50 px-2 py-1.5">
-      <summary className="cursor-pointer text-[11px] text-muted-foreground">
-        查看工具原始响应
-      </summary>
-      <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-4 text-muted-foreground">
-        {formatJson(content)}
-      </pre>
-    </details>
-  );
-}
-
-function ToolCallDetails({
-  toolCalls,
-}: {
-  toolCalls: NonNullable<BrowserTaskDetail['conversation'][number]['toolCalls']>;
-}) {
-  return (
-    <details className="mt-2 rounded-md border border-warning/20 bg-warning/5 px-2 py-1.5">
-      <summary className="cursor-pointer text-[11px] text-warning">
-        查看工具调用 ({toolCalls.length})
-      </summary>
-      <div className="mt-2 grid gap-2">
-        {toolCalls.map((toolCall) => (
-          <div
-            key={toolCall.id}
-            className="min-w-0 rounded-md border border-border/50 bg-background/60 p-2"
-          >
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1 text-[11px]">
-              <span className="font-semibold text-foreground">{toolCall.function.name}</span>
-              <code className="break-all text-muted-foreground">{toolCall.id}</code>
+    <section className="min-h-0 border-b border-border/60 pb-2">
+      <div className="mb-2 flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
+        <span>执行轨迹</span>
+        <span>{history.length} 条记录</span>
+      </div>
+      <div
+        ref={scrollContainerRef}
+        className="max-h-64 space-y-0 overflow-y-auto pr-1 custom-scrollbar"
+        onWheel={(event) => {
+          if (event.deltaY < 0) shouldFollowRef.current = false;
+        }}
+        onScroll={(event) => {
+          const container = event.currentTarget;
+          shouldFollowRef.current =
+            container.scrollHeight - container.scrollTop - container.clientHeight <= 4;
+        }}
+      >
+        {history.map((event, index) => {
+          const record = isRecord(event) ? event : {};
+          const type = typeof record.type === 'string' ? record.type : 'event';
+          const action = isRecord(record.action) ? record.action : undefined;
+          const actionName = action && typeof action.name === 'string' ? action.name : undefined;
+          const reflection = isRecord(record.reflection) ? record.reflection : undefined;
+          const output = action && typeof action.output === 'string' ? action.output : undefined;
+          return (
+            <div key={`history-${index}`} className="relative flex gap-2.5 pb-3 last:pb-0">
+              {index < history.length - 1 && (
+                <span className="absolute bottom-0 left-[9px] top-5 w-px bg-border/70" />
+              )}
+              <span className="relative z-10 mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border border-info/30 bg-background text-info">
+                <Check className="h-3 w-3" />
+              </span>
+              <div className="min-w-0 flex-1 rounded-md border border-border/50 bg-muted/20 px-2.5 py-2">
+                <p className="text-[11px] font-medium text-foreground">
+                  {getHistoryLabel(type, actionName)}
+                </p>
+                {reflection && actionName !== 'done' && (
+                  <div className="mt-1 space-y-1 whitespace-pre-wrap break-words text-[11px] leading-4 text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">上一步评估：</span>
+                      {getReadableText(reflection.evaluation_previous_goal, '暂无')}
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">记忆：</span>
+                      {getReadableText(reflection.memory, '暂无')}
+                    </p>
+                    <p>
+                      <span className="font-medium text-foreground">下一步目标：</span>
+                      {getReadableText(reflection.next_goal, '暂无')}
+                    </p>
+                  </div>
+                )}
+                {output && (
+                  <p className="mt-1 whitespace-pre-wrap break-words text-[11px] leading-4 text-muted-foreground">
+                    <span className="font-medium text-foreground">执行结果：</span>
+                    {getReadableText(output, '页面操作已完成')}
+                  </p>
+                )}
+                {!reflection && !output && (
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">页面状态已更新</p>
+                )}
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-[10px] text-muted-foreground/80">
+                    查看原始 JSON
+                  </summary>
+                  <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-background/70 p-1.5 font-mono text-[10px] leading-4 text-muted-foreground">
+                    {getRawHistoryText(event)}
+                  </pre>
+                </details>
+              </div>
             </div>
-            <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-2 font-mono text-[10px] leading-4 text-foreground [overflow-wrap:anywhere]">
-              {formatJson(toolCall.function.arguments)}
-            </pre>
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
-
-function BrowserTaskStep({
-  message,
-  index,
-}: {
-  message: BrowserTaskDetail['conversation'][number];
-  index: number;
-}) {
-  const isToolResult = message.role === 'tool';
-  const isUserMessage = message.role === 'user';
-  const toolCall = message.toolCalls?.[0];
-  const toolCalls = message.toolCalls || [];
-  const toolName = toolCall?.function.name || message.name || '';
-  const actionLabel = TOOL_LABELS[toolName] || getMessageLabel(message.role, message.name);
-  const ActionIcon = isUserMessage ? UserRound : isToolResult ? Check : getActionIcon(toolName);
-  const result = isToolResult ? getToolResult(message.content) : null;
-  const actionDetails = toolCall ? getActionDetails(toolName, toolCall.function.arguments) : [];
-  const content = message.content.trim();
-
-  return (
-    <div className="relative flex gap-3">
-      <div className="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background">
-        <ActionIcon className="h-3.5 w-3.5 text-info" />
-      </div>
-      <article className="min-w-0 flex-1 pb-4">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-xs font-semibold text-foreground">
-            {isToolResult ? `${actionLabel}完成` : actionLabel}
-          </span>
-          <span className="shrink-0 text-[10px] text-muted-foreground">步骤 {index}</span>
-        </div>
-
-        {isUserMessage && (
-          <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
-            {getUserMessageContent(content) || '已接收任务'}
+          );
+        })}
+        {history.length === 0 && (
+          <p className="rounded-md border border-dashed border-border/70 px-2.5 py-3 text-center text-[11px] text-muted-foreground">
+            Agent 正在准备页面操作
           </p>
         )}
-
-        {!isToolResult && !isUserMessage && content && (
-          <div className="mt-1 rounded-md border border-info/20 bg-info/5 px-2.5 py-2">
-            {toolCalls.length > 0 && (
-              <p className="mb-1 text-[11px] font-medium text-info">模型输出</p>
-            )}
-            <p className="whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">
-              {content}
-            </p>
-          </div>
-        )}
-
-        {actionDetails.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {actionDetails.map((detail) => (
-              <span
-                key={detail}
-                className="max-w-full break-words rounded-md bg-muted/60 px-2 py-1 text-[11px] text-muted-foreground"
-              >
-                {detail}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {toolCalls.length > 0 && <ToolCallDetails toolCalls={toolCalls} />}
-
-        {result && (
-          <div className="mt-2 rounded-md border border-success/20 bg-success/5 px-2.5 py-2">
-            <p className="text-xs leading-5 text-foreground">{result.message}</p>
-            {(result.title || result.url) && (
-              <p className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground">
-                <ExternalLink className="h-3 w-3 shrink-0" />
-                <span className="truncate">{result.title || result.url}</span>
-              </p>
-            )}
-          </div>
-        )}
-
-        {isToolResult && <TechnicalDetails content={message.content} />}
-      </article>
-    </div>
+      </div>
+    </section>
   );
 }
 
-function BrowserTaskDetailView({ detail }: { detail: BrowserTaskDetail }) {
-  const messages = detail.conversation.filter((message) => message.role !== 'system');
-
+function BrowserTaskDetailView({
+  detail,
+  onResume,
+  resumeError,
+}: {
+  detail: BrowserTaskDetail;
+  onResume: () => void;
+  resumeError: string | null;
+}) {
   return (
-    <div className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain pr-1 custom-scrollbar">
-      <div className="relative min-w-0 w-full pl-1">
-        <div className="absolute bottom-4 left-[14px] top-4 w-px bg-border/70" />
-        {messages.map((message, index) => (
-          <BrowserTaskStep
-            key={`${detail.taskId}-message-${index}`}
-            message={message}
-            index={index + 1}
-          />
-        ))}
-
-        {messages.length === 0 && (
-          <div className="px-2 py-8 text-center text-xs text-muted-foreground">
-            <FileText className="mx-auto mb-2 h-5 w-5 opacity-60" />子 Agent 正在准备任务
-          </div>
-        )}
-      </div>
+    <div className="min-w-0">
+      {detail.activity !== undefined && detail.activity !== null && (
+        <p className="mb-2 rounded-md border border-info/20 bg-info/5 px-2.5 py-2 text-[11px] text-info">
+          当前：{getReadableText(detail.activity, '正在执行页面操作')}
+        </p>
+      )}
+      <PageAgentHistory history={detail.history} />
 
       {detail.error && (
         <p className="mt-2 min-w-0 max-w-full break-all border-t border-destructive/20 pt-3 text-xs text-destructive">
@@ -330,43 +213,45 @@ function BrowserTaskDetailView({ detail }: { detail: BrowserTaskDetail }) {
         <button
           type="button"
           className="mt-2 flex items-center justify-center gap-1.5 rounded border border-warning/40 px-3 py-2 text-xs text-warning hover:bg-warning/10"
-          onClick={() => void resumeBrowserTask(detail.taskId)}
+          onClick={onResume}
         >
           <Play className="h-3.5 w-3.5" />
           我已完成接管，继续任务
         </button>
       )}
+      {resumeError && <p className="mt-2 text-xs text-destructive">{resumeError}</p>}
     </div>
   );
 }
 
 export function BrowserTaskProgressPanel({ progress }: BrowserTaskProgressPanelProps) {
-  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [detail, setDetail] = useState<BrowserTaskDetail | null>(null);
-  const [childPlan, setChildPlan] = useState<AIPlan | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const latestTask = [...progress].sort((left, right) => right.updatedAt - left.updatedAt)[0];
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(latestTask?.taskId || null);
-  const selectedTask = progress.find((task) => task.taskId === selectedTaskId) || latestTask;
-  const detailTaskId = selectedTask?.taskId;
+  const detailTaskId = latestTask?.taskId;
+  const detailSessionId = latestTask?.sessionId;
 
   useEffect(() => {
-    if (latestTask && !progress.some((task) => task.taskId === selectedTaskId)) {
-      setSelectedTaskId(latestTask.taskId);
-    }
-  }, [latestTask, progress, selectedTaskId]);
-
-  useEffect(() => {
-    if (!isDetailOpen || !detailTaskId) return;
+    if (!detailTaskId) return;
     let disposed = false;
 
     const loadDetail = async () => {
-      const [nextDetail, nextPlan] = await Promise.all([
-        getBrowserTaskDetail(detailTaskId),
-        getPlan({ type: 'browser_task', id: detailTaskId }),
-      ]);
-      if (!disposed) {
-        if (nextDetail) setDetail(nextDetail);
-        setChildPlan(nextPlan || null);
+      try {
+        const nextDetail = await getBrowserTaskDetail(detailTaskId, detailSessionId);
+        if (!disposed) {
+          if (nextDetail) {
+            setDetail(nextDetail);
+            setDetailError(null);
+          } else {
+            setDetailError('任务详情不可用，可能已被清理或后台已重启');
+          }
+        }
+      } catch (error) {
+        if (!disposed) {
+          setDetailError(error instanceof Error ? error.message : '任务详情加载失败');
+        }
       }
     };
 
@@ -376,71 +261,82 @@ export function BrowserTaskProgressPanel({ progress }: BrowserTaskProgressPanelP
       disposed = true;
       window.clearInterval(refreshTimer);
     };
-  }, [detailTaskId, isDetailOpen]);
+  }, [detailSessionId, detailTaskId]);
 
   if (!latestTask) return null;
-
-  const handleOpenChange = (open: boolean) => {
-    setIsDetailOpen(open);
-    if (!open) {
-      setDetail(null);
-      setChildPlan(null);
-    }
+  const displayedStatus = detail?.status || latestTask.status;
+  const handleResume = () => {
+    setResumeError(null);
+    void resumeBrowserTask(latestTask.taskId, latestTask.sessionId).then((success) => {
+      setResumeError(success ? null : '任务恢复失败，请重新打开任务或检查后台状态');
+    });
   };
 
   return (
-    <>
-      <div className="border-b border-info/25 border-t border-info/25 bg-info/5">
-        <div className="px-2 py-2 text-[11px] font-semibold text-info">浏览器子任务</div>
-        {progress.map((task) => (
-          <button
-            key={task.taskId}
-            type="button"
-            className="flex w-full items-center gap-2 border-t border-info/15 px-2 py-2.5 text-left hover:bg-info/10"
-            onClick={() => {
-              setSelectedTaskId(task.taskId);
-              setIsDetailOpen(true);
-            }}
-            aria-label={`查看浏览器子 Agent 详情：${task.task}`}
-          >
-            <StatusIcon status={task.status} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs text-foreground">{task.task}</span>
-              <span className="block truncate text-[11px] text-muted-foreground">
-                浏览器 Agent · {getStatusText(task.status)}
-              </span>
-            </span>
-            <span className="shrink-0 text-[11px] text-muted-foreground">详情</span>
-          </button>
-        ))}
-      </div>
-
-      <Dialog open={isDetailOpen} onOpenChange={handleOpenChange}>
-        <DialogContent className="grid h-[min(80vh,720px)] min-h-0 min-w-0 max-w-3xl grid-rows-[auto_minmax(0,1fr)] gap-3 overflow-hidden p-4 sm:p-6">
-          <DialogHeader className="min-w-0 shrink-0 pr-6 text-left">
-            <DialogTitle className="flex items-center gap-2 text-sm">
-              <Bot className="h-4 w-4 text-info" />
-              浏览器子 Agent
-              <span className="ml-auto flex items-center gap-1 text-xs font-normal text-muted-foreground">
-                <StatusIcon status={detail?.status || latestTask.status} />
-                {getStatusText(detail?.status || latestTask.status)}
-              </span>
-            </DialogTitle>
-            <DialogDescription className="truncate text-xs">{selectedTask?.task}</DialogDescription>
-          </DialogHeader>
-
-          {detail ? (
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-              <AIPlanPanel plan={childPlan} title="子任务计划" />
-              <BrowserTaskDetailView detail={detail} />
-            </div>
+    <section className="my-2 min-w-0 rounded-md border border-info/25 bg-info/5">
+      <div className="flex min-w-0 items-center">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left hover:bg-info/5"
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+          aria-label={isExpanded ? '收起子任务' : '展开子任务'}
+        >
+          <StatusIcon status={displayedStatus} />
+          <span className="min-w-0 flex-1 truncate text-[11px] text-foreground">
+            {latestTask.task}
+          </span>
+          <span className="shrink-0 text-[10px] text-muted-foreground">
+            {getStatusText(displayedStatus)}
+          </span>
+          {isExpanded ? (
+            <ChevronUp className="h-3 w-3 shrink-0 text-muted-foreground" />
           ) : (
-            <div className="flex min-h-0 min-w-0 items-center justify-center text-xs text-muted-foreground">
-              正在加载任务详情...
-            </div>
+            <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
           )}
-        </DialogContent>
-      </Dialog>
-    </>
+        </button>
+        {!isExpanded && displayedStatus === 'waiting_user' && (
+          <button
+            type="button"
+            className="mr-2 flex h-7 shrink-0 items-center gap-1 rounded border border-warning/40 px-2 text-[11px] text-warning hover:bg-warning/10"
+            onClick={handleResume}
+            aria-label="我已完成接管，继续任务"
+            title="我已完成接管，继续任务"
+          >
+            <Play className="h-3.5 w-3.5" />
+            继续
+          </button>
+        )}
+      </div>
+      {resumeError && !isExpanded && (
+        <p className="border-t border-destructive/20 px-3 py-2 text-xs text-destructive">
+          {resumeError}
+        </p>
+      )}
+      {isExpanded && (
+        <div className="border-t border-info/15 px-3 pb-2.5 pt-2.5">
+          <div className="mb-2.5 flex items-start gap-2">
+            <Bot className="mt-0.5 h-3.5 w-3.5 shrink-0 text-info" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-info">
+                本次目标
+              </p>
+              <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-5 text-foreground">
+                {latestTask.task}
+              </p>
+            </div>
+          </div>
+          {detail ? (
+            <BrowserTaskDetailView
+              detail={detail}
+              resumeError={resumeError}
+              onResume={handleResume}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">{detailError || '正在准备执行轨迹...'}</p>
+          )}
+          {detailError && detail && <p className="mt-2 text-xs text-destructive">{detailError}</p>}
+        </div>
+      )}
+    </section>
   );
 }

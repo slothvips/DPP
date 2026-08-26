@@ -15,7 +15,6 @@ interface SidepanelTabBarProps {
   tabOrder: TabId[];
   featureToggles: FeatureToggles;
   isExpanded: boolean;
-  showJenkinsTab: boolean;
   handleTabChange: (tabId: TabId) => void;
   handleDragStart: (tabId: TabId) => void;
   handleDragOver: (event: React.DragEvent<HTMLButtonElement>, tabId: TabId) => void;
@@ -30,7 +29,6 @@ export function SidepanelTabBar({
   tabOrder,
   featureToggles,
   isExpanded,
-  showJenkinsTab,
   handleTabChange,
   handleDragStart,
   handleDragOver,
@@ -82,7 +80,7 @@ export function SidepanelTabBar({
 
       <div className="flex min-w-0 flex-1 flex-col gap-1.5 overflow-y-auto px-2">
         {tabOrder
-          .filter((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles, showJenkinsTab }))
+          .filter((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles }))
           .map((tabId) => {
             const config = TAB_CONFIG[tabId];
             const isActive = activeTab === tabId;

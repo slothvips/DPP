@@ -25,7 +25,7 @@ export function registerRecorderTools() {
     parameters: createToolParameter(
       {
         tabId: {
-          type: 'number',
+          type: 'integer',
           description: 'Tab ID to record (optional, defaults to current tab)',
         },
       },

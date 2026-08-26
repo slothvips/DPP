@@ -1,13 +1,4 @@
-import {
-  Box,
-  ClipboardCheck,
-  Flame,
-  Link,
-  MessageSquare,
-  Shield,
-  Sparkles,
-  Video,
-} from 'lucide-react';
+import { Box, Flame, Link, MessageSquare, Shield, Sparkles, Video } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { JenkinsIcon } from '@/components/ui/JenkinsIcon';
 import { TOTP_MIGRATION_SECTIONS, TOTP_MIGRATION_SUMMARY } from '@/features/totp/migrationGuide';
@@ -25,7 +16,7 @@ interface TabConfig {
       items: string[];
     }>;
   };
-  getVisible: (props: { featureToggles: FeatureToggles; showJenkinsTab: boolean }) => boolean;
+  getVisible: (props: { featureToggles: FeatureToggles }) => boolean;
 }
 
 export const DEFAULT_TAB_ORDER: TabId[] = [
@@ -34,7 +25,6 @@ export const DEFAULT_TAB_ORDER: TabId[] = [
   'links',
   'totp',
   'recorder',
-  'testing',
   'hotNews',
   'aiAssistant',
   'playground',
@@ -71,7 +61,7 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
       sections: [
         {
           title: '配置',
-          items: ['先在设置中配置 Jenkins 环境。', '按环境浏览任务树或查找 Job。'],
+          items: ['在本面板配置 Jenkins 环境。', '按环境浏览任务树或查找 Job。'],
         },
         {
           title: '构建',
@@ -79,7 +69,7 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
         },
       ],
     },
-    getVisible: ({ showJenkinsTab }) => showJenkinsTab,
+    getVisible: ({ featureToggles }) => featureToggles.jenkins,
   },
   links: {
     description: '整理常用地址与标签',
@@ -120,26 +110,6 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
       ],
     },
     getVisible: ({ featureToggles }) => featureToggles.recorder,
-  },
-  testing: {
-    description: '管理自然语言测试用例并查看测试报告',
-    label: '测试',
-    testid: 'tab-testing',
-    icon: <ClipboardCheck className="h-4 w-4" />,
-    usageGuide: {
-      summary: '让 D 仔执行测试用例并保存测试报告。',
-      sections: [
-        {
-          title: '用例',
-          items: ['用自然语言描述测试目标、操作和预期结果。', '每次执行都会生成独立的测试记录。'],
-        },
-        {
-          title: '执行',
-          items: ['执行前可选择是否开启录像。', '执行过程会同步到对应的 D 仔会话。'],
-        },
-      ],
-    },
-    getVisible: ({ featureToggles }) => featureToggles.testing,
   },
   hotNews: {
     description: '聚合每日热榜与历史归档',

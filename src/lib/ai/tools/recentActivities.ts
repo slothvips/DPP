@@ -22,7 +22,9 @@ export function registerRecentActivitiesTools() {
     parameters: createToolParameter(
       {
         days: {
-          type: 'number',
+          type: 'integer',
+          minimum: 1,
+          maximum: 15,
           description: '查询最近多少天的操作记录，范围 1-15',
         },
         detailLevel: {

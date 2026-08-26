@@ -16,7 +16,7 @@ export async function sendRecorderMessage<T>(message: {
 }
 
 export async function resolveRecorderTabId(tabId?: number): Promise<number> {
-  if (tabId) {
+  if (tabId !== undefined) {
     return tabId;
   }
 

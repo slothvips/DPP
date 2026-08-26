@@ -13,3 +13,5 @@ export * from './settings';
 export * from './remoteActivityLog';
 export * from './hotnews';
 export * from './totp';
+export * from './materials';
+export * from './testRuns';

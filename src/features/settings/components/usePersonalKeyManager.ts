@@ -21,7 +21,7 @@ import type {
   PersonalKeySetupStepId,
 } from './personalKeySetupSteps';
 
-/** 个人私钥写入后：push 本地个人数据，再从服务端重建本地同步数据 */
+/** 个人私钥写入后，push 本地个人数据。 */
 async function syncAfterPersonalKeyReady(
   onStep: (step: PersonalKeyFinalizeStep) => void
 ): Promise<number> {
@@ -130,7 +130,7 @@ export function usePersonalKeyManager() {
         doneDismissTimerRef.current = null;
       }, 4000);
     } catch (error) {
-      logger.error('Failed to push/rebuild after personal key ready:', error);
+      logger.error('Failed to push after personal key ready:', error);
       await checkKey();
       setSetupProgress({
         phase: 'error',
@@ -201,7 +201,7 @@ export function usePersonalKeyManager() {
     }
 
     const confirmed = await confirm(
-      '确定要用新私钥覆盖当前个人私钥吗？\n\n若已有使用旧私钥加密的个人数据，将无法再解密。本地个人数据会先用新私钥推送，再从服务器重建。',
+      '确定要用新私钥覆盖当前个人私钥吗？\n\n若已有使用旧私钥加密的个人数据，将无法再解密。本地个人数据会使用新私钥重新推送。',
       '确认更换个人私钥',
       'danger'
     );
@@ -237,7 +237,7 @@ export function usePersonalKeyManager() {
     }
 
     const confirmed = await confirm(
-      '确定要生成新的个人私钥并覆盖当前私钥吗？\n\n旧私钥加密的云端个人数据将无法再解密。本地个人数据会先用新私钥推送，再从服务器重建。',
+      '确定要生成新的个人私钥并覆盖当前私钥吗？\n\n旧私钥加密的云端个人数据将无法再解密。本地个人数据会使用新私钥重新推送。',
       '确认生成并替换',
       'danger'
     );

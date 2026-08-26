@@ -3,6 +3,7 @@ import * as gsheet from 'google-spreadsheet';
 
 export interface SyncOperation {
   id: string;
+  clientId?: string;
   table: string;
   type: string;
   key: string;
@@ -15,6 +16,7 @@ export interface SyncOperation {
 const SHEET_TITLE = 'Operations';
 const HEADERS = [
   'id',
+  'clientId',
   'table',
   'type',
   'key',
@@ -23,6 +25,23 @@ const HEADERS = [
   'serverTimestamp',
   'keyHash',
 ];
+const MAX_SHEET_CELL_CHARS = 3000;
+
+export function getSheetReadOffset(cursor: number): number {
+  return cursor > 0 ? cursor - 1 : 0;
+}
+
+export function serializeSheetPayload(payload: unknown): unknown {
+  return typeof payload === 'object' ? JSON.stringify(payload) : payload;
+}
+
+export function parseSheetPayload(payload: string): unknown {
+  try {
+    return JSON.parse(payload);
+  } catch {
+    return payload;
+  }
+}
 
 export class SheetsClient {
   private doc: gsheet.GoogleSpreadsheet;
@@ -86,35 +105,36 @@ export class SheetsClient {
 
     // Check if header row is missing or empty by comparing header values
     const currentHeaders = sheet.headerValues || [];
-    const headersMatch =
-      currentHeaders.length === HEADERS.length &&
-      HEADERS.every((header, index) => currentHeaders[index] === header);
-
-    if (!headersMatch) {
-      // Header row is missing or incorrect, set it
+    if (currentHeaders.length === 0) {
       await sheet.setHeaderRow(HEADERS);
+    } else if (!currentHeaders.includes('clientId')) {
+      await sheet.setHeaderRow([...currentHeaders, 'clientId']);
     }
   }
 
   async appendRows(rows: SyncOperation[]): Promise<number> {
-    return await this.withRetry(async () => {
-      const sheet = await this.getOrCreateSheet();
-      const rawRows = rows.map((op) => ({
-        ...op,
-        payload: typeof op.payload === 'object' ? JSON.stringify(op.payload) : op.payload,
-      }));
+    const sheet = await this.getOrCreateSheet();
+    const rawRows = rows.map((op) => ({
+      ...op,
+      payload: serializeSheetPayload(op.payload),
+    }));
 
-      const addedRows = await sheet.addRows(
-        rawRows as unknown as Array<Record<string, string | number | boolean>>
-      );
-
-      if (addedRows && addedRows.length > 0) {
-        const lastRow = addedRows[addedRows.length - 1];
-        return lastRow.rowNumber;
+    for (const row of rawRows) {
+      if (typeof row.payload === 'string' && row.payload.length > MAX_SHEET_CELL_CHARS) {
+        throw new Error(`Sync chunk ${row.id} exceeds the maximum payload size`);
       }
+    }
 
-      return sheet.rowCount;
-    });
+    const addedRows = await sheet.addRows(
+      rawRows as unknown as Array<Record<string, string | number | boolean>>
+    );
+
+    if (addedRows && addedRows.length > 0) {
+      const lastRow = addedRows[addedRows.length - 1];
+      return lastRow.rowNumber;
+    }
+
+    return sheet.rowCount;
   }
 
   async readRows(
@@ -156,14 +176,10 @@ export class SheetsClient {
         .filter((row) => !!row && typeof row?.get === 'function')
         .map((row) => {
           const payloadStr = (row.get('payload') as string) || '';
-          let payload: unknown;
-          try {
-            payload = JSON.parse(payloadStr);
-          } catch {
-            payload = payloadStr;
-          }
+          const payload = parseSheetPayload(payloadStr);
           return {
             id: (row.get('id') as string) || '',
+            clientId: (row.get('clientId') as string | undefined) || undefined,
             table: (row.get('table') as string) || '',
             type: (row.get('type') as string) || '',
             key: (row.get('key') as string) || '',
@@ -179,5 +195,22 @@ export class SheetsClient {
 
       return { ops, nextCursor };
     });
+  }
+
+  async findOperationsByIds(ids: string[]): Promise<SyncOperation[]> {
+    const remaining = new Set(ids);
+    const found: SyncOperation[] = [];
+    let offset = 0;
+
+    while (remaining.size > 0) {
+      const page = await this.readRows(offset, 100);
+      found.push(...page.ops.filter((operation) => remaining.delete(operation.id)));
+      if (page.ops.length === 0) break;
+      const nextOffset = page.nextCursor > 0 ? page.nextCursor - 1 : offset + page.ops.length;
+      if (nextOffset <= offset) break;
+      offset = nextOffset;
+    }
+
+    return found;
   }
 }

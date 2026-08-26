@@ -53,7 +53,6 @@ export const SETTINGS_CATEGORIES: Array<{
       'feature_blackboard_enabled',
       'feature_jenkins_enabled',
       'feature_recorder_enabled',
-      'feature_testing_enabled',
       'feature_ai_assistant_enabled',
       'feature_playground_enabled',
       'feature_totp_enabled',
@@ -69,7 +68,13 @@ export const SETTINGS_CATEGORIES: Array<{
     key: 'sync_settings',
     label: '同步设置',
     description: '服务器地址、访问令牌、加密密钥',
-    keys: ['custom_server_url', 'sync_access_token', 'sync_encryption_key'],
+    keys: [
+      'custom_server_url',
+      'sync_access_token',
+      'sync_encryption_key',
+      'auto_sync_enabled',
+      'auto_sync_interval',
+    ],
   },
   {
     key: 'ai_settings',
@@ -78,6 +83,7 @@ export const SETTINGS_CATEGORIES: Array<{
     keys: [
       'ai_provider_type',
       'ai_active_profile_id',
+      'ai_opencode_vision_enabled',
       ...AI_PROVIDER_DEFINITIONS.flatMap((provider) => [
         `ai_${provider.id}_base_url` as SettingKey,
         `ai_${provider.id}_model` as SettingKey,
@@ -89,7 +95,7 @@ export const SETTINGS_CATEGORIES: Array<{
     key: 'display_prefs',
     label: '显示偏好',
     description: '其他显示相关设置',
-    keys: ['show_others_builds'],
+    keys: ['show_others_builds', 'links_sort_by'],
   },
 ];
 
@@ -119,7 +125,44 @@ const VALID_SETTING_KEYS = new Set<SettingKey>([
   'ai_model',
   'ai_api_key',
   ...AI_PROVIDER_DEFINITIONS.map((provider) => `ai_${provider.id}_api_key` as SettingKey),
+  'ai_openai_base_url' as SettingKey,
+  'ai_openai_model' as SettingKey,
+  'ai_openai_api_key' as SettingKey,
+  'ai_deepseek_base_url' as SettingKey,
+  'ai_deepseek_model' as SettingKey,
+  'ai_deepseek_api_key' as SettingKey,
+  'ai_qwen_base_url' as SettingKey,
+  'ai_qwen_model' as SettingKey,
+  'ai_qwen_api_key' as SettingKey,
+  'ai_groq_base_url' as SettingKey,
+  'ai_groq_model' as SettingKey,
+  'ai_groq_api_key' as SettingKey,
+  'ai_openrouter_base_url' as SettingKey,
+  'ai_openrouter_model' as SettingKey,
+  'ai_openrouter_api_key' as SettingKey,
 ]);
+
+const LEGACY_AI_SETTING_KEYS = new Set<SettingKey>([
+  'ai_openai_base_url' as SettingKey,
+  'ai_openai_model' as SettingKey,
+  'ai_openai_api_key' as SettingKey,
+  'ai_deepseek_base_url' as SettingKey,
+  'ai_deepseek_model' as SettingKey,
+  'ai_deepseek_api_key' as SettingKey,
+  'ai_qwen_base_url' as SettingKey,
+  'ai_qwen_model' as SettingKey,
+  'ai_qwen_api_key' as SettingKey,
+  'ai_groq_base_url' as SettingKey,
+  'ai_groq_model' as SettingKey,
+  'ai_groq_api_key' as SettingKey,
+  'ai_openrouter_base_url' as SettingKey,
+  'ai_openrouter_model' as SettingKey,
+  'ai_openrouter_api_key' as SettingKey,
+]);
+
+export function isLegacyAISettingKey(key: SettingKey): boolean {
+  return LEGACY_AI_SETTING_KEYS.has(key);
+}
 
 function isSettingKey(value: unknown): value is SettingKey {
   return typeof value === 'string' && VALID_SETTING_KEYS.has(value as SettingKey);
@@ -140,12 +183,12 @@ const BOOLEAN_SETTING_KEYS = new Set<SettingKey>([
   'feature_blackboard_enabled',
   'feature_jenkins_enabled',
   'feature_recorder_enabled',
-  'feature_testing_enabled',
   'feature_ai_assistant_enabled',
   'feature_playground_enabled',
   'feature_totp_enabled',
   'show_others_builds',
   'auto_sync_enabled',
+  'ai_opencode_vision_enabled',
 ]);
 
 const NUMBER_SETTING_KEYS = new Set<SettingKey>([
@@ -179,6 +222,7 @@ const STRING_SETTING_KEYS = new Set<SettingKey>([
 const AI_API_KEY_SETTING_KEYS = new Set<SettingKey>([
   'ai_api_key',
   ...AI_PROVIDER_DEFINITIONS.map((provider) => `ai_${provider.id}_api_key` as SettingKey),
+  ...[...LEGACY_AI_SETTING_KEYS].filter((key) => key.endsWith('_api_key')),
 ]);
 
 const AI_TEXT_SETTING_KEYS = new Set<SettingKey>(
@@ -187,6 +231,9 @@ const AI_TEXT_SETTING_KEYS = new Set<SettingKey>(
     `ai_${provider.id}_model` as SettingKey,
   ])
 );
+for (const key of LEGACY_AI_SETTING_KEYS) {
+  if (key.endsWith('_base_url') || key.endsWith('_model')) AI_TEXT_SETTING_KEYS.add(key);
+}
 
 function isStringRecordOfNumbers(value: unknown): boolean {
   return (
@@ -249,7 +296,10 @@ function isValidImportedSettingValue(key: SettingKey, value: unknown): boolean {
     case 'jenkins_jobs_last_refresh_by_env':
       return isStringRecordOfNumbers(value);
     case 'ai_provider_type':
-      return isAIProviderType(value);
+      return (
+        isAIProviderType(value) ||
+        (typeof value === 'string' && /^(openai|deepseek|qwen|groq|openrouter)$/.test(value))
+      );
     case 'links_sort_by':
       return (
         value === 'createdAt' ||

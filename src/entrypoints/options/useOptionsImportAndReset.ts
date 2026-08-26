@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
 import type { AIProfile, JenkinsEnvironment, Setting, StoredEncryptedValue } from '@/db/types';
 import { isAIProviderType } from '@/lib/ai/providerIds';
-import { decryptData, exportKey, importKey, loadKey } from '@/lib/crypto/encryption';
+import { decryptData, encryptData, exportKey, importKey, loadKey } from '@/lib/crypto/encryption';
 import { loadPersonalKey } from '@/lib/crypto/personalKey';
 import { clearAllLocalData } from '@/lib/db/clearAllLocalData';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
@@ -11,9 +12,21 @@ import {
   EXCLUDED_SETTINGS,
   IMPORT_PRESERVED_SETTINGS,
   type ImportedSetting,
+  SETTINGS_CATEGORIES,
+  isLegacyAISettingKey,
   isStoredEncryptedValue,
   parseImportedSettings,
 } from './optionsShared';
+
+interface PendingImport {
+  exportDate: string;
+  importedProfiles: AIProfile[];
+  importedSettings: ImportedSetting[];
+  hasAIProfiles: boolean;
+  version: string;
+}
+
+export type RebuildPhase = 'preparing' | 'clearing' | 'pulling' | 'complete' | null;
 
 async function validateEncryptedAISettings(settings: ImportedSetting[]): Promise<void> {
   const encryptedSettings = settings.filter(
@@ -26,7 +39,7 @@ async function validateEncryptedAISettings(settings: ImportedSetting[]): Promise
     return;
   }
 
-  let syncKeySetting = settings.find((setting) => setting.key === 'sync_encryption_key');
+  const syncKeySetting = settings.find((setting) => setting.key === 'sync_encryption_key');
   let syncKeyValue =
     typeof syncKeySetting?.value === 'string' && syncKeySetting.value
       ? syncKeySetting.value
@@ -36,13 +49,7 @@ async function validateEncryptedAISettings(settings: ImportedSetting[]): Promise
     if (!localKey) {
       throw new Error('备份包含加密的 AI API Key，但缺少同步密钥，已取消导入');
     }
-    const exportedLocalKey = await exportKey(localKey);
-    syncKeySetting = {
-      key: 'sync_encryption_key',
-      value: exportedLocalKey,
-    };
-    syncKeyValue = exportedLocalKey;
-    settings.push(syncKeySetting);
+    syncKeyValue = await exportKey(localKey);
   }
 
   try {
@@ -56,6 +63,18 @@ async function validateEncryptedAISettings(settings: ImportedSetting[]): Promise
   } catch {
     throw new Error('备份中的同步密钥无法解密 AI API Key，已取消导入');
   }
+}
+
+async function reencryptValue(
+  value: StoredEncryptedValue,
+  sourceKey: CryptoKey,
+  targetKey: CryptoKey
+): Promise<StoredEncryptedValue> {
+  const decrypted = await decryptData(value, sourceKey);
+  if (typeof decrypted !== 'string') {
+    throw new Error('加密的 AI API Key 内容无效');
+  }
+  return await encryptData(decrypted, targetKey);
 }
 
 function parseImportedProfiles(value: unknown): AIProfile[] {
@@ -88,20 +107,30 @@ function parseImportedProfiles(value: unknown): AIProfile[] {
 export function useOptionsImportAndReset() {
   const { toast } = useToast();
   const { confirm } = useConfirmDialog();
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [selectedImportCategories, setSelectedImportCategories] = useState<string[]>([]);
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
+  const [rebuildPhase, setRebuildPhase] = useState<RebuildPhase>(null);
 
   const importSettings = async (
     importedSettings: ImportedSetting[],
-    importedProfiles: AIProfile[]
+    importedProfiles: AIProfile[],
+    includeAISettings: boolean,
+    hasAIProfiles: boolean,
+    replaceAll: boolean
   ) => {
-    // 导入会删库重建；个人私钥及相关 bootstrap 标记必须从本机保留
-    const preservedSettings = (
-      await Promise.all(IMPORT_PRESERVED_SETTINGS.map((key) => db.settings.get(key)))
-    ).filter((row): row is Setting => row != null);
+    const preservedSettings = replaceAll
+      ? (await Promise.all(IMPORT_PRESERVED_SETTINGS.map((key) => db.settings.get(key)))).filter(
+          (row): row is Setting => row != null
+        )
+      : [];
 
-    await db.delete();
-    await db.open();
+    const transactionTables = replaceAll ? db.tables : [db.settings, db.aiProfiles];
+    await db.transaction('rw', transactionTables, async () => {
+      if (replaceAll) {
+        await Promise.all(db.tables.map((table) => table.clear()));
+      }
 
-    await db.transaction('rw', [db.settings, db.aiProfiles], async () => {
       let settings = importedSettings.filter((setting) => !EXCLUDED_SETTINGS.includes(setting.key));
 
       const hasEnvironments = settings.some((setting) => setting.key === 'jenkins_environments');
@@ -131,13 +160,17 @@ export function useOptionsImportAndReset() {
         (setting) => !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(setting.key)
       );
 
-      if (importedProfiles.length > 0) {
+      if (hasAIProfiles) {
+        await db.aiProfiles.clear();
+      }
+
+      if (hasAIProfiles && importedProfiles.length > 0) {
         await db.aiProfiles.bulkAdd(importedProfiles);
-      } else {
+      } else if (replaceAll || includeAISettings) {
         settings = settings.filter((setting) => setting.key !== 'ai_active_profile_id');
       }
 
-      await db.settings.bulkAdd(settings as Parameters<typeof db.settings.bulkAdd>[0]);
+      await db.settings.bulkPut(settings as Parameters<typeof db.settings.bulkPut>[0]);
 
       if (preservedSettings.length > 0) {
         await db.settings.bulkPut(preservedSettings);
@@ -146,6 +179,129 @@ export function useOptionsImportAndReset() {
         );
       }
     });
+  };
+
+  const handleImport = async () => {
+    if (!pendingImport || selectedImportCategories.length === 0) {
+      toast('请至少选择一种导入内容', 'error');
+      return;
+    }
+
+    try {
+      const allowedKeys = new Set(
+        SETTINGS_CATEGORIES.filter((category) =>
+          selectedImportCategories.includes(category.key)
+        ).flatMap((category) => category.keys)
+      );
+      if (selectedImportCategories.includes('jenkins_envs')) {
+        allowedKeys.add('jenkins_host');
+        allowedKeys.add('jenkins_user');
+        allowedKeys.add('jenkins_token');
+      }
+      if (selectedImportCategories.includes('ai_settings')) {
+        allowedKeys.add('ai_base_url');
+        allowedKeys.add('ai_model');
+        allowedKeys.add('ai_api_key');
+        pendingImport.importedSettings.forEach((setting) => {
+          if (isLegacyAISettingKey(setting.key)) allowedKeys.add(setting.key);
+        });
+      }
+      const replaceAll = selectedImportCategories.length === SETTINGS_CATEGORIES.length;
+      let importedSettings = pendingImport.importedSettings.filter((setting) =>
+        allowedKeys.has(setting.key)
+      );
+      const includeAIProfiles = selectedImportCategories.includes('ai_settings');
+      let importedProfiles = includeAIProfiles ? pendingImport.importedProfiles : [];
+      const profileKeySettings: ImportedSetting[] = importedProfiles
+        .filter((profile) => isStoredEncryptedValue(profile.apiKey))
+        .map((profile) => ({ key: 'ai_api_key', value: profile.apiKey }));
+      const hasEncryptedAIKey = [...importedSettings, ...profileKeySettings].some(
+        (setting) =>
+          (setting.key === 'ai_api_key' ||
+            (setting.key.startsWith('ai_') && setting.key.endsWith('_api_key'))) &&
+          isStoredEncryptedValue(setting.value)
+      );
+      const syncKey = pendingImport.importedSettings.find(
+        (setting) => setting.key === 'sync_encryption_key'
+      );
+      if (hasEncryptedAIKey && syncKey && replaceAll) {
+        importedSettings.push(syncKey);
+      }
+      await validateEncryptedAISettings([...importedSettings, ...profileKeySettings]);
+
+      if (hasEncryptedAIKey && !replaceAll) {
+        const localKey = await loadKey();
+        if (!localKey) {
+          throw new Error('本地未配置同步密钥，无法安全导入加密的 AI API Key');
+        }
+        const sourceKey = syncKey ? await importKey(syncKey.value as string) : localKey;
+        importedSettings = await Promise.all(
+          importedSettings.map(async (setting) => {
+            if (
+              !isStoredEncryptedValue(setting.value) ||
+              !(
+                setting.key === 'ai_api_key' ||
+                (setting.key.startsWith('ai_') && setting.key.endsWith('_api_key'))
+              )
+            ) {
+              return setting;
+            }
+            return { ...setting, value: await reencryptValue(setting.value, sourceKey, localKey) };
+          })
+        );
+        importedProfiles = await Promise.all(
+          importedProfiles.map(async (profile) =>
+            isStoredEncryptedValue(profile.apiKey)
+              ? {
+                  ...profile,
+                  apiKey: await reencryptValue(profile.apiKey, sourceKey, localKey),
+                }
+              : profile
+          )
+        );
+        importedSettings = importedSettings.filter(
+          (setting) => setting.key !== 'sync_encryption_key'
+        );
+      }
+
+      if (importedSettings.length === 0 && importedProfiles.length === 0) {
+        throw new Error('所选内容在文件中没有可导入的数据');
+      }
+
+      const hasKey = importedSettings.some((setting) => setting.key === 'sync_encryption_key');
+      let hasLocalPersonalKey = false;
+      try {
+        hasLocalPersonalKey = Boolean(await loadPersonalKey());
+      } catch (error) {
+        logger.warn('[Import] Failed to check personal key before import:', error);
+      }
+      const personalKeyClause = hasLocalPersonalKey
+        ? '已配置的个人私钥将保留（不会被清空或覆盖）。\n'
+        : '';
+      const confirmed = await confirm(
+        `确定要导入选中的配置数据吗？\n\n导出时间: ${new Date(pendingImport.exportDate).toLocaleString()}\n版本: ${pendingImport.version}\n导入类型: ${selectedImportCategories.length === SETTINGS_CATEGORIES.length ? '全部' : '仅选中项'}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}${personalKeyClause}${replaceAll ? '⚠️ 这将清空本地业务数据并覆盖应用设置，导入后请重新同步！' : '未勾选的设置和本地业务数据将保留。'}`,
+        '确认导入'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      await importSettings(
+        importedSettings,
+        importedProfiles,
+        includeAIProfiles,
+        includeAIProfiles && pendingImport.hasAIProfiles,
+        replaceAll
+      );
+      setShowImportDialog(false);
+      setPendingImport(null);
+      toast('配置导入成功！即将刷新页面...', 'success');
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      logger.error('Import error:', error);
+      toast(`导入失败: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    }
   };
 
   const handleSelectFile = () => {
@@ -167,42 +323,24 @@ export function useOptionsImportAndReset() {
           throw new Error('无效的备份文件格式');
         }
 
-        if (!Array.isArray(parsed.data.settings) || parsed.data.settings.length === 0) {
-          throw new Error('文件中没有应用设置数据');
+        if (!Array.isArray(parsed.data.settings)) {
+          throw new Error('备份中的应用设置数据格式无效');
         }
 
         const importedSettings = parseImportedSettings(parsed.data.settings as unknown[]);
         const importedProfiles = parseImportedProfiles(parsed.data.aiProfiles);
-        if (importedSettings.length === 0) {
-          throw new Error('文件中没有可识别的设置项');
+        if (importedSettings.length === 0 && importedProfiles.length === 0) {
+          throw new Error('文件中没有可识别的设置项或 AI profile');
         }
-        const profileKeySettings: ImportedSetting[] = importedProfiles
-          .filter((profile) => isStoredEncryptedValue(profile.apiKey))
-          .map((profile) => ({ key: 'ai_api_key', value: profile.apiKey }));
-        await validateEncryptedAISettings([...importedSettings, ...profileKeySettings]);
-
-        const hasKey = importedSettings.some((setting) => setting.key === 'sync_encryption_key');
-        let hasLocalPersonalKey = false;
-        try {
-          hasLocalPersonalKey = Boolean(await loadPersonalKey());
-        } catch (error) {
-          logger.warn('[Import] Failed to check personal key before import:', error);
-        }
-        const personalKeyClause = hasLocalPersonalKey
-          ? '已配置的个人私钥将保留（不会被清空或覆盖）。\n'
-          : '';
-        const confirmed = await confirm(
-          `确定要导入配置数据吗？\n\n导出时间: ${new Date(parsed.exportDate).toLocaleString()}\n版本: ${parsed.version}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}${personalKeyClause}⚠️ 这将清空本地业务数据并覆盖应用设置，导入后请重新同步！`,
-          '确认导入'
-        );
-
-        if (!confirmed) {
-          return;
-        }
-
-        await importSettings(importedSettings, importedProfiles);
-        toast('配置导入成功！即将刷新页面...', 'success');
-        setTimeout(() => window.location.reload(), 1500);
+        setPendingImport({
+          exportDate: typeof parsed.exportDate === 'string' ? parsed.exportDate : '',
+          importedProfiles,
+          importedSettings,
+          hasAIProfiles: Object.prototype.hasOwnProperty.call(parsed.data, 'aiProfiles'),
+          version: String(parsed.version),
+        });
+        setSelectedImportCategories(SETTINGS_CATEGORIES.map((category) => category.key));
+        setShowImportDialog(true);
       } catch (error) {
         logger.error('Import error:', error);
         toast(`导入失败: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -255,29 +393,38 @@ export function useOptionsImportAndReset() {
       return;
     }
 
+    setRebuildPhase('preparing');
     try {
-      toast('正在重建数据...', 'info');
-
       const engine = await getSyncEngine();
       if (!engine) {
         throw new Error('同步引擎初始化失败');
       }
 
       // 有个人私钥：个人数据可走同步恢复 → 一并清空；无私钥：仅本地 → 保留
+      setRebuildPhase('clearing');
       await engine.clearAllData({ preservePersonal: !hasPersonalKey });
+      setRebuildPhase('pulling');
       await engine.pull();
 
+      setRebuildPhase('complete');
       toast('数据重建成功', 'success');
       setTimeout(() => window.location.reload(), 1500);
     } catch (error) {
+      setRebuildPhase(null);
       logger.error('[DataRebuild] Failed:', error);
-      toast('数据重建失败: ' + (error as Error).message, 'error');
+      toast(`数据重建失败: ${error instanceof Error ? error.message : String(error)}`, 'error');
     }
   };
 
   return {
     clearData,
+    handleImport,
     handleSelectFile,
+    rebuildPhase,
     rebuildLocalData,
+    selectedImportCategories,
+    setSelectedImportCategories,
+    setShowImportDialog,
+    showImportDialog,
   };
 }

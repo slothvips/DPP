@@ -5,6 +5,7 @@ import { applySyncOperation } from './SyncEngine.apply';
 import {
   clearAllSyncData,
   getSyncPendingCounts,
+  migrateDeferredChunks,
   processDeferredOperations,
   regenerateSyncOperations,
   resetSyncState,
@@ -23,10 +24,11 @@ import {
   ensureSyncClientId,
   runWithSyncRetry,
 } from './SyncEngine.runtime';
-import { runPullFlow, runPushFlow } from './SyncEngine.sync';
+import { recoverLocalSyncData, runPullFlow, runPushFlow } from './SyncEngine.sync';
 import { enqueuePersonalSyncData } from './enqueuePersonalData';
 import type {
   OperationType,
+  SyncMetadata,
   SyncOperation,
   SyncPendingCounts,
   SyncProvider,
@@ -262,6 +264,8 @@ export class SyncEngine {
       preservePersonal,
     });
 
+    this.clientId = null;
+
     // 保留了个人表但 operations 已空：若有个人私钥则补回同步队列
     if (!preservePersonal) {
       return;
@@ -300,10 +304,43 @@ export class SyncEngine {
 
   public async processDeferredOperations() {
     await processSyncOperationRecovery(this.db, () => this.ensureClientId());
+    await migrateDeferredChunks(this.db);
     await processDeferredOperations({
       db: this.db,
       tables: this.tables,
       applyOperation: (operation) => this.applyOperation(operation),
     });
+  }
+
+  public async recoverLocalData(): Promise<number> {
+    await this.startupReady;
+    if (this.syncLock) {
+      logger.debug('[Sync] Skipping local recovery while another sync is running');
+      return 0;
+    }
+
+    this.syncLock = true;
+    try {
+      return await recoverLocalSyncData({
+        db: this.db,
+        tables: this.tables,
+        ensureClientId: () => this.ensureClientId(),
+        applyOperation: (operation) => this.applyOperation(operation),
+      });
+    } finally {
+      this.syncLock = false;
+    }
+  }
+
+  public async recoverAfterUpgrade(): Promise<void> {
+    await this.recoverLocalData();
+
+    const state = (await this.db.table('syncMetadata').get('global')) as SyncMetadata | undefined;
+    const hasAdvancedCursor = Number(state?.lastServerCursor ?? 0) > 0;
+    const recoveryCompleted =
+      state?.syncProtocolVersion === 2 && state.chunkRecoveryCompleted === true;
+    if (!hasAdvancedCursor || recoveryCompleted) return;
+
+    await this.pull();
   }
 }

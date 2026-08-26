@@ -20,11 +20,9 @@ export const PERSONAL_KEY_SETUP_STEPS: Array<{
   { id: 'saving', label: '保存个人私钥' },
   { id: 'enqueue', label: '准备个人数据' },
   { id: 'push', label: '推送到服务器' },
-  { id: 'clear', label: '清理本地同步数据' },
-  { id: 'pull', label: '从服务器重建本地数据' },
 ];
 
-const STEP_ORDER: PersonalKeySetupStepId[] = ['saving', 'enqueue', 'push', 'clear', 'pull'];
+const STEP_ORDER: PersonalKeySetupStepId[] = ['saving', 'enqueue', 'push'];
 
 export function getPersonalKeySetupStepIndex(state: PersonalKeySetupProgressState): number {
   if (state.phase === 'done') {
@@ -44,14 +42,10 @@ export function getPersonalKeySetupStatusText(state: PersonalKeySetupProgressSta
       return '正在准备个人数据上传…';
     case 'push':
       return '正在推送个人数据到服务器…';
-    case 'clear':
-      return '正在清理本地同步数据…';
-    case 'pull':
-      return '正在从服务器重建本地数据…';
     case 'done':
       return state.enqueued && state.enqueued > 0
-        ? `已完成：推送 ${state.enqueued} 条个人数据并重建本地同步数据`
-        : '已完成：本地同步数据已重建';
+        ? `已完成：推送 ${state.enqueued} 条个人数据`
+        : '已完成：个人数据已同步';
     case 'error':
       return state.errorMessage ?? '个人私钥已保存，但后续同步失败。请检查同步配置后手动同步。';
   }

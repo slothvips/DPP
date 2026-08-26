@@ -6,16 +6,7 @@ import js from '@eslint/js';
 
 export default tseslint.config(
   {
-    ignores: [
-      'dist',
-      '.output',
-      '.wxt',
-      '.worktrees',
-      'node_modules',
-      'src/vendor',
-      'vendor',
-      'src/lib/browserEngine/upstream',
-    ],
+    ignores: ['dist', '.output', '.wxt', '.worktrees', 'node_modules', 'src/vendor', 'vendor'],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

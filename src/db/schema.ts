@@ -118,4 +118,109 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(15).stores({
     aiPlans: 'id, [ownerType+ownerId], updatedAt',
   });
+
+  db.version(16)
+    .stores({
+      browserTasks:
+        'taskId, sessionId, toolCallId, ownerKey, status, idempotencyKey, createdAt, updatedAt, leaseExpiresAt',
+    })
+    .upgrade(async (tx) => {
+      const table = tx.table('browserTasks');
+      const records = await table.toArray();
+      await Promise.all(
+        records.map((record) => {
+          const summary = record.summary as {
+            sessionId?: string;
+            toolCallId?: string;
+            status?: string;
+            createdAt?: number;
+            updatedAt?: number;
+          };
+          const updatedAt =
+            typeof record.updatedAt === 'number'
+              ? record.updatedAt
+              : typeof summary.updatedAt === 'number'
+                ? summary.updatedAt
+                : Date.now();
+          const createdAt = typeof summary.createdAt === 'number' ? summary.createdAt : updatedAt;
+          const status =
+            summary.status === 'queued' ||
+            summary.status === 'running' ||
+            summary.status === 'waiting_user' ||
+            summary.status === 'completed' ||
+            summary.status === 'failed' ||
+            summary.status === 'stopped'
+              ? summary.status
+              : 'stopped';
+          return table.update(record.taskId as string, {
+            sessionId: record.sessionId ?? summary.sessionId,
+            toolCallId: summary.toolCallId,
+            ownerKey: record.sessionId ?? summary.sessionId,
+            status,
+            idempotencyKey:
+              summary.sessionId && summary.toolCallId
+                ? `${summary.sessionId}:${summary.toolCallId}`
+                : undefined,
+            createdAt,
+            updatedAt,
+            summary: {
+              ...record.summary,
+              status,
+              createdAt,
+              updatedAt,
+            },
+          });
+        })
+      );
+    });
+
+  // v17: 先归档旧测试功能数据，再移除旧功能入口。
+  db.version(17)
+    .stores({
+      testCases: '&id, createdAt, updatedAt, enabled',
+      testRuns: '&id, testCaseId, startedAt, status',
+      legacyTestCases: '&id, createdAt, updatedAt, enabled',
+      legacyTestRuns: '&id, testCaseId, aiSessionId, startedAt, status',
+    })
+    .upgrade(async (tx) => {
+      const legacyTestCases = await tx.table('testCases').toArray();
+      const legacyTestRuns = await tx.table('testRuns').toArray();
+      if (legacyTestCases.length > 0) {
+        await tx.table('legacyTestCases').bulkPut(legacyTestCases);
+      }
+      if (legacyTestRuns.length > 0) {
+        await tx.table('legacyTestRuns').bulkPut(legacyTestRuns);
+      }
+      await tx.table('settings').delete('feature_testing_enabled');
+    });
+
+  // v18: 加密的团队测试用例物料和执行记录。
+  db.version(18)
+    .stores({
+      testCases: null,
+      materials: '&id, type, status, updatedAt, deletedAt',
+      testRuns: '&id, testCaseMaterialId, status, startedAt, updatedAt, deletedAt',
+    })
+    .upgrade(async (tx) => {
+      // v17 已将旧记录复制到 legacy* 表；清空同名旧表，避免新代码读取旧结构。
+      await tx.table('testRuns').clear();
+    });
+
+  // v19: 持久化分片，支持跨分页、重启和失败重试后的重组。
+  db.version(19).stores({
+    syncChunks: 'id, operationId, [operationId+chunkIndex], receivedAt',
+  });
+
+  // v20: 按 timestamp 排序后再应用跨分页同步操作，支持崩溃恢复。
+  db.version(20).stores({
+    syncApplyQueue: 'id, timestamp',
+  });
+
+  // v21: 保留已升级数据库的版本号；实际故障由同步事务作用域修复。
+  db.version(21).stores({});
+
+  // v22: 持久化测试执行与 AI 会话的归属，支持刷新后恢复停止操作。
+  db.version(22).stores({
+    testRuns: '&id, testCaseMaterialId, sessionId, status, startedAt, updatedAt, deletedAt',
+  });
 }

@@ -1,2 +1,2 @@
 export { runPushFlow } from './SyncEngine.push';
-export { runPullFlow } from './SyncEngine.pull';
+export { recoverLocalSyncData, runPullFlow } from './SyncEngine.pull';

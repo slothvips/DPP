@@ -4,6 +4,7 @@ const OPEN_CODE_CLIENT = 'cli';
 const OPEN_CODE_VERSION = '1.18.18';
 const DPP_CLIENT_VERSION = '0.7.0';
 const SESSION_CACHE_LIMIT = 64;
+// ponytail: opencodefree 仅作临时兜底，可靠性和稳定性无保障，不应作为默认/长期方案
 export const OPEN_CODE_DEFAULT_FREE_MODEL = 'big-pickle';
 
 export function normalizeOpenCodeModel(modelId: string): string {
@@ -99,6 +100,7 @@ export async function deriveOpenCodeSessionId(
   }
 }
 
+// opencodefree 等免费模型不可靠、不稳定，仅用于临时/非关键场景，勿依赖
 export function isOpenCodeFreeModel(modelId: string): boolean {
   return modelId === 'opencodefree' || modelId === 'big-pickle' || modelId.endsWith('-free');
 }

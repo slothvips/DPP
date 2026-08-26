@@ -40,6 +40,7 @@ export function normalizeAndClassifyToolCalls(
 } {
   const toolCallsToConfirm: PreparedToolCall[] = [];
   const toolCallsToExecute: PreparedToolCall[] = [];
+  let confirmationStarted = false;
 
   for (const preparedToolCall of prepareToolCalls(toolCalls)) {
     const toolName = preparedToolCall.toolCall.function.name.trim();
@@ -59,10 +60,13 @@ export function normalizeAndClassifyToolCalls(
       },
     };
 
-    if (
+    const requiresConfirmation =
       ALWAYS_CONFIRM_TOOL_NAMES.has(resolvedTool.name) ||
-      (!yoloMode && toolRegistry.requiresConfirmation(resolvedTool.name))
-    ) {
+      (!yoloMode && toolRegistry.requiresConfirmation(resolvedTool.name));
+    // Keep every call after the first confirmation behind the same gate so
+    // model-declared call order is never bypassed.
+    if (requiresConfirmation || confirmationStarted) {
+      confirmationStarted = true;
       toolCallsToConfirm.push(normalizedToolCall);
     } else {
       toolCallsToExecute.push(normalizedToolCall);

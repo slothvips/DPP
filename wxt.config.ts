@@ -1,4 +1,3 @@
-import { resolve as resolvePath } from 'node:path';
 import UnoCSS from 'unocss/vite';
 import babel from 'vite-plugin-babel';
 import { defineConfig } from 'wxt';
@@ -8,10 +7,7 @@ export default defineConfig({
   srcDir: 'src',
   vite: () => ({
     resolve: {
-      alias: {
-        '@browser-engine-upstream': resolvePath(process.cwd(), 'src/lib/browserEngine/upstream'),
-        '@src': resolvePath(process.cwd(), 'src/lib/browserEngine/upstream'),
-      },
+      alias: {},
     },
     server: {
       port: 3001,
@@ -116,7 +112,6 @@ export default defineConfig({
       'tabs',
       'tabGroups',
       'webNavigation',
-      'debugger',
     ],
     host_permissions: ['<all_urls>'],
     side_panel: {

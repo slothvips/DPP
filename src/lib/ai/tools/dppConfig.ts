@@ -3,7 +3,6 @@ import { db } from '@/db';
 import type { JenkinsEnvironment, SettingKey, SettingValue } from '@/db/types';
 import { AI_PROVIDER_TYPES } from '@/lib/ai/providerIds';
 import { AI_PROVIDER_DEFINITIONS } from '@/lib/ai/providerRegistry';
-import { encryptData, loadKey } from '@/lib/crypto/encryption';
 import { getSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
@@ -201,12 +200,6 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'boolean',
     writable: true,
   },
-  feature_testing_enabled: {
-    category: 'features',
-    description: 'Show testing feature',
-    type: 'boolean',
-    writable: true,
-  },
   feature_ai_assistant_enabled: {
     category: 'features',
     description: 'Show D仔 feature',
@@ -342,11 +335,6 @@ const DPP_CONFIG_DEFINITIONS = {
   },
 } as const satisfies Record<SettingKey, ConfigDefinition>;
 
-const ENCRYPTABLE_SETTING_KEYS = new Set<SettingKey>([
-  'ai_api_key',
-  ...AI_PROVIDER_DEFINITIONS.map((provider) => `ai_${provider.id}_api_key` as AIProviderSettingKey),
-]);
-
 const SYNC_RELATED_SETTING_KEYS = new Set<SettingKey>([
   'auto_sync_enabled',
   'auto_sync_interval',
@@ -405,6 +393,9 @@ function validateValue(key: SettingKey, value: unknown): unknown {
 
   if (!definition.writable) {
     throw new Error(`${key} is runtime-managed and cannot be updated by D仔`);
+  }
+  if (definition.sensitive) {
+    throw new Error(`${key} contains sensitive data and must be changed in the Settings page`);
   }
 
   if (definition.enum && (typeof value !== 'string' || !definition.enum.includes(value))) {
@@ -531,18 +522,6 @@ function validateJenkinsEnvironments(value: unknown): asserts value is JenkinsEn
   }
 }
 
-async function prepareStoredValue(
-  key: SettingKey,
-  value: unknown,
-  encryptionKey: Awaited<ReturnType<typeof loadKey>>
-): Promise<unknown> {
-  if (!ENCRYPTABLE_SETTING_KEYS.has(key) || typeof value !== 'string' || value === '') {
-    return value;
-  }
-
-  return encryptionKey ? encryptData(value, encryptionKey) : value;
-}
-
 async function buildConfigEntry(key: SettingKey): Promise<ConfigEntry> {
   const definition = getConfigDefinition(key);
   const value = await getSetting(key);
@@ -553,7 +532,7 @@ async function buildConfigEntry(key: SettingKey): Promise<ConfigEntry> {
     description: definition.description,
     type: definition.type,
     enum: definition.enum ? [...definition.enum] : undefined,
-    writable: definition.writable,
+    writable: definition.writable && !definition.sensitive,
     configured: value !== undefined && value !== '',
     value: toDisplayValue(key, value),
   };
@@ -621,23 +600,13 @@ async function dpp_config_update(args: unknown) {
   const validatedEntries = entries.map(
     ([key, rawValue]) => [key, validateValue(key, rawValue)] as const
   );
-  const encryptionKey = validatedEntries.some(
-    ([key, value]) => ENCRYPTABLE_SETTING_KEYS.has(key) && typeof value === 'string' && value !== ''
-  )
-    ? await loadKey()
-    : null;
-  const storedEntries = await Promise.all(
-    validatedEntries.map(
-      async ([key, value]) => [key, await prepareStoredValue(key, value, encryptionKey)] as const
-    )
-  );
-  const updatedKeys = storedEntries.map(([key]) => key);
+  const updatedKeys = validatedEntries.map(([key]) => key);
 
   await db.transaction('rw', db.settings, async () => {
     await db.settings.bulkPut(
-      storedEntries.map(([key, storedValue]) => ({
+      validatedEntries.map(([key, value]) => ({
         key,
-        value: storedValue as SettingValue<SettingKey>,
+        value: value as SettingValue<SettingKey>,
       }))
     );
   });

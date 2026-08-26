@@ -27,11 +27,13 @@ export function registerLinksTools() {
           description: 'Tag names to filter links',
         },
         page: {
-          type: 'number',
+          type: 'integer',
+          minimum: 1,
           description: 'Page number (starting from 1). Default: 1',
         },
         pageSize: {
-          type: 'number',
+          type: 'integer',
+          minimum: 1,
           description:
             'Number of items per page. Default: 20. Recommended: 10-20 to avoid overwhelming the context',
         },

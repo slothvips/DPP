@@ -91,7 +91,6 @@ export function useJenkinsView() {
     openBuildDialog,
     closeBuildDialog,
     setFilter,
-    showEmptyState: !jenkinsToken && environments.length === 0,
     showOthersBuilds,
     tags,
     toggleExpand,

@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger';
-import { type AIToolMetadata, toOpenAIToolDefinition } from './toolsShared';
+import { type AIToolMetadata, toOpenAIToolDefinition, validateToolArguments } from './toolsShared';
 import type { OpenAIToolDefinition } from './types';
 
 export class ToolRegistry {
@@ -36,6 +36,7 @@ export class ToolRegistry {
       throw new Error(`Tool ${trimmedName} not found`);
     }
 
+    validateToolArguments(tool.parameters, args);
     return tool.handler(args) as Promise<T>;
   }
 

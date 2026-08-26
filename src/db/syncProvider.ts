@@ -1,4 +1,11 @@
+import type { EncryptedData } from '@/lib/crypto/encryption';
 import { http, httpPost } from '@/lib/http';
+import {
+  DEFAULT_CHUNK_UPLOAD_ENABLED,
+  MAX_PUSH_REQUEST_BYTES,
+  MAX_SHEET_CELL_CHARS,
+  createChunkOperations,
+} from '@/lib/sync/chunks';
 import { encryptOperation } from '@/lib/sync/crypto-helpers';
 import { isPersonalSyncScope } from '@/lib/sync/dataScope';
 import { loadSyncKeyring, resolveKeyForOperation } from '@/lib/sync/syncKeys';
@@ -70,33 +77,89 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
         return { pushedIds: [] };
       }
 
-      const finalOps = await Promise.all(
-        encryptable.map(({ op, key }) => encryptOperation(op, key))
-      );
-
-      const setting = await db.settings.get('custom_server_url');
-      const apiUrl = (setting?.value as string)?.replace(/\/$/, '');
-      if (!apiUrl) throw new Error('Sync server URL not configured');
-      const endpoint = `${apiUrl}/api/sync`;
-
-      const tokenSetting = await db.settings.get('sync_access_token');
-      const token = tokenSetting?.value as string;
-
-      const res = await httpPost(
-        `${endpoint}/push`,
-        { ops: finalOps, clientId },
-        {
-          headers: {
-            'X-Client-ID': clientId,
-            'X-Access-Token': token || '',
-          },
-          timeout: 30000,
+      const finalOps: SyncOperation[] = [];
+      const chunkUploadSetting = await db.table('settings').get('sync_chunk_upload_enabled');
+      const chunkUploadEnabled =
+        typeof chunkUploadSetting?.value === 'boolean'
+          ? chunkUploadSetting.value
+          : DEFAULT_CHUNK_UPLOAD_ENABLED;
+      for (const { op, key } of encryptable) {
+        const encrypted = await encryptOperation(op, key);
+        if (!op.encryptedPayload && encrypted.payload) {
+          op.encryptedPayload = encrypted.payload as EncryptedData;
+          op.keyHash = encrypted.keyHash;
+          await db.operations.update(op.id, {
+            encryptedPayload: op.encryptedPayload,
+            keyHash: encrypted.keyHash,
+          });
         }
-      );
+        if (
+          !chunkUploadEnabled &&
+          JSON.stringify(encrypted.payload).length > MAX_SHEET_CELL_CHARS
+        ) {
+          throw new Error(
+            `Operation ${op.id} exceeds the sync payload limit while chunk upload is disabled`
+          );
+        }
+        finalOps.push(
+          ...(chunkUploadEnabled ? await createChunkOperations(encrypted, clientId) : [encrypted])
+        );
+      }
 
-      const data = res as { cursor?: number | string; success?: boolean };
+      const { endpoint } = await getSyncServerUrl(db);
+      const token = await getSyncAccessToken(db);
+
+      const requestBatches: SyncOperation[][] = [];
+      let currentBatch: SyncOperation[] = [];
+      for (const operation of finalOps) {
+        const candidate = [...currentBatch, operation];
+        const candidateBytes = new TextEncoder().encode(
+          JSON.stringify({ ops: candidate, clientId })
+        ).length;
+        if (currentBatch.length > 0 && candidateBytes > MAX_PUSH_REQUEST_BYTES) {
+          requestBatches.push(currentBatch);
+          currentBatch = [operation];
+        } else {
+          currentBatch = candidate;
+        }
+      }
+      if (currentBatch.length > 0) {
+        requestBatches.push(currentBatch);
+      }
+
+      let lastCursor: number | string | undefined;
+      for (const requestBatch of requestBatches) {
+        const res = await httpPost(
+          `${endpoint}/push`,
+          { ops: requestBatch, clientId },
+          {
+            headers: {
+              'X-Client-ID': clientId,
+              'X-Access-Token': token || '',
+            },
+            timeout: 30000,
+          }
+        );
+        const data = res as {
+          cursor?: number | string;
+          pushedIds?: unknown;
+          success?: boolean;
+        };
+        if (data.success !== true || !Array.isArray(data.pushedIds)) {
+          throw new Error('Push response did not confirm uploaded operations');
+        }
+        const confirmedIds = new Set(
+          data.pushedIds.filter((id): id is string => typeof id === 'string')
+        );
+        const missingId = requestBatch.find((operation) => !confirmedIds.has(operation.id))?.id;
+        if (missingId) {
+          throw new Error(`Push response did not confirm operation ${missingId}`);
+        }
+        lastCursor = data.cursor ?? lastCursor;
+      }
+
       const pushedIds = encryptable.map(({ op }) => op.id);
-      return data.cursor ? { cursor: data.cursor, pushedIds } : { pushedIds };
+      return lastCursor !== undefined ? { cursor: lastCursor, pushedIds } : { pushedIds };
     },
     pull: async (cursor, clientId) => {
       const { endpoint } = await getSyncServerUrl(db);

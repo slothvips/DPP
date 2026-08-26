@@ -1,6 +1,5 @@
 import { registerAIConfigTools } from './tools/aiConfig';
 import { registerBlackboardTools } from './tools/blackboard';
-import { registerBrowserTools } from './tools/browser';
 import { registerBrowserTaskTools } from './tools/browserTask';
 import { registerDPPConfigTools } from './tools/dppConfig';
 import { registerJenkinsTools } from './tools/jenkins';
@@ -9,6 +8,8 @@ import { registerPlanTools } from './tools/plan';
 import { registerRecentActivitiesTools } from './tools/recentActivities';
 import { registerRecorderTools } from './tools/recorder';
 import { registerTagsTools } from './tools/tags';
+import { registerTestCaseTools } from './tools/testCases';
+import { registerTestRunTools } from './tools/testRuns';
 
 let aiToolsRegistered = false;
 
@@ -25,9 +26,10 @@ export function ensureAIToolsRegistered(): void {
   registerRecorderTools();
   registerBlackboardTools();
   registerRecentActivitiesTools();
-  registerBrowserTools();
   registerBrowserTaskTools();
   registerPlanTools();
+  registerTestCaseTools();
+  registerTestRunTools();
 
   aiToolsRegistered = true;
 }

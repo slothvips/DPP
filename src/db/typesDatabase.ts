@@ -1,8 +1,8 @@
 import type Dexie from 'dexie';
 import type { EntityTable } from 'dexie';
+import type { TestCaseMaterial, TestRun } from '@/features/aiAssistant/materials/testCaseTypes';
 import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
-import type { TestCase, TestRun } from '@/features/testing/types';
 import type { TotpAccountItem } from '@/features/totp/types';
 import type { AIPlan, AIPlanOwnerType } from '@/lib/ai/plan';
 import type { BrowserTaskSummary } from '@/lib/browserTask/types';
@@ -22,6 +22,8 @@ import type { Setting } from './typesSettings';
 import type {
   DeferredOp,
   RemoteActivityLog,
+  SyncApplyQueueRecord,
+  SyncChunkRecord,
   SyncMetadata,
   SyncOperation,
   SyncRecoveryOp,
@@ -35,6 +37,12 @@ export interface TotpLocalOrderRecord {
 export interface BrowserTaskRecord {
   taskId: string;
   sessionId?: string;
+  toolCallId?: string;
+  ownerKey?: string;
+  status: BrowserTaskSummary['status'];
+  idempotencyKey?: string;
+  createdAt: number;
+  leaseExpiresAt?: number;
   summary: BrowserTaskSummary;
   updatedAt: number;
 }
@@ -60,18 +68,20 @@ export type DPPDatabase = Dexie & {
   blackboard: EntityTable<BlackboardItem, 'id'>;
   hotNews: EntityTable<HotNewsCache, 'date'>;
   recordings: EntityTable<Recording, 'id'>;
-  testCases: EntityTable<TestCase, 'id'>;
-  testRuns: EntityTable<TestRun, 'id'>;
   totpAccounts: EntityTable<TotpAccountItem, 'id'>;
   totpLocalOrder: EntityTable<TotpLocalOrderRecord, 'key'>;
   operations: EntityTable<SyncOperation, 'id'>;
   syncMetadata: EntityTable<SyncMetadata, 'id'>;
   deferred_ops: EntityTable<DeferredOp, 'id'>;
   syncRecoveryOps: EntityTable<SyncRecoveryOp, 'id'>;
+  syncChunks: EntityTable<SyncChunkRecord, 'id'>;
+  syncApplyQueue: EntityTable<SyncApplyQueueRecord, 'id'>;
   aiSessions: EntityTable<AISession, 'id'>;
   aiMessages: EntityTable<AIMessage, 'id'>;
   aiProfiles: EntityTable<AIProfile, 'id'>;
   remoteActivityLog: EntityTable<RemoteActivityLog, 'id'>;
   browserTasks: EntityTable<BrowserTaskRecord, 'taskId'>;
   aiPlans: EntityTable<AIPlanRecord, 'id'>;
+  materials: EntityTable<TestCaseMaterial, 'id'>;
+  testRuns: EntityTable<TestRun, 'id'>;
 };

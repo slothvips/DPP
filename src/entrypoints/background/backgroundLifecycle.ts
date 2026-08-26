@@ -1,4 +1,5 @@
 import { browser } from 'wxt/browser';
+import { syncEngine } from '@/db';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
@@ -10,6 +11,10 @@ export function registerBackgroundLifecycle() {
     .catch((error) => logger.error('Failed to set side panel behavior:', error));
 
   void setupAutoSync();
+  void syncEngine
+    .recoverAfterUpgrade()
+    .then(() => logger.info('[Sync] Upgrade recovery completed'))
+    .catch((error) => logger.warn('[Sync] Background local recovery failed:', error));
   void recoverInterruptedBrowserTask().catch((error) =>
     logger.error('Failed to recover interrupted browser task:', error)
   );

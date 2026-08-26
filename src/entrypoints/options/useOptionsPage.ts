@@ -19,10 +19,18 @@ export function useOptionsPage() {
     toggleFeature,
   } = useOptionsSettings();
 
-  const { clearData, handleExport, handleSelectFile, rebuildLocalData } = useOptionsDataManagement({
-    selectedCategories,
-    setShowExportDialog,
-  });
+  const {
+    clearData,
+    handleExport,
+    handleImport,
+    handleSelectFile,
+    rebuildPhase,
+    rebuildLocalData,
+    selectedImportCategories,
+    setSelectedImportCategories,
+    setShowImportDialog,
+    showImportDialog,
+  } = useOptionsDataManagement({ selectedCategories, setShowExportDialog });
 
   return {
     accessToken,
@@ -31,8 +39,10 @@ export function useOptionsPage() {
     customConfig,
     featureToggles,
     handleExport,
+    handleImport,
     handleSelectFile,
     lastSyncTime,
+    rebuildPhase,
     rebuildLocalData,
     saveDataSourceConfig,
     selectedCategories,
@@ -41,6 +51,10 @@ export function useOptionsPage() {
     setCustomConfig,
     setSelectedCategories,
     setShowExportDialog,
+    selectedImportCategories,
+    setSelectedImportCategories,
+    setShowImportDialog,
+    showImportDialog,
     showExportDialog,
     toggleFeature,
   };

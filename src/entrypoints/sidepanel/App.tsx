@@ -20,7 +20,7 @@ export function App() {
     return () => port.disconnect();
   }, []);
 
-  const { featureToggles, isMinimalMode, showJenkinsTab, showSyncButton } = useSidepanelSettings();
+  const { featureToggles, isMinimalMode, showSyncButton } = useSidepanelSettings();
   const [isSideNavExpanded, setIsSideNavExpanded] = useState(false);
   const {
     activeTab,
@@ -30,7 +30,7 @@ export function App() {
     handleDragStart,
     handleTabChange,
     tabOrder,
-  } = useSidepanelTabs({ featureToggles, showJenkinsTab });
+  } = useSidepanelTabs({ featureToggles });
 
   const expandSideNav = useCallback(() => {
     setIsSideNavExpanded(true);
@@ -73,7 +73,6 @@ export function App() {
                 tabOrder={tabOrder}
                 featureToggles={featureToggles}
                 isExpanded={isSideNavExpanded}
-                showJenkinsTab={showJenkinsTab}
                 handleTabChange={handleTabChange}
                 handleDragStart={handleDragStart}
                 handleDragOver={handleDragOver}
@@ -87,7 +86,6 @@ export function App() {
               activeTab={activeTab}
               featureToggles={featureToggles}
               reserveFloatingNav={!isMinimalMode && !isSideNavExpanded}
-              showJenkinsTab={showJenkinsTab}
             />
           </div>
         </div>

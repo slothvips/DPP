@@ -1,5 +1,4 @@
 import type Dexie from 'dexie';
-import { logger } from '@/utils/logger';
 import type { SyncOperation, SyncProvider } from './types';
 
 interface PushFlowOptions {
@@ -18,14 +17,21 @@ export async function runPushFlow({
   pushBatchSize,
 }: PushFlowOptions): Promise<number> {
   const clientId = await ensureClientId();
-  const operations = (await db
+  const pendingOperations = (await db
     .table('operations')
     .where('synced')
     .equals(0)
     .sortBy('timestamp')) as SyncOperation[];
 
-  if (operations.length === 0) {
+  if (pendingOperations.length === 0) {
     return 0;
+  }
+
+  const operations = pendingOperations.map((operation) =>
+    operation.clientId === clientId ? operation : { ...operation, clientId }
+  );
+  if (operations.some((operation, index) => operation !== pendingOperations[index])) {
+    await db.table('operations').bulkPut(operations);
   }
 
   let totalPushed = 0;
@@ -40,38 +46,14 @@ export async function runPushFlow({
     const pushedIds = new Set(result.pushedIds);
     if (pushedIds.size > 0) {
       const pushedOps = batch.filter((operation) => pushedIds.has(operation.id));
-      await db
-        .table('operations')
-        .bulkPut(pushedOps.map((operation) => ({ ...operation, synced: 1 })));
+      await db.table('operations').bulkPut(
+        pushedOps.map((operation) => ({
+          ...operation,
+          synced: 1,
+          encryptedPayload: undefined,
+        }))
+      );
       totalPushed += pushedOps.length;
-    }
-
-    if (result.cursor !== undefined && result.cursor !== null && pushedIds.size > 0) {
-      await db.transaction('rw', db.table('syncMetadata'), async () => {
-        const currentMeta = await db.table('syncMetadata').get('global');
-        const currentCursor = Number(currentMeta?.lastServerCursor || 0);
-        const serverReturnedCursor = Number(result.cursor);
-        const expectedCursor = currentCursor + pushedIds.size;
-
-        if (serverReturnedCursor === expectedCursor) {
-          await db.table('syncMetadata').put({
-            id: 'global',
-            lastServerCursor: serverReturnedCursor,
-            lastSyncTimestamp: Date.now(),
-          });
-          logger.debug(
-            `[Sync] Push optimization: Updated cursor ${currentCursor} → ${serverReturnedCursor}`
-          );
-        } else if (serverReturnedCursor > expectedCursor) {
-          logger.debug(
-            `[Sync] Push optimization skipped: remote gap detected (server=${serverReturnedCursor} > expected=${expectedCursor}). Will pull to catch up.`
-          );
-        } else {
-          logger.debug(
-            `[Sync] Push anomaly: server cursor behind expected (server=${serverReturnedCursor} < expected=${expectedCursor}, current=${currentCursor}). Skipping cursor update.`
-          );
-        }
-      });
     }
   }
 

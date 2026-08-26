@@ -37,6 +37,7 @@ export interface UseAIChatReturn {
   pendingBuild: PendingBuild | null;
   sessionId: string | null;
   sessions: import('../types').AISession[];
+  sessionStatuses: Record<string, AIChatStatus>;
   currentProvider: import('@/lib/ai/types').AIProviderType | null;
   yoloMode: boolean;
   setYoloMode: (value: boolean) => void;
@@ -54,5 +55,5 @@ export interface UseAIChatReturn {
   resetProvider: () => void;
   completeBuild: () => void;
   cancelBuild: () => void;
-  summarizeSession: () => Promise<string | null>;
+  summarizeSession: () => Promise<boolean>;
 }

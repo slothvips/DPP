@@ -1,9 +1,7 @@
-import { Eye, EyeOff, Scissors, Settings, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { GripHorizontal, Scissors, Settings, Trash2 } from 'lucide-react';
 import { YoloButton } from '@/components/YoloButton';
 import { Button } from '@/components/ui/button';
 import type { TokenUsage } from '@/lib/ai/types';
-import { getSetting, updateSetting } from '@/lib/db/settings';
 import { AIConfigDialog } from './AIConfigDialog';
 import { AIUsageIndicator } from './AIUsageIndicator';
 import { ChatInput } from './ChatInput';
@@ -13,12 +11,14 @@ interface AIAssistantInputSectionProps {
   isRunning: boolean;
   isConfirming: boolean;
   presetPrompt: string;
+  presetPromptKey?: string;
   usage?: TokenUsage;
   canClear: boolean;
   canSummarize: boolean;
   isSummarizing: boolean;
   onConfigSaved: () => void;
   onSend: (content: string) => Promise<void>;
+  onFileError?: (message: string) => void;
   onStop: () => void;
   onSummarize: () => void;
   onClear: () => void;
@@ -29,33 +29,29 @@ export function AIAssistantInputSection({
   isRunning,
   isConfirming,
   presetPrompt,
+  presetPromptKey,
   usage,
   canClear,
   canSummarize,
   isSummarizing,
   onConfigSaved,
   onSend,
+  onFileError,
   onStop,
   onSummarize,
   onClear,
 }: AIAssistantInputSectionProps) {
   const disabled = isConfirming;
-  const [isFollowing, setIsFollowing] = useState(false);
-
-  useEffect(() => {
-    void getSetting('browser_task_follow')
-      .then((value) => setIsFollowing(value === true))
-      .catch(() => undefined);
-  }, []);
-
-  const toggleFollowing = () => {
-    const next = !isFollowing;
-    setIsFollowing(next);
-    void updateSetting('browser_task_follow', next);
-  };
 
   return (
-    <div className="border-t border-border/60 bg-background p-3 backdrop-blur">
+    <div className="relative flex h-full min-h-[220px] flex-col border-t border-border/60 bg-background p-3 backdrop-blur">
+      <div
+        className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 text-muted-foreground/55"
+        title="拖动上边缘调整输入区高度"
+        aria-hidden="true"
+      >
+        <GripHorizontal className="h-3 w-8" />
+      </div>
       {isConfigMissing && (
         <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-warning/20 bg-warning/6 px-3 py-2.5">
           <div className="flex items-center justify-between gap-3">
@@ -78,16 +74,6 @@ export function AIAssistantInputSection({
         <AIUsageIndicator usage={usage} />
         <div className="flex items-center gap-0.5 rounded-lg border border-border/50 bg-muted/25 p-0.5">
           <YoloButton disabled={isRunning} />
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-md text-muted-foreground"
-            onClick={toggleFollowing}
-            aria-pressed={isFollowing}
-            title={isFollowing ? '关闭跟随网页任务标签页' : '跟随网页任务当前标签页'}
-          >
-            {isFollowing ? <Eye className="h-4 w-4 text-info" /> : <EyeOff className="h-4 w-4" />}
-          </Button>
           <AIConfigDialog onSaved={onConfigSaved}>
             <Button
               variant="ghost"
@@ -123,7 +109,7 @@ export function AIAssistantInputSection({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border/70 bg-muted/20 p-2 shadow-sm">
+      <div className="min-h-[120px] flex-1 rounded-2xl border border-border/70 bg-muted/20 p-2 shadow-sm">
         <ChatInput
           onSend={onSend}
           onStop={onStop}
@@ -132,6 +118,8 @@ export function AIAssistantInputSection({
           queueWhileRunning={isRunning}
           placeholder="发送消息... (Shift+Enter 换行)"
           initialInput={presetPrompt}
+          initialInputKey={presetPromptKey}
+          onFileError={onFileError}
         />
       </div>
     </div>

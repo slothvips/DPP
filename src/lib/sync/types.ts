@@ -1,3 +1,5 @@
+import type { EncryptedData } from '@/lib/crypto/encryption';
+
 export type OperationType = 'create' | 'update' | 'delete';
 export type SyncStatus = 'idle' | 'pushing' | 'pulling' | 'error';
 
@@ -12,12 +14,17 @@ export interface SyncOperation {
   serverTimestamp?: number; // 服务端存储时间戳（仅用于元数据，冲突解决使用本地 timestamp）
   synced: number;
   keyHash?: string; // SHA-256 hash of the key used for encryption (first 8 bytes hex)
+  /** 本地待上传缓存，成功上传后清理，不会发送到服务端。 */
+  encryptedPayload?: EncryptedData;
 }
 
 export interface SyncMetadata {
   id: string;
   lastServerCursor?: string | number;
   lastSyncTimestamp: number;
+  syncProtocolVersion?: number;
+  chunkRecoveryCursor?: string | number;
+  chunkRecoveryCompleted?: boolean;
 }
 
 export interface SyncPendingCounts {

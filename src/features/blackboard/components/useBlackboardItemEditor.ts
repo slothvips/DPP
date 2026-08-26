@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { BlackboardItem } from '../types';
 
 interface UseBlackboardItemEditorOptions {
@@ -21,6 +21,9 @@ export function useBlackboardItemEditor({
   const [minEditHeight, setMinEditHeight] = useState('140px');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const editScrollTopRef = useRef(0);
+  const editCaretOffsetRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!isFocused) {
@@ -60,15 +63,19 @@ export function useBlackboardItemEditor({
     setContent(item.content);
   }, [item.content]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isEditing || !textareaRef.current) {
       return;
     }
 
-    textareaRef.current.focus();
+    textareaRef.current.focus({ preventScroll: true });
     const length = textareaRef.current.value.length;
-    textareaRef.current.setSelectionRange(length, length);
+    const caretOffset = Math.min(editCaretOffsetRef.current ?? length, length);
+    textareaRef.current.setSelectionRange(caretOffset, caretOffset);
     adjustHeight();
+    if (contentRef.current) {
+      contentRef.current.scrollTop = editScrollTopRef.current;
+    }
   }, [adjustHeight, isEditing]);
 
   const handleChange = (value: string) => {
@@ -76,7 +83,7 @@ export function useBlackboardItemEditor({
     adjustHeight();
   };
 
-  const handleActivateEditing = (readOnly?: boolean) => {
+  const handleActivateEditing = (readOnly?: boolean, caretOffset?: number) => {
     if (readOnly || item.locked) {
       return;
     }
@@ -86,6 +93,8 @@ export function useBlackboardItemEditor({
       setMinEditHeight(`${Math.max(140, contentHeight)}px`);
     }
 
+    editScrollTopRef.current = contentRef.current?.scrollTop ?? 0;
+    editCaretOffsetRef.current = caretOffset;
     setIsEditing(true);
   };
 
@@ -104,6 +113,7 @@ export function useBlackboardItemEditor({
 
   return {
     content,
+    contentRef,
     containerRef,
     isEditing,
     minEditHeight,

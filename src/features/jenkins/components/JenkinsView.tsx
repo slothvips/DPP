@@ -1,9 +1,9 @@
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { JenkinsBuildHistorySection } from '@/features/jenkins/components/JenkinsBuildHistorySection';
-import { JenkinsEmptyState } from '@/features/jenkins/components/JenkinsEmptyState';
 import { JenkinsJobContent } from '@/features/jenkins/components/JenkinsJobContent';
 import { JenkinsToolbar } from '@/features/jenkins/components/JenkinsToolbar';
 import { useJenkinsView } from '@/features/jenkins/components/useJenkinsView';
+import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 
 export function JenkinsView() {
   const {
@@ -28,55 +28,56 @@ export function JenkinsView() {
     nextRefreshTime,
     openBuildDialog,
     setFilter,
-    showEmptyState,
     showOthersBuilds,
     tags,
     toggleExpand,
   } = useJenkinsView();
 
-  if (showEmptyState) {
-    return <JenkinsEmptyState />;
-  }
-
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col space-y-4">
-      <JenkinsToolbar
-        currentEnvId={currentEnvId}
-        environments={environments}
-        filter={filter}
-        loading={loading}
-        onEnvChange={handleEnvChange}
-        onFilterChange={setFilter}
-        onSync={handleSync}
-      />
+    <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-auto">
+      <JenkinsEnvManager />
 
-      <JenkinsJobContent
-        buildHistorySection={
-          <JenkinsBuildHistorySection
-            displayedBuilds={displayedBuilds}
-            expanded={expandedUrls.has('__build_history__')}
-            jobTagsMap={jobTagsMap}
-            loading={myBuildsLoading}
-            nextRefreshTime={nextRefreshTime}
-            onBuild={(build) =>
-              openBuildDialog({ url: build.jobUrl, name: build.jobName, envId: build.env })
-            }
-            onCancel={handleCancelBuild}
-            onToggle={() => toggleExpand('__build_history__')}
-            onToggleShowOthers={handleToggleShowOthers}
-            showOthersBuilds={showOthersBuilds}
+      {environments.length > 0 && (
+        <div className="flex min-h-[20rem] min-h-0 flex-1 flex-col gap-4">
+          <JenkinsToolbar
+            currentEnvId={currentEnvId}
+            environments={environments}
+            filter={filter}
+            loading={loading}
+            onEnvChange={handleEnvChange}
+            onFilterChange={setFilter}
+            onSync={handleSync}
           />
-        }
-        expandedUrls={expandedUrls}
-        filter={filter}
-        filteredJobs={filteredJobs}
-        jobTree={jobTree}
-        jobs={jobs}
-        loading={loading}
-        onBuild={(job) => openBuildDialog({ url: job.url, name: job.name, envId: job.env })}
-        onToggle={toggleExpand}
-        tags={tags}
-      />
+
+          <JenkinsJobContent
+            buildHistorySection={
+              <JenkinsBuildHistorySection
+                displayedBuilds={displayedBuilds}
+                expanded={expandedUrls.has('__build_history__')}
+                jobTagsMap={jobTagsMap}
+                loading={myBuildsLoading}
+                nextRefreshTime={nextRefreshTime}
+                onBuild={(build) =>
+                  openBuildDialog({ url: build.jobUrl, name: build.jobName, envId: build.env })
+                }
+                onCancel={handleCancelBuild}
+                onToggle={() => toggleExpand('__build_history__')}
+                onToggleShowOthers={handleToggleShowOthers}
+                showOthersBuilds={showOthersBuilds}
+              />
+            }
+            expandedUrls={expandedUrls}
+            filter={filter}
+            filteredJobs={filteredJobs}
+            jobTree={jobTree}
+            jobs={jobs}
+            loading={loading}
+            onBuild={(job) => openBuildDialog({ url: job.url, name: job.name, envId: job.env })}
+            onToggle={toggleExpand}
+            tags={tags}
+          />
+        </div>
+      )}
 
       {buildJob && (
         <BuildDialog

@@ -51,6 +51,14 @@ export function getToolConfirmationContent(
         confirmText: '开始录制',
         isDestructive: false,
       };
+    case 'delegate_browser_agent':
+      return {
+        title: '确认委派网页任务',
+        description: '网页子 Agent 将只处理以下边界明确的任务；同一标签页的任务会排队。',
+        impact: `目标标签页: ${typeof args.tab_id === 'number' ? args.tab_id : '当前活动页'}；任务: ${typeof args.task === 'string' ? args.task : '未提供'}`,
+        confirmText: '委派任务',
+        isDestructive: false,
+      };
     case 'ai_config_update':
       return {
         title: '确认修改 D仔 配置',
@@ -65,6 +73,14 @@ export function getToolConfirmationContent(
         description: '此操作会修改 DPP 本地设置，可能影响功能显示、同步、Jenkins 或通知行为。',
         impact: `将更新配置: ${Object.keys((args.updates as Record<string, unknown>) || {}).join(', ') || '未知配置'}`,
         confirmText: '确认修改',
+        isDestructive: false,
+      };
+    case 'test_case_update':
+      return {
+        title: '确认更新测试用例',
+        description: '此操作会覆盖团队共享测试用例的当前版本。',
+        impact: `将更新测试用例 ID: ${args.id || '未知'}`,
+        confirmText: '确认更新',
         isDestructive: false,
       };
     default:

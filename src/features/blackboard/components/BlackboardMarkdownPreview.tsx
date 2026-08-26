@@ -7,10 +7,78 @@ interface BlackboardMarkdownPreviewProps {
   commonStyle: React.CSSProperties;
   readOnly?: boolean;
   locked?: boolean;
-  onActivateEditing: () => void;
+  onActivateEditing: (caretOffset?: number) => void;
 }
 
 const LONG_TEXT_WRAP_CLASS = 'min-w-0 break-words [overflow-wrap:anywhere]';
+
+function isWhitespace(value: string): boolean {
+  return /\s/.test(value);
+}
+
+function isMarkdownSyntax(value: string): boolean {
+  return '#*_`~[]()!>|+-'.includes(value);
+}
+
+function mapVisibleOffsetToSource(
+  source: string,
+  visibleText: string,
+  visibleOffset: number
+): number {
+  let sourceIndex = 0;
+  let visibleIndex = 0;
+
+  while (sourceIndex < source.length && visibleIndex < visibleOffset) {
+    const sourceChar = source[sourceIndex];
+    const visibleChar = visibleText[visibleIndex];
+
+    if (sourceChar === visibleChar || (isWhitespace(sourceChar) && isWhitespace(visibleChar))) {
+      sourceIndex += 1;
+      visibleIndex += 1;
+    } else if (isMarkdownSyntax(sourceChar) || isWhitespace(sourceChar)) {
+      sourceIndex += 1;
+    } else {
+      visibleIndex += 1;
+    }
+  }
+
+  return sourceIndex;
+}
+
+function getCaretOffset(
+  event: React.MouseEvent<HTMLDivElement>,
+  source: string
+): number | undefined {
+  const root = event.currentTarget;
+  const documentWithCaret = root.ownerDocument as Document & {
+    caretPositionFromPoint?: (
+      x: number,
+      y: number
+    ) => {
+      offsetNode: Node;
+      offset: number;
+    } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  const range = documentWithCaret.caretRangeFromPoint?.(event.clientX, event.clientY);
+
+  if (range && root.contains(range.startContainer)) {
+    const prefix = root.ownerDocument.createRange();
+    prefix.selectNodeContents(root);
+    prefix.setEnd(range.startContainer, range.startOffset);
+    return mapVisibleOffsetToSource(source, root.textContent || '', prefix.toString().length);
+  }
+
+  const position = documentWithCaret.caretPositionFromPoint?.(event.clientX, event.clientY);
+  if (!position || !root.contains(position.offsetNode)) {
+    return undefined;
+  }
+
+  const prefix = root.ownerDocument.createRange();
+  prefix.selectNodeContents(root);
+  prefix.setEnd(position.offsetNode, position.offset);
+  return mapVisibleOffsetToSource(source, root.textContent || '', prefix.toString().length);
+}
 
 export function BlackboardMarkdownPreview({
   content,
@@ -21,7 +89,7 @@ export function BlackboardMarkdownPreview({
 }: BlackboardMarkdownPreviewProps) {
   return (
     <div
-      onClick={onActivateEditing}
+      onClick={(event) => onActivateEditing(getCaretOffset(event, content))}
       className={`markdown-preview h-full min-h-[140px] w-full text-base text-foreground ${LONG_TEXT_WRAP_CLASS} ${!readOnly && !locked ? 'cursor-text' : 'cursor-default'}`}
       style={commonStyle}
     >

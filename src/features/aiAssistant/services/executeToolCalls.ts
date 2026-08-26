@@ -1,6 +1,8 @@
 import type { PendingBuild, PreparedToolCall } from '@/features/aiAssistant/hooks/useAIChat.types';
 import { ensureAIToolsRegistered } from '@/lib/ai';
 import { toolRegistry } from '@/lib/ai/tools';
+import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
+import { hasActiveTestRunForSession, stopTestRunForSession } from '@/lib/ai/tools/testRuns';
 import { logger } from '@/utils/logger';
 import { redactSensitiveFields } from '@/utils/sensitive';
 import type { ChatMessage } from '../types';
@@ -53,75 +55,137 @@ export async function executePreparedToolCalls(
 }> {
   ensureAIToolsRegistered();
 
-  const toolMessages: ChatMessage[] = [];
   const availableToolNames = toolRegistry.getAll().map((tool) => tool.name);
+  const toolMessages: ChatMessage[] = [];
 
   for (const [index, preparedToolCall] of preparedToolCalls.entries()) {
-    const { toolCall, arguments: args } = preparedToolCall;
-
     try {
-      logger.info(`[AIChat] Executing tool: ${toolCall.function.name}`, {
-        args: redactSensitiveFields(args),
-        availableTools: availableToolNames,
-      });
-      const toolArgs =
-        toolCall.function.name === 'delegate_browser_agent' && options?.browserTaskSessionId
-          ? {
-              ...args,
-              session_id: options.browserTaskSessionId,
-              tool_call_id: toolCall.id,
-            }
-          : toolCall.function.name === 'manage_plan' && options?.sessionId
-            ? { ...args, __ownerType: 'ai_session', __ownerId: options.sessionId }
-            : args;
-      const result = await toolRegistry.execute(toolCall.function.name, toolArgs);
-      const resultObj = result as {
-        action?: string;
-        jobUrl?: string;
-        jobName?: string;
-        updatedKeys?: unknown;
-      };
-
-      if (shouldResetAIConfig(resultObj)) {
-        options?.onAIConfigChanged?.();
-      }
-
-      if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
+      const { toolMessage, pendingBuild } = await executePreparedToolCall(
+        preparedToolCall,
+        options,
+        availableToolNames
+      );
+      if (pendingBuild) {
         return {
           toolMessages,
           pendingBuild: {
-            jobUrl: resultObj.jobUrl,
-            jobName: resultObj.jobName,
-            toolCallId: toolCall.id,
-            toolName: toolCall.function.name,
+            ...pendingBuild,
             remainingToolCalls: preparedToolCalls.slice(index + 1).map((call) => call.toolCall),
           },
         };
       }
-
-      toolMessages.push({
-        id: generateId(),
-        role: 'tool',
-        name: toolCall.function.name,
-        toolCallId: toolCall.id,
-        content: JSON.stringify(result, null, 2),
-        createdAt: Date.now(),
-      });
+      toolMessages.push(toolMessage);
     } catch (error) {
-      logger.error('[AIChat] Tool execution error:', error);
-      toolMessages.push({
-        id: generateId(),
-        role: 'tool',
-        name: toolCall.function.name,
-        toolCallId: toolCall.id,
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        createdAt: Date.now(),
-      });
+      if (
+        isTestRunMutation(preparedToolCall.toolCall.function.name) &&
+        options?.browserTaskSessionId
+      ) {
+        await stopActiveBrowserTask(options.browserTaskSessionId, 'chat').catch((stopError) => {
+          logger.error('[AIChat] Failed to stop browser tasks after test run error:', stopError);
+        });
+        await stopTestRunForSession(
+          options.browserTaskSessionId,
+          '测试执行工具保存失败，已停止后续网页操作'
+        );
+      }
+      toolMessages.push(createToolErrorMessage(preparedToolCall, error));
+      return { toolMessages, pendingBuild: null };
     }
   }
 
+  return { toolMessages, pendingBuild: null };
+}
+
+async function executePreparedToolCall(
+  preparedToolCall: PreparedToolCall,
+  options:
+    | {
+        onAIConfigChanged?: () => void;
+        browserTaskSessionId?: string;
+        sessionId?: string;
+      }
+    | undefined,
+  availableToolNames: string[]
+): Promise<{ toolMessage: ChatMessage; pendingBuild: PendingBuild | null }> {
+  const { toolCall, arguments: args } = preparedToolCall;
+  logger.info(`[AIChat] Executing tool: ${toolCall.function.name}`, {
+    args: redactSensitiveFields(args),
+    availableTools: availableToolNames,
+  });
+  const toolArgs =
+    toolCall.function.name === 'delegate_browser_agent' && options?.browserTaskSessionId
+      ? {
+          ...args,
+          session_id: options.browserTaskSessionId,
+          tool_call_id: toolCall.id,
+          ...(hasActiveTestRunForSession(options.browserTaskSessionId) &&
+          typeof args.test_target_id !== 'string'
+            ? {
+                resource_keys: [
+                  ...(Array.isArray(args.resource_keys)
+                    ? args.resource_keys.filter((key): key is string => typeof key === 'string')
+                    : []),
+                  'test-target:unknown',
+                ],
+              }
+            : {}),
+        }
+      : toolCall.function.name === 'manage_plan' && options?.sessionId
+        ? { ...args, __ownerType: 'ai_session', __ownerId: options.sessionId }
+        : isTestRunTool(toolCall.function.name) && options?.sessionId
+          ? { ...args, session_id: options.sessionId }
+          : args;
+  const result = await toolRegistry.execute(toolCall.function.name, toolArgs);
+  const resultObj = result as {
+    action?: string;
+    jobUrl?: string;
+    jobName?: string;
+    updatedKeys?: unknown;
+  };
+
+  if (shouldResetAIConfig(resultObj)) options?.onAIConfigChanged?.();
+  if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
+    return {
+      toolMessage: createToolMessage(toolCall, result),
+      pendingBuild: {
+        jobUrl: resultObj.jobUrl,
+        jobName: resultObj.jobName,
+        toolCallId: toolCall.id,
+        toolName: toolCall.function.name,
+        remainingToolCalls: [],
+      },
+    };
+  }
+  return { toolMessage: createToolMessage(toolCall, result), pendingBuild: null };
+}
+
+function isTestRunTool(name: string): boolean {
+  return name === 'test_run_start' || name === 'test_run_update_step' || name === 'test_run_finish';
+}
+
+function isTestRunMutation(name: string): boolean {
+  return name === 'test_run_update_step' || name === 'test_run_finish';
+}
+
+function createToolMessage(toolCall: PreparedToolCall['toolCall'], result: unknown): ChatMessage {
   return {
-    toolMessages,
-    pendingBuild: null,
+    id: generateId(),
+    role: 'tool',
+    name: toolCall.function.name,
+    toolCallId: toolCall.id,
+    content: JSON.stringify(result, null, 2),
+    createdAt: Date.now(),
+  };
+}
+
+function createToolErrorMessage(toolCall: PreparedToolCall, error: unknown): ChatMessage {
+  logger.error('[AIChat] Tool execution error:', error);
+  return {
+    id: generateId(),
+    role: 'tool',
+    name: toolCall.toolCall.function.name,
+    toolCallId: toolCall.toolCall.id,
+    content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    createdAt: Date.now(),
   };
 }

@@ -15,12 +15,28 @@ export function useOptionsDataManagement({
     selectedCategories,
     setShowExportDialog,
   });
-  const { clearData, handleSelectFile, rebuildLocalData } = useOptionsImportAndReset();
+  const {
+    clearData,
+    handleImport,
+    handleSelectFile,
+    rebuildPhase,
+    rebuildLocalData,
+    selectedImportCategories,
+    setSelectedImportCategories,
+    setShowImportDialog,
+    showImportDialog,
+  } = useOptionsImportAndReset();
 
   return {
     clearData,
     handleExport,
+    handleImport,
     handleSelectFile,
+    rebuildPhase,
     rebuildLocalData,
+    selectedImportCategories,
+    setSelectedImportCategories,
+    setShowImportDialog,
+    showImportDialog,
   };
 }

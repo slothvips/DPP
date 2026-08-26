@@ -277,6 +277,7 @@ export function registerAIConfigTools() {
         },
         contextWindow: {
           type: 'number',
+          minimum: 1,
           description: 'Optional positive context window override.',
         },
         visionEnabled: {

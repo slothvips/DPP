@@ -1,3 +1,4 @@
+import type { SyncChunkRecord } from '@/lib/sync/chunks';
 import type { SyncMetadata, SyncOperation } from '@/lib/sync/types';
 
 export interface DeferredOp {
@@ -13,6 +14,14 @@ export interface SyncRecoveryOp {
   operation: SyncOperation;
   timestamp: number;
 }
+
+export interface SyncApplyQueueRecord {
+  id: string;
+  operation: SyncOperation;
+  timestamp: number;
+}
+
+export type { SyncChunkRecord };
 
 export interface RemoteActivityLog {
   id: string;

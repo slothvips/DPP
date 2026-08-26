@@ -1,9 +1,10 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { hasAssistantOutput, runAgentTurn } from '@/lib/ai/agentRuntime';
 import { formatPlanContext, getPlan } from '@/lib/ai/plan';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
+import { stopTestRunForSession } from '@/lib/ai/tools/testRuns';
 import type { AIProviderType, ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
 import type { ChatMessage } from '../types';
 import { useAIChatProvider } from './useAIChatProvider';
@@ -13,23 +14,35 @@ import {
   resolveRuntimeToolChoice,
 } from './useAIChatRuntimeShared';
 
+interface SessionRuntime {
+  runId: string | null;
+  abortController: AbortController | null;
+  accumulatedContent: string;
+  accumulatedReasoning: string;
+  hasStreamedChunk: boolean;
+}
+
 interface UseAIChatRuntimeOptions {
   sessionId: string | null;
-  createAssistantPlaceholder: () => void;
-  onStreamStart: () => void;
-  onStreamChunk: (chunk: string) => void;
-  onReasoningChunk: (chunk: string) => void;
+  createAssistantPlaceholder: (sessionId: string | null) => string | undefined;
+  onStreamStart: (sessionId: string) => void;
+  onStreamChunk: (sessionId: string, assistantMessageId: string, chunk: string) => void;
+  onReasoningChunk: (sessionId: string, assistantMessageId: string, chunk: string) => void;
   onPersistAssistantMessage: (message: ChatMessage) => Promise<void>;
-  onAssistantMessage: (message: ChatMessage) => void;
+  onAssistantMessage: (sessionId: string, assistantMessageId: string, message: ChatMessage) => void;
 }
 
 interface UseAIChatRuntimeReturn {
   currentProvider: AIProviderType | null;
-  runChatCompletion: (apiMessages: ProviderChatMessage[]) => Promise<ChatMessage>;
+  runChatCompletion: (apiMessages: ProviderChatMessage[]) => Promise<ChatMessage | null>;
   generateSessionTitle: (userMessage: string) => Promise<string>;
-  stopRuntime: (sessionId?: string | null, stopBrowserTask?: boolean) => void;
-  resetRuntimeState: () => void;
+  stopRuntime: (sessionId?: string | null, stopBrowserTask?: boolean) => Promise<void>;
+  resetRuntimeState: (sessionId?: string | null) => void;
   resetProvider: () => void;
+}
+
+function createRunId(): string {
+  return crypto.randomUUID();
 }
 
 export function useAIChatRuntime({
@@ -42,82 +55,121 @@ export function useAIChatRuntime({
   onAssistantMessage,
 }: UseAIChatRuntimeOptions): UseAIChatRuntimeReturn {
   const { currentProvider, getProvider, resetProvider } = useAIChatProvider();
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const accumulatedContentRef = useRef('');
-  const accumulatedReasoningRef = useRef('');
-  const hasStreamedChunkRef = useRef(false);
+  const runtimesRef = useRef(new Map<string, SessionRuntime>());
 
-  const resetRuntimeState = useCallback(() => {
-    accumulatedContentRef.current = '';
-    accumulatedReasoningRef.current = '';
-    hasStreamedChunkRef.current = false;
+  const getRuntime = useCallback((id: string): SessionRuntime => {
+    const existing = runtimesRef.current.get(id);
+    if (existing) return existing;
+    const runtime: SessionRuntime = {
+      runId: null,
+      abortController: null,
+      accumulatedContent: '',
+      accumulatedReasoning: '',
+      hasStreamedChunk: false,
+    };
+    runtimesRef.current.set(id, runtime);
+    return runtime;
+  }, []);
+
+  const resetRuntimeState = useCallback(
+    (targetSessionId = sessionId) => {
+      if (!targetSessionId) return;
+      const runtime = getRuntime(targetSessionId);
+      runtime.accumulatedContent = '';
+      runtime.accumulatedReasoning = '';
+      runtime.hasStreamedChunk = false;
+    },
+    [getRuntime, sessionId]
+  );
+
+  useEffect(() => {
+    const runtimes = runtimesRef.current;
+    return () => {
+      for (const runtime of runtimes.values()) runtime.abortController?.abort();
+    };
   }, []);
 
   const runChatCompletion = useCallback(
     async (apiMessages: ProviderChatMessage[]) => {
-      const provider = await getProvider();
-      const plan = sessionId ? await getPlan({ type: 'ai_session', id: sessionId }) : undefined;
-      const systemPrompt = `${generateSystemPrompt()}\n\n${formatPlanContext(plan, 'ai_session')}`;
-      const tools = toolRegistry.getOpenAITools();
+      if (!sessionId) throw new Error('缺少 AI 会话 ID');
+      const targetSessionId = sessionId;
+      const runtime = getRuntime(targetSessionId);
+      const runId = createRunId();
+      runtime.runId = runId;
+      runtime.abortController = new AbortController();
+      resetRuntimeState(targetSessionId);
 
-      resetRuntimeState();
-      createAssistantPlaceholder();
-      abortControllerRef.current = new AbortController();
-      const contextWindowPromise = provider.getContextWindow?.();
+      try {
+        const provider = await getProvider();
+        const plan = await getPlan({ type: 'ai_session', id: targetSessionId });
+        const systemPrompt = `${generateSystemPrompt()}
 
-      const response = await runAgentTurn({
-        provider,
-        messages: buildRuntimeRequestMessages(systemPrompt, apiMessages),
-        stream: true,
-        signal: abortControllerRef.current.signal,
-        tools,
-        toolChoice: resolveRuntimeToolChoice(tools),
-        onChunk: (chunk) => {
-          if (!hasStreamedChunkRef.current) {
-            hasStreamedChunkRef.current = true;
-            onStreamStart();
-          }
-          accumulatedContentRef.current += chunk;
-          onStreamChunk(chunk);
-        },
-        onReasoningChunk: (chunk) => {
-          accumulatedReasoningRef.current += chunk;
-          onReasoningChunk(chunk);
-        },
-      });
+${formatPlanContext(plan, 'ai_session')}`;
+        const tools = toolRegistry.getOpenAITools();
+        const assistantMessageId = createAssistantPlaceholder(targetSessionId);
+        if (!assistantMessageId) throw new Error('无法创建 assistant 消息');
+        const contextWindowPromise = provider.getContextWindow?.();
 
-      const contextWindow = response.usage ? await contextWindowPromise : undefined;
-      const usage = response.usage
-        ? { ...response.usage, contextWindow: contextWindow ?? response.usage.contextWindow }
-        : undefined;
+        const response = await runAgentTurn({
+          provider,
+          messages: buildRuntimeRequestMessages(systemPrompt, apiMessages),
+          stream: true,
+          signal: runtime.abortController.signal,
+          tools,
+          toolChoice: resolveRuntimeToolChoice(tools),
+          onChunk: (chunk) => {
+            if (runtime.runId !== runId) return;
+            if (!runtime.hasStreamedChunk) {
+              runtime.hasStreamedChunk = true;
+              onStreamStart(targetSessionId);
+            }
+            runtime.accumulatedContent += chunk;
+            onStreamChunk(targetSessionId, assistantMessageId, chunk);
+          },
+          onReasoningChunk: (chunk) => {
+            if (runtime.runId !== runId) return;
+            runtime.accumulatedReasoning += chunk;
+            onReasoningChunk(targetSessionId, assistantMessageId, chunk);
+          },
+        });
 
-      const providerMetadata = response.message.providerMetadata
-        ? {
-            ...response.message.providerMetadata,
-            ...(accumulatedReasoningRef.current &&
-            !response.message.providerMetadata.openAIReasoningContent
-              ? { openAIReasoningContent: accumulatedReasoningRef.current }
-              : {}),
-          }
-        : accumulatedReasoningRef.current
-          ? { openAIReasoningContent: accumulatedReasoningRef.current }
+        const contextWindow = response.usage ? await contextWindowPromise : undefined;
+        const usage = response.usage
+          ? { ...response.usage, contextWindow: contextWindow ?? response.usage.contextWindow }
           : undefined;
-      const assistantMessage = createAssistantRuntimeMessage(
-        response.message.content || accumulatedContentRef.current,
-        response.message.toolCalls,
-        providerMetadata,
-        usage
-      );
+        const providerMetadata = response.message.providerMetadata
+          ? {
+              ...response.message.providerMetadata,
+              ...(runtime.accumulatedReasoning &&
+              !response.message.providerMetadata.openAIReasoningContent
+                ? { openAIReasoningContent: runtime.accumulatedReasoning }
+                : {}),
+            }
+          : runtime.accumulatedReasoning
+            ? { openAIReasoningContent: runtime.accumulatedReasoning }
+            : undefined;
+        const assistantMessage = createAssistantRuntimeMessage(
+          response.message.content || runtime.accumulatedContent,
+          response.message.toolCalls,
+          providerMetadata,
+          usage
+        );
 
-      onAssistantMessage(assistantMessage);
-      if (hasAssistantOutput(assistantMessage)) {
-        await onPersistAssistantMessage(assistantMessage);
+        if (runtime.runId !== runId) return null;
+        onAssistantMessage(targetSessionId, assistantMessageId, assistantMessage);
+        if (hasAssistantOutput(assistantMessage)) await onPersistAssistantMessage(assistantMessage);
+        return assistantMessage;
+      } finally {
+        if (runtime.runId === runId) {
+          runtime.runId = null;
+          runtime.abortController = null;
+        }
       }
-      return assistantMessage;
     },
     [
       createAssistantPlaceholder,
       getProvider,
+      getRuntime,
       onAssistantMessage,
       onPersistAssistantMessage,
       onReasoningChunk,
@@ -142,22 +194,22 @@ export function useAIChatRuntime({
         ],
         { stream: false, temperature: 0.2 }
       );
-
       return response.message.content.replace(/[\r\n]+/g, ' ').trim();
     },
     [getProvider]
   );
 
   const stopRuntime = useCallback(
-    (targetSessionId = sessionId, stopBrowserTask = true) => {
-      if (stopBrowserTask) {
-        void stopActiveBrowserTask(targetSessionId || undefined, 'chat');
-      }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        abortControllerRef.current = null;
-      }
-      resetRuntimeState();
+    async (targetSessionId = sessionId, stopBrowserTask = true) => {
+      if (!targetSessionId) return;
+      const runtime = runtimesRef.current.get(targetSessionId);
+      if (runtime) runtime.runId = null;
+      runtime?.abortController?.abort();
+      resetRuntimeState(targetSessionId);
+      await Promise.all([
+        stopBrowserTask ? stopActiveBrowserTask(targetSessionId, 'chat') : Promise.resolve(),
+        stopTestRunForSession(targetSessionId, 'AI 会话已停止，测试执行已中止'),
+      ]);
     },
     [resetRuntimeState, sessionId]
   );

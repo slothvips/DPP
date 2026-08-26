@@ -34,6 +34,9 @@ export function FooterLinks() {
       >
         powered by vibe coding.
       </a>
+      <span className="text-xs text-muted-foreground">
+        版本 {browser.runtime.getManifest().version}
+      </span>
     </div>
   );
 }

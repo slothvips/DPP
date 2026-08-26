@@ -28,15 +28,23 @@ export async function resetSyncState({
 
     await db.transaction(
       'rw',
-      db.table('syncMetadata'),
-      db.table('operations'),
-      db.table('deferred_ops'),
-      db.table('syncRecoveryOps'),
+      [
+        db.table('syncMetadata'),
+        db.table('operations'),
+        db.table('deferred_ops'),
+        db.table('syncRecoveryOps'),
+        db.table('syncChunks'),
+        db.table('syncApplyQueue'),
+        db.table('remoteActivityLog'),
+      ],
       async () => {
         await db.table('syncMetadata').clear();
         await db.table('operations').clear();
         await db.table('deferred_ops').clear();
         await db.table('syncRecoveryOps').clear();
+        await db.table('syncChunks').clear();
+        await db.table('syncApplyQueue').clear();
+        await db.table('remoteActivityLog').clear();
         resetRuntimeState();
       }
     );
@@ -93,6 +101,9 @@ export async function clearAllSyncData({
       'operations',
       'deferred_ops',
       'syncRecoveryOps',
+      'syncChunks',
+      'syncApplyQueue',
+      'remoteActivityLog',
       ...entityTables,
     ];
     const skippedPersonal = preservePersonal
@@ -101,12 +112,13 @@ export async function clearAllSyncData({
 
     await db.transaction(
       'rw',
-      tablesToClear.map((tableName) => db.table(tableName)),
+      [...tablesToClear.map((tableName) => db.table(tableName)), db.table('settings')],
       async (transaction) => {
         (transaction as SyncTransaction).source = 'sync';
         for (const tableName of tablesToClear) {
           await db.table(tableName).clear();
         }
+        await db.table('settings').delete('sync_client_id');
         resetRuntimeState();
       }
     );

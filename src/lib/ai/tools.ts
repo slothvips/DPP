@@ -5,6 +5,7 @@ export {
   YOLO_MODE_KEY,
   createToolParameter,
   toOpenAIToolDefinition,
+  validateToolArguments,
   type AIToolMetadata,
   type ToolHandler,
 } from './toolsShared';

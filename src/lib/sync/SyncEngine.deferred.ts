@@ -1,13 +1,50 @@
 import type Dexie from 'dexie';
+import type { DeferredOp, SyncChunkRecord } from '@/db/typesSync';
 import { addRemoteActivities } from '@/lib/db/remoteActivityLog';
 import { logger } from '@/utils/logger';
 import type { SyncTransaction } from './SyncEngine.shared';
+import { isSyncChunkOperation, mergeChunkRecords, toSyncChunkRecord } from './chunks';
 import type { SyncOperation } from './types';
 
 interface ProcessDeferredOperationsOptions {
   db: Dexie;
   tables: string[];
   applyOperation: (op: SyncOperation) => Promise<void>;
+}
+
+export const PENDING_DECRYPT_TABLE = '__sync_pending_decrypt__';
+
+export async function migrateDeferredChunks(db: Dexie): Promise<void> {
+  try {
+    const entries = (await db.table('deferred_ops').toArray()) as DeferredOp[];
+    const chunkEntries = entries.filter((entry) => isSyncChunkOperation(entry.op));
+    if (chunkEntries.length === 0) return;
+
+    const incoming = chunkEntries
+      .map((entry) => toSyncChunkRecord(entry.op, entry.receivedAt))
+      .filter((record): record is NonNullable<typeof record> => record !== null);
+    const existing = (await db.table('syncChunks').toArray()) as SyncChunkRecord[];
+    const merged = mergeChunkRecords(existing, incoming);
+    for (const conflict of merged.conflicts) {
+      logger.error(`[Sync] Conflicting deferred chunk ignored: ${conflict.id}`);
+    }
+
+    await db.transaction('rw', [db.table('deferred_ops'), db.table('syncChunks')], async () => {
+      const existingIds = new Set(existing.map((record) => record.id));
+      for (const entry of chunkEntries) {
+        const record = toSyncChunkRecord(entry.op, entry.receivedAt);
+        if (!record || entry.id === undefined) continue;
+
+        if (!existingIds.has(record.id)) {
+          await db.table('syncChunks').put(record);
+          existingIds.add(record.id);
+        }
+        await db.table('deferred_ops').delete(entry.id);
+      }
+    });
+  } catch (error) {
+    logger.error('[Sync] Failed to migrate deferred sync chunks; keeping them for retry:', error);
+  }
 }
 
 export async function processDeferredOperationsForKnownTables({

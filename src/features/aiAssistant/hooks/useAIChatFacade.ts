@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { ensureAIToolsRegistered } from '@/lib/ai';
 import { clearSessionMessages, truncateSessionFromMessage } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
+import type { ChatMessage } from '../types';
 import type { UseAIChatReturn } from './useAIChat.types';
 import { useAIChatActions } from './useAIChatActions';
 import { useAIChatMessages } from './useAIChatMessages';
@@ -20,21 +21,8 @@ export function useAIChatFacade(): UseAIChatReturn {
 
   const { yoloMode, setYoloMode } = useYoloMode();
   const {
-    status,
-    error,
-    setStatus,
-    setError,
-    isFirstMessageRef,
-    continueConversationRef,
-    resetSessionScopedState,
-    resetFirstMessageFlag,
-    isRunning,
-  } = useAIChatState();
-
-  const {
     messages,
     reasoning,
-    messagesRef,
     setMessagesWithRef,
     appendMessages,
     createAssistantPlaceholder,
@@ -42,6 +30,8 @@ export function useAIChatFacade(): UseAIChatReturn {
     handleReasoningChunk,
     handleAssistantMessage,
     loadSessionMessages,
+    getMessagesRef,
+    setActiveSession,
   } = useAIChatMessages();
 
   const {
@@ -53,9 +43,27 @@ export function useAIChatFacade(): UseAIChatReturn {
     deleteSession: deleteSessionInternal,
   } = useAIChatSessions({
     onMessagesLoaded: loadSessionMessages,
-    onBeforeSessionSwitch: resetSessionScopedState,
-    resetFirstMessageFlag,
+    onBeforeSessionSwitch: () => undefined,
+    resetFirstMessageFlag: () => undefined,
   });
+
+  const {
+    status,
+    error,
+    setStatus,
+    setError,
+    isFirstMessageRef,
+    resetSessionScopedState,
+    resetFirstMessageFlag,
+    isRunning,
+    setContinueConversation,
+    getContinueConversation,
+    getSessionStatus,
+  } = useAIChatState(sessionId);
+
+  useEffect(() => {
+    setActiveSession(sessionId);
+  }, [sessionId, setActiveSession]);
 
   const { saveUserMessage, saveAssistantMessage, saveToolMessages } =
     useAIChatPersistence(sessionId);
@@ -78,8 +86,22 @@ export function useAIChatFacade(): UseAIChatReturn {
   });
 
   const continueCurrentConversation = useCallback(async () => {
-    await continueConversationRef.current?.(messagesRef.current);
-  }, [continueConversationRef, messagesRef]);
+    const continuation = getContinueConversation(sessionId);
+    if (continuation) await continuation(getMessagesRef(sessionId).current);
+  }, [getContinueConversation, getMessagesRef, sessionId]);
+
+  const appendCurrentMessages = useCallback(
+    (newMessages: ChatMessage[]) => appendMessages(sessionId, newMessages),
+    [appendMessages, sessionId]
+  );
+  const setCurrentMessages = useCallback(
+    (updater: (previous: ChatMessage[]) => ChatMessage[]) => setMessagesWithRef(sessionId, updater),
+    [sessionId, setMessagesWithRef]
+  );
+  const saveCurrentToolMessages = useCallback(
+    (newMessages: ChatMessage[]) => saveToolMessages(newMessages),
+    [saveToolMessages]
+  );
 
   const {
     pendingToolCall,
@@ -93,10 +115,11 @@ export function useAIChatFacade(): UseAIChatReturn {
     cancelBuild,
     cancelPendingToolFlow,
     resetToolFlowState,
+    resetToolFlowStateForSession,
   } = useAIChatToolFlow({
     yoloMode,
-    appendMessages,
-    saveToolMessages,
+    appendMessages: appendCurrentMessages,
+    saveToolMessages: saveCurrentToolMessages,
     onContinueConversation: continueCurrentConversation,
     onStatusChange: setStatus,
     onAIConfigChanged: resetRuntimeProvider,
@@ -107,9 +130,9 @@ export function useAIChatFacade(): UseAIChatReturn {
     sessionId,
     status,
     isFirstMessageRef,
-    appendMessages,
-    messagesRef,
-    setMessagesWithRef,
+    appendMessages: appendCurrentMessages,
+    messagesRef: getMessagesRef(sessionId),
+    setMessagesWithRef: setCurrentMessages,
     saveUserMessage,
     loadSessions,
     runChatCompletion,
@@ -124,38 +147,43 @@ export function useAIChatFacade(): UseAIChatReturn {
     truncatePersistedMessages: truncateSessionFromMessage,
     setStatus,
     setError,
+    getSessionStatus,
   });
 
-  continueConversationRef.current = continueConversation;
-
-  const resetBeforeLeavingSession = useCallback(() => {
-    stopRuntime(sessionId);
-    cancelPendingToolFlow();
-    resetToolFlowState();
-    resetSessionScopedState();
-  }, [cancelPendingToolFlow, resetSessionScopedState, resetToolFlowState, sessionId, stopRuntime]);
+  setContinueConversation(continueConversation);
 
   const createNewSession = useCallback(async () => {
-    resetBeforeLeavingSession();
     await createSession();
-  }, [createSession, resetBeforeLeavingSession]);
+    resetFirstMessageFlag();
+  }, [createSession, resetFirstMessageFlag]);
 
   const switchSession = useCallback(
     async (id: string) => {
-      resetBeforeLeavingSession();
       await switchSessionInternal(id);
     },
-    [resetBeforeLeavingSession, switchSessionInternal]
+    [switchSessionInternal]
   );
 
   const deleteSession = useCallback(
     async (id: string) => {
+      await stopRuntime(id);
+      resetToolFlowStateForSession(id);
       if (id === sessionId) {
-        resetBeforeLeavingSession();
+        cancelPendingToolFlow();
+        resetToolFlowState();
+        resetSessionScopedState();
       }
       await deleteSessionInternal(id);
     },
-    [deleteSessionInternal, resetBeforeLeavingSession, sessionId]
+    [
+      cancelPendingToolFlow,
+      deleteSessionInternal,
+      resetSessionScopedState,
+      resetToolFlowState,
+      resetToolFlowStateForSession,
+      sessionId,
+      stopRuntime,
+    ]
   );
 
   const resetProvider = useCallback(() => {
@@ -163,10 +191,10 @@ export function useAIChatFacade(): UseAIChatReturn {
     logger.info('[AIChat] Provider cache reset');
   }, [resetRuntimeProvider]);
 
-  const summarizeSession = useAIChatSessionSummary({
-    sessionId,
-    loadSessions,
-  });
+  const summarizeSession = useAIChatSessionSummary({ sessionId, loadSessions });
+  const sessionStatuses = Object.fromEntries(
+    sessions.map((session) => [session.id, getSessionStatus(session.id)])
+  );
 
   return {
     messages,
@@ -178,6 +206,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     pendingBuild,
     sessionId,
     sessions,
+    sessionStatuses,
     currentProvider,
     yoloMode,
     isRunning,

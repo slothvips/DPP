@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { hasAssistantOutput } from '@/lib/ai/agentRuntime';
 import type { ChatMessage } from '../types';
 
@@ -10,97 +10,135 @@ interface UseAIChatMessagesReturn {
   messages: ChatMessage[];
   reasoning: string;
   messagesRef: React.MutableRefObject<ChatMessage[]>;
-  setMessagesWithRef: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
-  appendMessages: (newMessages: ChatMessage[]) => ChatMessage[];
-  createAssistantPlaceholder: () => void;
-  handleStreamChunk: (chunk: string) => void;
-  handleReasoningChunk: (chunk: string) => void;
-  handleAssistantMessage: (assistantMessage: ChatMessage) => void;
-  loadSessionMessages: (loadedMessages: ChatMessage[]) => void;
+  getMessagesRef: (sessionId: string | null) => React.MutableRefObject<ChatMessage[]>;
+  setActiveSession: (sessionId: string | null) => void;
+  setMessagesWithRef: (
+    sessionId: string | null,
+    updater: (prev: ChatMessage[]) => ChatMessage[]
+  ) => void;
+  appendMessages: (sessionId: string | null, newMessages: ChatMessage[]) => ChatMessage[];
+  createAssistantPlaceholder: (sessionId: string | null) => string | undefined;
+  handleStreamChunk: (sessionId: string | null, assistantMessageId: string, chunk: string) => void;
+  handleReasoningChunk: (
+    sessionId: string | null,
+    assistantMessageId: string,
+    chunk: string
+  ) => void;
+  handleAssistantMessage: (
+    sessionId: string | null,
+    assistantMessageId: string,
+    assistantMessage: ChatMessage
+  ) => void;
+  loadSessionMessages: (sessionId: string, loadedMessages: ChatMessage[]) => void;
 }
 
 export function useAIChatMessages(): UseAIChatMessagesReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reasoning, setReasoning] = useState('');
+  const activeSessionIdRef = useRef<string | null>(null);
+  const messagesBySessionRef = useRef(new Map<string, ChatMessage[]>());
+  const messageRefsRef = useRef(new Map<string, React.MutableRefObject<ChatMessage[]>>());
+  const reasoningBySessionRef = useRef(new Map<string, string>());
   const messagesRef = useRef<ChatMessage[]>(messages);
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
-
-  const setMessagesWithRef = useCallback((updater: (prev: ChatMessage[]) => ChatMessage[]) => {
-    setMessages((prev) => {
-      const next = updater(prev);
-      messagesRef.current = next;
-      return next;
-    });
+  const getMessagesRef = useCallback((sessionId: string | null) => {
+    const id = sessionId || '';
+    const existing = messageRefsRef.current.get(id);
+    if (existing) return existing;
+    const ref = { current: messagesBySessionRef.current.get(id) || [] };
+    messageRefsRef.current.set(id, ref);
+    return ref;
   }, []);
 
-  const appendMessages = useCallback((newMessages: ChatMessage[]) => {
-    if (newMessages.length === 0) {
-      return messagesRef.current;
-    }
-
-    const nextMessages = [...messagesRef.current, ...newMessages];
-    messagesRef.current = nextMessages;
-    setMessages(nextMessages);
-    return nextMessages;
+  const syncActiveSession = useCallback((sessionId: string | null) => {
+    const next = sessionId ? messagesBySessionRef.current.get(sessionId) || [] : [];
+    const nextReasoning = sessionId ? reasoningBySessionRef.current.get(sessionId) || '' : '';
+    messagesRef.current = next;
+    setMessages(next);
+    setReasoning(nextReasoning);
   }, []);
 
-  const createAssistantPlaceholder = useCallback(() => {
-    setReasoning('');
-    setMessagesWithRef((prev) => {
-      const lastMsg = prev[prev.length - 1];
-      if (lastMsg?.role === 'assistant') {
-        return prev;
+  const setActiveSession = useCallback(
+    (sessionId: string | null) => {
+      activeSessionIdRef.current = sessionId;
+      syncActiveSession(sessionId);
+    },
+    [syncActiveSession]
+  );
+
+  const setMessagesWithRef = useCallback(
+    (sessionId: string | null, updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+      if (!sessionId) return;
+      const ref = getMessagesRef(sessionId);
+      const next = updater(ref.current);
+      ref.current = next;
+      messagesBySessionRef.current.set(sessionId, next);
+      if (sessionId === activeSessionIdRef.current) {
+        messagesRef.current = next;
+        setMessages(next);
+      }
+    },
+    [getMessagesRef]
+  );
+
+  const appendMessages = useCallback(
+    (sessionId: string | null, newMessages: ChatMessage[]) => {
+      if (newMessages.length === 0) {
+        return sessionId ? getMessagesRef(sessionId).current : [];
       }
 
-      return [
+      const nextMessages = sessionId ? [...getMessagesRef(sessionId).current, ...newMessages] : [];
+      setMessagesWithRef(sessionId, () => nextMessages);
+      return nextMessages;
+    },
+    [getMessagesRef, setMessagesWithRef]
+  );
+
+  const createAssistantPlaceholder = useCallback(
+    (sessionId: string | null) => {
+      if (!sessionId) return undefined;
+      const id = generateId();
+      setMessagesWithRef(sessionId, (prev) => [
         ...prev,
-        {
-          id: generateId(),
-          role: 'assistant',
-          content: '',
-          createdAt: Date.now(),
-        },
-      ];
-    });
-  }, [setMessagesWithRef]);
+        { id, role: 'assistant', content: '', createdAt: Date.now() },
+      ]);
+      reasoningBySessionRef.current.set(sessionId, '');
+      if (sessionId === activeSessionIdRef.current) setReasoning('');
+      return id;
+    },
+    [setMessagesWithRef]
+  );
 
   const handleStreamChunk = useCallback(
-    (chunk: string) => {
-      setMessagesWithRef((prev) => {
-        const lastMsg = prev[prev.length - 1];
-        if (lastMsg?.role !== 'assistant') {
-          return [
-            ...prev,
-            {
-              id: generateId(),
-              role: 'assistant',
-              content: chunk,
-              createdAt: Date.now(),
-            },
-          ];
-        }
-
-        return [...prev.slice(0, -1), { ...lastMsg, content: lastMsg.content + chunk }];
+    (sessionId: string | null, assistantMessageId: string, chunk: string) => {
+      if (!sessionId) return;
+      setMessagesWithRef(sessionId, (prev) => {
+        const index = prev.findIndex((message) => message.id === assistantMessageId);
+        if (index === -1) return prev;
+        const message = prev[index];
+        return [
+          ...prev.slice(0, index),
+          { ...message, content: message.content + chunk },
+          ...prev.slice(index + 1),
+        ];
       });
     },
     [setMessagesWithRef]
   );
 
   const handleReasoningChunk = useCallback(
-    (chunk: string) => {
-      setReasoning((previous) => previous + chunk);
-      setMessagesWithRef((prev) => {
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage?.role !== 'assistant') {
-          return prev;
-        }
-
+    (sessionId: string | null, assistantMessageId: string, chunk: string) => {
+      if (!sessionId) return;
+      const reasoning = (reasoningBySessionRef.current.get(sessionId) || '') + chunk;
+      reasoningBySessionRef.current.set(sessionId, reasoning);
+      if (sessionId === activeSessionIdRef.current) setReasoning(reasoning);
+      setMessagesWithRef(sessionId, (prev) => {
+        const index = prev.findIndex((message) => message.id === assistantMessageId);
+        if (index === -1) return prev;
+        const lastMessage = prev[index];
         const previousReasoning = lastMessage.providerMetadata?.openAIReasoningContent || '';
         return [
-          ...prev.slice(0, -1),
+          ...prev.slice(0, index),
           {
             ...lastMessage,
             providerMetadata: {
@@ -108,6 +146,7 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
               openAIReasoningContent: previousReasoning + chunk,
             },
           },
+          ...prev.slice(index + 1),
         ];
       });
     },
@@ -115,36 +154,42 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
   );
 
   const handleAssistantMessage = useCallback(
-    (assistantMessage: ChatMessage) => {
-      setReasoning('');
-      setMessagesWithRef((prev) => {
+    (sessionId: string | null, assistantMessageId: string, assistantMessage: ChatMessage) => {
+      if (!sessionId) return;
+      reasoningBySessionRef.current.set(sessionId, '');
+      if (sessionId === activeSessionIdRef.current) setReasoning('');
+      setMessagesWithRef(sessionId, (prev) => {
         if (!hasAssistantOutput(assistantMessage)) {
-          const lastMessage = prev[prev.length - 1];
-          return lastMessage?.role === 'assistant' && !hasAssistantOutput(lastMessage)
-            ? prev.slice(0, -1)
-            : prev;
+          return prev.filter((message) => message.id !== assistantMessageId);
         }
-
-        const lastMsg = prev[prev.length - 1];
-        if (lastMsg?.role === 'assistant') {
-          return [...prev.slice(0, -1), { ...lastMsg, ...assistantMessage, id: lastMsg.id }];
-        }
-
-        return [...prev, assistantMessage];
+        const index = prev.findIndex((message) => message.id === assistantMessageId);
+        if (index === -1) return [...prev, { ...assistantMessage, id: assistantMessageId }];
+        return [
+          ...prev.slice(0, index),
+          { ...prev[index], ...assistantMessage, id: assistantMessageId },
+          ...prev.slice(index + 1),
+        ];
       });
     },
     [setMessagesWithRef]
   );
 
-  const loadSessionMessages = useCallback((loadedMessages: ChatMessage[]) => {
-    messagesRef.current = loadedMessages;
-    setMessages(loadedMessages);
-  }, []);
+  const loadSessionMessages = useCallback(
+    (sessionId: string, loadedMessages: ChatMessage[]) => {
+      messagesBySessionRef.current.set(sessionId, loadedMessages);
+      const ref = getMessagesRef(sessionId);
+      ref.current = loadedMessages;
+      if (sessionId === activeSessionIdRef.current) syncActiveSession(sessionId);
+    },
+    [getMessagesRef, syncActiveSession]
+  );
 
   return {
     messages,
     reasoning,
     messagesRef,
+    getMessagesRef,
+    setActiveSession,
     setMessagesWithRef,
     appendMessages,
     createAssistantPlaceholder,

@@ -13,7 +13,7 @@ import {
 } from './useAIChatSessions.shared';
 
 interface UseAIChatSessionsOptions {
-  onMessagesLoaded: (messages: ChatMessage[]) => void;
+  onMessagesLoaded: (sessionId: string, messages: ChatMessage[]) => void;
   onBeforeSessionSwitch: () => void;
   resetFirstMessageFlag: () => void;
 }
@@ -38,7 +38,7 @@ export function useAIChatSessions({
   const loadSession = useCallback(
     async (id: string) => {
       const loadedMessages = await getMessagesBySession(id);
-      onMessagesLoaded(loadedMessages);
+      onMessagesLoaded(id, loadedMessages);
       setSessionId(id);
     },
     [onMessagesLoaded]
@@ -95,6 +95,10 @@ export function useAIChatSessions({
       }
 
       if (initialSessionId) {
+        await loadSessions();
+        if (!mounted) {
+          return;
+        }
         await loadSession(initialSessionId);
         return;
       }

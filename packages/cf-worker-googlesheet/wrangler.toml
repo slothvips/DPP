@@ -3,12 +3,42 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
-[vars]
-# Secrets will be set via `wrangler secret put`
-# GOOGLE_SERVICE_ACCOUNT = "..."
-# SYNC_ACCESS_TOKEN = "..."
-
 [[kv_namespaces]]
 binding = "KV"
 id = "cc525887234547eb8e5fc647d69bdb7e"
-preview_id = "yyyy"
+
+[durable_objects]
+bindings = [
+  { name = "SYNC_PUSH_COORDINATOR", class_name = "SyncPushCoordinator" },
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncPushCoordinator"]
+
+[[routes]]
+pattern = "dpp-sync.586726.xyz"
+zone_name = "586726.xyz"
+custom_domain = true
+
+[env.test]
+name = "dpp-sync-test"
+workers_dev = true
+
+[[env.test.kv_namespaces]]
+binding = "KV"
+id = "de4e572068d44786b454ebc9feb836ae"
+
+[env.test.durable_objects]
+bindings = [
+  { name = "SYNC_PUSH_COORDINATOR", class_name = "SyncPushCoordinator" },
+]
+
+[[env.test.migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncPushCoordinator"]
+
+[[env.test.routes]]
+pattern = "dpp-sync-test.586726.xyz"
+zone_name = "586726.xyz"
+custom_domain = true

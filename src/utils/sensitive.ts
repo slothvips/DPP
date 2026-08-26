@@ -14,10 +14,13 @@ export function redactSensitiveFields(value: unknown): unknown {
     return value;
   }
 
+  const record = value as Record<string, unknown>;
   return Object.fromEntries(
     Object.entries(value).map(([key, entryValue]) => [
       key,
-      isSensitiveFieldName(key) ? '[redacted]' : redactSensitiveFields(entryValue),
+      isSensitiveFieldName(key) || (key === 'value' && record.sensitive === true)
+        ? '[redacted]'
+        : redactSensitiveFields(entryValue),
     ])
   );
 }

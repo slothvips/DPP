@@ -17,7 +17,7 @@ export async function getRecentActivities({
   detailLevel?: DetailLevel;
 }): Promise<ActivitiesResult> {
   // 验证参数
-  if (days < 1 || days > 15) {
+  if (!Number.isInteger(days) || days < 1 || days > 15) {
     throw new Error('天数必须在 1-15 之间');
   }
 

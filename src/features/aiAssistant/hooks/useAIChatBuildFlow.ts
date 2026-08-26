@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { ChatMessage } from '../types';
 import type { PendingBuild } from './useAIChat.types';
 
@@ -7,6 +7,7 @@ function generateId(): string {
 }
 
 interface UseAIChatBuildFlowOptions {
+  sessionId: string | null;
   appendMessages: (messages: ChatMessage[]) => ChatMessage[];
   saveToolMessages: (messages: ChatMessage[]) => Promise<void>;
   onContinueConversation: () => Promise<void>;
@@ -19,6 +20,7 @@ interface UseAIChatBuildFlowReturn {
   completeBuild: () => void;
   cancelBuild: () => void;
   resetBuildFlowState: () => void;
+  resetBuildFlowStateForSession: (sessionId: string) => void;
 }
 
 export function useAIChatBuildFlow({
@@ -26,16 +28,29 @@ export function useAIChatBuildFlow({
   saveToolMessages,
   onContinueConversation,
   onStatusChange,
+  sessionId,
 }: UseAIChatBuildFlowOptions): UseAIChatBuildFlowReturn {
-  const [pendingBuild, setPendingBuild] = useState<PendingBuild | null>(null);
-  const [buildCompleted, setBuildCompleted] = useState(false);
+  const pendingBuildsRef = useRef(new Map<string, PendingBuild>());
+  const buildCompletedRef = useRef(new Set<string>());
+  const [, setRevision] = useState(0);
+  const pendingBuild = sessionId ? pendingBuildsRef.current.get(sessionId) || null : null;
+
+  const setPendingBuild = useCallback(
+    (build: PendingBuild | null) => {
+      if (!sessionId) return;
+      if (build) pendingBuildsRef.current.set(sessionId, build);
+      else pendingBuildsRef.current.delete(sessionId);
+      setRevision((value) => value + 1);
+    },
+    [sessionId]
+  );
 
   const completeBuild = useCallback(() => {
     if (!pendingBuild) {
       return;
     }
 
-    setBuildCompleted(true);
+    if (sessionId) buildCompletedRef.current.add(sessionId);
 
     const toolMessages: ChatMessage[] = [
       {
@@ -63,11 +78,19 @@ export function useAIChatBuildFlow({
     onStatusChange('idle');
 
     void onContinueConversation();
-  }, [appendMessages, onContinueConversation, onStatusChange, pendingBuild, saveToolMessages]);
+  }, [
+    appendMessages,
+    onContinueConversation,
+    onStatusChange,
+    pendingBuild,
+    saveToolMessages,
+    sessionId,
+    setPendingBuild,
+  ]);
 
   const cancelBuild = useCallback(() => {
-    if (buildCompleted) {
-      setBuildCompleted(false);
+    if (sessionId && buildCompletedRef.current.has(sessionId)) {
+      buildCompletedRef.current.delete(sessionId);
       return;
     }
 
@@ -99,11 +122,19 @@ export function useAIChatBuildFlow({
 
     setPendingBuild(null);
     onStatusChange('idle');
-  }, [appendMessages, buildCompleted, onStatusChange, pendingBuild, saveToolMessages]);
+  }, [appendMessages, onStatusChange, pendingBuild, saveToolMessages, sessionId, setPendingBuild]);
 
   const resetBuildFlowState = useCallback(() => {
-    setPendingBuild(null);
-    setBuildCompleted(false);
+    if (!sessionId) return;
+    pendingBuildsRef.current.delete(sessionId);
+    buildCompletedRef.current.delete(sessionId);
+    setRevision((value) => value + 1);
+  }, [sessionId]);
+
+  const resetBuildFlowStateForSession = useCallback((targetSessionId: string) => {
+    pendingBuildsRef.current.delete(targetSessionId);
+    buildCompletedRef.current.delete(targetSessionId);
+    setRevision((value) => value + 1);
   }, []);
 
   return {
@@ -112,5 +143,6 @@ export function useAIChatBuildFlow({
     completeBuild,
     cancelBuild,
     resetBuildFlowState,
+    resetBuildFlowStateForSession,
   };
 }

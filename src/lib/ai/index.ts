@@ -15,3 +15,5 @@ export * from './tools/recorder';
 export * from './tools/blackboard';
 export * from './tools/recentActivities';
 export * from './tools/browserTask';
+export * from './tools/testCases';
+export * from './tools/testRuns';

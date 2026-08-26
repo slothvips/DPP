@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { addMessage, createSession, getMessagesBySession, getSession } from '@/lib/db/ai';
+import { getMessagesBySession, replaceSessionMessages } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
 import {
   buildCompressedConversationArchive,
@@ -17,54 +17,51 @@ export function useAIChatSessionSummary({
   sessionId,
   loadSessions,
 }: UseAIChatSessionSummaryOptions) {
-  return useCallback(async (): Promise<string | null> => {
+  return useCallback(async (): Promise<boolean> => {
     if (!sessionId) {
       logger.warn('[AIChat] Cannot compress: no session ID');
-      return null;
+      return false;
     }
 
     const allMessages = await getMessagesBySession(sessionId);
     if (allMessages.length === 0) {
       logger.warn('[AIChat] Cannot compress: no messages in session');
-      return null;
+      return false;
     }
 
     const compressedMessages = buildCompressedConversationText(allMessages);
     const toolCallCount = countToolMessages(allMessages);
 
     try {
-      const currentSession = await getSession(sessionId);
-      const oldTitle = currentSession?.title || '会话';
-
-      const newSession = await createSession(`${oldTitle}(已压缩)`);
-
-      await addMessage({
-        sessionId: newSession.id,
-        role: 'assistant',
-        content: buildCompressionSummaryMessage(compressedMessages, toolCallCount),
-      });
+      const compressedSessionMessages = [
+        {
+          sessionId,
+          role: 'assistant' as const,
+          content: buildCompressionSummaryMessage(compressedMessages, toolCallCount),
+        },
+      ];
 
       if (compressedMessages.length <= 4000) {
-        await addMessage({
-          sessionId: newSession.id,
+        compressedSessionMessages.push({
+          sessionId,
           role: 'assistant',
           content: buildCompressedConversationArchive(compressedMessages),
         });
       }
 
+      await replaceSessionMessages(sessionId, compressedSessionMessages);
       await loadSessions();
 
       logger.info('[AIChat] Session compressed successfully', {
-        oldSessionId: sessionId,
-        newSessionId: newSession.id,
+        sessionId,
         originalMessageCount: allMessages.length,
         toolCallCount,
       });
 
-      return newSession.id;
+      return true;
     } catch (err) {
       logger.error('[AIChat] Failed to compress session:', err);
-      return null;
+      return false;
     }
   }, [loadSessions, sessionId]);
 }

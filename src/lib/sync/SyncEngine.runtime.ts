@@ -6,6 +6,8 @@ import type { SyncStatus } from './types';
 export type SyncEventType = 'status-change' | 'sync-error' | 'sync-complete';
 export type SyncEventCallback = (data: unknown) => void;
 
+let clientIdInitialization: Promise<string> | null = null;
+
 export async function ensureSyncClientId(options: {
   db: Dexie;
   currentClientId: string | null;
@@ -13,21 +15,34 @@ export async function ensureSyncClientId(options: {
 }): Promise<string> {
   const { db, currentClientId, setClientId } = options;
 
-  if (currentClientId) {
-    return currentClientId;
+  if (!clientIdInitialization) {
+    clientIdInitialization = (async () => {
+      const setting = await db.table('settings').get('sync_client_id');
+      if (typeof setting?.value === 'string' && setting.value.length > 0) {
+        return setting.value;
+      }
+
+      const candidate = currentClientId ?? generateUUID();
+      try {
+        await db.table('settings').add({ key: 'sync_client_id', value: candidate });
+        return candidate;
+      } catch (error) {
+        const winner = await db.table('settings').get('sync_client_id');
+        if (typeof winner?.value === 'string' && winner.value.length > 0) {
+          return winner.value;
+        }
+        throw error;
+      }
+    })();
   }
 
-  const setting = await db.table('settings').get('sync_client_id');
-  if (setting?.value) {
-    const savedClientId = setting.value as string;
-    setClientId(savedClientId);
-    return savedClientId;
+  try {
+    const clientId = await clientIdInitialization;
+    setClientId(clientId);
+    return clientId;
+  } finally {
+    clientIdInitialization = null;
   }
-
-  const newClientId = generateUUID();
-  await db.table('settings').put({ key: 'sync_client_id', value: newClientId });
-  setClientId(newClientId);
-  return newClientId;
 }
 
 export class SyncEventBus {

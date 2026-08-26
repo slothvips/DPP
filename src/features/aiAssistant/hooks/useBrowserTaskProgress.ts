@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
-import type { ChatMessage as AgentChatMessage } from '@/lib/ai/types';
+import type { ChatMessage as AgentChatMessage, OpenAIToolCall } from '@/lib/ai/types';
 import type { BrowserTaskStatus } from '@/lib/browserTask/types';
 import { listBrowserTaskRecords } from '@/lib/db/browserTasks';
 
@@ -15,6 +15,8 @@ export interface BrowserTaskProgress {
   createdAt: number;
   updatedAt: number;
   stopSource?: 'chat' | 'browser' | 'system';
+  history: unknown[];
+  activity?: unknown;
 }
 
 export interface BrowserTaskDetail extends BrowserTaskProgress {
@@ -22,7 +24,7 @@ export interface BrowserTaskDetail extends BrowserTaskProgress {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isTaskStatus(value: unknown): value is BrowserTaskStatus {
@@ -38,6 +40,40 @@ function isTaskStatus(value: unknown): value is BrowserTaskStatus {
 
 function readString(record: Record<string, unknown>, key: string): string | undefined {
   return typeof record[key] === 'string' ? record[key] : undefined;
+}
+
+function readHistory(record: Record<string, unknown>): unknown[] {
+  return Array.isArray(record.history) ? record.history : [];
+}
+
+function readToolCalls(value: unknown): OpenAIToolCall[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const calls = value.filter((call): call is OpenAIToolCall => {
+    if (!isRecord(call) || call.type !== 'function' || typeof call.id !== 'string') return false;
+    if (!isRecord(call.function)) return false;
+    return typeof call.function.name === 'string' && typeof call.function.arguments === 'string';
+  });
+  return calls.length === value.length ? calls : undefined;
+}
+
+function readConversation(value: unknown): AgentChatMessage[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((message) => {
+    if (!isRecord(message)) return [];
+    const role = message.role;
+    if (role !== 'system' && role !== 'user' && role !== 'assistant' && role !== 'tool') return [];
+    if (typeof message.content !== 'string') return [];
+    const toolCalls = readToolCalls(message.toolCalls);
+    return [
+      {
+        role,
+        content: message.content,
+        ...(typeof message.name === 'string' ? { name: message.name } : {}),
+        ...(typeof message.toolCallId === 'string' ? { toolCallId: message.toolCallId } : {}),
+        ...(toolCalls ? { toolCalls } : {}),
+      },
+    ];
+  });
 }
 
 function readTaskProgress(message: unknown): BrowserTaskProgress | null {
@@ -67,6 +103,8 @@ function readTaskProgress(message: unknown): BrowserTaskProgress | null {
       event.stopSource === 'chat' || event.stopSource === 'browser' || event.stopSource === 'system'
         ? event.stopSource
         : undefined,
+    history: readHistory(event),
+    activity: event.activity,
   };
 }
 
@@ -74,9 +112,7 @@ function readTaskDetail(value: unknown): BrowserTaskDetail | null {
   if (!isRecord(value) || typeof value.taskId !== 'string') return null;
   const status = value.status;
   if (!isTaskStatus(status)) return null;
-  const conversation = Array.isArray(value.conversation)
-    ? (value.conversation.filter(isRecord) as unknown as AgentChatMessage[])
-    : [];
+  const conversation = readConversation(value.conversation);
   return {
     taskId: value.taskId,
     sessionId: readString(value, 'sessionId'),
@@ -93,14 +129,20 @@ function readTaskDetail(value: unknown): BrowserTaskDetail | null {
           ? value.updatedAt
           : Date.now(),
     updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : Date.now(),
+    history: readHistory(value),
+    activity: value.activity,
   };
 }
 
-export async function getBrowserTaskDetail(taskId: string): Promise<BrowserTaskDetail | null> {
+export async function getBrowserTaskDetail(
+  taskId: string,
+  sessionId?: string
+): Promise<BrowserTaskDetail | null> {
   try {
     const response = await browser.runtime.sendMessage({
       type: 'BROWSER_TASK_GET_DETAIL',
       taskId,
+      sessionId,
     });
     return readTaskDetail(response);
   } catch {
@@ -108,11 +150,12 @@ export async function getBrowserTaskDetail(taskId: string): Promise<BrowserTaskD
   }
 }
 
-export async function resumeBrowserTask(taskId: string): Promise<boolean> {
+export async function resumeBrowserTask(taskId: string, sessionId?: string): Promise<boolean> {
   try {
     const response = await browser.runtime.sendMessage({
       type: 'BROWSER_TASK_RESUME',
       taskId,
+      sessionId,
     });
     return isRecord(response) && response.success === true;
   } catch {
@@ -122,19 +165,25 @@ export async function resumeBrowserTask(taskId: string): Promise<boolean> {
 
 export function useBrowserTaskProgress(
   sessionId: string | null,
-  revision = 0
+  revision = 0,
+  invalidatedTaskIds: readonly string[] = []
 ): BrowserTaskProgress[] {
   const [progressByTask, setProgressByTask] = useState<Record<string, BrowserTaskProgress>>({});
+  const progressByTaskRef = useRef<Record<string, BrowserTaskProgress>>({});
+  const invalidatedTaskIdsRef = useRef(new Set<string>());
   const currentSessionIdRef = useRef(sessionId);
 
   currentSessionIdRef.current = sessionId;
 
   useEffect(() => {
+    for (const taskId of invalidatedTaskIds) invalidatedTaskIdsRef.current.add(taskId);
+    progressByTaskRef.current = {};
     setProgressByTask({});
     let active = true;
 
     const storeProgress = (nextProgress: BrowserTaskProgress) => {
       if (!active) return;
+      if (invalidatedTaskIdsRef.current.has(nextProgress.taskId)) return;
       const taskSessionId = nextProgress.sessionId || currentSessionIdRef.current;
       if (!taskSessionId) return;
 
@@ -145,6 +194,7 @@ export function useBrowserTaskProgress(
           return previous;
         }
         const next = { ...previous, [progress.taskId]: progress };
+        progressByTaskRef.current = next;
         return next;
       });
     };
@@ -173,7 +223,7 @@ export function useBrowserTaskProgress(
       active = false;
       browser.runtime.onMessage.removeListener(handleMessage);
     };
-  }, [revision, sessionId]);
+  }, [invalidatedTaskIds, revision, sessionId]);
 
   return sessionId
     ? Object.values(progressByTask)

@@ -11,7 +11,16 @@ export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null>
   if (!syncEngineInstance) {
     syncEngineInstance = new SyncEngine(
       db,
-      ['tags', 'jobTags', 'links', 'linkTags', 'blackboard', 'totpAccounts'],
+      [
+        'tags',
+        'jobTags',
+        'links',
+        'linkTags',
+        'blackboard',
+        'totpAccounts',
+        'materials',
+        'testRuns',
+      ],
       createDefaultSyncProvider(db)
     );
     syncEngineInstance.register();
@@ -62,6 +71,12 @@ export function createSyncEngineFacade(db: DPPDatabase) {
     },
     async enqueuePersonalData() {
       return (await getSyncEngine(db))?.enqueuePersonalData() ?? 0;
+    },
+    async recoverLocalData() {
+      return (await getSyncEngine(db))?.recoverLocalData() ?? 0;
+    },
+    async recoverAfterUpgrade() {
+      await (await getSyncEngine(db))?.recoverAfterUpgrade();
     },
   };
 }

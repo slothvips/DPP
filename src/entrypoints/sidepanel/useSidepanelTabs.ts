@@ -43,21 +43,13 @@ function getInitialActiveTab(): TabId {
 
 interface UseSidepanelTabsOptions {
   featureToggles: FeatureToggles;
-  showJenkinsTab: boolean;
 }
 
-function getFirstVisibleTab(
-  tabOrder: TabId[],
-  featureToggles: FeatureToggles,
-  showJenkinsTab: boolean
-): TabId | null {
-  return (
-    tabOrder.find((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles, showJenkinsTab })) ??
-    null
-  );
+function getFirstVisibleTab(tabOrder: TabId[], featureToggles: FeatureToggles): TabId | null {
+  return tabOrder.find((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles })) ?? null;
 }
 
-export function useSidepanelTabs({ featureToggles, showJenkinsTab }: UseSidepanelTabsOptions) {
+export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
   const [tabOrder, setTabOrder] = useState<TabId[]>(getInitialTabOrder);
   const [activeTab, setActiveTab] = useState<TabId>(getInitialActiveTab);
   const [draggedTab, setDraggedTab] = useState<TabId | null>(null);
@@ -66,12 +58,12 @@ export function useSidepanelTabs({ featureToggles, showJenkinsTab }: UseSidepane
   tabOrderRef.current = tabOrder;
 
   useEffect(() => {
-    const isActiveTabVisible = TAB_CONFIG[activeTab].getVisible({ featureToggles, showJenkinsTab });
+    const isActiveTabVisible = TAB_CONFIG[activeTab].getVisible({ featureToggles });
     if (isActiveTabVisible) {
       return;
     }
 
-    const fallbackTab = getFirstVisibleTab(tabOrder, featureToggles, showJenkinsTab);
+    const fallbackTab = getFirstVisibleTab(tabOrder, featureToggles);
     if (!fallbackTab) {
       return;
     }
@@ -80,7 +72,7 @@ export function useSidepanelTabs({ featureToggles, showJenkinsTab }: UseSidepane
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('dpp_active_tab', fallbackTab);
     }
-  }, [activeTab, featureToggles, showJenkinsTab, tabOrder]);
+  }, [activeTab, featureToggles, tabOrder]);
 
   const handleDragStart = useCallback((tabId: TabId) => {
     setDraggedTab(tabId);

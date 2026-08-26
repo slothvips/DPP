@@ -10,6 +10,8 @@ export const TABLE_DATA_SCOPE: Record<string, DataScope> = {
   links: 'team',
   linkTags: 'team',
   blackboard: 'team',
+  materials: 'team',
+  testRuns: 'team',
   totpAccounts: 'personal',
 };
 

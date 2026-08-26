@@ -2,11 +2,13 @@
 import { Check, ChevronDown, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import type { AIChatStatus } from '../hooks/useAIChat.types';
 import type { AISession } from '../types';
 
 interface AISessionListProps {
   sessions: AISession[];
   currentSessionId: string | null;
+  sessionStatuses: Record<string, AIChatStatus>;
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
   disabled?: boolean;
@@ -15,6 +17,7 @@ interface AISessionListProps {
 export function AISessionList({
   sessions,
   currentSessionId,
+  sessionStatuses,
   onSelectSession,
   onDeleteSession,
   disabled = false,
@@ -63,7 +66,7 @@ export function AISessionList({
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
 
           {/* Dropdown */}
-          <div className="absolute left-0 top-full z-20 mt-2 max-h-56 w-72 overflow-y-auto rounded-xl border border-border/60 bg-popover/98 p-1.5 shadow-xl custom-scrollbar">
+          <div className="absolute left-0 top-full z-50 mt-2 max-h-56 w-72 overflow-y-auto overscroll-contain rounded-xl border border-border/60 bg-popover/98 p-1.5 shadow-xl custom-scrollbar">
             <div className="p-1">
               {/* Session List */}
               {sessions.length === 0 ? (
@@ -83,6 +86,21 @@ export function AISessionList({
                       )}
                       <span className="truncate">{session.title}</span>
                     </div>
+                    {sessionStatuses[session.id] !== 'idle' && (
+                      <span
+                        className={`mr-1.5 flex shrink-0 items-center gap-1 text-[10px] ${
+                          sessionStatuses[session.id] === 'error'
+                            ? 'text-destructive'
+                            : sessionStatuses[session.id] === 'confirming'
+                              ? 'text-warning'
+                              : 'text-info'
+                        }`}
+                        title={`会话状态：${getStatusText(sessionStatuses[session.id])}`}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                        {getStatusText(sessionStatuses[session.id])}
+                      </span>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"
@@ -101,4 +119,12 @@ export function AISessionList({
       )}
     </div>
   );
+}
+
+function getStatusText(status: AIChatStatus): string {
+  if (status === 'loading') return '等待';
+  if (status === 'streaming') return '输出';
+  if (status === 'confirming') return '待确认';
+  if (status === 'error') return '错误';
+  return '空闲';
 }

@@ -63,6 +63,22 @@ function readBrowserTaskArgument(argumentsJson: string): string | undefined {
   }
 }
 
+function getAssistantProgressText(
+  status: AIChatStatus,
+  browserTaskProgress: BrowserTaskProgress[]
+): string {
+  const waitingTask = browserTaskProgress.find((task) => task.status === 'waiting_user');
+  if (waitingTask) return '等待你完成网页操作';
+
+  const runningTask = browserTaskProgress.find((task) => task.status === 'running');
+  if (runningTask) return '正在执行网页任务';
+
+  const queuedTask = browserTaskProgress.find((task) => task.status === 'queued');
+  if (queuedTask) return '网页任务排队中';
+
+  return status === 'streaming' ? '正在生成回答' : '正在处理请求';
+}
+
 function placeBrowserTasks(messages: ChatMessage[], progress: BrowserTaskProgress[]) {
   const anchoredTaskIds = new Set<string>();
   const tasksByMessageId = new Map<string, BrowserTaskProgress[]>();
@@ -118,8 +134,8 @@ export function AIAssistantMessagesPanel({
   const { tasksByMessageId, unanchoredTasks } = placeBrowserTasks(messages, browserTaskProgress);
 
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <AIPlanPanel plan={plan} defaultExpanded={false} />
+    <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+      <AIPlanPanel plan={plan} defaultExpanded={true} />
       <div
         ref={messagesContainerRef}
         onScroll={onScroll}
@@ -186,9 +202,9 @@ export function AIAssistantMessagesPanel({
                 canEdit={status !== 'loading' && status !== 'streaming' && status !== 'confirming'}
                 onEditMessage={onEditMessage}
               />
-              {(tasksByMessageId.get(message.id) || []).length > 0 && (
-                <BrowserTaskProgressPanel progress={tasksByMessageId.get(message.id) || []} />
-              )}
+              {(tasksByMessageId.get(message.id) || []).map((task) => (
+                <BrowserTaskProgressPanel key={task.taskId} progress={[task]} />
+              ))}
             </Fragment>
           ))}
 
@@ -202,11 +218,13 @@ export function AIAssistantMessagesPanel({
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info [animation-delay:-0.15s]" />
                   <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info" />
                 </span>
-                <span>正在准备回答</span>
+                <span>{getAssistantProgressText(status, browserTaskProgress)}</span>
               </div>
             )}
 
-          {unanchoredTasks.length > 0 && <BrowserTaskProgressPanel progress={unanchoredTasks} />}
+          {unanchoredTasks.map((task) => (
+            <BrowserTaskProgressPanel key={task.taskId} progress={[task]} />
+          ))}
 
           {error && (
             <div className="border-b border-destructive/25 border-t border-destructive/25 bg-destructive/6 px-1 py-4 text-sm text-destructive sm:px-2">

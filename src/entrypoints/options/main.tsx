@@ -12,7 +12,7 @@ import { DataManagementSection } from './DataManagementSection';
 import { ExportSettingsDialog } from './ExportSettingsDialog';
 import { FeatureTogglesSection } from './FeatureTogglesSection';
 import { FooterLinks } from './FooterLinks';
-import { JenkinsSection } from './JenkinsSection';
+import { ImportSettingsDialog } from './ImportSettingsDialog';
 import { SyncSettingsSection } from './SyncSettingsSection';
 import { useOptionsPage } from './useOptionsPage';
 
@@ -26,8 +26,10 @@ function OptionsApp() {
     customConfig,
     featureToggles,
     handleExport,
+    handleImport,
     handleSelectFile,
     lastSyncTime,
+    rebuildPhase,
     rebuildLocalData,
     saveDataSourceConfig,
     selectedCategories,
@@ -36,6 +38,10 @@ function OptionsApp() {
     setCustomConfig,
     setSelectedCategories,
     setShowExportDialog,
+    selectedImportCategories,
+    setSelectedImportCategories,
+    setShowImportDialog,
+    showImportDialog,
     showExportDialog,
     toggleFeature,
   } = useOptionsPage();
@@ -62,8 +68,6 @@ function OptionsApp() {
 
           <FeatureTogglesSection featureToggles={featureToggles} onToggle={toggleFeature} />
 
-          <JenkinsSection />
-
           <SyncSettingsSection
             accessToken={accessToken}
             autoSync={autoSync}
@@ -79,6 +83,7 @@ function OptionsApp() {
             onExport={() => setShowExportDialog(true)}
             onImport={handleSelectFile}
             onRebuild={rebuildLocalData}
+            rebuildPhase={rebuildPhase}
           />
 
           <DangerZoneSection onClearData={clearData} />
@@ -89,6 +94,14 @@ function OptionsApp() {
             onConfirm={handleExport}
             onOpenChange={setShowExportDialog}
             onSelectedCategoriesChange={setSelectedCategories}
+          />
+
+          <ImportSettingsDialog
+            open={showImportDialog}
+            selectedCategories={selectedImportCategories}
+            onConfirm={handleImport}
+            onOpenChange={setShowImportDialog}
+            onSelectedCategoriesChange={setSelectedImportCategories}
           />
 
           <FooterLinks />

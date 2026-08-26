@@ -3,7 +3,6 @@ export type TabId =
   | 'jenkins'
   | 'hotNews'
   | 'recorder'
-  | 'testing'
   | 'blackboard'
   | 'aiAssistant'
   | 'playground'
@@ -15,7 +14,6 @@ export interface FeatureToggles {
   blackboard: boolean;
   jenkins: boolean;
   recorder: boolean;
-  testing: boolean;
   aiAssistant: boolean;
   playground: boolean;
   totp: boolean;
@@ -27,7 +25,6 @@ export const DEFAULT_FEATURE_TOGGLES: FeatureToggles = {
   blackboard: true,
   jenkins: true,
   recorder: true,
-  testing: true,
   aiAssistant: true,
   playground: true,
   totp: true,

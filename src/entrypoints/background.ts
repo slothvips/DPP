@@ -5,7 +5,7 @@ import { BROWSER_TASK_HOST_PORT_NAME } from '@/lib/browserTask/types';
 import { logger } from '@/utils/logger';
 import { registerBackgroundLifecycle } from './background/backgroundLifecycle';
 import { routeBackgroundMessage } from './background/backgroundMessageRouter';
-import { stopActiveBrowserTask } from './background/handlers';
+import { stopAllBrowserTasks } from './background/handlers';
 
 export default defineBackground(() => {
   logger.info('Background started');
@@ -18,11 +18,7 @@ export default defineBackground(() => {
     taskHostPorts.add(port);
     port.onDisconnect.addListener(() => {
       taskHostPorts.delete(port);
-      if (taskHostPorts.size === 0) {
-        void stopActiveBrowserTask().catch((error: unknown) =>
-          logger.error('Failed to stop browser task after host disconnect:', error)
-        );
-      }
+      if (taskHostPorts.size === 0) void stopAllBrowserTasks('system');
     });
   });
 

@@ -1,10 +1,42 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
-import { OperationSchema, dbOps } from './db.js';
+import { OperationSchema, SyncConflictError, dbOps } from './db.js';
 
-const SYNC_ACCESS_TOKEN = process.env.SYNC_ACCESS_TOKEN || 'dev-token';
+const SYNC_ACCESS_TOKEN = process.env.SYNC_ACCESS_TOKEN;
 
 const app = new Hono();
+
+function normalizeClientIdentity<T extends { clientId?: string; table: string; payload?: unknown }>(
+  operation: T,
+  clientId: string | undefined
+): T {
+  if (!clientId) {
+    return operation;
+  }
+
+  if (
+    operation.table === '__sync_chunk__' &&
+    typeof operation.payload === 'object' &&
+    operation.payload !== null
+  ) {
+    return {
+      ...operation,
+      clientId,
+      payload: { ...(operation.payload as Record<string, unknown>), clientId },
+    };
+  }
+
+  return { ...operation, clientId };
+}
+
+function parseNonNegativeInteger(value: string | undefined, name: string): number {
+  if (value === undefined || value === '') return 0;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`Invalid ${name}`);
+  }
+  return parsed;
+}
 
 // 认证中间件 - 与 CF Worker 一致
 app.use('*', async (c, next) => {
@@ -14,7 +46,7 @@ app.use('*', async (c, next) => {
   }
 
   const token = c.req.header('X-Access-Token');
-  if (token !== SYNC_ACCESS_TOKEN) {
+  if (!SYNC_ACCESS_TOKEN || token !== SYNC_ACCESS_TOKEN) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
   await next();
@@ -27,33 +59,46 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 app.post('/api/sync/push', async (c) => {
   try {
-    const { ops } = await c.req.json<{ ops: unknown[] }>();
+    const { ops, clientId: bodyClientId } = await c.req.json<{
+      ops: unknown[];
+      clientId?: string;
+    }>();
+    const clientId = bodyClientId || c.req.header('X-Client-ID');
     if (!ops || !Array.isArray(ops)) {
       return c.json({ error: 'Invalid payload' }, 400);
     }
 
-    const validatedOps = ops.map((op) => OperationSchema.parse(op));
+    const validatedOps = ops.map((op) => {
+      const parsed = OperationSchema.parse(op);
+      return normalizeClientIdentity(parsed, clientId);
+    });
     const serverTimestamp = Date.now();
     const opsWithServerTimestamp = validatedOps.map((op) => ({
       ...op,
       serverTimestamp,
     }));
 
-    const newCursor = dbOps.push(opsWithServerTimestamp);
+    const { cursor: newCursor, pushedIds } = dbOps.push(opsWithServerTimestamp);
 
-    return c.json({ success: true, cursor: newCursor });
+    return c.json({ success: true, cursor: newCursor, pushedIds });
   } catch (e) {
+    if (e instanceof SyncConflictError) {
+      return c.json({ error: e.message }, 409);
+    }
     const error = e as Error;
-    return c.json({ error: error.message, stack: error.stack }, 500);
+    return c.json({ error: error.message }, 400);
   }
 });
 
 app.get('/api/sync/pull', (c) => {
   try {
     const cursorStr = c.req.query('cursor');
-    const cursor = Number.parseInt(cursorStr || '0', 10) || 0;
+    const cursor = parseNonNegativeInteger(cursorStr, 'cursor');
     const limitStr = c.req.query('limit');
-    const limit = limitStr ? Number.parseInt(limitStr, 10) : 100;
+    const limit = limitStr === undefined ? 100 : Number(limitStr);
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) {
+      throw new Error('Invalid limit');
+    }
 
     const { ops, nextCursor } = dbOps.pull(cursor, limit);
 
@@ -67,9 +112,10 @@ app.get('/api/sync/pull', (c) => {
 app.get('/api/sync/pending', (c) => {
   try {
     const cursorStr = c.req.query('cursor');
-    const cursor = Number.parseInt(cursorStr || '0', 10) || 0;
+    const cursor = parseNonNegativeInteger(cursorStr, 'cursor');
+    const clientId = c.req.query('clientId') || undefined;
 
-    const count = dbOps.countPending(cursor);
+    const count = dbOps.countPending(cursor, clientId);
 
     return c.json({ count });
   } catch (e) {

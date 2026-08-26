@@ -1,5 +1,107 @@
 # DPP 同步服务器部署指南
 
+## 最短路径
+
+以下命令都在仓库根目录执行。日常发布只需要选择对应的一条命令：
+
+```bash
+# 只打包 Chrome 扩展，产物在 .output/ 下
+pnpm release:extension
+
+# 部署生产 Worker（使用 wrangler.toml 顶层的 KV）
+pnpm release:worker
+
+# 部署测试 Worker（使用 env.test 的独立 KV）
+pnpm release:worker:test
+
+# 两者都执行
+pnpm release
+
+# 打包扩展并部署测试 Worker
+pnpm release:test
+```
+
+### 首次部署 Cloudflare Worker
+
+先完成一次登录和 Secret 配置，之后每次只执行 `pnpm release:worker`：
+
+```bash
+pnpm install
+pnpm --filter dpp-worker exec wrangler login
+
+# 生成访问令牌，并将它保存下来，稍后填入扩展设置
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+pnpm --filter dpp-worker exec wrangler secret put SYNC_ACCESS_TOKEN
+pnpm --filter dpp-worker exec wrangler secret put GOOGLE_SERVICE_ACCOUNT
+pnpm --filter dpp-worker exec wrangler secret put GOOGLE_SPREADSHEET_ID
+
+pnpm release:worker
+curl https://你的域名/health
+```
+
+`GOOGLE_SERVICE_ACCOUNT` 需要粘贴完整的 Service Account JSON，
+`GOOGLE_SPREADSHEET_ID` 是 Google Sheets URL 中 `/d/` 和 `/edit` 之间的值。
+当前 `wrangler.toml` 已使用 `KV` 绑定和 Durable Object 配置，不需要重复创建 KV。
+
+### 切换生产和测试环境
+
+生产环境使用 `dpp-sync-worker`、`dpp-sync.586726.xyz` 和生产 KV；测试环境使用
+`env.test` 下的 `dpp-sync-worker-test`、`dpp-sync-test.586726.xyz` 和独立 KV。
+首次启用测试环境时执行：
+
+```bash
+# 确认生产和测试 KV 都存在
+pnpm --filter dpp-worker exec wrangler kv namespace list
+
+# 新建测试 Google Sheet，并创建或复用已授权的 Service Account
+# 将测试 Sheet 的 ID 和 Service Account JSON 只配置到 env.test
+
+# 为测试环境单独设置三个 Secret
+pnpm --filter dpp-worker exec wrangler secret put SYNC_ACCESS_TOKEN --env test
+pnpm --filter dpp-worker exec wrangler secret put GOOGLE_SERVICE_ACCOUNT --env test
+pnpm --filter dpp-worker exec wrangler secret put GOOGLE_SPREADSHEET_ID --env test
+
+pnpm release:worker:test
+```
+
+之后切换目标只需执行 `pnpm release:worker`（生产）或 `pnpm release:worker:test`（测试）。
+测试环境地址为 `https://dpp-sync-test.586726.xyz`，需要确保该域名由 Cloudflare 托管。
+
+### 环境隔离清单
+
+| 项目                | 生产                  | 测试                       | 是否必须不同 |
+| ------------------- | --------------------- | -------------------------- | ------------ |
+| Worker              | `dpp-sync-worker`     | `dpp-sync-worker-test`     | 是           |
+| 域名                | `dpp-sync.586726.xyz` | `dpp-sync-test.586726.xyz` | 是           |
+| KV                  | 顶层 `KV`             | `env.test.KV`              | 是           |
+| Durable Object      | 顶层绑定              | `env.test` 绑定            | 是           |
+| 访问令牌            | 生产 Secret           | 测试 Secret                | 是           |
+| Google Spreadsheet  | 生产表                | 测试表                     | 是           |
+| Service Account     | 生产 Secret           | 测试 Secret                | 建议不同     |
+| 扩展服务器地址      | `dpp-sync.586726.xyz` | `dpp-sync-test.586726.xyz` | 是           |
+| 扩展访问令牌        | 生产 Token            | 测试 Token                 | 是           |
+| 扩展同步密钥        | 生产密钥              | 测试密钥                   | 建议不同     |
+| Worker 入口和兼容性 | 相同                  | 相同                       | 否           |
+
+测试表需要单独创建，并准备同样的 `Operations` 表头。Service Account 可以暂时复用，
+但必须在测试环境单独执行 `secret put`；访问令牌和 Spreadsheet ID 不能复用。
+扩展切换环境时要同时修改服务器地址和访问令牌；推荐使用独立的浏览器配置文件和同步密钥，
+避免本地待同步操作或游标状态混入另一套环境。
+
+部署完成后，在扩展选项页填写：
+
+- 服务器地址：Worker 地址，不要追加 `/api/sync`
+- 访问令牌：上面生成的 `SYNC_ACCESS_TOKEN`
+- 加密密钥：在扩展中生成并备份
+
+### 只发布扩展
+
+```bash
+pnpm release:extension
+```
+
+将 `.output/` 下生成的 Chrome zip 文件上传到 Chrome Web Store，或在浏览器的扩展管理页开启开发者模式后加载 `.output/chrome-mv3/`。
+
 ## 方案对比
 
 | 方案               | 成本      | 部署时间 | 特点               |
@@ -18,17 +120,16 @@
 
 ### 部署步骤
 
-#### 1. 安装 Wrangler CLI
+#### 1. 登录 Wrangler
 
 ```bash
-npm install -g wrangler
-wrangler login  # 浏览器授权
+pnpm --filter dpp-worker exec wrangler login  # 浏览器授权
 ```
 
-#### 2. 进入项目目录
+#### 2. 确认 Wrangler 可用
 
 ```bash
-cd packages/cf-worker-googlesheet
+pnpm --filter dpp-worker exec wrangler --version
 ```
 
 #### 3. 生成并配置访问令牌
@@ -38,32 +139,14 @@ cd packages/cf-worker-googlesheet
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 # 配置 Secret
-wrangler secret put SYNC_ACCESS_TOKEN
+pnpm --filter dpp-worker exec wrangler secret put SYNC_ACCESS_TOKEN
 # 粘贴上面生成的令牌
 ```
 
-#### 4. 创建 KV Namespace
+#### 4. KV Namespace
 
-```bash
-wrangler kv:namespace create SYNC_KV
-```
-
-输出示例：
-
-```
-✅ Success!
-[[kv_namespaces]]
-binding = "SYNC_KV"
-id = "abcd1234efgh5678"  # 复制这个 ID
-```
-
-编辑 `wrangler.toml`，替换 `kv_namespaces` 下的 `id` 字段：
-
-```toml
-[[kv_namespaces]]
-binding = "SYNC_KV"
-id = "abcd1234efgh5678"  # 替换为你的 ID
-```
+当前仓库的 `wrangler.toml` 已配置生产 KV Namespace，正常部署无需额外操作。
+只有在更换 Cloudflare 账号或 KV 时，才需要重新创建 Namespace 并更新其中的 `id`。
 
 #### 5. 配置 Google Sheets 备份
 
@@ -90,18 +173,18 @@ id = "abcd1234efgh5678"  # 替换为你的 ID
 
 ```bash
 # Google Service Account
-wrangler secret put GOOGLE_SERVICE_ACCOUNT
+pnpm --filter dpp-worker exec wrangler secret put GOOGLE_SERVICE_ACCOUNT
 # 粘贴整个 JSON 文件内容
 
 # Spreadsheet ID
-wrangler secret put GOOGLE_SPREADSHEET_ID
+pnpm --filter dpp-worker exec wrangler secret put GOOGLE_SPREADSHEET_ID
 # 粘贴刚才复制的 ID
 ```
 
 #### 6. 部署
 
 ```bash
-wrangler deploy
+pnpm release:worker
 ```
 
 成功后会显示 Worker URL：`https://dpp-sync-xxx.workers.dev`
@@ -139,35 +222,40 @@ curl https://your-worker-url.workers.dev/health
 
 ```bash
 # 查看日志
-wrangler tail
+pnpm --filter dpp-worker exec wrangler tail
 
 # 重新部署
-wrangler deploy
+pnpm release:worker
 
 # 管理 Secrets
-wrangler secret list
-wrangler secret put SECRET_NAME
-wrangler secret delete SECRET_NAME
+pnpm --filter dpp-worker exec wrangler secret list
+pnpm --filter dpp-worker exec wrangler secret put SECRET_NAME
+pnpm --filter dpp-worker exec wrangler secret delete SECRET_NAME
 
 # 管理 KV (调试用)
-wrangler kv:namespace list
-wrangler kv:key get "last_cursor" --namespace-id=YOUR_KV_ID
-wrangler kv:key put "last_cursor" "0" --namespace-id=YOUR_KV_ID
+pnpm --filter dpp-worker exec wrangler kv namespace list
+pnpm --filter dpp-worker exec wrangler kv key get "last_cursor" --namespace-id=YOUR_KV_ID
+pnpm --filter dpp-worker exec wrangler kv key put "last_cursor" "0" --namespace-id=YOUR_KV_ID
 ```
 
 ### 故障排查
 
-| 问题                | 解决方案                                                      |
-| ------------------- | ------------------------------------------------------------- |
-| 401 Unauthorized    | `wrangler secret put SYNC_ACCESS_TOKEN` 重新设置令牌          |
-| 部署失败            | `wrangler logout && wrangler login` 重新登录                  |
-| KV Namespace 未绑定 | 检查 `wrangler.toml` 中的 `id` 是否正确                       |
-| Sheets 备份失败     | 确认 Service Account 已分享 Editor 权限，检查 JSON 和 ID 配置 |
-| 同步游标异常        | `wrangler kv:key get "last_cursor" --namespace-id=ID` 查看值  |
+| 问题                | 解决方案                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------ |
+| 401 Unauthorized    | `pnpm --filter dpp-worker exec wrangler secret put SYNC_ACCESS_TOKEN` 重新设置令牌         |
+| 部署失败            | `pnpm --filter dpp-worker exec wrangler logout` 后重新执行 login                           |
+| KV Namespace 未绑定 | 检查 `wrangler.toml` 中的 `id` 是否正确                                                    |
+| Sheets 备份失败     | 确认 Service Account 已分享 Editor 权限，检查 JSON 和 ID 配置                              |
+| 同步游标异常        | `pnpm --filter dpp-worker exec wrangler kv key get "last_cursor" --namespace-id=ID` 查看值 |
 
 ---
 
 ## 方案二: Node.js VPS
+
+Node.js 方案当前默认只有一个实例：数据库为 `sync.db`、端口为 `8889`、PM2 名称为
+`dpp-sync`。生产和测试不能直接共用这三个值；如果要同时运行两套 Node 服务，必须另外准备
+独立目录和数据库，并在代码中参数化端口、数据库路径和 PM2 名称。本文的快速切换命令只覆盖
+Cloudflare Workers 的生产/测试环境。
 
 ### 前置要求
 
@@ -186,8 +274,8 @@ ssh root@your-server-ip
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs
 
-# 安装 pnpm 和 PM2
-npm install -g pnpm pm2
+# 安装 PM2（pnpm 已按项目要求使用）
+pnpm add --global pm2
 
 # 验证
 node -v  # v18.x.x
@@ -200,9 +288,9 @@ pnpm -v  # 8.x.x
 
 ```bash
 # 本地执行
-cd packages/node-server
-pnpm install && pnpm build
-tar -czf dpp-server.tar.gz dist package.json pnpm-lock.yaml
+pnpm install
+pnpm --filter dpp-server build
+tar -czf dpp-server.tar.gz -C packages/node-server dist package.json pnpm-lock.yaml
 scp dpp-server.tar.gz root@your-server-ip:~/
 ```
 
@@ -218,19 +306,20 @@ pnpm install --prod
 
 ```bash
 git clone https://github.com/your-username/DPPV5.git
-cd DPPV5/packages/node-server
-pnpm install --prod && pnpm build
+cd DPPV5
+pnpm install
+pnpm --filter dpp-server build
 ```
 
 #### 3. 启动服务
 
 ```bash
-pm2 start dist/index.js --name dpp-sync
+SYNC_ACCESS_TOKEN=替换为真实令牌 pm2 start packages/node-server/dist/index.js --name dpp-sync
 pm2 save
 pm2 startup  # 复制输出的命令并执行
 
 # 测试
-curl http://localhost:3000/health
+curl http://localhost:8889/health
 ```
 
 #### 4. 配置 Nginx 反向代理
@@ -248,7 +337,7 @@ server {
     server_name sync.yourdomain.com;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://localhost:8889;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -284,7 +373,7 @@ sudo ufw enable
 ### 扩展配置
 
 - **服务器地址**: `https://sync.yourdomain.com`
-- **访问令牌**: 留空 (或在代码中自定义)
+- **访问令牌**: 启动服务时设置的 `SYNC_ACCESS_TOKEN`
 - **加密密钥**: 生成并备份
 
 ### 维护命令
@@ -300,7 +389,7 @@ pm2 stop dpp-sync
 cp sync.db sync-backup-$(date +%Y%m%d).db
 
 # 更新代码
-git pull && pnpm build && pm2 restart dpp-sync
+git pull && pnpm install --prod && pnpm --filter dpp-server build && pm2 restart dpp-sync
 ```
 
 ### 故障排查
@@ -308,7 +397,7 @@ git pull && pnpm build && pm2 restart dpp-sync
 | 问题           | 解决方案                             |
 | -------------- | ------------------------------------ |
 | 服务无法启动   | `pm2 logs dpp-sync` 查看错误日志     |
-| 端口占用       | `lsof -i :3000` 查找占用进程         |
+| 端口占用       | `lsof -i :8889` 查找占用进程         |
 | Nginx 502      | 确认 PM2 服务运行: `pm2 status`      |
 | HTTPS 证书失败 | 检查域名 DNS 是否正确解析到服务器 IP |
 | 无法连接       | `sudo ufw status` 检查防火墙         |
@@ -329,9 +418,9 @@ git pull && pnpm build && pm2 restart dpp-sync
 
 **必需 KV:**
 
-| 名称      | 用途         | 创建命令                               |
-| --------- | ------------ | -------------------------------------- |
-| `SYNC_KV` | 存储同步游标 | `wrangler kv:namespace create SYNC_KV` |
+| 名称 | 用途         | 说明                        |
+| ---- | ------------ | --------------------------- |
+| `KV` | 存储同步游标 | 已在 `wrangler.toml` 中绑定 |
 
 ### Node.js VPS
 

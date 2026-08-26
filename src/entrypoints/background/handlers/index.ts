@@ -17,9 +17,13 @@ export type { RemoteRecordingMessage } from './remoteRecording';
 export { handleProxyMessage } from './proxy';
 export type { ProxyMessage } from './proxy';
 
-export { handleBrowserTaskRemoteMessage } from './browserTaskRemote';
-export { handleBrowserTaskMessage, stopActiveBrowserTask } from './browserTask';
+export {
+  handleBrowserTaskMessage,
+  stopActiveBrowserTask,
+  stopAllBrowserTasks,
+} from './browserTask';
 export { recoverInterruptedBrowserTask } from './browserTask';
+export { handlePageAgentLlmAbort, handlePageAgentLlmRequest } from './pageAgentLlm';
 
 export { handleGeneralMessage } from './general';
 export type { GeneralMessage } from './general';

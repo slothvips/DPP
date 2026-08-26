@@ -1,8 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { hasActiveTestRunForSession, stopTestRunForSession } from '@/lib/ai/tools/testRuns';
 import type { ChatMessage } from '../types';
 import type { PendingBuild, PendingToolCall, PendingToolCalls } from './useAIChat.types';
 import { useAIChatBuildFlow } from './useAIChatBuildFlow';
-import { createToolCallCancelMessages, getPendingToolCall } from './useAIChatToolFlow.shared';
+import {
+  createToolCallCancelMessages,
+  generateToolFlowId,
+  getPendingToolCall,
+} from './useAIChatToolFlow.shared';
 import { useAIChatToolFlowExecution } from './useAIChatToolFlowExecution';
 
 interface UseAIChatToolFlowOptions {
@@ -27,6 +32,7 @@ interface UseAIChatToolFlowReturn {
   cancelBuild: () => void;
   cancelPendingToolFlow: (appendCancellationMessages?: boolean) => void;
   resetToolFlowState: () => void;
+  resetToolFlowStateForSession: (sessionId: string) => void;
 }
 
 export function useAIChatToolFlow({
@@ -38,17 +44,31 @@ export function useAIChatToolFlow({
   onAIConfigChanged,
   sessionId,
 }: UseAIChatToolFlowOptions): UseAIChatToolFlowReturn {
-  const [pendingToolCalls, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
-  const executionCancelledRef = useRef(false);
-  const { pendingBuild, setPendingBuild, completeBuild, cancelBuild, resetBuildFlowState } =
-    useAIChatBuildFlow({
-      appendMessages,
-      saveToolMessages,
-      onContinueConversation,
-      onStatusChange,
-    });
+  const [, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
+  const pendingToolCallsBySessionRef = useRef(new Map<string, PendingToolCalls>());
+  const executionCancelledBySessionRef = useRef(new Set<string>());
+  const {
+    pendingBuild,
+    setPendingBuild,
+    completeBuild,
+    cancelBuild,
+    resetBuildFlowState,
+    resetBuildFlowStateForSession,
+  } = useAIChatBuildFlow({
+    sessionId,
+    appendMessages,
+    saveToolMessages,
+    onContinueConversation,
+    onStatusChange,
+  });
 
-  const pendingToolCall = useMemo(() => getPendingToolCall(pendingToolCalls), [pendingToolCalls]);
+  const currentPendingToolCalls = sessionId
+    ? pendingToolCallsBySessionRef.current.get(sessionId) || null
+    : null;
+  const pendingToolCall = useMemo(
+    () => getPendingToolCall(currentPendingToolCalls),
+    [currentPendingToolCalls]
+  );
 
   const {
     processAssistantResponse: processAssistantResponseInternal,
@@ -63,62 +83,122 @@ export function useAIChatToolFlow({
     onPendingBuildChange: setPendingBuild,
     onAIConfigChanged,
     onExecutionStart: () => {
-      executionCancelledRef.current = false;
+      if (sessionId) executionCancelledBySessionRef.current.delete(sessionId);
     },
-    isExecutionCancelled: () => executionCancelledRef.current,
+    isExecutionCancelled: () =>
+      sessionId ? executionCancelledBySessionRef.current.has(sessionId) : true,
     browserTaskSessionId: sessionId,
     sessionId,
   });
 
   const processAssistantResponse = useCallback(
     async (assistantMessage: ChatMessage) => {
-      await processAssistantResponseInternal(assistantMessage, setPendingToolCalls);
+      await processAssistantResponseInternal(assistantMessage, (value) => {
+        if (!sessionId) return;
+        if (value) pendingToolCallsBySessionRef.current.set(sessionId, value);
+        else pendingToolCallsBySessionRef.current.delete(sessionId);
+        setPendingToolCalls(value);
+      });
     },
-    [processAssistantResponseInternal]
+    [processAssistantResponseInternal, sessionId]
   );
 
   const confirmToolCall = useCallback(async () => {
-    if (!pendingToolCalls || pendingToolCalls.toolCalls.length === 0) {
+    if (!currentPendingToolCalls || currentPendingToolCalls.toolCalls.length === 0) {
       return;
     }
 
-    await confirmNextToolCall(pendingToolCalls, setPendingToolCalls);
-  }, [confirmNextToolCall, pendingToolCalls]);
+    await confirmNextToolCall(currentPendingToolCalls, (value) => {
+      if (!sessionId) return;
+      if (value) pendingToolCallsBySessionRef.current.set(sessionId, value);
+      else pendingToolCallsBySessionRef.current.delete(sessionId);
+      setPendingToolCalls(value);
+    });
+  }, [confirmNextToolCall, currentPendingToolCalls, sessionId]);
 
   const confirmAllToolCalls = useCallback(async () => {
-    if (!pendingToolCalls) {
+    if (!currentPendingToolCalls) {
       return;
     }
 
-    await confirmAllToolCallsInternal(pendingToolCalls, setPendingToolCalls);
-  }, [confirmAllToolCallsInternal, pendingToolCalls]);
+    await confirmAllToolCallsInternal(currentPendingToolCalls, (value) => {
+      if (!sessionId) return;
+      if (value) pendingToolCallsBySessionRef.current.set(sessionId, value);
+      else pendingToolCallsBySessionRef.current.delete(sessionId);
+      setPendingToolCalls(value);
+    });
+  }, [confirmAllToolCallsInternal, currentPendingToolCalls, sessionId]);
 
   const cancelToolCall = useCallback(() => {
-    if (!pendingToolCall || !pendingToolCalls) {
+    if (!pendingToolCall || !currentPendingToolCalls) {
       return;
     }
 
-    const cancelMessages = createToolCallCancelMessages({
-      pendingToolCalls,
-    });
+    const [cancelledToolCall, ...remainingToolCalls] = currentPendingToolCalls.toolCalls;
+    const [, ...remainingArguments] = currentPendingToolCalls.argumentsList;
+    if (
+      sessionId &&
+      hasActiveTestRunForSession(sessionId) &&
+      cancelledToolCall.function.name === 'delegate_browser_agent'
+    ) {
+      const cancelMessages = createToolCallCancelMessages({
+        pendingToolCalls: currentPendingToolCalls,
+      });
+      appendMessages(cancelMessages);
+      void saveToolMessages(cancelMessages);
+      pendingToolCallsBySessionRef.current.delete(sessionId);
+      setPendingToolCalls(null);
+      onStatusChange('idle');
+      void stopTestRunForSession(sessionId, '测试网页步骤被取消，执行已停止');
+      return;
+    }
+    const cancelMessages: ChatMessage[] = [
+      {
+        id: generateToolFlowId(),
+        role: 'tool',
+        name: cancelledToolCall.function.name,
+        toolCallId: cancelledToolCall.id,
+        content: `已取消执行工具：${cancelledToolCall.function.name}`,
+        createdAt: Date.now(),
+      },
+    ];
 
     appendMessages(cancelMessages);
     void saveToolMessages(cancelMessages);
-    setPendingToolCalls(null);
-    onStatusChange('idle');
-  }, [appendMessages, onStatusChange, pendingToolCall, pendingToolCalls, saveToolMessages]);
+    const remaining =
+      remainingToolCalls.length > 0
+        ? { toolCalls: remainingToolCalls, argumentsList: remainingArguments }
+        : null;
+    if (sessionId) {
+      if (remaining) pendingToolCallsBySessionRef.current.set(sessionId, remaining);
+      else pendingToolCallsBySessionRef.current.delete(sessionId);
+    }
+    setPendingToolCalls(remaining);
+    onStatusChange(remaining ? 'confirming' : 'idle');
+  }, [
+    appendMessages,
+    currentPendingToolCalls,
+    onStatusChange,
+    pendingToolCall,
+    saveToolMessages,
+    sessionId,
+  ]);
 
   const cancelPendingToolFlow = useCallback(
     (appendCancellationMessages = true) => {
-      executionCancelledRef.current = true;
-      if (pendingToolCalls) {
+      if (sessionId) executionCancelledBySessionRef.current.add(sessionId);
+      if (sessionId) {
+        void stopTestRunForSession(sessionId, '测试执行流程被取消');
+      }
+      if (currentPendingToolCalls) {
         if (appendCancellationMessages) {
           const cancelMessages = createToolCallCancelMessages({
-            pendingToolCalls,
+            pendingToolCalls: currentPendingToolCalls,
           });
           appendMessages(cancelMessages);
           void saveToolMessages(cancelMessages);
         }
+        pendingToolCallsBySessionRef.current.delete(sessionId || '');
         setPendingToolCalls(null);
       }
 
@@ -133,21 +213,33 @@ export function useAIChatToolFlow({
     [
       appendMessages,
       cancelBuild,
+      currentPendingToolCalls,
       pendingBuild,
-      pendingToolCalls,
       resetBuildFlowState,
       saveToolMessages,
+      sessionId,
     ]
   );
 
   const resetToolFlowState = useCallback(() => {
+    if (sessionId) pendingToolCallsBySessionRef.current.delete(sessionId);
     setPendingToolCalls(null);
     resetBuildFlowState();
-  }, [resetBuildFlowState]);
+  }, [resetBuildFlowState, sessionId]);
+
+  const resetToolFlowStateForSession = useCallback(
+    (targetSessionId: string) => {
+      pendingToolCallsBySessionRef.current.delete(targetSessionId);
+      executionCancelledBySessionRef.current.add(targetSessionId);
+      resetBuildFlowStateForSession(targetSessionId);
+      if (targetSessionId === sessionId) setPendingToolCalls(null);
+    },
+    [resetBuildFlowStateForSession, sessionId]
+  );
 
   return {
     pendingToolCall,
-    pendingToolCalls,
+    pendingToolCalls: currentPendingToolCalls,
     pendingBuild,
     processAssistantResponse,
     confirmToolCall,
@@ -157,5 +249,6 @@ export function useAIChatToolFlow({
     cancelBuild,
     cancelPendingToolFlow,
     resetToolFlowState,
+    resetToolFlowStateForSession,
   };
 }

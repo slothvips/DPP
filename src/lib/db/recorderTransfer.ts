@@ -23,15 +23,21 @@ export async function importRecordingFromJson(args: {
       };
     }
 
-    const firstEvent = events[0] as { timestamp?: unknown };
-    const lastEvent = events[events.length - 1] as { timestamp?: unknown };
-
-    if (typeof firstEvent?.timestamp !== 'number') {
+    if (
+      events.some(
+        (event) =>
+          !event ||
+          typeof event !== 'object' ||
+          Array.isArray(event) ||
+          typeof (event as { timestamp?: unknown }).timestamp !== 'number' ||
+          !Number.isFinite((event as { timestamp: number }).timestamp)
+      )
+    ) {
       return { success: false, id: '', message: 'Invalid recording format: missing timestamps' };
     }
 
-    const startTime = firstEvent.timestamp;
-    const endTime = lastEvent?.timestamp as number;
+    const startTime = (events[0] as { timestamp: number }).timestamp;
+    const endTime = (events[events.length - 1] as { timestamp: number }).timestamp;
     const duration = endTime - startTime;
     const eventsJson = JSON.stringify(events);
     const fileSize = new Blob([eventsJson]).size;

@@ -93,7 +93,8 @@ export function registerJenkinsTools() {
       {
         jobUrl: { type: 'string', description: 'The job URL' },
         limit: {
-          type: 'number',
+          type: 'integer',
+          minimum: 1,
           description: 'Maximum number of builds to return (default: 10)',
         },
       },

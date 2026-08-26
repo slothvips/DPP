@@ -32,11 +32,6 @@ const RecordingsView = React.lazy(() =>
     default: module.RecordingsView,
   }))
 );
-const TestingView = React.lazy(() =>
-  import('@/features/testing/components/TestingView').then((module) => ({
-    default: module.TestingView,
-  }))
-);
 const ToolboxView = React.lazy(() =>
   import('@/features/toolbox/components/ToolboxView').then((module) => ({
     default: module.ToolboxView,
@@ -52,7 +47,6 @@ interface SidepanelContentProps {
   activeTab: TabId;
   featureToggles: FeatureToggles;
   reserveFloatingNav?: boolean;
-  showJenkinsTab: boolean;
 }
 
 function SidepanelLoadingFallback() {
@@ -75,7 +69,6 @@ export function SidepanelContent({
   activeTab,
   featureToggles,
   reserveFloatingNav = false,
-  showJenkinsTab,
 }: SidepanelContentProps) {
   return (
     <main
@@ -94,7 +87,7 @@ export function SidepanelContent({
             <LinksView />
           </ErrorBoundary>
         </KeepAliveTabPanel>
-        <KeepAliveTabPanel active={activeTab === 'jenkins'} visible={showJenkinsTab}>
+        <KeepAliveTabPanel active={activeTab === 'jenkins'} visible={featureToggles.jenkins}>
           <ErrorBoundary moduleName={TAB_CONFIG.jenkins.label} className="h-full">
             <JenkinsView />
           </ErrorBoundary>
@@ -118,15 +111,6 @@ export function SidepanelContent({
         >
           <ErrorBoundary moduleName={TAB_CONFIG.blackboard.label} className="h-full">
             <BlackboardView />
-          </ErrorBoundary>
-        </LazyTabPanel>
-        <LazyTabPanel
-          active={activeTab === 'testing'}
-          visible={featureToggles.testing}
-          fallback={<SidepanelLoadingFallback />}
-        >
-          <ErrorBoundary moduleName={TAB_CONFIG.testing.label} className="h-full">
-            <TestingView />
           </ErrorBoundary>
         </LazyTabPanel>
         <LazyTabPanel

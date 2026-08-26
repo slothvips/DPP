@@ -1,6 +1,5 @@
 import {
   handleBrowserTaskMessage,
-  handleBrowserTaskRemoteMessage,
   handleGeneralMessage,
   handleJenkinsMessage,
   handleProxyMessage,
@@ -65,14 +64,10 @@ const messageHandlers: Array<{
       type === 'BROWSER_TASK_RESUME' ||
       type === 'BROWSER_TASK_GET_STATUS' ||
       type === 'BROWSER_TASK_GET_DETAIL',
-    handler: (message) =>
-      handleBrowserTaskMessage(message as Parameters<typeof handleBrowserTaskMessage>[0]),
-  },
-  {
-    match: (type) => type === 'BROWSER_CONTROL',
-    handler: (message) =>
-      handleBrowserTaskRemoteMessage(
-        message as Parameters<typeof handleBrowserTaskRemoteMessage>[0]
+    handler: (message, sender) =>
+      handleBrowserTaskMessage(
+        message as Parameters<typeof handleBrowserTaskMessage>[0],
+        sender as Parameters<typeof handleBrowserTaskMessage>[1]
       ),
   },
   {

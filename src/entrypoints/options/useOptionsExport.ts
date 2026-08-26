@@ -47,12 +47,13 @@ export function useOptionsExport({
       const filteredSettings = safeSettings.filter((setting) => allowedKeys.has(setting.key));
       const includeAIProfiles = selectedCategories.includes('ai_settings');
       const aiProfiles = includeAIProfiles ? await db.aiProfiles.toArray() : [];
-      const hasEncryptedAIKey = filteredSettings.some(
-        (setting) =>
-          SENSITIVE_EXPORT_SETTING_KEYS.has(setting.key as SettingKey) &&
-          setting.key !== 'sync_encryption_key' &&
-          isStoredEncryptedValue(setting.value)
-      );
+      const hasEncryptedAIKey =
+        filteredSettings.some(
+          (setting) =>
+            SENSITIVE_EXPORT_SETTING_KEYS.has(setting.key as SettingKey) &&
+            setting.key !== 'sync_encryption_key' &&
+            isStoredEncryptedValue(setting.value)
+        ) || aiProfiles.some((profile) => isStoredEncryptedValue(profile.apiKey));
       if (
         hasEncryptedAIKey &&
         !filteredSettings.some((setting) => setting.key === 'sync_encryption_key')
