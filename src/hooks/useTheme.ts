@@ -60,9 +60,10 @@ export function useTheme() {
   const settings = useLiveQuery(() => getSettingByKey('theme'));
 
   const storedTheme = settings?.value as string | undefined;
+  const cachedTheme = storedTheme ?? localStorage.getItem('theme');
   const theme: Theme =
-    storedTheme === 'dark' ||
-    (storedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    cachedTheme === 'dark' ||
+    (cachedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
       ? 'dark'
       : 'light';
 

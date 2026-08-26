@@ -8,7 +8,17 @@
       // 立即应用主题，避免闪烁
       (function () {
         try {
-          if (localStorage.getItem('theme') === 'dark') {
+          var storedTheme = localStorage.getItem('theme');
+          var theme =
+            storedTheme === 'system'
+              ? window.matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+              : storedTheme === 'dark'
+                ? 'dark'
+                : 'light';
+          document.documentElement.dataset.dppTheme = theme;
+          if (theme === 'dark') {
             document.documentElement.classList.add('dark');
           }
         } catch (e) {}

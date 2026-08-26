@@ -117,7 +117,7 @@ export default defineConfig({
         }
         html[data-theme-transition='to-dark']::view-transition-old(root) {
           z-index: 2147483646;
-          animation: theme-change 400ms ease-in both;
+          animation: theme-change 600ms ease-in both;
         }
         html[data-theme-transition='to-dark']::view-transition-new(root) {
           z-index: 1;
@@ -127,7 +127,7 @@ export default defineConfig({
         }
         html[data-theme-transition='to-light']::view-transition-new(root) {
           z-index: 2147483646;
-          animation: theme-change 400ms ease-in both;
+          animation: theme-change 600ms ease-in both;
           animation-direction: reverse;
         }
         @keyframes yolo-flow {
