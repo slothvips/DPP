@@ -71,7 +71,7 @@ const DPP_CONFIG_DEFINITIONS = {
     category: 'appearance',
     description: 'DPP theme mode',
     type: 'string',
-    enum: ['light', 'dark', 'system'],
+    enum: ['light', 'dark'],
     writable: true,
   },
   last_sync_time: {

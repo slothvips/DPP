@@ -1,6 +1,7 @@
 import { Lightbulb } from 'lucide-react';
 import { useState } from 'react';
 import { GlobalSyncButton } from '@/components/GlobalSyncButton';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -78,6 +79,7 @@ export function SidepanelHeader({ activeTab, showSyncButton }: SidepanelHeaderPr
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <ThemeToggle />
           {import.meta.env.MODE === 'development' && (
             <span className="rounded-md bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold text-destructive ring-1 ring-destructive/15">
               DEV

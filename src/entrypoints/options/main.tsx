@@ -6,7 +6,6 @@ import { ToastProvider } from '@/components/ui/toast';
 import { useTheme } from '@/hooks/useTheme';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import '@unocss/reset/tailwind.css';
-import { AppearanceSection } from './AppearanceSection';
 import { DangerZoneSection } from './DangerZoneSection';
 import { DataManagementSection } from './DataManagementSection';
 import { ExportSettingsDialog } from './ExportSettingsDialog';
@@ -64,8 +63,6 @@ function OptionsApp() {
         </div>
 
         <div className="space-y-8">
-          <AppearanceSection />
-
           <FeatureTogglesSection featureToggles={featureToggles} onToggle={toggleFeature} />
 
           <SyncSettingsSection

@@ -20,13 +20,6 @@ function forceShowFoldIcons() {
   document.head.appendChild(style);
 }
 
-function isDarkTheme(theme: string): boolean {
-  return (
-    theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  );
-}
-
 export function useJsonEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -60,7 +53,7 @@ export function useJsonEditor() {
         editorRef.current = monaco.editor.create(containerRef.current, {
           value: '{\n  \n}',
           language: 'json',
-          theme: isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs',
+          theme: themeRef.current === 'dark' ? 'vs-dark' : 'vs',
           automaticLayout: true,
           minimap: { enabled: false },
           fontSize: 13,
@@ -88,7 +81,7 @@ export function useJsonEditor() {
 
         // 加载完成后立即应用最新主题,修复竞态:
         // 若加载期间 theme 变化,theme effect 已 no-op,这里补齐
-        monaco.editor.setTheme(isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs');
+        monaco.editor.setTheme(themeRef.current === 'dark' ? 'vs-dark' : 'vs');
       } catch (err) {
         logger.error('[useJsonEditor] Failed to load Monaco:', err);
       }
@@ -105,15 +98,10 @@ export function useJsonEditor() {
 
   useEffect(() => {
     const updateMonacoTheme = () => {
-      monacoRef.current?.editor.setTheme(isDarkTheme(theme) ? 'vs-dark' : 'vs');
+      monacoRef.current?.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
     };
 
     updateMonacoTheme();
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', updateMonacoTheme);
-      return () => mediaQuery.removeEventListener('change', updateMonacoTheme);
-    }
   }, [theme]);
 
   const setValue = useCallback(

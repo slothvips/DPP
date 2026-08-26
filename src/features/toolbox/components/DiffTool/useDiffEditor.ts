@@ -4,13 +4,6 @@ import { useTheme } from '@/hooks/useTheme';
 import { loadMonaco } from '@/lib/monaco/loadMonaco';
 import { logger } from '@/utils/logger';
 
-function isDarkTheme(theme: string): boolean {
-  return (
-    theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  );
-}
-
 export function useDiffEditor() {
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<Monaco.editor.IStandaloneDiffEditor | null>(null);
@@ -39,7 +32,7 @@ export function useDiffEditor() {
         const editor = monaco.editor.createDiffEditor(containerRef.current, {
           automaticLayout: true,
           readOnly: false,
-          theme: isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs',
+          theme: themeRef.current === 'dark' ? 'vs-dark' : 'vs',
           renderSideBySide: true,
           ignoreTrimWhitespace: false,
           renderOverviewRuler: true,
@@ -63,7 +56,7 @@ export function useDiffEditor() {
 
         // 加载完成后立即应用最新主题,修复竞态:
         // 若加载期间 theme 变化,theme effect 已 no-op,这里补齐
-        monaco.editor.setTheme(isDarkTheme(themeRef.current) ? 'vs-dark' : 'vs');
+        monaco.editor.setTheme(themeRef.current === 'dark' ? 'vs-dark' : 'vs');
       } catch (err) {
         if (disposed) return;
         const errorMessage = err instanceof Error ? err.message : '编辑器初始化失败';
@@ -89,16 +82,10 @@ export function useDiffEditor() {
 
   useEffect(() => {
     const updateMonacoTheme = () => {
-      monacoRef.current?.editor.setTheme(isDarkTheme(theme) ? 'vs-dark' : 'vs');
+      monacoRef.current?.editor.setTheme(theme === 'dark' ? 'vs-dark' : 'vs');
     };
 
     updateMonacoTheme();
-
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-      mediaQuery.addEventListener('change', updateMonacoTheme);
-      return () => mediaQuery.removeEventListener('change', updateMonacoTheme);
-    }
   }, [theme]);
 
   const handleSwap = useCallback(() => {

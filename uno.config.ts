@@ -94,6 +94,42 @@ export default defineConfig({
   preflights: [
     {
       getCSS: () => `
+        ::view-transition-old(root),
+        ::view-transition-new(root) {
+          animation: none;
+          mix-blend-mode: normal;
+        }
+        ::view-transition-old(root) {
+          z-index: 1;
+        }
+        ::view-transition-new(root) {
+          z-index: 2147483646;
+        }
+        @keyframes theme-change {
+          from {
+            clip-path: circle(
+              var(--theme-transition-radius) at var(--theme-transition-x) var(--theme-transition-y)
+            );
+          }
+          to {
+            clip-path: circle(0% at var(--theme-transition-x) var(--theme-transition-y));
+          }
+        }
+        html[data-theme-transition='to-dark']::view-transition-old(root) {
+          z-index: 2147483646;
+          animation: theme-change 400ms ease-in both;
+        }
+        html[data-theme-transition='to-dark']::view-transition-new(root) {
+          z-index: 1;
+        }
+        html[data-theme-transition='to-light']::view-transition-old(root) {
+          z-index: 1;
+        }
+        html[data-theme-transition='to-light']::view-transition-new(root) {
+          z-index: 2147483646;
+          animation: theme-change 400ms ease-in both;
+          animation-direction: reverse;
+        }
         @keyframes yolo-flow {
           0% { border-color: #22d3ee; }
           33% { border-color: #f472b6; }
