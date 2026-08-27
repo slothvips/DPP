@@ -24,6 +24,7 @@ test('startup deferred processing migrates deferred sync chunks into the chunk c
   assert.match(engineSource, /public async recoverLocalData/);
   assert.match(engineSource, /public async recoverAfterUpgrade/);
   assert.match(engineSource, /await this\.pull\(\)/);
+  assert.match(engineSource, /migrateTeamKey/);
   assert.match(engineSource, /Skipping local recovery while another sync is running/);
   assert.match(lifecycleSource, /syncEngine\s*\.\s*recoverAfterUpgrade\(\)/);
   assert.match(deferredSource, /isSyncChunkOperation/);

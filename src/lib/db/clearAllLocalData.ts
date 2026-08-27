@@ -1,5 +1,6 @@
 import Dexie from 'dexie';
 import { db } from '@/db';
+import { withSyncEngineLock } from '@/lib/sync/SyncEngine.runtime';
 import { logger } from '@/utils/logger';
 
 async function clearWebStorage(): Promise<void> {
@@ -78,9 +79,11 @@ async function clearCacheStorage(): Promise<void> {
  * 含验证器、个人私钥等一切本地数据，不可恢复。
  */
 export async function clearAllLocalData(): Promise<void> {
-  await clearIndexedDatabases();
-  await clearWebStorage();
-  await clearExtensionStorage();
-  await clearCacheStorage();
+  await withSyncEngineLock(async () => {
+    await clearIndexedDatabases();
+    await clearWebStorage();
+    await clearExtensionStorage();
+    await clearCacheStorage();
+  });
   logger.info('All local extension data cleared');
 }

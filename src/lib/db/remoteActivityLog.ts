@@ -1,12 +1,18 @@
 // Unified remote activity log database operations
+import type Dexie from 'dexie';
 import { db } from '@/db';
 import type { RemoteActivityLog } from '@/db/types';
 import type { SyncOperation } from '@/lib/sync/types';
 
+const MAX_REMOTE_ACTIVITY_LOGS = 10_000;
+
 /**
  * Add multiple remote operations to the activity log
  */
-export async function addRemoteActivities(operations: SyncOperation[]): Promise<void> {
+export async function addRemoteActivities(
+  operations: SyncOperation[],
+  database: Dexie = db
+): Promise<void> {
   if (operations.length === 0) return;
 
   const receivedAt = Date.now();
@@ -16,12 +22,20 @@ export async function addRemoteActivities(operations: SyncOperation[]): Promise<
     table: op.table,
     type: op.type,
     timestamp: op.timestamp,
-    payload: op.payload,
     receivedAt,
   }));
 
   // Activity archiving must be idempotent so repeated pulls do not wedge sync on duplicate IDs.
-  await db.remoteActivityLog.bulkPut(logs);
+  const table = database.table('remoteActivityLog');
+  await table.bulkPut(logs);
+  const count = await table.count();
+  if (count > MAX_REMOTE_ACTIVITY_LOGS) {
+    const staleIds = await table
+      .orderBy('receivedAt')
+      .limit(count - MAX_REMOTE_ACTIVITY_LOGS)
+      .primaryKeys();
+    await table.bulkDelete(staleIds);
+  }
 }
 
 /**

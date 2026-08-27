@@ -205,7 +205,7 @@ Google Sheets Worker：
 
 ```ts
 const MAX_SHEET_CELL_CHARS = 3000;
-const MAX_CHUNK_CIPHERTEXT_CHARS = 2400;
+const MAX_CHUNK_CIPHERTEXT_CHARS = 2000;
 const MAX_PUSH_REQUEST_BYTES = 64 * 1024;
 ```
 
@@ -213,7 +213,7 @@ const MAX_PUSH_REQUEST_BYTES = 64 * 1024;
 
 - 最终加密 payload 序列化长度 `<= 3000`：使用普通完整操作。
 - 最终加密 payload 序列化长度 `> 3000`：生成分片操作。
-- 每个分片 ciphertext 默认不超过 2400 字符。
+- 每个分片 ciphertext 默认不超过 2000 字符。
 - 分片最终写入前必须验证 `JSON.stringify(chunkPayload).length <= 3000`。
 - 如果分片元数据使结果超限，继续缩小当前分片。
 - 单次 HTTP JSON body 不超过 64 KiB。

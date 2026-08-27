@@ -17,10 +17,12 @@ export function validateSyncChunkOperation(operation: SyncChunkValidationOperati
   if (
     payload.kind !== 'chunk-v1' ||
     typeof payload.operationId !== 'string' ||
+    payload.operationId.length === 0 ||
+    payload.operationId.length > 256 ||
     typeof payload.chunkIndex !== 'number' ||
-    !Number.isInteger(payload.chunkIndex) ||
+    !Number.isSafeInteger(payload.chunkIndex) ||
     typeof payload.chunkTotal !== 'number' ||
-    !Number.isInteger(payload.chunkTotal) ||
+    !Number.isSafeInteger(payload.chunkTotal) ||
     typeof payload.iv !== 'string' ||
     typeof payload.ciphertext !== 'string' ||
     typeof payload.ciphertextHash !== 'string' ||
@@ -29,9 +31,19 @@ export function validateSyncChunkOperation(operation: SyncChunkValidationOperati
     return 'Invalid sync chunk payload';
   }
   if (
+    payload.clientId.length === 0 ||
+    payload.clientId.length > 256 ||
+    payload.iv.length > 3000 ||
+    payload.ciphertext.length > 3000 ||
+    payload.ciphertextHash.length > 3000
+  ) {
+    return 'Invalid sync chunk payload';
+  }
+  if (
     operation.type !== 'create' ||
     payload.operationId !== operation.key ||
     payload.chunkTotal < 1 ||
+    payload.chunkTotal > 10000 ||
     payload.chunkIndex < 0 ||
     payload.chunkIndex >= payload.chunkTotal ||
     operation.id !== `${payload.operationId}:chunk:${payload.chunkIndex}` ||
@@ -41,6 +53,7 @@ export function validateSyncChunkOperation(operation: SyncChunkValidationOperati
   ) {
     return 'Invalid sync chunk metadata';
   }
+  if (JSON.stringify(payload).length > 3000) return 'Sync chunk payload is too large';
   return null;
 }
 

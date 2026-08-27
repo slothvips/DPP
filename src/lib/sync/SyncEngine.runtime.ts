@@ -3,6 +3,8 @@ import { logger } from '@/utils/logger';
 import { generateUUID, sleep } from './SyncEngine.shared';
 import type { SyncStatus } from './types';
 
+export { withSyncEngineLock } from './SyncEngine.lock';
+
 export type SyncEventType = 'status-change' | 'sync-error' | 'sync-complete';
 export type SyncEventCallback = (data: unknown) => void;
 
@@ -102,25 +104,36 @@ export async function runWithSyncRetry<T>(options: {
   baseRetryDelay: number;
 }): Promise<T> {
   const { operation, operationName, maxRetries, baseRetryDelay } = options;
+  const attempts = Number.isFinite(maxRetries) ? Math.max(1, Math.floor(maxRetries)) : 1;
+  const retryDelay = Number.isFinite(baseRetryDelay) ? Math.max(0, baseRetryDelay) : 0;
   let lastError: Error | null = null;
 
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
     try {
       return await operation();
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      const delay = baseRetryDelay * 2 ** attempt;
+      if (!isRetryableSyncError(lastError)) {
+        throw lastError;
+      }
+      const delay = retryDelay * 2 ** attempt;
 
       logger.warn(
-        `[Sync] ${operationName} failed (attempt ${attempt + 1}/${maxRetries}), retrying in ${delay}ms:`,
+        `[Sync] ${operationName} failed (attempt ${attempt + 1}/${attempts}), retrying in ${delay}ms:`,
         lastError.message
       );
 
-      if (attempt < maxRetries - 1) {
+      if (attempt < attempts - 1) {
         await sleep(delay);
       }
     }
   }
 
   throw lastError;
+}
+
+function isRetryableSyncError(error: Error): boolean {
+  return !/(401|403|404|409|unauthorized|not configured|invalid|no encryption key|did not confirm|exceeds the sync payload limit)/i.test(
+    error.message
+  );
 }

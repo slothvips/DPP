@@ -145,10 +145,6 @@ function validateDefinition(definition: TestCaseDefinition): TestCaseDefinition 
     '整体预期结果',
     MAX_FIELD_LENGTH
   );
-  const executionMode = definition.executionMode ?? 'serial';
-  if (executionMode !== 'serial') {
-    throw new Error('当前仅支持串行执行');
-  }
 
   return {
     goal,
@@ -156,7 +152,6 @@ function validateDefinition(definition: TestCaseDefinition): TestCaseDefinition 
     preconditions,
     testData,
     steps,
-    executionMode: 'serial',
     ...(overallExpectedResult ? { overallExpectedResult } : {}),
   };
 }

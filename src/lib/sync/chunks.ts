@@ -3,7 +3,8 @@ import type { SyncOperation } from './types';
 
 export const SYNC_CHUNK_TABLE = '__sync_chunk__';
 export const MAX_SHEET_CELL_CHARS = 3000;
-export const MAX_CHUNK_CIPHERTEXT_CHARS = 2400;
+export const MAX_CHUNK_CIPHERTEXT_CHARS = 2000;
+export const MAX_CHUNK_TOTAL = 10_000;
 export const MAX_PUSH_REQUEST_BYTES = 64 * 1024;
 export const DEFAULT_CHUNK_UPLOAD_ENABLED = true;
 
@@ -39,8 +40,8 @@ export function parseSyncChunkPayload(value: unknown): SyncChunkPayload | null {
   if (
     value.kind !== 'chunk-v1' ||
     typeof value.operationId !== 'string' ||
-    !Number.isInteger(value.chunkIndex) ||
-    !Number.isInteger(value.chunkTotal) ||
+    !Number.isSafeInteger(value.chunkIndex) ||
+    !Number.isSafeInteger(value.chunkTotal) ||
     typeof value.iv !== 'string' ||
     typeof value.ciphertext !== 'string' ||
     typeof value.ciphertextHash !== 'string' ||
@@ -54,10 +55,20 @@ export function parseSyncChunkPayload(value: unknown): SyncChunkPayload | null {
 
   if (
     chunkTotal < 1 ||
+    chunkTotal > MAX_CHUNK_TOTAL ||
     chunkIndex < 0 ||
     chunkIndex >= chunkTotal ||
     value.operationId.length === 0 ||
     value.clientId.length === 0
+  ) {
+    return null;
+  }
+  if (
+    value.operationId.length > 256 ||
+    value.clientId.length > 256 ||
+    value.iv.length > MAX_SHEET_CELL_CHARS ||
+    value.ciphertext.length > MAX_SHEET_CELL_CHARS ||
+    value.ciphertextHash.length > MAX_SHEET_CELL_CHARS
   ) {
     return null;
   }
@@ -150,6 +161,13 @@ export function toSyncChunkRecord(
 ): SyncChunkRecord | null {
   const payload = parseSyncChunkPayload(operation.payload);
   if (!payload) return null;
+  if (
+    operation.id !== `${payload.operationId}:chunk:${payload.chunkIndex}` ||
+    operation.key !== payload.operationId ||
+    (operation.clientId !== undefined && operation.clientId !== payload.clientId)
+  ) {
+    return null;
+  }
   return {
     id: operation.id,
     keyHash: operation.keyHash,

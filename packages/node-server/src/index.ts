@@ -104,8 +104,9 @@ app.get('/api/sync/pull', (c) => {
 
     return c.json({ ops, cursor: nextCursor });
   } catch (e) {
-    const error = e as Error;
-    return c.json({ error: error.message, stack: error.stack }, 500);
+    const error = e instanceof Error ? e : new Error(String(e));
+    const status = /Invalid (cursor|limit)/.test(error.message) ? 400 : 500;
+    return c.json({ error: error.message }, status);
   }
 });
 
@@ -119,8 +120,9 @@ app.get('/api/sync/pending', (c) => {
 
     return c.json({ count });
   } catch (e) {
-    const error = e as Error;
-    return c.json({ error: error.message, stack: error.stack }, 500);
+    const error = e instanceof Error ? e : new Error(String(e));
+    const status = /Invalid cursor/.test(error.message) ? 400 : 500;
+    return c.json({ error: error.message }, status);
   }
 });
 

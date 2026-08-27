@@ -1,6 +1,6 @@
 import type { EncryptedData } from '@/lib/crypto/encryption';
 
-export type MaterialType = 'testCase';
+export type MaterialType = 'prompt' | 'workflow' | 'testCase';
 
 export interface TestCaseTarget {
   id: string;
@@ -30,7 +30,6 @@ export interface TestCaseDefinition {
   testData: TestCaseTestData[];
   steps: TestCaseStep[];
   overallExpectedResult?: string;
-  executionMode?: 'serial' | 'parallel';
 }
 
 export interface TestCaseMaterialContent {

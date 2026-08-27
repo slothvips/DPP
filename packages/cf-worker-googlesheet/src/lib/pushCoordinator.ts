@@ -57,6 +57,21 @@ export class SyncPushCoordinator extends DurableObject<SyncCoordinatorEnv> {
         original.clientId && original.clientId !== effectiveClientId
       );
       const op = normalizeClientIdentity(original, effectiveClientId);
+      if (op.table !== 'encrypted' && op.table !== '__sync_chunk__') {
+        throw new Error(`${op.id}: Unencrypted sync operation rejected`);
+      }
+      if (
+        op.table === 'encrypted' &&
+        (op.type !== 'create' ||
+          typeof op.payload !== 'object' ||
+          op.payload === null ||
+          typeof (op.payload as { iv?: unknown }).iv !== 'string' ||
+          typeof (op.payload as { ciphertext?: unknown }).ciphertext !== 'string' ||
+          (op.payload as { iv: string }).iv.length > 3000 ||
+          (op.payload as { ciphertext: string }).ciphertext.length > 3000)
+      ) {
+        throw new Error(`${op.id}: Invalid encrypted operation`);
+      }
       const chunkError = validateSyncChunkOperation(op);
       if (chunkError) {
         throw new Error(`${op.id}: ${chunkError}`);

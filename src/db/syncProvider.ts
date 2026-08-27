@@ -15,7 +15,7 @@ import type { DPPDatabase } from './types';
 
 async function getSyncServerUrl(db: DPPDatabase): Promise<{ apiUrl: string; endpoint: string }> {
   const setting = await db.settings.get('custom_server_url');
-  const rawUrl = (setting?.value as string)?.trim();
+  const rawUrl = typeof setting?.value === 'string' ? setting.value.trim() : '';
   if (!rawUrl) throw new Error('Sync server URL not configured');
 
   let url: URL;
@@ -36,7 +36,40 @@ async function getSyncServerUrl(db: DPPDatabase): Promise<{ apiUrl: string; endp
 
 async function getSyncAccessToken(db: DPPDatabase): Promise<string> {
   const tokenSetting = await db.settings.get('sync_access_token');
-  return (tokenSetting?.value as string) || '';
+  return typeof tokenSetting?.value === 'string' ? tokenSetting.value : '';
+}
+
+function isSyncOperation(value: unknown): value is SyncOperation {
+  if (typeof value !== 'object' || value === null) return false;
+  const operation = value as Record<string, unknown>;
+  return (
+    typeof operation.id === 'string' &&
+    operation.id.length > 0 &&
+    typeof operation.table === 'string' &&
+    operation.table.length > 0 &&
+    (operation.type === 'create' || operation.type === 'update' || operation.type === 'delete') &&
+    typeof operation.timestamp === 'number' &&
+    Number.isFinite(operation.timestamp)
+  );
+}
+
+function parsePullResponse(value: unknown): { ops: SyncOperation[]; cursor: number | string } {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('Pull response is not an object');
+  }
+  const data = value as { ops?: unknown; cursor?: unknown };
+  if (!Array.isArray(data.ops) || !data.ops.every(isSyncOperation)) {
+    throw new Error('Pull response contains invalid operations');
+  }
+  if (
+    !(
+      (typeof data.cursor === 'number' && Number.isSafeInteger(data.cursor) && data.cursor >= 0) ||
+      (typeof data.cursor === 'string' && data.cursor.length > 0)
+    )
+  ) {
+    throw new Error('Pull response contains an invalid cursor');
+  }
+  return { ops: data.ops, cursor: data.cursor };
 }
 
 export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
@@ -84,8 +117,15 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
           ? chunkUploadSetting.value
           : DEFAULT_CHUNK_UPLOAD_ENABLED;
       for (const { op, key } of encryptable) {
-        const encrypted = await encryptOperation(op, key);
-        if (!op.encryptedPayload && encrypted.payload) {
+        const expectedKeyHash = isPersonalSyncScope(resolveKeyForOperation(op, keyring).scope)
+          ? keyring.personalHash
+          : keyring.teamHash;
+        const operationForEncryption =
+          op.encryptedPayload && op.keyHash !== expectedKeyHash
+            ? { ...op, encryptedPayload: undefined, keyHash: undefined }
+            : op;
+        const encrypted = await encryptOperation(operationForEncryption, key);
+        if ((!op.encryptedPayload || op.keyHash !== encrypted.keyHash) && encrypted.payload) {
           op.encryptedPayload = encrypted.payload as EncryptedData;
           op.keyHash = encrypted.keyHash;
           await db.operations.update(op.id, {
@@ -180,7 +220,7 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
       if (!res.ok) {
         throw new Error(`Pull failed: ${res.status} ${res.statusText}`);
       }
-      const data = (await res.json()) as { ops: SyncOperation[]; cursor: number };
+      const data = parsePullResponse(await res.json());
       return { ops: data.ops, nextCursor: data.cursor };
     },
     getPendingCount: async (cursor, clientId) => {

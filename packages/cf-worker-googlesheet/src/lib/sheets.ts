@@ -121,7 +121,7 @@ export class SheetsClient {
 
     for (const row of rawRows) {
       if (typeof row.payload === 'string' && row.payload.length > MAX_SHEET_CELL_CHARS) {
-        throw new Error(`Sync chunk ${row.id} exceeds the maximum payload size`);
+        throw new Error(`Operation ${row.id} exceeds the maximum payload size`);
       }
     }
 

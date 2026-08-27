@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { JenkinsEnvironment } from '@/db';
+import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 
 interface JenkinsToolbarProps {
   currentEnvId?: string;
@@ -52,24 +53,29 @@ export function JenkinsToolbar({
           </Select>
         )}
 
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="搜索 Job..."
-            value={filter}
-            onChange={(e) => onFilterChange(e.target.value)}
-            className="h-9 rounded-xl border-border/60 bg-background/88 pl-9"
-          />
-        </div>
-        <Button
-          onClick={onSync}
-          disabled={loading}
-          size="sm"
-          className="h-9 shrink-0 gap-1.5 rounded-xl bg-success px-3 text-xs text-success-foreground shadow-sm"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? '采集中' : '采集'}
-        </Button>
+        {environments.length > 0 && (
+          <>
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索 Job..."
+                value={filter}
+                onChange={(e) => onFilterChange(e.target.value)}
+                className="h-9 rounded-xl border-border/60 bg-background/88 pl-9"
+              />
+            </div>
+            <Button
+              onClick={onSync}
+              disabled={loading}
+              size="sm"
+              className="h-9 shrink-0 gap-1.5 rounded-xl bg-success px-3 text-xs text-success-foreground shadow-sm"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              {loading ? '采集中' : '采集'}
+            </Button>
+          </>
+        )}
+        <JenkinsEnvManager />
       </div>
     </div>
   );

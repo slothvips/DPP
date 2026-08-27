@@ -21,7 +21,7 @@ export function buildTestCaseExecutionPrompt(title: string, id: string): string 
 执行要求：
 1. 先调用 test_case_get 读取该测试用例的完整结构和目标 URL 顺序。
 2. 调用 test_run_start 创建一次新的测试执行记录，并保存返回的 run_id。
-3. 严格按照步骤 order 串行执行；每次只处理一个步骤和一个网页子 Agent。
+3. 严格按照步骤 order 逐个执行；每次只处理一个步骤和一个网页子 Agent。
 4. 每个 delegate_browser_agent 只处理当前步骤，必须提供对应目标网页 ID、test_target_id、initial_url=该目标 URL 和 open_new_tab=true，为每个目标网页使用独立任务标签页；共享账号、订单或其他外部状态时必须额外提供 resource_keys。
 5. 开始每个步骤前调用 test_run_update_step 设置 current_step_id；一次只提交一个步骤。
 6. 每个网页子 Agent 只执行一个测试步骤，返回 JSON：{"status":"passed | failed | blocked","actualResult":"实际观察结果","detail":"补充说明"}。
@@ -51,7 +51,7 @@ export function buildPromptTestCasesSection(): string {
 - 用户要求修改已有测试用例时，先调用 test_case_list 或 test_case_get 找到目标并读取当前版本，再调用 test_case_update 提交完整定义；不能静默新建一条替代旧用例。
 - test_case_update 只在用户明确要求更新时调用，工具失败时不能声称更新成功。
 
-当用户要求执行测试用例时，按步骤 order 串行执行，每次只委派一个网页步骤并单独保存结果。failed 结果允许继续后续步骤，blocked 或 stopped 后停止；delegate_browser_agent 的 success 不等于测试通过，必须根据受限 JSON 中的实际预期判断步骤状态。
+当用户要求执行测试用例时，按步骤 order 逐个执行，每次只委派一个网页步骤并单独保存结果。failed 结果允许继续后续步骤，blocked 或 stopped 后停止；delegate_browser_agent 的 success 不等于测试通过，必须根据受限 JSON 中的实际预期判断步骤状态。
 
 查询已有测试用例时，先使用 test_case_list 按标题查找，再使用 test_case_get 读取完整定义。不要把测试数据明文放入无关工具调用。`;
 }

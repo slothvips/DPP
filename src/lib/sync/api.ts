@@ -10,8 +10,7 @@ export async function syncDatabase() {
     return 0;
   }
 
-  await syncEngine.push();
-  await syncEngine.pull();
+  await syncEngine.sync();
 
   return 1;
 }

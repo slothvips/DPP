@@ -4,6 +4,7 @@ import { logger } from '@/utils/logger';
 
 let lastPushTriggerTime = 0;
 let lastPullTriggerTime = 0;
+let globalStatusLockRunning = false;
 
 export async function isAutoSyncEnabled(): Promise<boolean> {
   const enabledSetting = await getSetting('auto_sync_enabled');
@@ -53,6 +54,24 @@ export async function setupAutoSync() {
 }
 
 export async function withGlobalSyncStatus<T>(operation: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return await navigator.locks.request('dpp-global-sync', { ifAvailable: true }, async (lock) => {
+      if (!lock) throw new Error('Global sync is already in progress');
+      return await runGlobalSyncStatus(operation);
+    });
+  }
+  if (globalStatusLockRunning) {
+    throw new Error('Global sync is already in progress');
+  }
+  globalStatusLockRunning = true;
+  try {
+    return await runGlobalSyncStatus(operation);
+  } finally {
+    globalStatusLockRunning = false;
+  }
+}
+
+async function runGlobalSyncStatus<T>(operation: () => Promise<T>): Promise<T> {
   try {
     await updateSetting('global_sync_status', 'syncing');
     const result = await operation();

@@ -57,6 +57,7 @@ export async function ensurePersonalSyncBootstrapped(
     }
   } catch (error) {
     logger.warn('[Sync] Personal sync bootstrap failed', error);
+    throw error;
   }
 }
 

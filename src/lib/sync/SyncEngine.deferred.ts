@@ -110,8 +110,8 @@ export async function processDeferredOperationsForKnownTables({
   }
 }
 
-export async function archiveRemoteActivities(ops: SyncOperation[]) {
+export async function archiveRemoteActivities(db: Dexie, ops: SyncOperation[]) {
   if (ops.length > 0) {
-    await addRemoteActivities(ops);
+    await addRemoteActivities(ops, db);
   }
 }

@@ -23,6 +23,7 @@ import { useToast } from '@/components/ui/toast';
 import type {
   DecryptedTestCaseMaterial,
   DecryptedTestRun,
+  MaterialType,
   TestCaseMaterialInput,
   TestCaseStep,
   TestCaseTarget,
@@ -45,6 +46,15 @@ const EMPTY_STATE_COPY = {
   description: '点击“导入测试用例”，让 D 仔从自然语言整理并保存。',
 };
 
+type MaterialFilter = 'all' | MaterialType;
+
+const MATERIAL_FILTERS: Array<{ value: MaterialFilter; label: string }> = [
+  { value: 'all', label: '全部' },
+  { value: 'prompt', label: '提示词' },
+  { value: 'workflow', label: '工作流' },
+  { value: 'testCase', label: '测试用例' },
+];
+
 interface AIMaterialLibraryViewProps {
   onImportTestCase: () => Promise<void>;
   onExecuteTestCase: (material: { id: string; title: string }) => Promise<void>;
@@ -55,6 +65,7 @@ export function AIMaterialLibraryView({
   onExecuteTestCase,
 }: AIMaterialLibraryViewProps) {
   const [search, setSearch] = useState('');
+  const [selectedType, setSelectedType] = useState<MaterialFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [decryptedMaterials, setDecryptedMaterials] = useState<DecryptedTestCaseMaterial[]>([]);
   const [decryptError, setDecryptError] = useState<string | null>(null);
@@ -120,18 +131,27 @@ export function AIMaterialLibraryView({
     };
   }, [materialRecords]);
 
+  const handleTypeChange = (type: MaterialFilter) => {
+    setSelectedType(type);
+    setSelectedId(null);
+  };
+
   const filteredMaterials = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return decryptedMaterials.filter((material) => {
+      if (selectedType !== 'all' && material.type !== selectedType) return false;
       if (!keyword) return true;
       const searchable = JSON.stringify(material.content).toLowerCase();
       return material.title.toLowerCase().includes(keyword) || searchable.includes(keyword);
     });
-  }, [decryptedMaterials, search]);
+  }, [decryptedMaterials, search, selectedType]);
 
   const selectedMaterial = selectedId
     ? decryptedMaterials.find((material) => material.id === selectedId)
     : undefined;
+  const canImportTestCase = selectedType === 'all' || selectedType === 'testCase';
+  const selectedFilterLabel =
+    MATERIAL_FILTERS.find((filter) => filter.value === selectedType)?.label ?? '物料';
   const selectedMaterialRunsQuery = useLiveQuery(
     () => (selectedId ? listTestRuns(selectedId) : Promise.resolve([] as DecryptedTestRun[])),
     [selectedId]
@@ -150,14 +170,16 @@ export function AIMaterialLibraryView({
               <p className="truncate text-xs text-muted-foreground">D 仔的测试用例资产</p>
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() => void onImportTestCase()}
-            className="h-8 shrink-0 gap-1.5 rounded-lg px-2.5 text-xs"
-          >
-            <ClipboardCheck className="h-3.5 w-3.5" />
-            导入测试用例
-          </Button>
+          {canImportTestCase && (
+            <Button
+              size="sm"
+              onClick={() => void onImportTestCase()}
+              className="h-8 shrink-0 gap-1.5 rounded-lg px-2.5 text-xs"
+            >
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              导入测试用例
+            </Button>
+          )}
         </div>
 
         <div className="relative">
@@ -169,6 +191,25 @@ export function AIMaterialLibraryView({
             aria-label="搜索物料"
             className="h-9 rounded-xl border-border/60 bg-muted/20 pl-9 text-xs"
           />
+        </div>
+
+        <div
+          className="flex items-center gap-1 overflow-x-auto rounded-xl border border-border/60 bg-muted/20 p-0.5"
+          role="tablist"
+          aria-label="物料分类"
+        >
+          {MATERIAL_FILTERS.map((filter) => (
+            <button
+              key={filter.value}
+              type="button"
+              role="tab"
+              aria-selected={selectedType === filter.value}
+              onClick={() => handleTypeChange(filter.value)}
+              className={`shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedType === filter.value ? 'bg-accent text-accent-foreground shadow-sm' : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'}`}
+            >
+              {filter.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -210,11 +251,17 @@ export function AIMaterialLibraryView({
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-primary/25 bg-primary/5 text-primary">
               <Library className="h-7 w-7" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">{emptyState.title}</h3>
+            <h3 className="text-sm font-semibold text-foreground">
+              {selectedType === 'all' ? emptyState.title : `${selectedFilterLabel}暂无物料`}
+            </h3>
             <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              {search.trim() ? '没有匹配的测试用例。' : emptyState.description}
+              {search.trim()
+                ? `没有匹配的${selectedFilterLabel}。`
+                : selectedType === 'all'
+                  ? emptyState.description
+                  : `当前还没有${selectedFilterLabel}物料。`}
             </p>
-            {!search.trim() && (
+            {!search.trim() && canImportTestCase && (
               <Button
                 variant="outline"
                 size="sm"
@@ -426,7 +473,6 @@ function TestCaseEditor({
     sourceText: material.content.sourceText,
     definition: {
       ...material.content.definition,
-      executionMode: material.content.definition.executionMode ?? 'serial',
       targets: material.content.definition.targets.map((target, index) => ({
         ...target,
         order: index + 1,
@@ -521,11 +567,6 @@ function TestCaseEditor({
             value={definition.goal}
             onChange={(event) => updateDefinition({ goal: event.target.value })}
           />
-        </EditorField>
-        <EditorField label="执行模式">
-          <div className="flex h-9 items-center rounded-xl border border-input bg-muted px-3 text-sm text-muted-foreground">
-            串行执行
-          </div>
         </EditorField>
 
         <EditorField label="目标网页">

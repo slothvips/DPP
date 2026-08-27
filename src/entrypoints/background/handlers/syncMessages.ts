@@ -80,7 +80,7 @@ export async function handleGlobalSyncPush() {
     return { success: true };
   } catch (error) {
     logger.error('Global sync push failed:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -90,6 +90,6 @@ export async function handleGlobalSyncPull() {
     return { success: true };
   } catch (error) {
     logger.error('Global sync pull failed:', error);
-    return { success: false, error: String(error) };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 }

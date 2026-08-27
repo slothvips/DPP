@@ -50,9 +50,9 @@ test('PageAgent task prompt delegates only the child task', () => {
   assert.match(prompt, /停止并向用户报告阻塞原因/);
 });
 
-test('test case execution prompt matches the serial run lifecycle', () => {
+test('test case execution prompt matches the ordered run lifecycle', () => {
   const prompt = buildTestCaseExecutionPrompt('登录流程', 'case-1');
-  assert.match(prompt, /严格按照步骤 order 串行执行/);
+  assert.match(prompt, /严格按照步骤 order 逐个执行/);
   assert.match(prompt, /initial_url=该目标 URL/);
   assert.match(prompt, /open_new_tab=true/);
   assert.match(prompt, /保存 passed、failed、blocked 或 stopped/);

@@ -79,6 +79,9 @@ async function decryptAndValidate(
   operation: SyncOperation,
   keyring: Awaited<ReturnType<typeof loadSyncKeyring>>
 ): Promise<SyncOperation> {
+  if (operation.table !== 'encrypted') {
+    throw new Error(`[Sync] Refusing unencrypted remote operation ${operation.id}`);
+  }
   const keyRole = resolveKeyRoleForKeyHash(operation.keyHash, keyring);
   const key = resolveKeyForKeyHash(operation.keyHash, keyring);
   if (!key || !keyRole) {
@@ -89,6 +92,7 @@ async function decryptAndValidate(
 
   try {
     const decrypted = await decryptOperation(operation, key);
+    validateDecryptedOperation(decrypted);
     const scope = resolveDataScope(decrypted);
     if (!doesKeyRoleMatchScope(keyRole, scope)) {
       throw new Error(
@@ -174,9 +178,48 @@ async function processPendingDecryptionOperations(
 
 function getSyncMetadata(value: unknown): SyncMetadata {
   if (typeof value === 'object' && value !== null) {
-    return value as SyncMetadata;
+    const candidate = value as Partial<SyncMetadata>;
+    const cursor = candidate.lastServerCursor;
+    if (
+      cursor === undefined ||
+      (typeof cursor === 'number' && Number.isSafeInteger(cursor) && cursor >= 0) ||
+      (typeof cursor === 'string' && cursor.length > 0)
+    ) {
+      return value as SyncMetadata;
+    }
   }
   return { id: 'global', lastSyncTimestamp: 0 };
+}
+
+function validateCursorTransition(
+  cursor: string | number | undefined,
+  nextCursor: string | number
+): void {
+  if (
+    (typeof nextCursor === 'number' && (!Number.isSafeInteger(nextCursor) || nextCursor < 0)) ||
+    (typeof nextCursor !== 'number' && typeof nextCursor !== 'string') ||
+    (typeof nextCursor === 'string' && nextCursor.length === 0) ||
+    (typeof cursor === 'number' && typeof nextCursor === 'number' && nextCursor < cursor)
+  ) {
+    throw new Error(
+      `[Sync] Invalid pull cursor transition: ${String(cursor)} -> ${String(nextCursor)}`
+    );
+  }
+}
+
+function validateDecryptedOperation(operation: SyncOperation): void {
+  if (
+    operation.table === 'encrypted' ||
+    typeof operation.table !== 'string' ||
+    (operation.type !== 'create' && operation.type !== 'update' && operation.type !== 'delete') ||
+    !Number.isFinite(operation.timestamp) ||
+    operation.key === undefined ||
+    typeof operation.payload !== 'object' ||
+    operation.payload === null ||
+    Array.isArray(operation.payload)
+  ) {
+    throw new Error(`[Sync] Invalid decrypted operation ${operation.id}`);
+  }
 }
 
 async function processStoredChunks(
@@ -226,38 +269,76 @@ async function flushApplyQueue(
     .toArray()) as SyncApplyQueueRecord[];
   if (queued.length === 0) return 0;
 
-  await db.transaction(
-    'rw',
-    [
-      ...tables.map((table) => db.table(table)),
-      db.table('settings'),
-      db.table('deferred_ops'),
-      db.table('syncApplyQueue'),
-      db.table('remoteActivityLog'),
-    ],
-    async (transaction) => {
-      (transaction as SyncTransaction).source = 'sync';
-      for (const entry of queued) {
-        await applyOperation(entry.operation);
-      }
-      await archiveRemoteActivities(queued.map((entry) => entry.operation));
-      const queuedIds = new Set(queued.map((entry) => entry.operation.id));
-      const pendingEntries = (await db
-        .table('deferred_ops')
-        .where('table')
-        .equals(PENDING_DECRYPT_TABLE)
-        .toArray()) as DeferredOp[];
-      await db.table('deferred_ops').bulkDelete(
-        pendingEntries
-          .filter((entry) => queuedIds.has(entry.op.id))
-          .map((entry) => entry.id)
-          .filter((id): id is number => id !== undefined)
+  let appliedCount = 0;
+  for (const entry of queued) {
+    try {
+      await db.transaction(
+        'rw',
+        [
+          ...tables.map((table) => db.table(table)),
+          db.table('settings'),
+          db.table('deferred_ops'),
+          db.table('syncApplyQueue'),
+          db.table('remoteActivityLog'),
+        ],
+        async (transaction) => {
+          (transaction as SyncTransaction).source = 'sync';
+          await applyOperation(entry.operation);
+          await archiveRemoteActivities(db, [entry.operation]);
+          const pendingEntries = (await db
+            .table('deferred_ops')
+            .where('table')
+            .equals(PENDING_DECRYPT_TABLE)
+            .toArray()) as DeferredOp[];
+          await db.table('deferred_ops').bulkDelete(
+            pendingEntries
+              .filter((pending) => pending.op.id === entry.operation.id)
+              .map((pending) => pending.id)
+              .filter((id): id is number => id !== undefined)
+          );
+          await db.table('syncApplyQueue').delete(entry.id);
+        }
       );
-      await db.table('syncApplyQueue').bulkDelete(queued.map((entry) => entry.id));
+      appliedCount++;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error(`[Sync] Quarantining failed operation ${entry.operation.id}:`, error);
+      try {
+        await db.transaction(
+          'rw',
+          [db.table('deferred_ops'), db.table('syncApplyQueue')],
+          async () => {
+            await db.table('deferred_ops').add({
+              table: '__sync_quarantine__',
+              op: entry.operation,
+              timestamp: entry.operation.timestamp,
+              receivedAt: Date.now(),
+              error: errorMessage,
+            });
+            const pendingEntries = (await db
+              .table('deferred_ops')
+              .where('table')
+              .equals(PENDING_DECRYPT_TABLE)
+              .toArray()) as DeferredOp[];
+            await db.table('deferred_ops').bulkDelete(
+              pendingEntries
+                .filter((pending) => pending.op.id === entry.operation.id)
+                .map((pending) => pending.id)
+                .filter((id): id is number => id !== undefined)
+            );
+            await db.table('syncApplyQueue').delete(entry.id);
+          }
+        );
+      } catch (quarantineError) {
+        logger.error(
+          `[Sync] Failed to quarantine operation ${entry.operation.id}; keeping it queued:`,
+          quarantineError
+        );
+      }
     }
-  );
+  }
 
-  return queued.length;
+  return appliedCount;
 }
 
 export async function recoverLocalSyncData({
@@ -296,6 +377,7 @@ async function recoverHistoricalChunks({
       () => provider.pull(cursor),
       'Chunk history recovery'
     );
+    validateCursorTransition(cursor, nextCursor);
     const incoming = ops
       .filter((operation) => isSyncChunkOperation(operation))
       .map((operation) => toSyncChunkRecord(operation))
@@ -409,15 +491,7 @@ export async function runPullFlow({
     const state = getSyncMetadata(await db.table('syncMetadata').get('global'));
     const cursor = state.lastServerCursor;
     const { ops, nextCursor } = await withRetry(() => provider.pull(cursor, clientId), 'Pull');
-    if (
-      (typeof nextCursor !== 'number' && typeof nextCursor !== 'string') ||
-      (typeof nextCursor === 'number' && !Number.isFinite(nextCursor)) ||
-      (typeof cursor === 'number' && typeof nextCursor === 'number' && nextCursor < cursor)
-    ) {
-      throw new Error(
-        `[Sync] Invalid pull cursor transition: ${String(cursor)} -> ${String(nextCursor)}`
-      );
-    }
+    validateCursorTransition(cursor, nextCursor);
     if (ops.length === 0) {
       await db.table('syncMetadata').put({
         ...state,
@@ -487,7 +561,7 @@ export async function runPullFlow({
             .table('operations')
             .where('id')
             .anyOf(Array.from(new Set(acknowledgedLocalIds)))
-            .modify({ synced: 1, encryptedPayload: undefined });
+            .modify({ synced: 1, encryptedPayload: undefined, payload: undefined });
         }
         for (const record of incomingChunks) {
           if (!existingIds.has(record.id)) {

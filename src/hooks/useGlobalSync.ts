@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { db, syncEngine } from '@/db';
-import { getSetting, updateSetting } from '@/lib/db/settings';
+import { getSetting } from '@/lib/db/settings';
 import type { SyncPendingCounts } from '@/lib/sync/types';
 import { logger } from '@/utils/logger';
 
@@ -66,25 +66,6 @@ export function useGlobalSync(): GlobalSyncState {
     }
   }, []);
 
-  // Safety check: if stuck in 'syncing' for > 5 minutes, force reset
-  useEffect(() => {
-    if (!isSyncing) return;
-
-    const checkStuck = async () => {
-      const startTime = (await getSetting('global_sync_start_time')) || 0;
-      if (startTime > 0 && Date.now() - startTime > 5 * 60 * 1000) {
-        logger.warn('[useGlobalSync] Sync appears stuck (timeout). Resetting to error.');
-        await updateSetting('global_sync_status', 'error');
-        await updateSetting('global_sync_error', 'Sync timeout (client-side safety reset)');
-      }
-    };
-
-    const timer = setInterval(checkStuck, 10000);
-    checkStuck();
-
-    return () => clearInterval(timer);
-  }, [isSyncing]);
-
   useEffect(() => {
     setPendingCounts((prev) => ({ ...prev, push: localPushCount }));
   }, [localPushCount]);
@@ -105,8 +86,6 @@ export function useGlobalSync(): GlobalSyncState {
     if (isSyncing) return;
 
     try {
-      await sendSyncMessage('GLOBAL_SYNC_PUSH');
-      await sendSyncMessage('GLOBAL_SYNC_PULL');
       await sendSyncMessage('GLOBAL_SYNC_START');
       await refreshCounts();
     } catch (e) {

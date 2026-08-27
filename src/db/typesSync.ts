@@ -7,6 +7,7 @@ export interface DeferredOp {
   op: SyncOperation;
   timestamp: number;
   receivedAt: number;
+  error?: string;
 }
 
 export interface SyncRecoveryOp {

@@ -1,6 +1,5 @@
 import { Copy, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -25,7 +24,6 @@ interface AIConfigFormFieldsProps {
   model: string;
   apiKey: string;
   contextWindow?: number;
-  visionEnabled: boolean;
   profileName: string;
   profiles: Array<{ id: string; name: string; provider: AIProviderType }>;
   selectedProfileId: string | null;
@@ -34,7 +32,6 @@ interface AIConfigFormFieldsProps {
   onModelChange: (value: string) => void;
   onApiKeyChange: (value: string) => void;
   onContextWindowChange: (value: number | undefined) => void;
-  onVisionEnabledChange: (value: boolean) => void;
   onProfileNameChange: (value: string) => void;
   onProfileChange: (value: string) => void;
   onDuplicateProfile: () => void;
@@ -51,7 +48,6 @@ export function AIConfigFormFields({
   model,
   apiKey,
   contextWindow,
-  visionEnabled,
   profileName,
   profiles,
   selectedProfileId,
@@ -60,7 +56,6 @@ export function AIConfigFormFields({
   onModelChange,
   onApiKeyChange,
   onContextWindowChange,
-  onVisionEnabledChange,
   onProfileNameChange,
   onProfileChange,
   onDuplicateProfile,
@@ -91,18 +86,6 @@ export function AIConfigFormFields({
             ))}
           </SelectContent>
         </Select>
-      </div>
-
-      <div className="flex items-start gap-2">
-        <Checkbox
-          id="ai-vision-enabled"
-          checked={visionEnabled}
-          onCheckedChange={(checked) => onVisionEnabledChange(checked === true)}
-        />
-        <div className="grid gap-0.5">
-          <Label htmlFor="ai-vision-enabled">当前模型支持图片输入</Label>
-          <p className="text-xs text-muted-foreground">仅供网页任务在 DOM 信息不足时发送截图</p>
-        </div>
       </div>
 
       {provider !== 'opencode' && (
@@ -234,21 +217,27 @@ export function AIConfigFormFields({
 
       <div className="grid gap-2">
         <Label htmlFor="ai-context-window">上下文窗口（可选）</Label>
-        <Input
-          id="ai-context-window"
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          value={contextWindow ?? ''}
-          onChange={(event) => {
-            const value = event.target.value;
-            const parsed = Number(value);
-            onContextWindowChange(
-              value && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
-            );
-          }}
-          placeholder="留空时自动探测"
-        />
+        <div className="relative">
+          <Input
+            id="ai-context-window"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={contextWindow ?? ''}
+            onChange={(event) => {
+              const value = event.target.value;
+              const parsed = Number(value);
+              onContextWindowChange(
+                value && Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+              );
+            }}
+            placeholder="留空时自动探测"
+            className="pr-16"
+          />
+          <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+            tokens
+          </span>
+        </div>
       </div>
     </>
   );

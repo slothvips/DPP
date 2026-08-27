@@ -94,7 +94,7 @@ export function JenkinsEnvDialog(props: JenkinsEnvDialogProps) {
 
           <div className="bg-muted/50 p-3 rounded-md flex items-start gap-2 text-xs text-muted-foreground">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-            <p>如果您已在其他标签页登录 Jenkins，可以使用自动填充功能快速配置。</p>
+            <p>如果您曾在 Web 中登录过 Jenkins，可以使用自动填充功能快速配置。</p>
           </div>
         </div>
 

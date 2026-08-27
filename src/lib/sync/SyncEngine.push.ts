@@ -51,6 +51,7 @@ export async function runPushFlow({
           ...operation,
           synced: 1,
           encryptedPayload: undefined,
+          payload: undefined,
         }))
       );
       totalPushed += pushedOps.length;

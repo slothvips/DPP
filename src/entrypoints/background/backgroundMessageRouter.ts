@@ -79,6 +79,9 @@ const messageHandlers: Array<{
 ];
 
 export function routeBackgroundMessage(message: RuntimeMessage, sender?: unknown): unknown {
+  if (!message || typeof message.type !== 'string') {
+    return false;
+  }
   const messageType = message.type;
 
   for (const { match, handler } of messageHandlers) {

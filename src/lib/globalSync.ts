@@ -6,7 +6,25 @@ import { getSetting, updateSetting } from '@/lib/db/settings';
 import { syncDatabase } from '@/lib/sync/api';
 import { logger } from '@/utils/logger';
 
+let globalSyncRunning = false;
+
 export async function performGlobalSync() {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return await navigator.locks.request('dpp-global-sync', { ifAvailable: true }, async (lock) => {
+      if (!lock) throw new Error('Global sync is already in progress');
+      return await performGlobalSyncUnlocked();
+    });
+  }
+  if (globalSyncRunning) return [];
+  globalSyncRunning = true;
+  try {
+    return await performGlobalSyncUnlocked();
+  } finally {
+    globalSyncRunning = false;
+  }
+}
+
+async function performGlobalSyncUnlocked() {
   interface SyncResult {
     module: string;
     success: boolean;

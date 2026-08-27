@@ -2,13 +2,18 @@ import { z } from 'zod';
 
 export const SyncChunkPayloadSchema = z.object({
   kind: z.literal('chunk-v1'),
-  operationId: z.string().min(1),
+  operationId: z.string().min(1).max(256),
   chunkIndex: z.number().int().nonnegative(),
-  chunkTotal: z.number().int().positive(),
-  iv: z.string().min(1),
-  ciphertext: z.string().min(1),
-  ciphertextHash: z.string().min(1),
-  clientId: z.string().min(1),
+  chunkTotal: z.number().int().positive().max(10_000),
+  iv: z.string().min(1).max(3000),
+  ciphertext: z.string().min(1).max(3000),
+  ciphertextHash: z.string().min(1).max(3000),
+  clientId: z.string().min(1).max(256),
+});
+
+const EncryptedPayloadSchema = z.object({
+  iv: z.string().min(1).max(3000),
+  ciphertext: z.string().min(1).max(3000),
 });
 
 export const OperationSchema = z
@@ -24,7 +29,22 @@ export const OperationSchema = z
     serverTimestamp: z.number().optional(),
   })
   .superRefine((operation, context) => {
-    if (operation.table !== '__sync_chunk__') return;
+    if (operation.table !== 'encrypted' && operation.table !== '__sync_chunk__') {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Unencrypted sync operation rejected',
+      });
+      return;
+    }
+    if (operation.table === 'encrypted') {
+      if (
+        operation.type !== 'create' ||
+        !EncryptedPayloadSchema.safeParse(operation.payload).success
+      ) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid encrypted operation' });
+      }
+      return;
+    }
     const result = SyncChunkPayloadSchema.safeParse(operation.payload);
     if (!result.success) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid sync chunk payload' });
@@ -41,6 +61,9 @@ export const OperationSchema = z
     }
     if (operation.clientId && operation.clientId !== result.data.clientId) {
       context.addIssue({ code: z.ZodIssueCode.custom, message: 'Sync chunk clientId mismatch' });
+    }
+    if (JSON.stringify(result.data).length > 3000) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: 'Sync chunk payload is too large' });
     }
   });
 

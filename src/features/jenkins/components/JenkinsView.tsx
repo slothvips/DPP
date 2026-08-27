@@ -3,7 +3,6 @@ import { JenkinsBuildHistorySection } from '@/features/jenkins/components/Jenkin
 import { JenkinsJobContent } from '@/features/jenkins/components/JenkinsJobContent';
 import { JenkinsToolbar } from '@/features/jenkins/components/JenkinsToolbar';
 import { useJenkinsView } from '@/features/jenkins/components/useJenkinsView';
-import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 
 export function JenkinsView() {
   const {
@@ -35,20 +34,18 @@ export function JenkinsView() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-auto">
-      <JenkinsEnvManager />
+      <JenkinsToolbar
+        currentEnvId={currentEnvId}
+        environments={environments}
+        filter={filter}
+        loading={loading}
+        onEnvChange={handleEnvChange}
+        onFilterChange={setFilter}
+        onSync={handleSync}
+      />
 
       {environments.length > 0 && (
         <div className="flex min-h-[20rem] min-h-0 flex-1 flex-col gap-4">
-          <JenkinsToolbar
-            currentEnvId={currentEnvId}
-            environments={environments}
-            filter={filter}
-            loading={loading}
-            onEnvChange={handleEnvChange}
-            onFilterChange={setFilter}
-            onSync={handleSync}
-          />
-
           <JenkinsJobContent
             buildHistorySection={
               <JenkinsBuildHistorySection

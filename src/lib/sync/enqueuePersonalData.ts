@@ -71,7 +71,7 @@ export async function enqueuePersonalSyncData({
             id: generateUUID(),
             clientId,
             table: tableName,
-            type: 'create',
+            type: isSoftDeleted(item as { deletedAt?: number | null }) ? 'delete' : 'create',
             key,
             payload: item,
             timestamp: Date.now(),

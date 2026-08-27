@@ -1,12 +1,6 @@
 import { useCallback, useState } from 'react';
 import { getSyncEngine } from '@/db';
-import {
-  exportKey,
-  generateSyncKey,
-  importKey,
-  storeKey,
-  verifyKey,
-} from '@/lib/crypto/encryption';
+import { exportKey, generateSyncKey, importKey, verifyKey } from '@/lib/crypto/encryption';
 import { logger } from '@/utils/logger';
 
 interface UseSyncKeyMigrationOptions {
@@ -44,18 +38,11 @@ export function useSyncKeyMigration({ checkKey, onKeyChange, toast }: UseSyncKey
         return;
       }
 
-      await storeKey(await importKey(normalized));
       const engine = await getSyncEngine();
-      if (engine) {
-        if (migrationMode === 'authority') {
-          await engine.resetSyncState();
-          await engine.regenerateOperations();
-          void engine.push().catch((error) => logger.error('[Migration] Push failed:', error));
-        } else {
-          await engine.clearAllData();
-          void engine.pull().catch((error) => logger.error('[Migration] Pull failed:', error));
-        }
+      if (!engine) {
+        throw new Error('同步引擎初始化失败');
       }
+      await engine.migrateTeamKey(migrationMode, await importKey(normalized));
 
       await checkKey();
       setIsChangeDialogOpen(false);
@@ -64,8 +51,8 @@ export function useSyncKeyMigration({ checkKey, onKeyChange, toast }: UseSyncKey
       setMigrationMode('member');
       toast(
         migrationMode === 'authority'
-          ? '密钥已更换。本地数据已重新加密，正在准备上传...'
-          : '密钥已更换。本地数据已清除，正在从服务器拉取最新数据...',
+          ? '密钥已更换。本地数据已重新加密并上传。'
+          : '密钥已更换。本地数据已清除并从服务器拉取。',
         'success'
       );
       onKeyChange?.(normalized);

@@ -1,7 +1,9 @@
 import Dexie from 'dexie';
+import { storeKey } from '@/lib/crypto/encryption';
 import { loadPersonalKey } from '@/lib/crypto/personalKey';
 import { logger } from '@/utils/logger';
 import { applySyncOperation } from './SyncEngine.apply';
+import { withSyncEngineLock } from './SyncEngine.lock';
 import {
   clearAllSyncData,
   getSyncPendingCounts,
@@ -123,6 +125,10 @@ export class SyncEngine {
     this.syncLock = value;
   }
 
+  private async withExclusive<T>(operation: () => Promise<T>): Promise<T> {
+    return await withSyncEngineLock(operation);
+  }
+
   private resetRuntimeState() {
     this._lastSyncTime = null;
     this._lastError = null;
@@ -164,6 +170,10 @@ export class SyncEngine {
 
   public async push() {
     await this.startupReady;
+    await this.withExclusive(() => this.pushUnlocked());
+  }
+
+  private async pushUnlocked() {
     await runSyncCommand({
       syncLock: this.syncLock,
       action: 'push',
@@ -191,6 +201,10 @@ export class SyncEngine {
 
   public async pull() {
     await this.startupReady;
+    await this.withExclusive(() => this.pullUnlocked());
+  }
+
+  private async pullUnlocked() {
     await runSyncCommand({
       syncLock: this.syncLock,
       action: 'pull',
@@ -218,6 +232,14 @@ export class SyncEngine {
     });
   }
 
+  public async sync() {
+    await this.startupReady;
+    await this.withExclusive(async () => {
+      await this.pushUnlocked();
+      await this.pullUnlocked();
+    });
+  }
+
   private async applyOperation(op: SyncOperation) {
     await applySyncOperation(
       {
@@ -242,6 +264,10 @@ export class SyncEngine {
   }
 
   public async resetSyncState() {
+    await this.withExclusive(() => this.resetSyncStateUnlocked());
+  }
+
+  private async resetSyncStateUnlocked() {
     await resetSyncState({
       db: this.db,
       syncLock: this.syncLock,
@@ -253,7 +279,10 @@ export class SyncEngine {
 
   public async clearAllData(options?: { preservePersonal?: boolean }) {
     const preservePersonal = options?.preservePersonal ?? true;
+    await this.withExclusive(() => this.clearAllDataUnlocked(preservePersonal));
+  }
 
+  private async clearAllDataUnlocked(preservePersonal: boolean) {
     await clearAllSyncData({
       db: this.db,
       tables: this.tables,
@@ -265,8 +294,6 @@ export class SyncEngine {
     });
 
     this.clientId = null;
-
-    // 保留了个人表但 operations 已空：若有个人私钥则补回同步队列
     if (!preservePersonal) {
       return;
     }
@@ -274,7 +301,7 @@ export class SyncEngine {
     try {
       const personalKey = await loadPersonalKey();
       if (personalKey) {
-        const enqueued = await this.enqueuePersonalData();
+        const enqueued = await this.enqueuePersonalDataUnlocked();
         if (enqueued > 0) {
           logger.info(`[Sync] Re-enqueued ${enqueued} personal ops after clearAllData`);
         }
@@ -285,6 +312,10 @@ export class SyncEngine {
   }
 
   public async regenerateOperations() {
+    await this.withExclusive(() => this.regenerateOperationsUnlocked());
+  }
+
+  private async regenerateOperationsUnlocked() {
     await regenerateSyncOperations({
       db: this.db,
       tables: this.tables,
@@ -296,6 +327,10 @@ export class SyncEngine {
 
   /** 个人私钥就绪后，将本地个人表数据补入同步队列 */
   public async enqueuePersonalData() {
+    return await this.withExclusive(() => this.enqueuePersonalDataUnlocked());
+  }
+
+  private async enqueuePersonalDataUnlocked() {
     return enqueuePersonalSyncData({
       db: this.db,
       ensureClientId: () => this.ensureClientId(),
@@ -303,33 +338,37 @@ export class SyncEngine {
   }
 
   public async processDeferredOperations() {
-    await processSyncOperationRecovery(this.db, () => this.ensureClientId());
-    await migrateDeferredChunks(this.db);
-    await processDeferredOperations({
-      db: this.db,
-      tables: this.tables,
-      applyOperation: (operation) => this.applyOperation(operation),
+    await this.withExclusive(async () => {
+      await processSyncOperationRecovery(this.db, () => this.ensureClientId());
+      await migrateDeferredChunks(this.db);
+      await processDeferredOperations({
+        db: this.db,
+        tables: this.tables,
+        applyOperation: (operation) => this.applyOperation(operation),
+      });
     });
   }
 
   public async recoverLocalData(): Promise<number> {
     await this.startupReady;
-    if (this.syncLock) {
-      logger.debug('[Sync] Skipping local recovery while another sync is running');
-      return 0;
-    }
+    return await this.withExclusive(async () => {
+      if (this.syncLock) {
+        logger.debug('[Sync] Skipping local recovery while another sync is running');
+        return 0;
+      }
 
-    this.syncLock = true;
-    try {
-      return await recoverLocalSyncData({
-        db: this.db,
-        tables: this.tables,
-        ensureClientId: () => this.ensureClientId(),
-        applyOperation: (operation) => this.applyOperation(operation),
-      });
-    } finally {
-      this.syncLock = false;
-    }
+      this.syncLock = true;
+      try {
+        return await recoverLocalSyncData({
+          db: this.db,
+          tables: this.tables,
+          ensureClientId: () => this.ensureClientId(),
+          applyOperation: (operation) => this.applyOperation(operation),
+        });
+      } finally {
+        this.syncLock = false;
+      }
+    });
   }
 
   public async recoverAfterUpgrade(): Promise<void> {
@@ -342,5 +381,22 @@ export class SyncEngine {
     if (!hasAdvancedCursor || recoveryCompleted) return;
 
     await this.pull();
+  }
+
+  public async migrateTeamKey(mode: 'authority' | 'member', key: CryptoKey): Promise<void> {
+    await this.withExclusive(async () => {
+      await storeKey(key);
+
+      if (mode === 'authority') {
+        await this.resetSyncStateUnlocked();
+        await this.regenerateOperationsUnlocked();
+        await this.enqueuePersonalDataUnlocked();
+        await this.pushUnlocked();
+        return;
+      }
+
+      await this.clearAllDataUnlocked(true);
+      await this.pullUnlocked();
+    });
   }
 }

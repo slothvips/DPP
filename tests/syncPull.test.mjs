@@ -8,12 +8,13 @@ test('sync apply transaction includes stores used while applying operations', ()
     'utf8'
   );
   const flushApplyQueue = source.match(
-    /async function flushApplyQueue[\s\S]*?return queued\.length;/
+    /async function flushApplyQueue[\s\S]*?return appliedCount;/
   )?.[0];
 
   assert.ok(flushApplyQueue);
   assert.match(flushApplyQueue, /db\.table\('settings'\)/);
   assert.match(flushApplyQueue, /db\.table\('deferred_ops'\)/);
+  assert.match(flushApplyQueue, /Quarantining failed operation/);
 });
 
 test('sync pull queues undecryptable operations instead of dropping them', () => {
@@ -31,7 +32,7 @@ test('sync pull queues undecryptable operations instead of dropping them', () =>
   assert.match(source, /Queuing undecryptable operation/);
   assert.match(source, /table\('deferred_ops'\)\.add/);
   assert.match(source, /keeping it for retry/);
-  assert.match(source, /pendingEntries[\s\S]*queuedIds/);
+  assert.match(source, /pendingEntries[\s\S]*entry\.operation\.id/);
   assert.match(source, /export async function recoverLocalSyncData/);
   assert.match(source, /await migrateDeferredChunks\(db\)/);
   assert.match(source, /remoteActivityLog.*anyOf\(operationIds\)/s);
@@ -41,6 +42,8 @@ test('sync pull queues undecryptable operations instead of dropping them', () =>
   assert.match(source, /isSyncChunkOperation\(operation\)\s*\)/);
   assert.match(source, /provider\.pull\(cursor\)/);
   assert.match(source, /Invalid pull cursor transition/);
+  assert.match(source, /Quarantining failed operation/);
+  assert.match(source, /Refusing unencrypted remote operation/);
 });
 
 test('sync pull acknowledges locally known operations before applying remote history', () => {
@@ -56,7 +59,10 @@ test('sync pull acknowledges locally known operations before applying remote his
 });
 
 test('sync push reuses encrypted payloads across retries and requires confirmation', () => {
-  const pushSource = readFileSync(new URL('../src/lib/sync/SyncEngine.push.ts', import.meta.url), 'utf8');
+  const pushSource = readFileSync(
+    new URL('../src/lib/sync/SyncEngine.push.ts', import.meta.url),
+    'utf8'
+  );
   const providerSource = readFileSync(
     new URL('../src/db/syncProvider.ts', import.meta.url),
     'utf8'

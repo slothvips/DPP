@@ -81,11 +81,6 @@ const definitionProperty: ToolProperty = {
       description: '按顺序执行的测试步骤',
       items: stepProperty,
     },
-    execution_mode: {
-      type: 'string',
-      enum: ['serial'],
-      description: '执行模式；当前仅支持串行执行',
-    },
     overall_expected_result: { type: 'string', description: '整体预期结果，可选' },
   },
   required: ['goal', 'targets', 'preconditions', 'test_data', 'steps'],
@@ -240,15 +235,8 @@ function parseDefinition(value: unknown): TestCaseDefinition {
     preconditions: readArray(record.preconditions, (item) => readRequiredText(item, '前置条件')),
     testData: readArray(record.test_data, parseTestData),
     steps: readArray(record.steps, parseStep),
-    ...readOptionalExecutionMode(record.execution_mode),
     ...readOptionalField(record.overall_expected_result, '整体预期结果', 'overallExpectedResult'),
   };
-}
-
-function readOptionalExecutionMode(value: unknown): Pick<TestCaseDefinition, 'executionMode'> {
-  if (value === undefined) return {};
-  if (value !== 'serial') throw new Error('当前仅支持串行执行');
-  return { executionMode: 'serial' };
 }
 
 function parseTarget(value: unknown): TestCaseTarget {
@@ -297,7 +285,6 @@ function toToolDefinition(definition: TestCaseDefinition) {
       action: step.action,
       ...(step.expectedResult ? { expected_result: step.expectedResult } : {}),
     })),
-    execution_mode: 'serial',
     ...(definition.overallExpectedResult
       ? { overall_expected_result: definition.overallExpectedResult }
       : {}),

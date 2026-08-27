@@ -28,7 +28,9 @@ export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null>
 
   if (!personalBootstrapStarted && syncEngineInstance) {
     personalBootstrapStarted = true;
-    void ensurePersonalSyncBootstrapped(syncEngineInstance);
+    void ensurePersonalSyncBootstrapped(syncEngineInstance).catch(() => {
+      personalBootstrapStarted = false;
+    });
   }
 
   return syncEngineInstance;
@@ -44,6 +46,9 @@ export function createSyncEngineFacade(db: DPPDatabase) {
     },
     async pull() {
       return (await getSyncEngine(db))?.pull();
+    },
+    async sync() {
+      return (await getSyncEngine(db))?.sync();
     },
     async destroy() {
       syncEngineInstance?.destroy();

@@ -21,18 +21,22 @@ export function registerBackgroundLifecycle() {
 
   if (browser.alarms) {
     browser.alarms.onAlarm.addListener(async (alarm) => {
-      if (alarm.name !== 'auto-sync-alarm') {
-        return;
-      }
+      try {
+        if (alarm.name !== 'auto-sync-alarm') {
+          return;
+        }
 
-      const enabledSetting = await getSetting('auto_sync_enabled');
-      if (enabledSetting === false) {
-        logger.info('Auto sync alarm triggered but auto sync is disabled, skipping');
-        return;
-      }
+        const enabledSetting = await getSetting('auto_sync_enabled');
+        if (enabledSetting === false) {
+          logger.info('Auto sync alarm triggered but auto sync is disabled, skipping');
+          return;
+        }
 
-      logger.info('Auto sync alarm triggered');
-      performGlobalSync().catch((error) => logger.error('Auto sync failed:', error));
+        logger.info('Auto sync alarm triggered');
+        await performGlobalSync();
+      } catch (error) {
+        logger.error('Auto sync failed:', error);
+      }
     });
   }
 

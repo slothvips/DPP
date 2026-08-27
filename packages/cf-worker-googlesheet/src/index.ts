@@ -60,6 +60,8 @@ app.post('/api/sync/push', async (c) => {
       error.message.includes('already exists') || error.message.includes('different content')
         ? 409
         : error.message.includes('Invalid sync chunk') ||
+            error.message.includes('Unencrypted sync operation') ||
+            error.message.includes('Invalid encrypted operation') ||
             error.message.includes('mismatched clientId') ||
             error.message.includes('exceeds the maximum payload size')
           ? 400
@@ -80,8 +82,9 @@ app.get('/api/sync/pull', async (c) => {
 
     return c.json({ ops, cursor: nextCursor });
   } catch (e) {
-    const error = e as Error;
-    return c.json({ error: error.message, stack: error.stack }, 500);
+    const error = e instanceof Error ? e : new Error(String(e));
+    const status = /Invalid (cursor|limit)/.test(error.message) ? 400 : 500;
+    return c.json({ error: error.message }, status);
   }
 });
 
@@ -105,8 +108,9 @@ app.get('/api/sync/pending', async (c) => {
 
     return c.json({ count });
   } catch (e) {
-    const error = e as Error;
-    return c.json({ error: error.message, stack: error.stack }, 500);
+    const error = e instanceof Error ? e : new Error(String(e));
+    const status = /Invalid cursor/.test(error.message) ? 400 : 500;
+    return c.json({ error: error.message }, status);
   }
 });
 

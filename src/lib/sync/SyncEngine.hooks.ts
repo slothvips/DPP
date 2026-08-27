@@ -93,8 +93,11 @@ export function registerSyncHooks({
 
         void (async () => {
           try {
-            await table.put(updatedObject);
             await recordOperation(tableName, 'delete', primaryKey, updatedObject);
+            await db.transaction('rw', [table], async (transaction) => {
+              (transaction as SyncTransaction).source = 'sync';
+              await table.put(updatedObject);
+            });
           } catch (error) {
             logger.error('[SyncEngine] Failed to record delete operation:', error);
           }
