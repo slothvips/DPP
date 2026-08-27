@@ -15,7 +15,7 @@ type AIProviderSettingMap = {
 };
 
 interface BaseSettingMap {
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'system';
   last_sync_time: number;
   last_sync_status: string;
   global_sync_status: 'idle' | 'syncing' | 'partial' | 'error';

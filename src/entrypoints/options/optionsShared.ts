@@ -287,7 +287,7 @@ function isValidImportedSettingValue(key: SettingKey, value: unknown): boolean {
 
   switch (key) {
     case 'theme':
-      return value === 'light' || value === 'dark';
+      return value === 'light' || value === 'dark' || value === 'system';
     case 'global_sync_status':
       return value === 'idle' || value === 'syncing' || value === 'partial' || value === 'error';
     case 'jenkins_environments':
