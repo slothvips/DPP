@@ -28,7 +28,7 @@ export function LinksToolbar({
   return (
     <div className="rounded-2xl border border-border/55 bg-primary/4 p-2.5 [@media(max-height:520px)]:p-2">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[150px] flex-1">
+        <div className="relative min-w-0 flex-[1_1_10rem]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="搜索链接..."

@@ -45,7 +45,7 @@ export function SidepanelTabBar({
       className={cn(
         'z-30 flex shrink-0 flex-col overflow-hidden border border-border/50 bg-background/88 py-2 backdrop-blur transition-all duration-200 ease-out dark:bg-background/88',
         isExpanded
-          ? 'relative h-full w-40 rounded-none border-y-0 border-l-0 shadow-none'
+          ? 'relative h-full w-[min(10rem,100%)] max-w-full rounded-none border-y-0 border-l-0 shadow-none'
           : 'absolute bottom-2 left-2 top-2 w-11 rounded-2xl ring-1 ring-border/35 shadow-lg'
       )}
       data-testid="tab-container"

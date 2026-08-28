@@ -113,5 +113,42 @@ test('automatic push preserves global sync status coordination', () => {
 
   assert.ok(handler);
   assert.match(handler, /await isGlobalSyncRunning\(\)/);
-  assert.match(handler, /await withGlobalSyncStatus\(\(\) => syncEngine\.push\(\)\)/);
+  assert.match(handler, /await withGlobalSyncStatus\(\(\) => syncEngine\.push\(\)(?:, 'database-push')?\)/);
+  assert.match(handler, /if \(retry\)[\s\S]*?schedulePushRetry\(\)/);
+  assert.match(handler, /isRetryableSyncError\(syncError\)/);
+  assert.match(handler, /deferAutoSyncPush\(\)/);
+  assert.match(handler, /flushDeferredAutoSyncPush\(\)/);
+});
+
+test('automatic sync retry state is cleared when auto sync is disabled', () => {
+  const source = readFileSync(
+    new URL('../src/entrypoints/background/handlers/syncShared.ts', import.meta.url),
+    'utf8'
+  );
+
+  const setup = source.match(
+    /export async function setupAutoSync[\s\S]*?\n}\n\nexport async function withGlobalSyncStatus/
+  )?.[0];
+  assert.ok(setup);
+  assert.match(setup, /cancelDeferredPushTrigger\(\)/);
+  assert.match(setup, /await resetPushRetry\(\)/);
+  assert.match(source, /if \(!\(await isAutoSyncEnabled\(\)\)\)/);
+  assert.match(source, /Failed to roll back push retry state/);
+});
+
+test('automatic pull uses a cooldown and defers while another sync runs', () => {
+  const source = readFileSync(
+    new URL('../src/entrypoints/background/handlers/syncMessages.ts', import.meta.url),
+    'utf8'
+  );
+  const shared = readFileSync(
+    new URL('../src/entrypoints/background/handlers/syncShared.ts', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(source, /handleAutoSyncPull\(deferred = false\)/);
+  assert.match(source, /deferAutoSyncPull\(\)/);
+  assert.match(source, /withGlobalSyncStatus\(\(\) => syncDatabase\(\)\)/);
+  assert.match(shared, /const AUTO_PULL_COOLDOWN = 30_000/);
+  assert.match(shared, /flushDeferredAutoSyncPull/);
 });

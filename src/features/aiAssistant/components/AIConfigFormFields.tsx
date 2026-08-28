@@ -166,9 +166,10 @@ export function AIConfigFormFields({
 
       <div className="grid gap-2">
         <Label htmlFor="ai-model">模型</Label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Input
             id="ai-model"
+            className="min-w-0 flex-1"
             value={model}
             onChange={(event) => onModelChange(event.target.value)}
             placeholder={getModelPlaceholder(provider)}

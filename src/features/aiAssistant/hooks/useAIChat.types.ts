@@ -39,6 +39,8 @@ export interface UseAIChatReturn {
   sessions: import('../types').AISession[];
   sessionStatuses: Record<string, AIChatStatus>;
   currentProvider: import('@/lib/ai/types').AIProviderType | null;
+  currentProviderName: string | null;
+  currentModel: string | null;
   yoloMode: boolean;
   setYoloMode: (value: boolean) => void;
   isRunning: boolean;

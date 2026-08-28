@@ -6,7 +6,16 @@ import js from '@eslint/js';
 
 export default tseslint.config(
   {
-    ignores: ['dist', '.output', '.wxt', '.worktrees', 'node_modules', 'src/vendor', 'vendor'],
+    ignores: [
+      'dist',
+      '.output',
+      '.wxt',
+      '.worktrees',
+      'node_modules',
+      'src/vendor',
+      'vendor',
+      'packages/cf-worker-googlesheet/worker-configuration.d.ts',
+    ],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

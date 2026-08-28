@@ -47,13 +47,13 @@ export function AISessionList({
   };
 
   return (
-    <div className="relative">
+    <div className="relative min-w-0">
       <Button
         variant="ghost"
         size="sm"
         onClick={handleToggle}
         disabled={disabled}
-        className="h-8 max-w-[180px] rounded-lg border border-border/55 bg-muted/35 px-3 text-xs font-normal"
+        className="h-8 w-full min-w-0 max-w-[180px] rounded-lg border border-border/55 bg-muted/35 px-3 text-xs font-normal"
         title={currentSession?.title || '新会话'}
       >
         <span className="truncate">{currentSession?.title || '新会话'}</span>

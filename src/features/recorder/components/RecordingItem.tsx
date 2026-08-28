@@ -119,14 +119,14 @@ export function RecordingItem({ recording, onDelete, onUpdateTitle, onExport }: 
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           {recording.favicon && <img src={recording.favicon} className="h-3 w-3 shrink-0" alt="" />}
           <span className="truncate" title={recording.url}>
             {hostname}
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
           <span>{format(recording.createdAt, 'MM-dd HH:mm')}</span>
           <span>{formatDuration(recording.duration)}</span>
           <span>{formatSize(recording.fileSize)}</span>

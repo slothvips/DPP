@@ -7,6 +7,7 @@ export { handleRecorderMessage } from './recorder';
 export type { RecorderMessage } from './recorder';
 
 export { handleSyncMessage, setupAutoSync } from './sync';
+export { flushDeferredAutoSyncPull, flushDeferredAutoSyncPush } from './syncShared';
 export type { SyncMessage } from './sync';
 
 export { searchOmnibox, setupOmnibox } from './omnibox';

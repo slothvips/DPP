@@ -109,7 +109,7 @@ export function registerTestCaseTools(): void {
 
   toolRegistry.register({
     name: 'test_case_get',
-    description: '读取一个团队共享测试用例的完整定义和测试数据，供导入后的执行流程使用。',
+    description: '读取一个团队共享测试用例的完整结构和非敏感测试数据，供导入后的执行流程使用。',
     parameters: createToolParameter({ id: { type: 'string', description: '测试用例 ID' } }, ['id']),
     handler: (async (args: unknown) => {
       const id = readRequiredText(readRecord(args).id, '测试用例 ID');
@@ -124,7 +124,6 @@ export function registerTestCaseTools(): void {
           title: material.title,
           status: material.status,
           version: material.version,
-          source_text: material.content.sourceText,
           definition: toToolDefinition(material.content.definition),
         },
       };
@@ -188,23 +187,26 @@ export function registerTestCaseTools(): void {
           description: '读取到的当前版本，防止覆盖他人更新',
         },
         title: { type: 'string', description: '新的测试用例标题' },
-        source_text: { type: 'string', description: '新的自然语言描述' },
+        source_text: { type: 'string', description: '新的自然语言描述，可选；不提供时保留原描述' },
         definition: definitionProperty,
       },
-      ['id', 'expected_version', 'title', 'source_text', 'definition']
+      ['id', 'expected_version', 'title', 'definition']
     ),
     handler: (async (args: unknown) => {
       const record = readRecord(args);
+      const id = readRequiredText(record.id, '测试用例 ID');
       const expectedVersion = record.expected_version;
       if (typeof expectedVersion !== 'number' || !Number.isInteger(expectedVersion)) {
         throw new Error('expected_version 必须是整数');
       }
+      const existing = await getTestCaseMaterial(id);
+      if (!existing) throw new Error('测试用例不存在或已删除');
       const material = await updateTestCaseMaterial(
-        readRequiredText(record.id, '测试用例 ID'),
+        id,
         parseMaterialInput({
           title: record.title,
-          source_text: record.source_text,
-          definition: record.definition,
+          source_text: record.source_text ?? existing.content.sourceText,
+          definition: restoreRedactedSensitiveData(record.definition, existing.content.definition),
         }),
         expectedVersion
       );
@@ -277,7 +279,10 @@ function toToolDefinition(definition: TestCaseDefinition) {
     goal: definition.goal,
     targets: definition.targets,
     preconditions: definition.preconditions,
-    test_data: definition.testData,
+    test_data: definition.testData.map((item) => ({
+      ...item,
+      value: item.sensitive ? '[redacted]' : item.value,
+    })),
     steps: definition.steps.map((step) => ({
       id: step.id,
       order: step.order,
@@ -288,6 +293,21 @@ function toToolDefinition(definition: TestCaseDefinition) {
     ...(definition.overallExpectedResult
       ? { overall_expected_result: definition.overallExpectedResult }
       : {}),
+  };
+}
+
+function restoreRedactedSensitiveData(value: unknown, existing: TestCaseDefinition): unknown {
+  const record = readRecord(value);
+  const testData = readArray(record.test_data, (item) => readRecord(item));
+  return {
+    ...record,
+    test_data: testData.map((item) => {
+      if (item.value !== '[redacted]' || typeof item.name !== 'string') return item;
+      const current = existing.testData.find(
+        (candidate) => candidate.name === item.name && candidate.sensitive
+      );
+      return current ? { ...item, value: current.value, sensitive: true } : item;
+    }),
   };
 }
 

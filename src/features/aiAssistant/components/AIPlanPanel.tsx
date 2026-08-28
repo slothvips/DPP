@@ -20,7 +20,7 @@ export function AIPlanPanel({
 
   return (
     <section
-      className="shrink-0 border-b border-primary/20 bg-primary/5 px-2 py-3 sm:px-3"
+      className="max-h-72 shrink-0 overflow-y-auto overscroll-contain border-b border-primary/20 bg-primary/5 px-2 py-3 custom-scrollbar sm:px-3"
       aria-label={title}
     >
       <div className="flex items-start gap-2">
@@ -50,9 +50,7 @@ export function AIPlanPanel({
                   <li key={step.id} className="flex min-w-0 items-start gap-2 text-xs">
                     <StepIcon status={step.status} />
                     <span
-                      className={
-                        step.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'
-                      }
+                      className={`min-w-0 break-words ${step.status === 'completed' ? 'text-muted-foreground' : 'text-foreground'}`}
                     >
                       {step.title}
                       {step.note && (

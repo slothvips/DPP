@@ -1,86 +1,126 @@
-# DPP - 团队文档与 Jenkins 部署助手
+# DPP
 
-DPP 是一个基于 WXT + React 构建的现代化浏览器扩展，旨在提升团队协作效率，提供便捷的文档导航和 Jenkins 部署管理功能。
+DPP 是基于 WXT、React 19 和 TypeScript 构建的浏览器扩展，用于团队链接、Jenkins 工作流、工具箱、会话录制和 AI 辅助操作。
 
-## 🛡️ 数据安全 (Data Security)
+## 数据安全
 
-本项目采用严格的**端到端加密 (End-to-End Encryption, E2EE)** 架构，确保您的敏感数据在任何情况下都不会泄露。
+DPP 使用端到端加密同步：
 
-- **本地加密**: 所有参与同步的数据在离开您的浏览器之前，都会使用您的**本地密钥**进行高强度加密。
-- **零知识服务端**: 加密密钥仅存储在您的本地设备中，**绝不会上传到服务器**。这意味着服务器仅负责存储加密后的乱码数据，无论是服务器管理员还是黑客，都无法解密或窥探您的具体数据内容。
-- **安全传输**: 所有数据传输均通过 HTTPS 进行，配合内容加密，提供双重保护。
-- **个人私钥**: 设置页可单独配置「个人私钥」，与团队「同步密钥」相互独立，**请勿分享给任何人**；不会进入配置导出。验证器等个人数据使用此密钥加密后走同一同步服务器，持有团队密钥的同事无法解密。配置或更换个人私钥后，会先推送本地个人数据，再从服务器重建本地同步数据。
+- 参与同步的数据在浏览器内使用 Web Crypto 加密后才上传。
+- 同步密钥和个人私钥不会上传到服务端。
+- Cloudflare Worker 只保存密文、密文分片和同步元数据，无法解密业务内容。
+- 团队数据与个人密钥域数据使用独立密钥。
+- Jenkins 凭证、录屏和本地缓存等敏感或大体积数据不进入团队同步日志。
 
-## 🔄 数据同步 (Data Synchronization)
+密钥丢失后服务端无法恢复明文，请自行安全备份。
 
-DPP 内置了自定义的 SyncEngine，允许您在不同设备间无缝同步工作环境。
+## 同步架构
 
-### ✅ 会被同步的数据
+```text
+Dexie operations
+  -> SyncEngine
+  -> 浏览器端 AES-GCM 加密
+  -> POST /api/sync/push
+  -> Cloudflare Worker
+  -> Durable Object 串行化 push
+  -> D1 operations 追加日志
+```
 
-以下数据**会**经过加密后在多端同步：
+拉取和待同步统计使用：
 
-1.  **标签 (Tags)**
-    - 所有自定义标签的名称、颜色及排序。
-2.  **链接 (Links)**
-    - 团队共享文档、常用工具的链接及其分类信息。
-3.  **关联关系**
-    - **链接与标签的关联 (Link Tags)**: 哪些链接被打上了哪些标签。
-    - **任务与标签的关联 (Job Tags)**: 哪些 Jenkins 任务关联了哪些标签（基于任务 URL 关联）。
+- `GET /api/sync/pull?cursor=N`
+- `GET /api/sync/pending?cursor=N&clientId=...`
 
-### ❌ 不会被同步的数据 (仅本地存储)
+D1 保存自增 cursor、操作 fingerprint 和 `(clientId, operationId)` 唯一约束。大密文使用 `__sync_chunk__` 记录分片，重组和解密始终在客户端完成。
 
-为了最大限度地保护隐私和安全，以下敏感数据或临时数据**仅存储在本地 IndexedDB 中，绝不会被上传**：
+当前环境：
 
-1.  **Jenkins 凭证与配置**:
-    - Jenkins Host URL
-    - 用户名 (User)
-    - API Token / 密码
-    - _注意：您需要在每台新设备上重新配置 Jenkins 连接信息。_
-2.  **构建历史 (Build History)**:
-    - `My Builds` (我的构建记录)
-    - `Others Builds` (他人的构建记录)
-3.  **扩展设置 (Settings)**:
-    - 除同步服务地址外的所有本地偏好设置。
-4.  **Jenkins 任务缓存**:
-    - 任务的具体名称、环境配置等详情（本地缓存）。
-5.  **录屏数据 (Recordings)**:
-    - 使用 rrweb 录制的会话回放数据（通常体积较大且包含敏感操作）。
-6.  **统计数据**:
-    - 链接点击频次、最近使用时间等本地统计信息。
-7.  **验证器账户 (TOTP)**（个人密钥域）:
-    - 使用「个人私钥」加密同步，**不**使用团队同步密钥；未配置个人私钥时仅本地可用。
+| 环境 | Worker | D1 | 地址 |
+| --- | --- | --- | --- |
+| 生产 | `dpp-sync-worker` | `dpp-sync` | `https://dpp-sync.586726.xyz` |
+| 测试 | `dpp-sync-test` | `dpp-sync-test` | `https://dpp-sync-test.586726.xyz` |
 
-## 🚀 后端部署 (Backend Deployment)
+完整部署、迁移、监控和回滚说明见 [Cloudflare Worker + D1 部署指南](./packages/DEPLOY.md)。
 
-为了实现多端同步，您需要部署一个轻量级的同步服务器。
+## 技术栈
 
-**关于服务端设计**:
-服务端采用**盲存储 (Blind Storage)** 策略 —— 它仅作为一个加密数据的存储容器，完全无法感知或解密所存储的数据内容。这种**"哑服务器 (Dumb Server)"** 设计不仅最大程度保障了数据隐私，也使得后端实现极其简单，任何支持基本 KV 存储或文件写入的环境均可轻松接入。
+- WXT + React 19
+- TypeScript Strict Mode
+- UnoCSS + Shadcn theme variables
+- Dexie.js + dexie-react-hooks
+- rrweb
+- Cloudflare Workers + Durable Objects + D1
+- pnpm workspace
 
-下边提供了两种开箱即用的参考实现：
+## 项目结构
 
-- **Cloudflare Workers (推荐)**: 免费、无需运维、全球 CDN 加速。
-- **Node.js VPS**: 适用于私有化部署或已有服务器资源的情况。
+```text
+src/
+  entrypoints/                 WXT 扩展入口
+  components/ui/               通用 UI primitive
+  features/                    业务功能
+  db/                          Dexie schema 和同步入口
+  lib/sync/                    SyncEngine、加密同步和分片恢复
+packages/
+  cf-worker-googlesheet/       Cloudflare Worker（历史目录名）
+    migrations/                D1 schema migration
+    src/index.ts               D1-only 长期入口
+    src/migration.ts           旧 Google Sheet 临时迁移入口
+tests/                         Node test runner 测试
+```
 
-👉 **[点击查看详细部署教程](./packages/DEPLOY.md)**
+## 安装与开发
 
-## 🛠️ 技术栈
-
-- **框架**: [WXT](https://wxt.dev) + React 19
-- **语言**: TypeScript (Strict Mode)
-- **状态/数据库**: Dexie.js (IndexedDB) + dexie-react-hooks
-- **UI/样式**: UnoCSS + Shadcn UI
-- **同步**: Custom SyncEngine + E2EE (基于 Web Crypto API)
-
-## 📦 安装与开发
+要求 Node.js 20+ 和 pnpm 10+。
 
 ```bash
-# 安装依赖
 pnpm install
-
-# 启动开发服务器 (Chrome)
 pnpm dev
+```
 
-# 构建生产版本
+Firefox：
+
+```bash
+pnpm dev:firefox
+```
+
+## 质量检查
+
+```bash
+pnpm test
+pnpm compile
+pnpm lint
 pnpm build
 ```
+
+Worker 检查：
+
+```bash
+pnpm --filter dpp-worker types
+pnpm --filter dpp-worker exec tsc --noEmit
+pnpm --filter dpp-worker exec wrangler deploy --dry-run --env test
+pnpm --filter dpp-worker exec wrangler deploy --dry-run --env ""
+```
+
+## 构建与发布
+
+```bash
+# Chrome 扩展
+pnpm build
+pnpm zip
+
+# Firefox 扩展
+pnpm build:firefox
+pnpm zip:firefox
+
+# 测试 Worker
+pnpm release:worker:test
+
+# 生产 Worker
+pnpm release:worker
+
+# Chrome 扩展 + 生产 Worker
+pnpm release
+```
+
+发布远程 Worker 前，先按部署指南确认目标 D1、Secret 和 Wrangler environment。

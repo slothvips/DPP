@@ -17,6 +17,8 @@ interface ChatInputProps {
   /** Changes when the same preset text should be injected again. */
   initialInputKey?: string;
   onFileError?: (message: string) => void;
+  /** Element to render inside the bottom-left input actions */
+  leftSlot?: React.ReactNode;
   /** Element to render above the input row */
   rightSlot?: React.ReactNode;
   /** Element to render between top row and input row */
@@ -37,6 +39,7 @@ export const ChatInput = memo(function ChatInput({
   initialInput = '',
   initialInputKey,
   onFileError,
+  leftSlot,
   rightSlot,
   bottomSlot,
 }: ChatInputProps) {
@@ -55,11 +58,11 @@ export const ChatInput = memo(function ChatInput({
 
   const handleSend = useCallback(async () => {
     const content = input.trim();
-    if (!content || disabled) return;
+    if (!content || disabled || (isRunning && !queueWhileRunning)) return;
     setInput('');
     await onSend(content);
     setTimeout(() => textareaRef.current?.focus(), 0);
-  }, [input, disabled, onSend]);
+  }, [input, disabled, isRunning, onSend, queueWhileRunning]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -105,12 +108,13 @@ export const ChatInput = memo(function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="h-full min-h-[120px] max-h-none w-full resize-none rounded-2xl border-border/70 bg-background px-4 py-3 pb-16 pr-24 shadow-none"
+          className="h-full min-h-[120px] max-h-none w-full resize-none rounded-2xl border-border/70 bg-background px-4 py-3 pb-20 pr-24 shadow-none"
           rows={1}
           data-testid="ai-chat-input"
         />
-        <div className="pointer-events-none absolute bottom-2 right-2 flex items-center gap-2">
-          <>
+        <div className="pointer-events-none absolute inset-x-2 bottom-2 flex flex-wrap items-end justify-between gap-2">
+          {leftSlot && <div className="pointer-events-auto min-w-0 max-w-full">{leftSlot}</div>}
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -132,45 +136,43 @@ export const ChatInput = memo(function ChatInput({
             >
               <FileUp className="h-4 w-4" />
             </Button>
-          </>
-          {isRunning && queueWhileRunning && (
-            <Button
-              onClick={onStop}
-              disabled={false}
-              size="icon"
-              title="停止当前任务"
-              className="pointer-events-auto h-10 w-10 rounded-xl border border-destructive/40 bg-destructive/8 hover:bg-destructive/12"
-            >
-              <Square className="h-3 w-3 fill-destructive text-destructive" />
-            </Button>
-          )}
-          <Button
-            onClick={isRunning && !queueWhileRunning ? onStop : handleSend}
-            disabled={
-              isRunning && queueWhileRunning
-                ? !input.trim()
-                : isRunning
-                  ? false
-                  : !input.trim() || disabled
-            }
-            size="icon"
-            data-testid={isRunning && !queueWhileRunning ? 'ai-chat-stop' : 'ai-chat-send'}
-            title={isRunning ? '停止' : '发送'}
-            className={cn(
-              'pointer-events-auto h-10 w-10 rounded-xl transition-all duration-200',
-              isRunning &&
-                !queueWhileRunning &&
-                'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
-            )}
-          >
-            {isRunning && !queueWhileRunning ? (
-              <div className="relative flex items-center justify-center">
+            {isRunning && queueWhileRunning && (
+              <Button
+                onClick={onStop}
+                disabled={false}
+                size="icon"
+                title="停止当前任务"
+                className="pointer-events-auto h-10 w-10 rounded-xl border border-destructive/40 bg-destructive/8 hover:bg-destructive/12"
+              >
                 <Square className="h-3 w-3 fill-destructive text-destructive" />
-              </div>
-            ) : (
-              <Send className="h-4 w-4" />
+              </Button>
             )}
-          </Button>
+            <Button
+              onClick={isRunning ? onStop : handleSend}
+              disabled={
+                isRunning && queueWhileRunning
+                  ? !input.trim() || disabled
+                  : isRunning
+                    ? false
+                    : !input.trim() || disabled
+              }
+              size="icon"
+              data-testid={isRunning ? 'ai-chat-stop' : 'ai-chat-send'}
+              title={isRunning ? '停止' : '发送'}
+              className={cn(
+                'pointer-events-auto h-10 w-10 rounded-xl transition-all duration-200',
+                isRunning && 'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
+              )}
+            >
+              {isRunning && !queueWhileRunning ? (
+                <div className="relative flex items-center justify-center">
+                  <Square className="h-3 w-3 fill-destructive text-destructive" />
+                </div>
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

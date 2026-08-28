@@ -11,6 +11,7 @@ import { updateSetting } from '@/lib/db/settings';
 
 export interface StoredAIConfig {
   provider: AIProviderType;
+  displayName?: string;
   baseUrl: string;
   model: string;
   contextWindow?: number;
@@ -224,6 +225,7 @@ export async function loadAIConfig(): Promise<StoredAIConfig> {
     if (profile) {
       return {
         provider: normalizeProviderValue(profile.provider),
+        displayName: profile.name,
         baseUrl: profile.baseUrl,
         model: profile.model,
         contextWindow: profile.contextWindow,

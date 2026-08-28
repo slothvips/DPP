@@ -1,5 +1,11 @@
 // Tags management AI tools
-import { addTag, deleteTag, listTags, toggleTagAssociation, updateTag } from '@/lib/db';
+import {
+  createOrReactivateTag,
+  deleteTag,
+  listTags,
+  toggleTagAssociation,
+  updateTag,
+} from '@/lib/db';
 import type { ToolHandler } from '../tools';
 import { createToolParameter, toolRegistry } from '../tools';
 
@@ -14,7 +20,7 @@ async function tags_list() {
  * Add a new tag
  */
 async function tags_add(args: { name: string; color?: string }) {
-  return addTag(args);
+  return createOrReactivateTag(args);
 }
 
 /**
@@ -53,7 +59,8 @@ export function registerTagsTools() {
   // tags_add (requires confirmation)
   toolRegistry.register({
     name: 'tags_add',
-    description: 'Create a new tag',
+    description:
+      'Create a new tag only when the user explicitly requests it and no suitable existing tag can be reused. Repeated or matching names are reused or reactivated instead of creating duplicates.',
     parameters: createToolParameter(
       {
         name: { type: 'string', description: 'Tag name' },

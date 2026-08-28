@@ -27,6 +27,7 @@ test('startup deferred processing migrates deferred sync chunks into the chunk c
   assert.match(engineSource, /migrateTeamKey/);
   assert.match(engineSource, /Skipping local recovery while another sync is running/);
   assert.match(lifecycleSource, /syncEngine\s*\.\s*recoverAfterUpgrade\(\)/);
+  assert.match(lifecycleSource, /handleSyncMessage\(\{ type: 'AUTO_SYNC_TRIGGER_PUSH' \}\)/);
   assert.match(deferredSource, /isSyncChunkOperation/);
   assert.match(deferredSource, /mergeChunkRecords/);
   assert.match(deferredSource, /Conflicting deferred chunk ignored/);

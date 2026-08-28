@@ -1,17 +1,8 @@
 import type { JWT } from 'google-auth-library';
 import * as gsheet from 'google-spreadsheet';
+import type { HistoricalOperation, SyncOperation } from './d1.ts';
 
-export interface SyncOperation {
-  id: string;
-  clientId?: string;
-  table: string;
-  type: string;
-  key: string;
-  payload: unknown;
-  timestamp: number;
-  serverTimestamp?: number;
-  keyHash?: string;
-}
+export type { SyncOperation } from './d1.ts';
 
 const SHEET_TITLE = 'Operations';
 const HEADERS = [
@@ -140,7 +131,11 @@ export class SheetsClient {
   async readRows(
     offset: number,
     limit = 100
-  ): Promise<{ ops: SyncOperation[]; nextCursor: number }> {
+  ): Promise<{
+    ops: SyncOperation[];
+    records: HistoricalOperation[];
+    nextCursor: number;
+  }> {
     return await this.withRetry(async () => {
       const sheet = await this.getOrCreateSheet();
 
@@ -150,7 +145,7 @@ export class SheetsClient {
       const startRowIndex = headerRowCount + offset;
 
       if (startRowIndex >= sheet.rowCount) {
-        return { ops: [], nextCursor: offset + 1 };
+        return { ops: [], records: [], nextCursor: offset + 1 };
       }
 
       // Adjust limit to prevent "exceeds grid limits" error
@@ -163,37 +158,41 @@ export class SheetsClient {
       } catch (e) {
         const error = e as Error;
         if (error.message.includes('exceeds grid limits')) {
-          return { ops: [], nextCursor: offset + 1 };
+          return { ops: [], records: [], nextCursor: offset + 1 };
         }
         throw error;
       }
 
       if (!rows || rows.length === 0) {
-        return { ops: [], nextCursor: offset + 1 };
+        return { ops: [], records: [], nextCursor: offset + 1 };
       }
 
-      const ops = (rows as gsheet.GoogleSpreadsheetRow[])
+      const records = (rows as gsheet.GoogleSpreadsheetRow[])
         .filter((row) => !!row && typeof row?.get === 'function')
         .map((row) => {
           const payloadStr = (row.get('payload') as string) || '';
           const payload = parseSheetPayload(payloadStr);
           return {
-            id: (row.get('id') as string) || '',
-            clientId: (row.get('clientId') as string | undefined) || undefined,
-            table: (row.get('table') as string) || '',
-            type: (row.get('type') as string) || '',
-            key: (row.get('key') as string) || '',
-            payload,
-            timestamp: Number(row.get('timestamp') || 0),
-            serverTimestamp: Number(row.get('serverTimestamp') || 0) || undefined,
-            keyHash: (row.get('keyHash') as string | undefined) || undefined,
+            serverSeq: row.rowNumber,
+            operation: {
+              id: (row.get('id') as string) || '',
+              clientId: (row.get('clientId') as string | undefined) || undefined,
+              table: (row.get('table') as string) || '',
+              type: (row.get('type') as string) || '',
+              key: (row.get('key') as string) || '',
+              payload,
+              timestamp: Number(row.get('timestamp') || 0),
+              serverTimestamp: Number(row.get('serverTimestamp') || 0) || undefined,
+              keyHash: (row.get('keyHash') as string | undefined) || undefined,
+            },
           };
         });
+      const ops = records.map(({ operation }) => operation);
 
       const lastRow = rows[rows.length - 1];
       const nextCursor = lastRow.rowNumber;
 
-      return { ops, nextCursor };
+      return { ops, records, nextCursor };
     });
   }
 

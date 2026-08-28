@@ -147,7 +147,7 @@ export function TotpAccountListItem({
       >
         <div
           className={cn(
-            'font-mono text-[2rem] font-bold leading-none tracking-[0.22em] tabular-nums',
+            'max-w-full break-all font-mono text-2xl font-bold leading-none tracking-[0.12em] tabular-nums',
             copied ? 'text-success' : isUrgent ? 'text-destructive' : 'text-foreground'
           )}
         >

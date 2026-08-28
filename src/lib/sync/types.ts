@@ -2,6 +2,14 @@ import type { EncryptedData } from '@/lib/crypto/encryption';
 
 export type OperationType = 'create' | 'update' | 'delete';
 export type SyncStatus = 'idle' | 'pushing' | 'pulling' | 'error';
+export type GlobalSyncStatus = 'idle' | 'syncing' | 'partial' | 'error';
+export type GlobalSyncPhase =
+  | 'idle'
+  | 'database'
+  | 'database-push'
+  | 'database-pull'
+  | 'jenkins'
+  | 'hotNews';
 
 export interface SyncOperation {
   id: string;

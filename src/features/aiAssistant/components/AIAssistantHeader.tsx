@@ -1,7 +1,8 @@
-import { Bot, Library, MessageSquare, Plus } from 'lucide-react';
+import { Bot, Library, MessageSquare, Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
 import type { AISession } from '../types';
+import { AIConfigDialog } from './AIConfigDialog';
 import { AISessionList } from './AISessionList';
 
 export type AIAssistantViewMode = 'chat' | 'materials';
@@ -12,6 +13,7 @@ interface AIAssistantHeaderProps {
   sessionStatuses: Record<string, AIChatStatus>;
   isRunning: boolean;
   isConfigMissing: boolean;
+  onConfigSaved: () => void;
   onSelectSession: (id: string) => Promise<void>;
   onDeleteSession: (id: string) => Promise<void>;
   onCreateSession: () => Promise<void>;
@@ -25,6 +27,7 @@ export function AIAssistantHeader({
   sessionStatuses,
   isRunning,
   isConfigMissing,
+  onConfigSaved,
   onSelectSession,
   onDeleteSession,
   onCreateSession,
@@ -32,8 +35,8 @@ export function AIAssistantHeader({
   onViewModeChange,
 }: AIAssistantHeaderProps) {
   return (
-    <header className="relative z-40 shrink-0 border-b border-border/60 bg-background px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
+    <header className="relative z-40 min-w-0 shrink-0 border-b border-border/60 bg-background px-3 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
           <Bot className="h-4 w-4" />
         </div>
@@ -66,13 +69,15 @@ export function AIAssistantHeader({
             <span>物料库</span>
           </button>
         </div>
-        <AISessionList
-          sessions={sessions}
-          currentSessionId={currentSessionId}
-          sessionStatuses={sessionStatuses}
-          onSelectSession={onSelectSession}
-          onDeleteSession={onDeleteSession}
-        />
+        <div className="min-w-0 max-w-[180px] flex-1 basis-24">
+          <AISessionList
+            sessions={sessions}
+            currentSessionId={currentSessionId}
+            sessionStatuses={sessionStatuses}
+            onSelectSession={onSelectSession}
+            onDeleteSession={onDeleteSession}
+          />
+        </div>
         <Button
           variant="ghost"
           size="icon"
@@ -96,6 +101,18 @@ export function AIAssistantHeader({
             <span className="h-1.5 w-1.5 rounded-full bg-current" />
             {isConfigMissing ? '待配置' : isRunning ? '工作中' : '已配置'}
           </span>
+          <AIConfigDialog onSaved={onConfigSaved}>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={isRunning}
+              className="h-8 w-8 rounded-lg border border-border/55 bg-muted/35 text-muted-foreground"
+              title="AI 设置"
+              data-testid="ai-config-button"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </AIConfigDialog>
         </div>
       </div>
     </header>

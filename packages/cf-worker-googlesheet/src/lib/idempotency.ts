@@ -3,7 +3,7 @@ export interface SyncChunkValidationOperation {
   clientId?: string;
   table: string;
   type: string;
-  key: string;
+  key?: unknown;
   keyHash?: string;
   payload: unknown;
 }

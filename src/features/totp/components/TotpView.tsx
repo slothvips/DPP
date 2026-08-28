@@ -214,8 +214,8 @@ export function TotpView({ isActive = true }: TotpViewProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="totp-view">
-      <div className="flex shrink-0 items-center gap-1.5 border-b border-border/55 bg-background/70 px-2 py-1.5 dark:bg-background/50">
-        <div className="relative min-w-0 flex-1">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border/55 bg-background/70 px-2 py-1.5 dark:bg-background/50">
+        <div className="relative min-w-0 flex-[1_1_10rem]">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}

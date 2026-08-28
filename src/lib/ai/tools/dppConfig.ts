@@ -93,6 +93,13 @@ const DPP_CONFIG_DEFINITIONS = {
     enum: ['idle', 'syncing', 'partial', 'error'],
     writable: false,
   },
+  global_sync_phase: {
+    category: 'runtime',
+    description: 'Current global sync phase',
+    type: 'string',
+    enum: ['idle', 'database', 'database-push', 'database-pull', 'jenkins', 'hotNews'],
+    writable: false,
+  },
   global_sync_error: {
     category: 'runtime',
     description: 'Global sync runtime error',

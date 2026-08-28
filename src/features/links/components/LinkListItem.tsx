@@ -35,12 +35,12 @@ export function LinkListItem({
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           <LinkAnchor
             href={link.url}
             target="_blank"
             rel="noreferrer"
-            className={cn('block group/link')}
+            className={cn('block min-w-0 flex-1 group/link')}
             onSingleClick={() => onRecordVisit(link.id)}
           >
             <div className="truncate py-0.5 text-sm font-semibold leading-normal text-foreground transition-colors group-hover/link:text-primary">

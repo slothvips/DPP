@@ -4,9 +4,11 @@ import type { AgentConfig, ToolContext } from '@page-agent/core';
 import type { PageController } from '@page-agent/page-controller';
 import { RemotePageController } from './remotePageController';
 import { TabsController } from './tabsController';
+import { testStepDoneTool } from './testStepDoneTool';
 
 export interface MultiPageAgentConfig extends AgentConfig {
   initialTabId: number;
+  resultMode?: 'test-step';
   onRequestUser?: (reason: string) => Promise<void>;
 }
 
@@ -14,12 +16,27 @@ export class MultiPageAgent extends PageAgentCore {
   constructor(config: MultiPageAgentConfig) {
     const tabs = new TabsController(config.initialTabId);
     const controller = new RemotePageController(tabs);
+    const testStepInstructions =
+      config.resultMode === 'test-step'
+        ? '当前是测试步骤模式。完成当前步骤后必须调用 done 工具结束任务；不要用普通文字结束。done 的 text 必须是严格 JSON，格式为 {"status":"passed | failed | blocked","actualResult":"实际观察结果","detail":"补充说明"}。只报告当前步骤，不执行后续步骤；证据不足时使用 failed 或 blocked，不得猜测为 passed。'
+        : undefined;
     super({
       ...config,
       experimentalScriptExecutionTool: false,
       pageController: controller as unknown as PageController,
+      instructions: {
+        ...config.instructions,
+        ...(testStepInstructions
+          ? {
+              system: [config.instructions?.system, testStepInstructions]
+                .filter(Boolean)
+                .join('\n'),
+            }
+          : {}),
+      },
       customTools: {
         ...config.customTools,
+        ...(config.resultMode === 'test-step' ? { done: testStepDoneTool } : {}),
         open_new_tab: tool({
           description: '打开一个新浏览器标签页，并切换到该页面。',
           inputSchema: z.object({

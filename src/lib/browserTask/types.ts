@@ -9,7 +9,7 @@ export type BrowserTaskStatus =
   | 'completed'
   | 'failed'
   | 'stopped';
-export type BrowserTaskStopSource = 'chat' | 'browser' | 'system';
+export type BrowserTaskStopSource = 'chat' | 'browser' | 'system' | 'timeout';
 
 export interface BrowserTaskSummary {
   taskId: string;
@@ -39,6 +39,7 @@ export interface BrowserTaskStartMessage {
   toolCallId?: string;
   initialTabId: number;
   resourceKeys?: string[];
+  resultMode?: 'test-step';
   closeInitialTab?: boolean;
 }
 

@@ -7,7 +7,7 @@ interface ToolboxToolGridProps {
 
 export function ToolboxToolGrid({ onSelectTool }: ToolboxToolGridProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-1 gap-3 [@media(min-width:520px)]:grid-cols-2">
       {TOOLBOX_TOOLS.map((tool) => {
         const Icon = tool.icon;
 

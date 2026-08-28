@@ -67,7 +67,10 @@ export function TagSelector({
             <Plus className="w-4 h-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-64 p-2 z-[100]" align="start">
+        <PopoverContent
+          className="w-[min(16rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] p-2 z-[100]"
+          align="start"
+        >
           <div className="space-y-2">
             <div className="font-medium text-sm">选择标签</div>
             <div
@@ -107,18 +110,18 @@ export function TagSelector({
                 ))}
               </div>
             </div>
-            <div className="flex gap-2 pt-2 border-t">
+            <div className="flex flex-wrap gap-2 border-t pt-2">
               <Input
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 placeholder="新建标签..."
-                className="h-7 text-xs"
+                className="h-7 min-w-0 flex-1 text-xs"
                 maxLength={VALIDATION_LIMITS.TAG_NAME_MAX}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreate();
                 }}
               />
-              <Button size="sm" className="h-7 px-2" onClick={handleCreate}>
+              <Button size="sm" className="h-7 shrink-0 px-2" onClick={handleCreate}>
                 添加
               </Button>
             </div>

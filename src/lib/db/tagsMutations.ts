@@ -77,6 +77,7 @@ export async function ensureTagsExist(names: string[]): Promise<Map<string, stri
 
 export async function createOrReactivateTag(args: {
   name: string;
+  color?: string;
 }): Promise<{ success: boolean; id: string; message: string; isExisting: boolean }> {
   const trimmedName = args.name.trim();
   const now = Date.now();
@@ -105,7 +106,7 @@ export async function createOrReactivateTag(args: {
     await db.tags.add({
       id: newId,
       name: trimmedName,
-      color: 'blue',
+      color: args.color ?? 'blue',
       updatedAt: now,
     });
 

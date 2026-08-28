@@ -160,7 +160,7 @@ export function AIMaterialLibraryView({
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-muted/10">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border/60 bg-background px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Library className="h-4 w-4" />
@@ -352,7 +352,9 @@ function TestCaseDetail({
       <div className="space-y-4">
         <div>
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-base font-semibold text-foreground">{material.title}</h2>
+            <h2 className="min-w-0 break-words text-base font-semibold text-foreground">
+              {material.title}
+            </h2>
             <span className="shrink-0 text-xs text-muted-foreground">v{material.version}</span>
           </div>
           <p className="mt-2 text-sm leading-6 text-foreground">{definition.goal}</p>

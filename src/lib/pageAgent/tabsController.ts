@@ -24,7 +24,7 @@ export class TabsController {
   }
 
   async init(task: string): Promise<void> {
-    await this.waitUntilTabLoaded(this.initialTabId);
+    await this.waitUntilTabLoaded(this.initialTabId, true);
     const tab = await browser.tabs.get(this.initialTabId);
     if (!tab.url || !isInjectable(tab.url) || tab.windowId === undefined) {
       throw new Error('当前起始标签页无法运行网页助手');
@@ -39,7 +39,11 @@ export class TabsController {
     };
     if (typeof tabsApi.group === 'function') {
       try {
-        this.groupId = await tabsApi.group({ tabIds: [this.initialTabId] });
+        if (typeof tab.groupId === 'number' && tab.groupId >= 0 && browser.tabGroups) {
+          const existingGroup = await browser.tabGroups.get(tab.groupId);
+          if (existingGroup.title?.startsWith('DPP · ')) this.groupId = tab.groupId;
+        }
+        this.groupId ??= await tabsApi.group({ tabIds: [this.initialTabId] });
         await browser.tabGroups?.update(this.groupId, {
           title: `DPP · ${task.slice(0, 32)}`,
           color: 'blue',
@@ -69,7 +73,7 @@ export class TabsController {
       await tabsApi.group?.({ tabIds: [tab.id], groupId: this.groupId });
     }
     this.currentTabId = tab.id;
-    await this.waitUntilTabLoaded(tab.id);
+    await this.waitUntilTabLoaded(tab.id, true);
     const loadedTab = await browser.tabs.get(tab.id);
     if (!loadedTab.url || !isInjectable(loadedTab.url)) {
       await browser.tabs.remove(tab.id).catch(() => undefined);
@@ -155,7 +159,17 @@ export class TabsController {
     }
   }
 
-  async waitUntilTabLoaded(tabId: number): Promise<void> {
+  async waitUntilTabLoaded(tabId: number, retryOnTimeout = false): Promise<void> {
+    try {
+      await this.waitUntilTabLoadedOnce(tabId);
+    } catch (error) {
+      if (!retryOnTimeout || !isTabLoadTimeout(error)) throw error;
+      await browser.tabs.reload(tabId);
+      await this.waitUntilTabLoadedOnce(tabId);
+    }
+  }
+
+  private async waitUntilTabLoadedOnce(tabId: number): Promise<void> {
     const deadline = Date.now() + TAB_LOAD_TIMEOUT_MS;
     let lastStatus = 'unknown';
     let lastUrl = 'unknown';
@@ -176,4 +190,8 @@ export class TabsController {
     this.tabs = [];
     this.currentTabId = null;
   }
+}
+
+function isTabLoadTimeout(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('加载超时');
 }

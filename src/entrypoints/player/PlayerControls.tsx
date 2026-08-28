@@ -32,11 +32,11 @@ export function PlayerControls({
   }
 
   return (
-    <div className="bg-card border-t px-4 py-3 flex items-center gap-4 shrink-0">
-      <Button variant="ghost" size="sm" onClick={onPlayPause} className="w-10 h-10 p-0">
+    <div className="flex shrink-0 flex-wrap items-center gap-3 border-t bg-card px-4 py-3">
+      <Button variant="ghost" size="sm" onClick={onPlayPause} className="h-10 w-10 shrink-0 p-0">
         {isPlaying ? <PauseIcon /> : <PlayIcon />}
       </Button>
-      <span className="text-sm text-muted-foreground w-24 tabular-nums">
+      <span className="w-auto shrink-0 text-sm tabular-nums text-muted-foreground">
         {formatPlaybackTime(currentTime)} / {formatPlaybackTime(duration)}
       </span>
       <input
@@ -45,9 +45,9 @@ export function PlayerControls({
         max={duration}
         value={currentTime}
         onChange={onSeek}
-        className="flex-1 h-2 accent-primary cursor-pointer"
+        className="h-2 min-w-24 flex-[1_1_8rem] cursor-pointer accent-primary"
       />
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
         {[0.5, 1, 2, 4].map((value) => (
           <Button
             key={value}

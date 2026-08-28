@@ -1,10 +1,12 @@
 import { loadAIConfig } from '@/features/aiAssistant/lib/aiConfigStorage';
 import { readAISetting, resolveAIApiKey } from './configShared';
 import { createProvider } from './provider';
+import { getAIProviderDefinition } from './providerRegistry';
 import type { AIProviderType, ModelProvider } from './types';
 
 export interface AIProviderConfig {
   providerType: AIProviderType;
+  displayName: string;
   baseUrl: string;
   model: string;
   apiKey: string;
@@ -37,6 +39,7 @@ export async function loadAIProviderConfig(options?: {
 
   return {
     providerType: config.provider,
+    displayName: config.displayName ?? getAIProviderDefinition(config.provider).label,
     baseUrl,
     model,
     apiKey,

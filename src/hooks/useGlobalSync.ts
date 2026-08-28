@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { db, syncEngine } from '@/db';
 import { getSetting } from '@/lib/db/settings';
-import type { SyncPendingCounts } from '@/lib/sync/types';
+import type { GlobalSyncPhase, GlobalSyncStatus, SyncPendingCounts } from '@/lib/sync/types';
 import { logger } from '@/utils/logger';
 
 interface SyncMessageResponse {
@@ -13,6 +13,8 @@ interface SyncMessageResponse {
 
 export interface GlobalSyncState {
   isSyncing: boolean;
+  status: GlobalSyncStatus;
+  phase: GlobalSyncPhase;
   lastSyncTime: number | null;
   error: string | null;
   pendingCounts: SyncPendingCounts;
@@ -36,11 +38,11 @@ export function useGlobalSync(): GlobalSyncState {
     []
   );
 
-  const isSyncing =
-    useLiveQuery(async () => {
-      const status = await getSetting('global_sync_status');
-      return status === 'syncing';
-    }) ?? false;
+  const status = useLiveQuery(() => getSetting('global_sync_status')) ?? 'idle';
+
+  const phase = useLiveQuery(() => getSetting('global_sync_phase')) ?? 'idle';
+
+  const isSyncing = status === 'syncing';
 
   const error =
     useLiveQuery(async () => {
@@ -116,6 +118,8 @@ export function useGlobalSync(): GlobalSyncState {
 
   return {
     isSyncing,
+    status,
+    phase,
     lastSyncTime,
     error,
     pendingCounts,

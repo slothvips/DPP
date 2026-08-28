@@ -98,19 +98,15 @@ SyncEngine.pull()
 - `src/db/typesSync.ts`
 - `src/db/typesDatabase.ts`
 
-SQLite 服务端：
-
-- `packages/node-server/src/index.ts`
-- `packages/node-server/src/db.ts`
-
-Google Sheets Worker：
+Cloudflare Worker：
 
 - `packages/cf-worker-googlesheet/src/index.ts`
-- `packages/cf-worker-googlesheet/src/lib/sheets.ts`
+- `packages/cf-worker-googlesheet/src/lib/d1.ts`
+- `packages/cf-worker-googlesheet/src/lib/pushCoordinator.ts`
 
-### 1.3 两个服务端的共同协议
+### 1.3 服务端协议
 
-两个服务端都接受如下旧格式：
+服务端接受如下格式：
 
 ```json
 {
@@ -135,7 +131,7 @@ Google Sheets Worker：
 
 服务端将操作追加到日志，返回 cursor。客户端用 cursor 读取增量日志。cursor 表示物理日志记录位置，而不是逻辑业务操作数量。
 
-当前实现存在一个需要在本任务中修复的协议缺口：部分服务端 schema/存储路径没有完整保留 `clientId`。实施时必须让 Node Server 和 Google Sheets Worker 都保存并返回 `clientId`，否则客户端无法可靠过滤自己上传的完整操作和分片操作。
+服务端必须保存并返回 `clientId`，否则客户端无法可靠过滤自己上传的完整操作和分片操作。
 
 ## 2. 目标与取舍
 
@@ -154,7 +150,7 @@ Google Sheets Worker：
 - 旧客户端在升级前不需要理解大内容分片。
 - 旧客户端可能跳过或暂存分片，但不能把分片应用到业务表。
 - 新客户端升级时需要做一次历史分片扫描。
-- 历史同步日志必须在服务端保留；当前 SQLite 和 Google Sheets 都是追加保存，满足这一前提。
+- 历史同步日志必须在服务端保留；当前 D1 `operations` 是追加日志，满足这一前提。
 
 ## 3. 方案概览
 
@@ -192,10 +188,8 @@ Google Sheets Worker：
 - `src/lib/sync/SyncEngine.apply.ts`
 - `src/lib/sync/types.ts`
 - `src/db/schema.ts`
-- `packages/node-server/src/index.ts`
-- `packages/node-server/src/db.ts`
 - `packages/cf-worker-googlesheet/src/index.ts`
-- `packages/cf-worker-googlesheet/src/lib/sheets.ts`
+- `packages/cf-worker-googlesheet/src/lib/d1.ts`
 
 当前操作先整体 JSON 序列化并 AES-GCM 加密，再作为一个完整 payload 上传。本方案只在加密之后切分 ciphertext，不切分明文，也不分别加密每个分片。
 
@@ -326,23 +320,23 @@ op-123:chunk:3  index=3  total=4
 
 ## 10. 服务端处理
 
-### 10.1 Node Server
+### 10.1 D1 Worker
 
 继续使用现有 `/api/sync/push` 和 `/api/sync/pull`。
 
-`operations` 表继续保存完整操作和分片操作，现有 `client_op_id` 唯一约束可直接用于分片 ID 幂等。
+`operations` 表保存完整操作和分片操作，`UNIQUE (client_id, client_op_id)` 约束用于分片 ID 幂等。
 
 需要补充：
 
-- `OperationSchema` 对 `__sync_chunk__` payload 的校验。
-- 已有 `operations` 表的 `client_id` 字段迁移和读写。
+- `__sync_chunk__` payload 的形状、身份和确定性 ID 校验。
+- `client_id` 的完整读写。
 - 相同分片 ID、相同内容时返回成功但不重复插入。
 - 相同分片 ID、不同内容时返回冲突错误。
 - push 响应明确返回本次接受的物理记录 ID，或在 provider 侧根据完整请求成功可靠判定。
 
 不得把分片重组或解密放在服务端。
 
-### 10.2 Google Sheets Worker
+### 10.2 历史 Google Sheets 兼容
 
 继续使用现有 `Operations` Sheet，不新增 Sheet。
 
@@ -484,7 +478,7 @@ chunkRecoveryCompleted !== true
 
 ### 14.6 恢复前提和代价
 
-历史恢复要求服务端保留同步日志。当前 Node SQLite 和 Google Sheets 都是追加保存，满足该前提。
+历史恢复要求服务端保留同步日志。当前 D1 `operations` 是追加保存，满足该前提。
 
 恢复代价是首次升级可能扫描完整历史日志。后续可以增加服务端按 `kind=chunk-v1` 过滤的查询优化，但不作为第一版必要接口；第一版优先使用现有 pull 接口保证协议简单。
 
@@ -533,16 +527,11 @@ lastServerCursor
 - 不完整分片不解密、不应用、不立即删除。
 - 完整分片应用成功后删除缓存。
 
-Node Server：
+D1 Worker：
 
-- 使用现有 `client_op_id` 唯一约束。
+- 使用 `(client_id, client_op_id)` 唯一约束。
 - 对相同 ID 的相同内容返回幂等成功。
 - 对相同 ID 的不同内容返回冲突。
-
-Google Sheets Worker：
-
-- 使用 KV 或等效索引记录已确认 ID。
-- 重试时跳过已确认的相同 ID。
 - 读取时客户端再次按 ID 去重。
 
 ## 18. 实施顺序
@@ -550,9 +539,9 @@ Google Sheets Worker：
 1. 新增 `SyncChunkPayload` 类型和分片识别函数。
 2. 新增纯函数：加密 payload 大小判断、分片、重组和完整性校验。
 3. 增加 `syncChunks` Dexie 表和 v19 migration。
-4. 修改 Node Server schema 和 push/pull，使其接受同一 `ops` 数组中的分片记录。
-5. 修改 Google Sheets Worker，使其在同一 `Operations` Sheet 保存和解析分片 payload。
-6. 补充两个服务端的 `clientId` 保存和分片 ID 幂等。
+4. 修改 Worker schema 和 push/pull，使其接受同一 `ops` 数组中的分片记录。
+5. 在 D1 `operations` 表保存和解析分片 payload。
+6. 补充 `clientId` 保存和分片 ID 幂等。
 7. 接入客户端上传：小内容原格式，大内容分片格式。
 8. 接入单 cursor 混合拉取和本地分片缓存。
 9. 关闭或改造 push cursor 优化，避免按逻辑操作数推导物理 cursor。
@@ -580,8 +569,7 @@ pnpm build
 - 缺失分片不会提前解密或应用。
 - 错误 hash 或错误 ciphertext 不会应用。
 - 上传超时重试不会重复产生逻辑数据。
-- Node Server 同一表 round-trip。
-- Google Sheets 同一 Sheet round-trip。
+- D1 `operations` 同一表 round-trip。
 - 旧客户端遇到分片不会修改业务表。
 - `deferred_ops` 中的旧分片可以迁移到 `syncChunks`。
 - 升级恢复能从 cursor 0 找回旧客户端跳过的分片。
@@ -611,8 +599,7 @@ pnpm build
 
 - 客户端能把超限的加密操作转换为 `__sync_chunk__` 分片操作。
 - 客户端能在同一个 push 请求中上传完整操作和分片操作，并按请求字节上限拆批。
-- SQLite Node Server 能保存、返回、校验和幂等处理两种操作。
-- Google Sheets Worker 能在现有 `Operations` Sheet 保存、读取和幂等处理两种操作。
+- D1 Worker 能保存、返回、校验和幂等处理两种操作。
 - 客户端新增 `syncChunks` 表，并完成 Dexie migration。
 - 客户端能处理跨分页、乱序、重复和缺失分片。
 - 客户端重启后能从本地缓存继续重组。
@@ -626,7 +613,7 @@ pnpm build
 
 1. 发送小于或等于 3000 字符的加密 payload，服务端仍按旧完整操作保存和返回。
 2. 发送超过 3000 字符的加密 payload，所有分片最终写入的 payload 单元格都不超过 3000 字符。
-3. 一个请求同时包含完整操作和分片操作时，Node Server 和 Google Sheets Worker 都能正确保存并返回。
+3. 一个请求同时包含完整操作和分片操作时，D1 Worker 能正确保存并返回。
 4. 分片按任意顺序、跨多个 pull 分页返回时，客户端能收齐并正确解密原始业务操作。
 5. 缺失任意一个 index 时，客户端不会解密、应用或删除该分片组。
 6. 同一个分片重复上传或重复拉取时，不会重复写入或重复应用。

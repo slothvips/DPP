@@ -25,8 +25,8 @@ export function SidepanelHeader({ activeTab, showSyncButton }: SidepanelHeaderPr
   const { usageGuide } = activeTabConfig;
 
   return (
-    <header className="shrink-0 border-b border-border/45 bg-background/82 px-3 py-2.5 backdrop-blur dark:bg-background/88">
-      <div className="flex min-w-0 items-center justify-between gap-3">
+    <header className="min-w-0 shrink-0 border-b border-border/45 bg-background/82 px-3 py-2.5 backdrop-blur dark:bg-background/88">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/9 text-primary ring-1 ring-primary/12">
             {activeTabConfig.icon}
@@ -78,7 +78,7 @@ export function SidepanelHeader({ activeTab, showSyncButton }: SidepanelHeaderPr
           </Dialog>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2">
           <ThemeToggle />
           {import.meta.env.MODE === 'development' && (
             <span className="rounded-md bg-destructive/10 px-1.5 py-0.5 text-[10px] font-bold text-destructive ring-1 ring-destructive/15">

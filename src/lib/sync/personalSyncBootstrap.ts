@@ -5,7 +5,7 @@ import type { SyncEngine } from './SyncEngine';
 
 const BOOTSTRAP_SETTING = 'personal_sync_bootstrap_done' as const;
 
-type PersonalSyncEngine = Pick<SyncEngine, 'enqueuePersonalData' | 'push'>;
+type PersonalSyncEngine = Pick<SyncEngine, 'enqueuePersonalData' | 'sync'>;
 
 /** 个人私钥写入后：补建个人表同步队列，并标记 bootstrap 完成 */
 export async function bootstrapPersonalSyncAfterKeyReady(
@@ -16,10 +16,10 @@ export async function bootstrapPersonalSyncAfterKeyReady(
   return enqueued;
 }
 
-export type PersonalKeyFinalizeStep = 'enqueue' | 'push';
+export type PersonalKeyFinalizeStep = 'enqueue' | 'sync';
 
 /**
- * 个人私钥写入后：补建个人表同步队列并上传。
+ * 个人私钥写入后：补建个人表同步队列，并上传、拉取数据。
  */
 export async function finalizePersonalSyncAfterKeyReady(
   engine: PersonalSyncEngine,
@@ -27,8 +27,8 @@ export async function finalizePersonalSyncAfterKeyReady(
 ): Promise<number> {
   onStep?.('enqueue');
   const enqueued = await bootstrapPersonalSyncAfterKeyReady(engine);
-  onStep?.('push');
-  await engine.push();
+  onStep?.('sync');
+  await engine.sync();
   return enqueued;
 }
 

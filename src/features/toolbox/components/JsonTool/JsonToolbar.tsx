@@ -19,7 +19,7 @@ export function JsonToolbar({
   onMinify,
 }: JsonToolbarProps) {
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 shrink-0">
+    <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
       <Button size="sm" variant="outline" onClick={onFormat} disabled={disabled || aiFixing}>
         格式化
       </Button>
@@ -35,7 +35,7 @@ export function JsonToolbar({
         )}
         AI 修复
       </Button>
-      {aiError && <span className="text-xs text-destructive ml-2">{aiError}</span>}
+      {aiError && <span className="min-w-0 break-words text-xs text-destructive">{aiError}</span>}
     </div>
   );
 }

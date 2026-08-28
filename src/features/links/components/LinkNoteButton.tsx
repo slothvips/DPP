@@ -25,7 +25,11 @@ export function LinkNoteButton({ note }: LinkNoteButtonProps) {
           <StickyNote className="h-3.5 w-3.5 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end" onClick={(event) => event.stopPropagation()}>
+      <PopoverContent
+        className="w-[min(20rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)] p-0"
+        align="end"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="flex flex-col">
           <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b">
             <span className="text-xs font-medium text-muted-foreground">备注</span>

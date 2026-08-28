@@ -14,7 +14,7 @@ export interface BrowserTaskProgress {
   error?: string;
   createdAt: number;
   updatedAt: number;
-  stopSource?: 'chat' | 'browser' | 'system';
+  stopSource?: 'chat' | 'browser' | 'system' | 'timeout';
   history: unknown[];
   activity?: unknown;
 }
@@ -100,7 +100,10 @@ function readTaskProgress(message: unknown): BrowserTaskProgress | null {
           : Date.now(),
     updatedAt: typeof event.updatedAt === 'number' ? event.updatedAt : Date.now(),
     stopSource:
-      event.stopSource === 'chat' || event.stopSource === 'browser' || event.stopSource === 'system'
+      event.stopSource === 'chat' ||
+      event.stopSource === 'browser' ||
+      event.stopSource === 'system' ||
+      event.stopSource === 'timeout'
         ? event.stopSource
         : undefined,
     history: readHistory(event),

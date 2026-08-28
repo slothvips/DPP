@@ -116,6 +116,10 @@ export async function runWithSyncRetry<T>(options: {
       if (!isRetryableSyncError(lastError)) {
         throw lastError;
       }
+      if (attempt >= attempts - 1) {
+        break;
+      }
+
       const delay = retryDelay * 2 ** attempt;
 
       logger.warn(
@@ -132,7 +136,7 @@ export async function runWithSyncRetry<T>(options: {
   throw lastError;
 }
 
-function isRetryableSyncError(error: Error): boolean {
+export function isRetryableSyncError(error: Error): boolean {
   return !/(401|403|404|409|unauthorized|not configured|invalid|no encryption key|did not confirm|exceeds the sync payload limit)/i.test(
     error.message
   );

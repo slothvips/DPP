@@ -25,15 +25,15 @@ export function JsonViewHeader({
   onImport,
 }: JsonViewHeaderProps) {
   return (
-    <div className="flex items-center justify-between p-4 border-b border-border shrink-0 bg-background">
-      <div className="flex items-center gap-3">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-background p-4">
+      <div className="flex min-w-0 items-center gap-3">
         {onBack && (
           <Button variant="ghost" size="icon" onClick={onBack} title="返回工具箱">
             <ChevronLeft className="h-4 w-4" />
           </Button>
         )}
-        <h2 className="text-lg font-semibold text-foreground">JSON 编辑器</h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="shrink-0 text-lg font-semibold text-foreground">JSON 编辑器</h2>
+        <p className="min-w-0 truncate text-sm text-muted-foreground">
           {isFormatted ? '已格式化' : '已压缩'}
           {error && <span className="text-destructive ml-2">• 有错误</span>}
         </p>

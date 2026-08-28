@@ -2,7 +2,6 @@ import { JWT } from 'google-auth-library';
 
 export interface Env {
   GOOGLE_SERVICE_ACCOUNT: string;
-  SYNC_ACCESS_TOKEN: string;
 }
 
 interface ServiceAccountCredentials {

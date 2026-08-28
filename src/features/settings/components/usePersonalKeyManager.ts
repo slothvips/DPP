@@ -21,7 +21,7 @@ import type {
   PersonalKeySetupStepId,
 } from './personalKeySetupSteps';
 
-/** 个人私钥写入后，push 本地个人数据。 */
+/** 个人私钥写入后，上传本地数据并拉取远端个人数据。 */
 async function syncAfterPersonalKeyReady(
   onStep: (step: PersonalKeyFinalizeStep) => void
 ): Promise<number> {
@@ -130,7 +130,7 @@ export function usePersonalKeyManager() {
         doneDismissTimerRef.current = null;
       }, 4000);
     } catch (error) {
-      logger.error('Failed to push after personal key ready:', error);
+      logger.error('Failed to sync after personal key ready:', error);
       await checkKey();
       setSetupProgress({
         phase: 'error',

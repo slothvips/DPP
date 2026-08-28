@@ -41,6 +41,7 @@ async function performGlobalSyncUnlocked() {
     }
 
     await updateSetting('global_sync_status', 'syncing');
+    await updateSetting('global_sync_phase', 'database');
     await updateSetting('global_sync_start_time', Date.now());
     await updateSetting('global_sync_error', '');
 
@@ -57,6 +58,7 @@ async function performGlobalSyncUnlocked() {
 
     // Sync Jenkins
     try {
+      await updateSetting('global_sync_phase', 'jenkins');
       const { host, user, token, envId } = await getJenkinsCredentials();
       await Promise.all([
         fetchAllJobs(host, user, token, envId),
@@ -76,6 +78,7 @@ async function performGlobalSyncUnlocked() {
 
     // Sync Hot News
     try {
+      await updateSetting('global_sync_phase', 'hotNews');
       await fetchTodayNews();
       results.push({ module: 'hotNews', success: true });
       logger.info('[GlobalSync] Hot news sync completed');
@@ -95,6 +98,7 @@ async function performGlobalSyncUnlocked() {
       const errorDetails = failures.map((f) => `${f.module}: ${f.error}`).join('; ');
 
       await updateSetting('global_sync_status', 'partial');
+      await updateSetting('global_sync_phase', 'idle');
       await updateSetting(
         'global_sync_error',
         `部分模块同步失败 (${failedModules}): ${errorDetails}`
@@ -103,6 +107,7 @@ async function performGlobalSyncUnlocked() {
       logger.warn(`[GlobalSync] Partial success. Failed modules: ${failedModules}`);
     } else {
       await updateSetting('global_sync_status', 'idle');
+      await updateSetting('global_sync_phase', 'idle');
       await updateSetting('global_sync_error', '');
       logger.info('[GlobalSync] All modules synced successfully');
     }
@@ -111,6 +116,7 @@ async function performGlobalSyncUnlocked() {
   } catch (err) {
     logger.error('[GlobalSync] Critical failure:', err);
     await updateSetting('global_sync_status', 'error');
+    await updateSetting('global_sync_phase', 'idle');
     await updateSetting('global_sync_error', err instanceof Error ? err.message : 'Unknown error');
     throw err;
   }

@@ -9,6 +9,7 @@ export const EXCLUDED_SETTINGS: SettingKey[] = [
   'last_sync_status',
   'last_global_sync',
   'global_sync_status',
+  'global_sync_phase',
   'global_sync_error',
   'global_sync_start_time',
   // 个人私钥禁止进入配置导出/导入，避免误分享到团队备份
@@ -290,6 +291,15 @@ function isValidImportedSettingValue(key: SettingKey, value: unknown): boolean {
       return value === 'light' || value === 'dark' || value === 'system';
     case 'global_sync_status':
       return value === 'idle' || value === 'syncing' || value === 'partial' || value === 'error';
+    case 'global_sync_phase':
+      return (
+        value === 'idle' ||
+        value === 'database' ||
+        value === 'database-push' ||
+        value === 'database-pull' ||
+        value === 'jenkins' ||
+        value === 'hotNews'
+      );
     case 'jenkins_environments':
       return isJenkinsEnvironments(value);
     case 'jenkins_builds_last_refresh_by_env':

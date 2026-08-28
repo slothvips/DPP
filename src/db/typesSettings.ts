@@ -1,4 +1,5 @@
 import type { AIProviderType } from '@/lib/ai/types';
+import type { GlobalSyncPhase, GlobalSyncStatus } from '@/lib/sync/types';
 import type { JenkinsEnvironment } from './typesDomain';
 
 export interface StoredEncryptedValue {
@@ -18,7 +19,8 @@ interface BaseSettingMap {
   theme: 'light' | 'dark' | 'system';
   last_sync_time: number;
   last_sync_status: string;
-  global_sync_status: 'idle' | 'syncing' | 'partial' | 'error';
+  global_sync_status: GlobalSyncStatus;
+  global_sync_phase: GlobalSyncPhase;
   global_sync_error: string;
   last_global_sync: number;
   jenkins_host: string;

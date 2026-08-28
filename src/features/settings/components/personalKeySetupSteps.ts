@@ -8,7 +8,7 @@ export interface PersonalKeySetupProgressState {
   phase: PersonalKeySetupPhase;
   /** 出错时所在步骤，用于进度条定位 */
   failedStep?: PersonalKeySetupStepId;
-  /** 推送成功时记录条数 */
+  /** 同步成功时记录条数 */
   enqueued?: number;
   errorMessage?: string;
 }
@@ -19,10 +19,10 @@ export const PERSONAL_KEY_SETUP_STEPS: Array<{
 }> = [
   { id: 'saving', label: '保存个人私钥' },
   { id: 'enqueue', label: '准备个人数据' },
-  { id: 'push', label: '推送到服务器' },
+  { id: 'sync', label: '同步个人数据' },
 ];
 
-const STEP_ORDER: PersonalKeySetupStepId[] = ['saving', 'enqueue', 'push'];
+const STEP_ORDER: PersonalKeySetupStepId[] = ['saving', 'enqueue', 'sync'];
 
 export function getPersonalKeySetupStepIndex(state: PersonalKeySetupProgressState): number {
   if (state.phase === 'done') {
@@ -40,11 +40,11 @@ export function getPersonalKeySetupStatusText(state: PersonalKeySetupProgressSta
       return '正在保存个人私钥…';
     case 'enqueue':
       return '正在准备个人数据上传…';
-    case 'push':
-      return '正在推送个人数据到服务器…';
+    case 'sync':
+      return '正在上传并拉取个人数据…';
     case 'done':
       return state.enqueued && state.enqueued > 0
-        ? `已完成：推送 ${state.enqueued} 条个人数据`
+        ? `已完成：准备并同步 ${state.enqueued} 条个人数据`
         : '已完成：个人数据已同步';
     case 'error':
       return state.errorMessage ?? '个人私钥已保存，但后续同步失败。请检查同步配置后手动同步。';

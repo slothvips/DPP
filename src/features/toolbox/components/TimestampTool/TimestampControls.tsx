@@ -41,7 +41,7 @@ export function TimestampControls({
 
       <div className="space-y-2">
         <Label className="text-foreground">请输入日期</Label>
-        <div className="relative">
+        <div className="relative min-w-0">
           <Input
             value={inputValue}
             onChange={(event) => onInputChange(event.target.value)}

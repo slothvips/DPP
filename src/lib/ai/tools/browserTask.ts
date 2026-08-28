@@ -9,7 +9,36 @@ import {
 } from '@/lib/db/browserTasks';
 
 const MAX_TASK_RESULT_LENGTH = 2000;
+const TASK_QUEUE_TIMEOUT_MS = 5 * 60 * 1000;
 const taskIdsBySession = new Map<string, Set<string>>();
+const testTabsByTarget = new Map<string, number>();
+
+type BrowserTaskFailureReason =
+  | 'invalid_request'
+  | 'resource_conflict'
+  | 'page_unavailable'
+  | 'page_load_timeout'
+  | 'task_timeout'
+  | 'execution_failed'
+  | 'stopped';
+
+interface BrowserTaskToolResult {
+  success: boolean;
+  message: string;
+  failure_reason?: BrowserTaskFailureReason;
+  retryable?: boolean;
+}
+
+function getTestTabKey(sessionId: string, testRunId: string, targetId: string): string {
+  return `${sessionId}\0${testRunId}\0${targetId}`;
+}
+
+export function releaseTestBrowserTabs(sessionId: string, testRunId: string): void {
+  const prefix = `${sessionId}\0${testRunId}\0`;
+  for (const key of testTabsByTarget.keys()) {
+    if (key.startsWith(prefix)) testTabsByTarget.delete(key);
+  }
+}
 
 export async function delegateBrowserAgent(args: {
   task: string;
@@ -18,10 +47,14 @@ export async function delegateBrowserAgent(args: {
   open_new_tab?: boolean;
   resource_keys?: string[];
   test_target_id?: string;
+  test_run_id?: string;
   session_id?: string;
   tool_call_id?: string;
   onUpdate?: (event: Partial<BrowserTaskSummary>) => void;
-}): Promise<{ success: boolean; message: string }> {
+}): Promise<BrowserTaskToolResult> {
+  if (args.test_target_id?.trim() && !args.test_run_id?.trim()) {
+    return createBrowserTaskFailure('测试步骤缺少测试执行 ID', 'invalid_request');
+  }
   const idempotencyKey =
     args.session_id && args.tool_call_id ? `${args.session_id}:${args.tool_call_id}` : undefined;
   const taskId = crypto.randomUUID();
@@ -38,24 +71,26 @@ export async function delegateBrowserAgent(args: {
     if (!reservation.created) {
       const existing = reservation.record;
       if (isTerminal(existing.summary.status)) {
-        return {
-          success: existing.summary.status === 'completed',
-          message: (existing.summary.result || existing.summary.error || '任务未完成').slice(
-            0,
-            MAX_TASK_RESULT_LENGTH
-          ),
-        };
+        return createBrowserTaskToolResult(existing.summary);
       }
-      return waitForTask(existing.taskId, args.onUpdate, undefined).then((summary) => ({
-        success: summary.status === 'completed',
-        message: (summary.result || summary.error || '任务未完成').slice(0, MAX_TASK_RESULT_LENGTH),
-      }));
+      return waitForTask(existing.taskId, args.onUpdate, undefined).then(
+        createBrowserTaskToolResult
+      );
     }
   }
-  const target = await getTargetTab(args.tab_id, args.initial_url, args.open_new_tab);
+  const testTabKey =
+    args.session_id?.trim() && args.test_run_id?.trim() && args.test_target_id?.trim()
+      ? getTestTabKey(args.session_id.trim(), args.test_run_id.trim(), args.test_target_id.trim())
+      : undefined;
+  const target = await getTargetTab(
+    args.tab_id,
+    args.initial_url,
+    args.open_new_tab,
+    testTabKey
+  );
   if (!target) {
     if (reservationCreated) await deleteBrowserTaskRecord(taskId);
-    return { success: false, message: '当前活动页面无法运行网页助手' };
+    return createBrowserTaskFailure('当前活动页面无法运行网页助手', 'page_unavailable');
   }
   const sessionKey = args.session_id || '';
   const taskIds = taskIdsBySession.get(sessionKey) || new Set<string>();
@@ -74,23 +109,19 @@ export async function delegateBrowserAgent(args: {
           sessionId: args.session_id,
           toolCallId: args.tool_call_id,
           initialTabId: target.tabId,
+          resultMode: args.test_target_id ? 'test-step' : undefined,
           resourceKeys: normalizeResourceKeys(
             args.resource_keys,
             args.initial_url,
             args.test_target_id
           ),
-        }) as Promise<{ success?: boolean; error?: string }>
+        }) as Promise<{ success?: boolean; error?: string; queued?: boolean }>
     );
-    return {
-      success: summary.status === 'completed',
-      message: (summary.result || summary.error || '任务未完成').slice(0, MAX_TASK_RESULT_LENGTH),
-    };
+    return createBrowserTaskToolResult(summary);
   } catch (error) {
     if (reservationCreated) await deleteBrowserTaskRecord(taskId);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-    };
+    const message = error instanceof Error ? error.message : String(error);
+    return createBrowserTaskFailure(message, classifyBrowserTaskFailure(message));
   } finally {
     taskIds.delete(taskId);
     if (taskIds.size === 0) taskIdsBySession.delete(sessionKey);
@@ -144,6 +175,10 @@ export function registerBrowserTaskTools(): void {
           type: 'string',
           description: '测试用例步骤所属的目标网页 ID；执行测试用例步骤时必须提供',
         },
+        test_run_id: {
+          type: 'string',
+          description: '当前测试执行记录 ID；执行测试用例步骤时必须提供，用于隔离标签页复用范围',
+        },
         resource_keys: {
           type: 'array',
           description: '可选共享资源锁，例如 account:foo、order:123；共享资源的任务会串行',
@@ -166,13 +201,24 @@ export function registerBrowserTaskTools(): void {
 async function getTargetTab(
   tabId?: number,
   initialUrl?: string,
-  openNewTab = false
+  openNewTab = false,
+  testTabKey?: string
 ): Promise<{ tabId: number; created: boolean } | null> {
   if (openNewTab) {
     if (!initialUrl || !isInjectableUrl(initialUrl)) return null;
+    const reusableTabId = testTabKey ? testTabsByTarget.get(testTabKey) : undefined;
+    if (reusableTabId !== undefined) {
+      const reusableTab = await browser.tabs.get(reusableTabId).catch(() => null);
+      if (reusableTab && isInjectableUrl(reusableTab.url)) {
+        return { tabId: reusableTabId, created: false };
+      }
+      if (testTabKey) testTabsByTarget.delete(testTabKey);
+    }
     try {
       const created = await browser.tabs.create({ url: initialUrl, active: false });
-      return typeof created.id === 'number' ? { tabId: created.id, created: true } : null;
+      if (typeof created.id !== 'number') return null;
+      if (testTabKey) testTabsByTarget.set(testTabKey, created.id);
+      return { tabId: created.id, created: true };
     } catch {
       return null;
     }
@@ -233,15 +279,31 @@ function getUrlOrigin(value: unknown): string | undefined {
 async function waitForTask(
   taskId: string,
   onUpdate: ((event: Partial<BrowserTaskSummary>) => void) | undefined,
-  start?: () => Promise<{ success?: boolean; error?: string }>
+  start?: () => Promise<{ success?: boolean; error?: string; queued?: boolean }>
 ): Promise<BrowserTaskSummary> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let queueTimeout: ReturnType<typeof setTimeout> | undefined;
+    const clearQueueTimeout = () => {
+      if (queueTimeout !== undefined) {
+        clearTimeout(queueTimeout);
+        queueTimeout = undefined;
+      }
+    };
+    const startQueueTimeout = () => {
+      if (queueTimeout !== undefined) return;
+      queueTimeout = setTimeout(() => {
+        void browser.runtime.sendMessage({ type: 'BROWSER_TASK_STOP', taskId, source: 'timeout' });
+        finishError(new Error('网页任务排队超时：浏览器资源持续冲突'));
+      }, TASK_QUEUE_TIMEOUT_MS);
+    };
     const poll = setInterval(() => {
       void getBrowserTaskRecord(taskId)
         .then((record) => {
           if (!record) return;
           onUpdate?.(record.summary);
+          if (record.summary.status === 'queued') startQueueTimeout();
+          else clearQueueTimeout();
           if (isTerminal(record.summary.status)) finish(record.summary);
         })
         .catch(() => undefined);
@@ -257,6 +319,7 @@ async function waitForTask(
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      clearQueueTimeout();
       clearInterval(poll);
       browser.runtime.onMessage.removeListener(listener);
       resolve(summary);
@@ -265,6 +328,7 @@ async function waitForTask(
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
+      clearQueueTimeout();
       clearInterval(poll);
       browser.runtime.onMessage.removeListener(listener);
       reject(error);
@@ -281,6 +345,8 @@ async function waitForTask(
         .then((response) => {
           if (response.success === false) {
             finishError(new Error(response.error || '任务启动失败'));
+          } else if (response.queued) {
+            startQueueTimeout();
           }
         })
         .catch(finishError);
@@ -290,6 +356,38 @@ async function waitForTask(
 
 function isTerminal(status: unknown): boolean {
   return status === 'completed' || status === 'failed' || status === 'stopped';
+}
+
+function createBrowserTaskToolResult(summary: BrowserTaskSummary): BrowserTaskToolResult {
+  const message = (summary.result || summary.error || '任务未完成').slice(
+    0,
+    MAX_TASK_RESULT_LENGTH
+  );
+  if (summary.status === 'completed') return { success: true, message };
+  return createBrowserTaskFailure(
+    message,
+    summary.status === 'stopped' ? 'stopped' : classifyBrowserTaskFailure(message)
+  );
+}
+
+function createBrowserTaskFailure(
+  message: string,
+  reason: BrowserTaskFailureReason
+): BrowserTaskToolResult {
+  return {
+    success: false,
+    message: message.slice(0, MAX_TASK_RESULT_LENGTH),
+    failure_reason: reason,
+    retryable: reason === 'resource_conflict',
+  };
+}
+
+function classifyBrowserTaskFailure(message: string): BrowserTaskFailureReason {
+  if (/资源.*冲突|排队超时/.test(message)) return 'resource_conflict';
+  if (/加载超时/.test(message)) return 'page_load_timeout';
+  if (/执行超时/.test(message)) return 'task_timeout';
+  if (/无法运行|不受支持|标签页.*已关闭|无法打开/.test(message)) return 'page_unavailable';
+  return 'execution_failed';
 }
 
 function isTaskEvent(

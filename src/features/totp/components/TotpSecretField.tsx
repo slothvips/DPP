@@ -63,10 +63,10 @@ export function TotpSecretField({
           title="点击复制密钥"
           data-testid="totp-copy-secret-button"
         >
-          <span className="font-mono text-xs tracking-widest text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs tracking-widest text-muted-foreground">
             {secret ? '••••••••••••••••' : '尚未填写密钥'}
           </span>
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
             {copied ? (
               <>
                 <Check className="h-3.5 w-3.5 text-success" />

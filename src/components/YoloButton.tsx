@@ -12,9 +12,10 @@ import { useConfirmDialog } from '@/utils/confirm-dialog';
 
 interface YoloButtonProps {
   disabled?: boolean;
+  compact?: boolean;
 }
 
-export function YoloButton({ disabled = false }: YoloButtonProps) {
+export function YoloButton({ disabled = false, compact = false }: YoloButtonProps) {
   const [yoloMode, setYoloMode] = useState(false);
   const { confirm } = useConfirmDialog();
 
@@ -66,12 +67,13 @@ export function YoloButton({ disabled = false }: YoloButtonProps) {
       title="YOLO 模式：自动确认所有工具调用"
       className={cn(
         'text-xs gap-1 transition-all duration-300 border border-border h-8 px-2',
+        compact && 'h-7 w-7 p-0',
         yoloMode && 'yolo-button-active'
       )}
       data-testid="yolo-button"
     >
       <Zap className={cn('w-3.5 h-3.5', yoloMode && 'fill-primary text-primary')} />
-      <span className={yoloMode ? 'text-primary font-medium' : ''}>YOLO</span>
+      <span className={cn(compact && 'sr-only', yoloMode && 'text-primary font-medium')}>YOLO</span>
     </Button>
   );
 }

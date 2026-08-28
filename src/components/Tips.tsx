@@ -43,18 +43,20 @@ export function Tips() {
 
   return (
     <div
-      className="flex items-center justify-center flex-1 mx-4 overflow-hidden cursor-help"
+      className="mx-2 flex min-w-0 flex-1 cursor-help items-center justify-center overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
       <div
         className={cn(
-          'flex max-w-full items-center gap-2.5 rounded-full border border-border/55 bg-background/90 px-5 py-2 text-sm ring-1 ring-border/20 backdrop-blur transition-all duration-300 hover:border-border/70',
+          'flex min-w-0 max-w-full items-center gap-2.5 rounded-full border border-border/55 bg-background/90 px-3 py-1.5 text-xs ring-1 ring-border/20 backdrop-blur transition-all duration-300 hover:border-border/70',
           fade ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0'
         )}
       >
         <Icon className={cn('h-4 w-4 shrink-0', tip.color)} />
-        <span className="truncate font-medium text-foreground">{tip.text}</span>
+        <span className="min-w-0 break-words text-center font-medium text-foreground">
+          {tip.text}
+        </span>
       </div>
     </div>
   );

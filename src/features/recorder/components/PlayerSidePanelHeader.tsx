@@ -15,15 +15,15 @@ export function PlayerSidePanelHeader({
   tabs,
 }: PlayerSidePanelHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
-      <div className="flex items-center gap-1">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => !tab.disabled && onTabChange(tab.id)}
             disabled={tab.disabled}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors',
+              'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors',
               activeTab === tab.id
                 ? 'bg-primary text-primary-foreground'
                 : tab.disabled

@@ -26,8 +26,8 @@ export function DataDiffResultPanel({
 }: DataDiffResultPanelProps) {
   return (
     <>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-muted-foreground">差异统计：</span>
           <span className="px-2 py-1 rounded text-xs font-medium bg-success/10 text-success border border-success/20">
             +{counts.insertCount}

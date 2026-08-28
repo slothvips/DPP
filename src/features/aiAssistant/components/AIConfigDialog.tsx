@@ -69,7 +69,7 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
           <DialogTitle>给 D仔 接入外置大脑</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-3">
-          <AIConfigProviderNotice provider={provider} />
+          <AIConfigProviderNotice provider={provider} model={model} />
 
           <AIConfigFormFields
             provider={provider}

@@ -70,10 +70,13 @@ export function useAIChatFacade(): UseAIChatReturn {
 
   const {
     currentProvider,
+    currentProviderName,
+    currentModel,
     generateSessionTitle,
     runChatCompletion,
     stopRuntime,
     resetRuntimeState,
+    getProvider,
     resetProvider: resetRuntimeProvider,
   } = useAIChatRuntime({
     sessionId,
@@ -191,7 +194,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     logger.info('[AIChat] Provider cache reset');
   }, [resetRuntimeProvider]);
 
-  const summarizeSession = useAIChatSessionSummary({ sessionId, loadSessions });
+  const summarizeSession = useAIChatSessionSummary({ sessionId, loadSessions, getProvider });
   const sessionStatuses = Object.fromEntries(
     sessions.map((session) => [session.id, getSessionStatus(session.id)])
   );
@@ -208,6 +211,8 @@ export function useAIChatFacade(): UseAIChatReturn {
     sessions,
     sessionStatuses,
     currentProvider,
+    currentProviderName,
+    currentModel,
     yoloMode,
     isRunning,
     sendMessage,

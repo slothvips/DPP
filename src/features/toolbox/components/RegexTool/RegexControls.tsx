@@ -25,8 +25,8 @@ export function RegexControls({
     <>
       <div className="space-y-2">
         <label className="text-sm font-medium text-foreground">正则表达式</label>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
+        <div className="flex min-w-0 gap-2">
+          <div className="relative min-w-0 flex-1">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
               /
             </span>
@@ -43,7 +43,7 @@ export function RegexControls({
           </div>
         </div>
         {error && (
-          <div className="flex items-center gap-2 text-sm text-destructive">
+          <div className="flex min-w-0 items-start gap-2 break-words text-sm text-destructive [overflow-wrap:anywhere]">
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>

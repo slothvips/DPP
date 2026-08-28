@@ -54,7 +54,7 @@ export function registerLinksTools() {
         tags: {
           type: 'array',
           description:
-            'IMPORTANT: Tag names must already exist. The system associates links to tags via tag IDs internally. If the tag does not exist, it will be skipped. Always call tags_add first if the tag does not exist.',
+            'Tag names to associate. Call tags_list first and reuse an existing tag whenever possible. Do not create a new tag for convenience; if no suitable tag exists, ask the user unless they explicitly request a new one.',
         },
       },
       ['name', 'url']
@@ -75,7 +75,7 @@ export function registerLinksTools() {
         tags: {
           type: 'array',
           description:
-            'IMPORTANT: Tag names must already exist. If tag does not exist, it will be skipped. To add a new tag, first call tags_add.',
+            'Tag names to associate. Reuse an existing tag returned by tags_list whenever possible. Do not create a new tag for convenience; if no suitable tag exists, ask the user unless they explicitly request a new one.',
         },
       },
       ['id']
@@ -142,7 +142,8 @@ export function registerLinksTools() {
       {
         links: {
           type: 'array',
-          description: 'Array of links to add, each with name, url, optional note and tags',
+          description:
+            'Array of links to add, each with name, url, optional note and tags. Call tags_list first and reuse existing tags; do not create new tags unless the user explicitly requests it.',
         },
       },
       ['links']

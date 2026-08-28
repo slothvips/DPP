@@ -9,6 +9,7 @@ import {
   updateTestRunStep,
 } from '@/lib/db';
 import { logger } from '@/utils/logger';
+import { releaseTestBrowserTabs } from './browserTask';
 
 const STEP_STATUSES = ['passed', 'failed', 'blocked', 'skipped'] as const;
 const RUN_STATUSES = ['passed', 'failed', 'blocked', 'stopped'] as const;
@@ -134,6 +135,8 @@ export function registerTestRunTools(): void {
         optionalText(record.error)
       );
       clearActiveRun(record, run.id);
+      const sessionId = readOptionalSessionId(record);
+      if (sessionId) releaseTestBrowserTabs(sessionId, run.id);
       return { success: true, run_id: run.id, status: run.status, finished_at: run.finishedAt };
     }) as ToolHandler,
   });
@@ -155,6 +158,7 @@ export async function stopTestRunForSession(sessionId: string, reason: string): 
   } catch (error) {
     logger.error('[TestRun] Failed to stop test run:', error);
   } finally {
+    releaseTestBrowserTabs(sessionId, runId);
     if (activeRunIdsBySession.get(sessionId) === runId) {
       activeRunIdsBySession.delete(sessionId);
     }
@@ -214,28 +218,39 @@ function parseAgentResult(value: string): {
   actualResult: string;
   detail?: string;
 } {
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('对象无效');
-    const record = parsed as Record<string, unknown>;
-    const status = readEnum(
-      record.status,
-      ['passed', 'failed', 'blocked'] as const,
-      '网页步骤状态'
-    );
-    const actualResult = readText(record.actualResult, '网页实际结果');
-    return {
-      status,
-      actualResult,
-      ...optionalMappedText(record.detail, 'detail'),
-    };
-  } catch {
-    return {
-      status: 'blocked',
-      actualResult: '网页子 Agent 返回结果无法解析',
-      detail: 'DPP 未收到合法的步骤结果 JSON，已阻塞当前测试执行',
-    };
+  const normalized = value.trim().replace(/^\uFEFF/, '');
+  const candidates = [normalized];
+  const fenced = normalized.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fenced?.[1]) candidates.push(fenced[1]);
+
+  for (const candidate of candidates) {
+    try {
+      const parsed: unknown = JSON.parse(candidate);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('对象无效');
+      }
+      const record = parsed as Record<string, unknown>;
+      const status = readEnum(
+        record.status,
+        ['passed', 'failed', 'blocked'] as const,
+        '网页步骤状态'
+      );
+      const actualResult = readText(record.actualResult, '网页实际结果');
+      return {
+        status,
+        actualResult,
+        ...optionalMappedText(record.detail, 'detail'),
+      };
+    } catch {
+      // 只尝试受限格式，所有格式都失败时保留 blocked 语义。
+    }
   }
+
+  return {
+    status: 'blocked',
+    actualResult: '网页子 Agent 返回结果无法解析',
+    detail: 'DPP 未收到合法的步骤结果 JSON，已阻塞当前测试执行',
+  };
 }
 
 function readEnum<T extends readonly string[]>(

@@ -12,6 +12,8 @@ node_modules
 stats.html
 stats-*.json
 .wxt
+.wrangler
+.migration-token
 web-ext.config.ts
 
 # Editor directories and files

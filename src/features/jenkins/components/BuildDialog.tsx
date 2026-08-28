@@ -47,7 +47,9 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[425px] max-h-[80vh] overflow-y-auto bg-background text-foreground border-border">
         <DialogHeader>
-          <DialogTitle className="text-foreground">构建 {jobName}</DialogTitle>
+          <DialogTitle className="break-words text-foreground [overflow-wrap:anywhere]">
+            构建 {jobName}
+          </DialogTitle>
           <DialogDescription className="text-muted-foreground">
             配置构建参数并开始任务。
           </DialogDescription>

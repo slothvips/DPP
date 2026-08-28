@@ -2,10 +2,15 @@ import { useCallback, useEffect, useRef } from 'react';
 import { hasAssistantOutput, runAgentTurn } from '@/lib/ai/agentRuntime';
 import { formatPlanContext, getPlan } from '@/lib/ai/plan';
 import { generateSystemPrompt } from '@/lib/ai/prompt';
+import { ensureAIToolsRegistered } from '@/lib/ai';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import { stopTestRunForSession } from '@/lib/ai/tools/testRuns';
-import type { AIProviderType, ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
+import type {
+  AIProviderType,
+  ChatMessage as ProviderChatMessage,
+  ModelProvider,
+} from '@/lib/ai/types';
 import type { ChatMessage } from '../types';
 import { useAIChatProvider } from './useAIChatProvider';
 import {
@@ -34,10 +39,13 @@ interface UseAIChatRuntimeOptions {
 
 interface UseAIChatRuntimeReturn {
   currentProvider: AIProviderType | null;
+  currentProviderName: string | null;
+  currentModel: string | null;
   runChatCompletion: (apiMessages: ProviderChatMessage[]) => Promise<ChatMessage | null>;
   generateSessionTitle: (userMessage: string) => Promise<string>;
   stopRuntime: (sessionId?: string | null, stopBrowserTask?: boolean) => Promise<void>;
   resetRuntimeState: (sessionId?: string | null) => void;
+  getProvider: () => Promise<ModelProvider>;
   resetProvider: () => void;
 }
 
@@ -54,7 +62,8 @@ export function useAIChatRuntime({
   onPersistAssistantMessage,
   onAssistantMessage,
 }: UseAIChatRuntimeOptions): UseAIChatRuntimeReturn {
-  const { currentProvider, getProvider, resetProvider } = useAIChatProvider();
+  const { currentProvider, currentProviderName, currentModel, getProvider, resetProvider } =
+    useAIChatProvider();
   const runtimesRef = useRef(new Map<string, SessionRuntime>());
 
   const getRuntime = useCallback((id: string): SessionRuntime => {
@@ -105,6 +114,7 @@ export function useAIChatRuntime({
         const systemPrompt = `${generateSystemPrompt()}
 
 ${formatPlanContext(plan, 'ai_session')}`;
+        ensureAIToolsRegistered();
         const tools = toolRegistry.getOpenAITools();
         const assistantMessageId = createAssistantPlaceholder(targetSessionId);
         if (!assistantMessageId) throw new Error('无法创建 assistant 消息');
@@ -216,10 +226,13 @@ ${formatPlanContext(plan, 'ai_session')}`;
 
   return {
     currentProvider,
+    currentProviderName,
+    currentModel,
     generateSessionTitle,
     runChatCompletion,
     stopRuntime,
     resetRuntimeState,
+    getProvider,
     resetProvider,
   };
 }

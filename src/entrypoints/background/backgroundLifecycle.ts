@@ -3,7 +3,15 @@ import { syncEngine } from '@/db';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
-import { recoverInterruptedBrowserTask, setupAutoSync, setupOmnibox } from './handlers';
+import {
+  flushDeferredAutoSyncPull,
+  flushDeferredAutoSyncPush,
+  handleSyncMessage,
+  recoverInterruptedBrowserTask,
+  setupAutoSync,
+  setupOmnibox,
+} from './handlers';
+import { PUSH_RETRY_ALARM } from './handlers/syncShared';
 
 export function registerBackgroundLifecycle() {
   browser.sidePanel
@@ -13,7 +21,10 @@ export function registerBackgroundLifecycle() {
   void setupAutoSync();
   void syncEngine
     .recoverAfterUpgrade()
-    .then(() => logger.info('[Sync] Upgrade recovery completed'))
+    .then(async () => {
+      logger.info('[Sync] Upgrade recovery completed');
+      await handleSyncMessage({ type: 'AUTO_SYNC_TRIGGER_PUSH' });
+    })
     .catch((error) => logger.warn('[Sync] Background local recovery failed:', error));
   void recoverInterruptedBrowserTask().catch((error) =>
     logger.error('Failed to recover interrupted browser task:', error)
@@ -22,6 +33,10 @@ export function registerBackgroundLifecycle() {
   if (browser.alarms) {
     browser.alarms.onAlarm.addListener(async (alarm) => {
       try {
+        if (alarm.name === PUSH_RETRY_ALARM) {
+          await handleSyncMessage({ type: 'AUTO_SYNC_TRIGGER_PUSH', retry: true });
+          return;
+        }
         if (alarm.name !== 'auto-sync-alarm') {
           return;
         }
@@ -34,6 +49,8 @@ export function registerBackgroundLifecycle() {
 
         logger.info('Auto sync alarm triggered');
         await performGlobalSync();
+        await flushDeferredAutoSyncPush();
+        await flushDeferredAutoSyncPull();
       } catch (error) {
         logger.error('Auto sync failed:', error);
       }
@@ -52,6 +69,7 @@ export function registerBackgroundLifecycle() {
       if (status === 'syncing') {
         logger.warn('Detected stuck sync status on startup. Resetting to idle.');
         await updateSetting('global_sync_status', 'idle');
+        await updateSetting('global_sync_phase', 'idle');
         await updateSetting('global_sync_error', '');
       }
     })
@@ -61,11 +79,13 @@ export function registerBackgroundLifecycle() {
 
   if (typeof globalThis !== 'undefined') {
     globalThis.addEventListener('online', () => {
-      logger.info('Network online, triggering global auto sync');
+      logger.info('Network online, triggering database auto sync');
       getSetting('auto_sync_enabled')
         .then((enabledSetting) => {
           if (enabledSetting !== undefined ? Boolean(enabledSetting) : true) {
-            performGlobalSync().catch((error) => logger.error('Online auto sync failed:', error));
+            handleSyncMessage({ type: 'AUTO_SYNC_TRIGGER_PULL' }).catch((error) =>
+              logger.error('Online auto sync failed:', error)
+            );
           }
         })
         .catch((error) => {

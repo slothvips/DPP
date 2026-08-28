@@ -17,9 +17,9 @@ export async function handleSyncMessage(
 ): Promise<{ success: boolean; error?: string }> {
   switch (message.type) {
     case 'AUTO_SYNC_TRIGGER_PUSH':
-      return await handleAutoSyncPush();
+      return await handleAutoSyncPush(message.retry, message.deferred);
     case 'AUTO_SYNC_TRIGGER_PULL':
-      return await handleAutoSyncPull();
+      return await handleAutoSyncPull(message.deferred);
     case 'GLOBAL_SYNC_START':
       return await handleGlobalSyncStart();
     case 'GLOBAL_SYNC_PUSH':

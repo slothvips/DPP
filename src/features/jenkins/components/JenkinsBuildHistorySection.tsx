@@ -36,7 +36,7 @@ export function JenkinsBuildHistorySection({
     <div className="mb-3 rounded-2xl border border-border/60 bg-background/78 p-2">
       <button
         type="button"
-        className="group flex w-full cursor-pointer select-none items-center gap-2 rounded-xl border-0 bg-transparent p-2 text-left hover:bg-accent/40"
+        className="group flex w-full cursor-pointer select-none flex-wrap items-center gap-2 rounded-xl border-0 bg-transparent p-2 text-left hover:bg-accent/40"
         onClick={onToggle}
       >
         <span className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0 flex items-center justify-center">
@@ -47,7 +47,7 @@ export function JenkinsBuildHistorySection({
         </div>
         <span className="text-sm font-medium">构建历史</span>
         <div
-          className="ml-4 flex items-center gap-1.5 rounded-full bg-muted/60 px-2 py-1"
+          className="ml-2 flex shrink-0 items-center gap-1.5 rounded-full bg-muted/60 px-2 py-1"
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           role="presentation"
@@ -65,7 +65,7 @@ export function JenkinsBuildHistorySection({
             显示他人
           </Label>
         </div>
-        <div className="flex-1" />
+        <div className="min-w-0 flex-1" />
         {loading ? (
           <span className="text-xs text-muted-foreground mr-2 animate-pulse">刷新中...</span>
         ) : (

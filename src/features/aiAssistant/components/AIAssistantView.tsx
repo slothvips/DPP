@@ -59,6 +59,9 @@ export function AIAssistantView() {
     sessions,
     sessionStatuses,
     sessionId,
+    currentProvider,
+    currentProviderName,
+    currentModel,
     isRunning,
     sendMessage,
     editMessage,
@@ -277,6 +280,7 @@ export function AIAssistantView() {
         sessionStatuses={sessionStatuses}
         isRunning={isRunning}
         isConfigMissing={isConfigMissing}
+        onConfigSaved={handleConfigSaved}
         onSelectSession={handleSelectSession}
         onDeleteSession={handleDeleteSession}
         onCreateSession={handleCreateSession}
@@ -317,6 +321,9 @@ export function AIAssistantView() {
             <div className="h-full min-h-[220px] overflow-y-auto">
               <AIAssistantInputSection
                 isConfigMissing={isConfigMissing}
+                currentProvider={currentProvider}
+                currentProviderName={currentProviderName}
+                currentModel={currentModel}
                 isRunning={isRunning}
                 isConfirming={status === 'confirming'}
                 presetPrompt={inputDraft?.value || presetPrompt}
