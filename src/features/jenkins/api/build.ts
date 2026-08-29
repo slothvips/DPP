@@ -1,6 +1,7 @@
 import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
 import { createJenkinsClient } from './client';
+import { assertJenkinsUrlAllowed } from './urlSafety';
 
 export async function triggerBuild(
   jobUrl: string,
@@ -10,7 +11,7 @@ export async function triggerBuild(
   parameters?: Record<string, string | boolean | number>
 ): Promise<boolean> {
   const client = createJenkinsClient({ baseUrl: jenkinsHost, user, token });
-  const rootUrl = jobUrl.replace(/\/$/, '');
+  const rootUrl = assertJenkinsUrlAllowed(jobUrl, client.rootUrl).replace(/\/$/, '');
 
   // Clone headers to avoid mutating the client's base headers
   const headers = new Headers(client.headers);
@@ -44,6 +45,7 @@ export async function triggerBuild(
       method: 'POST',
       headers,
       body: params,
+      redirect: 'manual',
       timeout: 30000,
     });
 
@@ -70,12 +72,19 @@ export interface BuildParameter {
   choices?: string[];
 }
 
-export async function getJobDetails(jobUrl: string, user: string, token: string) {
-  const client = createJenkinsClient({ baseUrl: jobUrl, user, token });
-  const apiUrl = `${client.rootUrl}/api/json`;
+export async function getJobDetails(
+  jobUrl: string,
+  user: string,
+  token: string,
+  jenkinsHost: string
+) {
+  const client = createJenkinsClient({ baseUrl: jenkinsHost, user, token });
+  const rootUrl = assertJenkinsUrlAllowed(jobUrl, client.rootUrl).replace(/\/$/, '');
+  const apiUrl = `${rootUrl}/api/json`;
 
   const res = await http(apiUrl, {
     headers: client.headers,
+    redirect: 'manual',
     timeout: 30000,
   });
   if (!res.ok) throw new Error(`Failed to fetch job details: ${res.status}`);
@@ -87,6 +96,7 @@ async function getCrumb(baseUrl: string, user: string, token: string) {
     const client = createJenkinsClient({ baseUrl, user, token });
     const res = await http(`${client.rootUrl}/crumbIssuer/api/json`, {
       headers: client.headers,
+      redirect: 'manual',
       timeout: 30000,
     });
     if (res.ok) {
@@ -107,7 +117,7 @@ export async function cancelBuild(
   jenkinsHost: string
 ): Promise<boolean> {
   const client = createJenkinsClient({ baseUrl: jenkinsHost, user, token });
-  const rootUrl = jobUrl.replace(/\/$/, '');
+  const rootUrl = assertJenkinsUrlAllowed(jobUrl, client.rootUrl).replace(/\/$/, '');
 
   const headers = new Headers(client.headers);
 
@@ -126,6 +136,7 @@ export async function cancelBuild(
     const res = await http(apiUrl, {
       method: 'POST',
       headers,
+      redirect: 'manual',
       timeout: 30000,
     });
 

@@ -5,76 +5,55 @@ export async function toggleTagAssociation(args: {
   entityId: string;
   entityType: 'link' | 'job';
 }): Promise<{ success: boolean; message: string }> {
-  const tag = await db.tags.get(args.tagId);
-  if (!tag || tag.deletedAt) {
-    throw new Error('标签不存在或已被删除');
-  }
-
-  const now = Date.now();
-
   if (args.entityType === 'link') {
-    const link = await db.links.get(args.entityId);
-    if (!link || link.deletedAt) {
-      throw new Error('链接不存在或已被删除');
-    }
+    return db.transaction('rw', ['tags', 'links', 'linkTags'], async () => {
+      const [tag, link, existingAssociation] = await Promise.all([
+        db.tags.get(args.tagId),
+        db.links.get(args.entityId),
+        db.linkTags.get([args.entityId, args.tagId]),
+      ]);
+      if (!tag || tag.deletedAt) throw new Error('标签不存在或已被删除');
+      if (!link || link.deletedAt) throw new Error('链接不存在或已被删除');
 
-    const existingAssociation = await db.linkTags
-      .filter(
-        (linkTag) =>
-          !linkTag.deletedAt && linkTag.tagId === args.tagId && linkTag.linkId === args.entityId
-      )
-      .first();
+      const now = Date.now();
+      if (existingAssociation && !existingAssociation.deletedAt) {
+        await db.linkTags.put({ ...existingAssociation, deletedAt: now, updatedAt: now });
+        return { success: true, message: `Tag "${tag.name}" removed from link` };
+      }
 
-    if (existingAssociation) {
-      await db.linkTags
-        .where({ linkId: args.entityId, tagId: args.tagId })
-        .modify({ deletedAt: now });
-      return {
-        success: true,
-        message: `Tag "${tag.name}" removed from link`,
-      };
-    }
-
-    await db.linkTags.add({
-      tagId: args.tagId,
-      linkId: args.entityId,
-      updatedAt: now,
+      await db.linkTags.put({
+        tagId: args.tagId,
+        linkId: args.entityId,
+        updatedAt: now,
+        deletedAt: undefined,
+      });
+      return { success: true, message: `Tag "${tag.name}" added to link` };
     });
-    return {
-      success: true,
-      message: `Tag "${tag.name}" added to link`,
-    };
   }
 
-  const job = await db.jobs.get(args.entityId);
-  if (!job) {
-    throw new Error('任务不存在或已被删除');
-  }
+  return db.transaction('rw', ['tags', 'jobs', 'jobTags'], async () => {
+    const [tag, job, existingAssociation] = await Promise.all([
+      db.tags.get(args.tagId),
+      db.jobs.get(args.entityId),
+      db.jobTags.get([args.entityId, args.tagId]),
+    ]);
+    if (!tag || tag.deletedAt) throw new Error('标签不存在或已被删除');
+    if (!job) throw new Error('任务不存在或已被删除');
 
-  const existingAssociation = await db.jobTags
-    .filter(
-      (jobTag) =>
-        !jobTag.deletedAt && jobTag.tagId === args.tagId && jobTag.jobUrl === args.entityId
-    )
-    .first();
+    const now = Date.now();
+    if (existingAssociation && !existingAssociation.deletedAt) {
+      await db.jobTags.put({ ...existingAssociation, deletedAt: now, updatedAt: now });
+      return { success: true, message: `Tag "${tag.name}" removed from job` };
+    }
 
-  if (existingAssociation) {
-    await db.jobTags.where({ jobUrl: args.entityId, tagId: args.tagId }).modify({ deletedAt: now });
-    return {
-      success: true,
-      message: `Tag "${tag.name}" removed from job`,
-    };
-  }
-
-  await db.jobTags.add({
-    tagId: args.tagId,
-    jobUrl: args.entityId,
-    updatedAt: now,
+    await db.jobTags.put({
+      tagId: args.tagId,
+      jobUrl: args.entityId,
+      updatedAt: now,
+      deletedAt: undefined,
+    });
+    return { success: true, message: `Tag "${tag.name}" added to job` };
   });
-  return {
-    success: true,
-    message: `Tag "${tag.name}" added to job`,
-  };
 }
 
 export async function removeTagAssociation(args: {

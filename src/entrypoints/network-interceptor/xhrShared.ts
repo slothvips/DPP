@@ -11,6 +11,8 @@ export interface XhrNetworkData {
 
 export interface ExtendedXHR extends XMLHttpRequest {
   _dppNetworkData?: XhrNetworkData;
+  _dppNetworkTerminal?: boolean;
+  _dppRemoveNetworkListeners?: () => void;
 }
 
 export function createXhrStartEvent(

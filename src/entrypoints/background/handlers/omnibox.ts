@@ -5,10 +5,16 @@ import { searchOmnibox } from './omniboxSearch';
 export { searchOmnibox } from './omniboxSearch';
 
 export function setupOmnibox() {
+  let requestId = 0;
   browser.omnibox.onInputChanged.addListener(async (text, suggest) => {
-    if (!text) return;
+    const currentRequestId = ++requestId;
+    if (!text) {
+      suggest([]);
+      return;
+    }
 
     const suggestions = await searchOmnibox(text);
+    if (currentRequestId !== requestId) return;
 
     if (suggestions.length > 0) {
       const first = suggestions[0];

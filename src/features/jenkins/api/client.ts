@@ -1,5 +1,6 @@
 import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
+import { assertJenkinsUrlAllowed, normalizeJenkinsRootUrl } from './urlSafety';
 
 /**
  * Encode string for Basic Auth (supports Unicode)
@@ -25,18 +26,19 @@ export interface JenkinsCredentials {
 
 export function createJenkinsClient(credentials: JenkinsCredentials) {
   const { baseUrl, user, token } = credentials;
-  const rootUrl = baseUrl.replace(/\/$/, '');
+  const rootUrl = normalizeJenkinsRootUrl(baseUrl);
 
   const headers = new Headers();
   headers.set('Authorization', `Basic ${encodeBasicAuth(user, token)}`);
 
   async function fetchApi<T>(url: string, tree: string): Promise<T | null> {
-    const normalizedUrl = url.replace(/\/$/, '');
+    const normalizedUrl = assertJenkinsUrlAllowed(url, rootUrl).replace(/\/$/, '');
     const apiUrl = `${normalizedUrl}/api/json?tree=${encodeURIComponent(tree)}`;
 
     try {
       const res = await http(apiUrl, {
         headers,
+        redirect: 'manual',
         timeout: 30000,
       });
       if (!res.ok) {
@@ -63,6 +65,14 @@ export function createJenkinsClient(credentials: JenkinsCredentials) {
     headers,
     fetchApi,
     isFolder,
+    isAllowedUrl(url: string): boolean {
+      try {
+        assertJenkinsUrlAllowed(url, rootUrl);
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 

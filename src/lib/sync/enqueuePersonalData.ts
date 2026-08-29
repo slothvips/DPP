@@ -13,7 +13,7 @@ interface EnqueuePersonalSyncDataOptions {
 }
 
 /**
- * 将本地个人同步表中的未删除记录补入 operations（synced=0），供后续用个人私钥上传。
+ * 将本地个人同步表中的记录与删除墓碑补入 operations（synced=0），供后续用个人私钥上传。
  * 不会清空团队 ops；会去掉同表同 key 的未同步旧 op 以免重复。
  */
 export async function enqueuePersonalSyncData({
@@ -41,9 +41,6 @@ export async function enqueuePersonalSyncData({
 
         const table = db.table(tableName);
         const items = await table.toArray();
-        const activeItems = items.filter(
-          (item) => !isSoftDeleted(item as { deletedAt?: number | null })
-        );
 
         const primKeyPath = table.schema.primKey.keyPath;
         const pendingOps = (await operationsTable
@@ -53,7 +50,7 @@ export async function enqueuePersonalSyncData({
           .toArray()) as SyncOperation[];
 
         const keysToReplace = new Set(
-          activeItems.map((item) => JSON.stringify(readPrimaryKey(item, primKeyPath)))
+          items.map((item) => JSON.stringify(readPrimaryKey(item, primKeyPath)))
         );
 
         const staleIds = pendingOps
@@ -65,16 +62,18 @@ export async function enqueuePersonalSyncData({
         }
 
         const operations: SyncOperation[] = [];
-        for (const item of activeItems) {
+        for (const item of items) {
           const key = readPrimaryKey(item, primKeyPath);
+          const record = item as { deletedAt?: number | null; updatedAt?: number };
+          const deleted = isSoftDeleted(record);
           operations.push({
             id: generateUUID(),
             clientId,
             table: tableName,
-            type: isSoftDeleted(item as { deletedAt?: number | null }) ? 'delete' : 'create',
+            type: deleted ? 'delete' : 'create',
             key,
             payload: item,
-            timestamp: Date.now(),
+            timestamp: record.deletedAt ?? record.updatedAt ?? Date.now(),
             synced: 0,
           });
         }

@@ -9,6 +9,7 @@ export type {
 export { getTotpAccount, listTotpAccounts } from './totpQueries';
 export {
   addTotpAccount,
+  addTotpAccounts,
   clearAllLocalTotpAccounts,
   deleteTotpAccount,
   reorderTotpAccounts,

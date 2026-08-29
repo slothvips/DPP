@@ -26,6 +26,35 @@ function createPluginEvent(
   };
 }
 
+function readAuthenticatedPayload(detail: unknown, channelToken: string): unknown | null {
+  if (!detail || typeof detail !== 'object') return null;
+  const envelope = detail as { channelToken?: unknown; payload?: unknown };
+  return envelope.channelToken === channelToken && 'payload' in envelope ? envelope.payload : null;
+}
+
+function isNetworkPayload(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const payload = value as Record<string, unknown>;
+  return (
+    typeof payload.id === 'string' &&
+    (payload.type === 'fetch' || payload.type === 'xhr' || payload.type === 'sse') &&
+    typeof payload.method === 'string' &&
+    typeof payload.url === 'string' &&
+    typeof payload.startTime === 'number'
+  );
+}
+
+function isConsolePayload(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  const payload = value as Record<string, unknown>;
+  return (
+    typeof payload.id === 'string' &&
+    ['log', 'info', 'warn', 'error', 'debug', 'trace'].includes(String(payload.level)) &&
+    Array.isArray(payload.args) &&
+    typeof payload.timestamp === 'number'
+  );
+}
+
 function createPageInterceptor(options: {
   eventName: string;
   loggerLabel: string;
@@ -33,15 +62,20 @@ function createPageInterceptor(options: {
   restoreEventName: string;
   scriptPath: '/network-interceptor.js' | '/console-interceptor.js';
   toPayload: (data: unknown) => ConsolePluginEvent | NetworkPluginEvent;
+  validatePayload: (data: unknown) => boolean;
   onEvent: (event: eventWithTime) => void;
 }) {
   let eventHandler: ((event: Event) => void) | null = null;
   let injectedScript: HTMLScriptElement | null = null;
+  let channelToken = '';
 
   function inject() {
+    channelToken = crypto.randomUUID();
     eventHandler = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const payload = options.toPayload(customEvent.detail);
+      const customEvent = event as CustomEvent<unknown>;
+      const data = readAuthenticatedPayload(customEvent.detail, channelToken);
+      if (data === null || !options.validatePayload(data)) return;
+      const payload = options.toPayload(data);
       options.onEvent(createPluginEvent(options.pluginName, payload));
     };
 
@@ -49,8 +83,11 @@ function createPageInterceptor(options: {
 
     injectedScript = document.createElement('script');
     injectedScript.src = browser.runtime.getURL(options.scriptPath as '/sidepanel.html');
+    injectedScript.dataset.dppChannelToken = channelToken;
     injectedScript.onload = () => {
       logger.debug(`${options.loggerLabel} injected`);
+      injectedScript?.remove();
+      injectedScript = null;
     };
     injectedScript.onerror = (error) => {
       logger.error(`Failed to inject ${options.loggerLabel.toLowerCase()}`, error);
@@ -60,7 +97,7 @@ function createPageInterceptor(options: {
 
   function remove() {
     try {
-      window.dispatchEvent(new CustomEvent(options.restoreEventName));
+      window.dispatchEvent(new CustomEvent(options.restoreEventName, { detail: { channelToken } }));
     } catch {
       // ignore
     }
@@ -74,6 +111,7 @@ function createPageInterceptor(options: {
       injectedScript.remove();
       injectedScript = null;
     }
+    channelToken = '';
   }
 
   return { inject, remove };
@@ -92,6 +130,7 @@ export function createRecorderInterceptors(onEvent: (event: eventWithTime) => vo
         data,
         timestamp: Date.now(),
       }) as NetworkPluginEvent,
+    validatePayload: isNetworkPayload,
     onEvent,
   });
 
@@ -107,6 +146,7 @@ export function createRecorderInterceptors(onEvent: (event: eventWithTime) => vo
         data,
         timestamp: Date.now(),
       }) as ConsolePluginEvent,
+    validatePayload: isConsolePayload,
     onEvent,
   });
 

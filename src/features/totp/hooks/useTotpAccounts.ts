@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   addTotpAccount,
+  addTotpAccounts,
   deleteTotpAccount,
   listTotpAccounts,
   reorderTotpAccounts,
@@ -19,6 +20,10 @@ export function useTotpAccounts() {
     return addTotpAccount(data);
   }
 
+  async function addAccounts(data: AddTotpAccountArgs[]) {
+    return addTotpAccounts(data);
+  }
+
   async function updateAccount(data: UpdateTotpAccountArgs) {
     return updateTotpAccount(data);
   }
@@ -34,6 +39,7 @@ export function useTotpAccounts() {
   return {
     accounts,
     addAccount,
+    addAccounts,
     updateAccount,
     removeAccount,
     reorderAccounts,

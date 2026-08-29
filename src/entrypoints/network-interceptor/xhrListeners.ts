@@ -34,9 +34,24 @@ export function emitXhrStartEvent(data: XhrNetworkData) {
 }
 
 export function createXhrListeners({ xhr, data }: CreateXhrListenersOptions) {
+  function beginTerminal(): boolean {
+    if (xhr._dppNetworkTerminal || !xhr._dppNetworkData) return false;
+    xhr._dppNetworkTerminal = true;
+    return true;
+  }
+
+  function cleanup(): void {
+    xhr.removeEventListener('readystatechange', handleReadyStateChange);
+    xhr.removeEventListener('loadend', handleLoadEnd);
+    xhr.removeEventListener('error', handleError);
+    xhr.removeEventListener('timeout', handleTimeout);
+    xhr._dppNetworkData = undefined;
+    xhr._dppRemoveNetworkListeners = undefined;
+  }
+
   const handleReadyStateChange = () => {
     try {
-      if (!xhr._dppNetworkData || xhr.readyState !== 2) {
+      if (!xhr._dppNetworkData || xhr._dppNetworkTerminal || xhr.readyState !== 2) {
         return;
       }
 
@@ -62,7 +77,7 @@ export function createXhrListeners({ xhr, data }: CreateXhrListenersOptions) {
 
   const handleLoadEnd = () => {
     try {
-      if (!xhr._dppNetworkData) {
+      if (!beginTerminal()) {
         return;
       }
 
@@ -89,26 +104,32 @@ export function createXhrListeners({ xhr, data }: CreateXhrListenersOptions) {
       emitNetworkEvent(networkData);
     } catch {
       // ignore
+    } finally {
+      cleanup();
     }
   };
 
   const handleError = () => {
     try {
-      if (xhr._dppNetworkData) {
+      if (beginTerminal()) {
         emitNetworkEvent(createXhrTerminalEvent(data, 'Network error', 'error'));
       }
     } catch {
       // ignore
+    } finally {
+      cleanup();
     }
   };
 
   const handleTimeout = () => {
     try {
-      if (xhr._dppNetworkData) {
+      if (beginTerminal()) {
         emitNetworkEvent(createXhrTerminalEvent(data, 'Request timeout', 'error'));
       }
     } catch {
       // ignore
+    } finally {
+      cleanup();
     }
   };
 
@@ -117,6 +138,7 @@ export function createXhrListeners({ xhr, data }: CreateXhrListenersOptions) {
     handleLoadEnd,
     handleError,
     handleTimeout,
+    cleanup,
   };
 }
 
@@ -126,9 +148,10 @@ export function attachXhrListeners(
 ) {
   try {
     xhr.addEventListener('readystatechange', listeners.handleReadyStateChange);
-    xhr.addEventListener('loadend', listeners.handleLoadEnd, { once: true });
-    xhr.addEventListener('error', listeners.handleError, { once: true });
-    xhr.addEventListener('timeout', listeners.handleTimeout, { once: true });
+    xhr.addEventListener('loadend', listeners.handleLoadEnd);
+    xhr.addEventListener('error', listeners.handleError);
+    xhr.addEventListener('timeout', listeners.handleTimeout);
+    (xhr as ExtendedXHR)._dppRemoveNetworkListeners = listeners.cleanup;
   } catch {
     // ignore
   }

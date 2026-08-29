@@ -10,6 +10,16 @@ export const STREAMING_CONTENT_TYPES = [
 export const STREAM_THROTTLE_MS = 100;
 export const MAX_STREAM_CHUNKS = 1000;
 
+let channelToken = '';
+
+export function configureNetworkChannelToken(token: string): void {
+  channelToken = token;
+}
+
+export function getNetworkChannelToken(): string {
+  return channelToken;
+}
+
 let requestIdCounter = 0;
 
 export type NetworkRequestPhase =

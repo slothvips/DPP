@@ -24,6 +24,7 @@ function OptionsApp() {
     clearData,
     customConfig,
     featureToggles,
+    featureToggleSaving,
     handleExport,
     handleImport,
     handleSelectFile,
@@ -31,6 +32,8 @@ function OptionsApp() {
     rebuildPhase,
     rebuildLocalData,
     saveDataSourceConfig,
+    settingsLoading,
+    settingsSaving,
     selectedCategories,
     setAccessToken,
     setAutoSync,
@@ -63,13 +66,19 @@ function OptionsApp() {
         </div>
 
         <div className="space-y-8">
-          <FeatureTogglesSection featureToggles={featureToggles} onToggle={toggleFeature} />
+          <FeatureTogglesSection
+            disabled={settingsLoading || featureToggleSaving}
+            featureToggles={featureToggles}
+            onToggle={toggleFeature}
+          />
 
           <SyncSettingsSection
             accessToken={accessToken}
             autoSync={autoSync}
             customConfig={customConfig}
             lastSyncTime={lastSyncTime}
+            loading={settingsLoading}
+            saving={settingsSaving}
             onAccessTokenChange={setAccessToken}
             onAutoSyncChange={setAutoSync}
             onCustomConfigChange={setCustomConfig}

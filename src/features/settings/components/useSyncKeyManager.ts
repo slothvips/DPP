@@ -120,9 +120,14 @@ export function useSyncKeyManager({
     }
   }, [checkKey, confirm, onClear, toast]);
 
-  const handleCopyKey = useCallback(() => {
-    navigator.clipboard.writeText(keyString);
-    toast('密钥已复制到剪贴板', 'success');
+  const handleCopyKey = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(keyString);
+      toast('密钥已复制到剪贴板', 'success');
+    } catch (error) {
+      logger.error('Failed to copy sync key:', error);
+      toast('复制密钥失败', 'error');
+    }
   }, [keyString, toast]);
 
   const handleOpenDebugPage = useCallback(

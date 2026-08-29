@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
+import { logger } from '@/utils/logger';
 import { DEFAULT_TOTP_PIN_AUTO_LOCK_MINUTES, getTotpPinConfig, verifyTotpPin } from '../totpPin';
 import {
   isTotpPinSessionUnlocked,
@@ -45,6 +46,10 @@ export function useTotpPinLock({ isActive }: UseTotpPinLockOptions) {
       }
       markUnlocked();
       return true;
+    } catch (error) {
+      logger.error('Failed to verify TOTP PIN:', error);
+      setUnlockError('解锁失败，请稍后重试');
+      return false;
     } finally {
       setUnlocking(false);
     }

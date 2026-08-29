@@ -22,6 +22,21 @@ interface PushResult {
 }
 
 const MAINTENANCE_KEY = 'migration:push-locked';
+const MIGRATION_PROGRESS_KEY = 'migration:source-progress';
+
+export interface MigrationProgress {
+  completed: boolean;
+  minCursor: number;
+  sourceCount: number;
+  sourceCursor: number;
+}
+
+interface HistoricalPage {
+  done: boolean;
+  nextCursor: number;
+  records: HistoricalOperation[];
+  sourceCursor: number;
+}
 
 function normalizeClientIdentity(operation: SyncOperation, clientId: string): SyncOperation {
   if (
@@ -51,13 +66,81 @@ export class MigrationSyncPushCoordinator extends DurableObject<MigrationCoordin
     return (await this.ctx.storage.get<boolean>(MAINTENANCE_KEY)) === true;
   }
 
-  async importHistorical(records: HistoricalOperation[]): Promise<HistoricalImportResult> {
-    let result: HistoricalImportResult | undefined;
+  async getMigrationProgress(): Promise<MigrationProgress> {
+    return (
+      (await this.ctx.storage.get<MigrationProgress>(MIGRATION_PROGRESS_KEY)) ?? {
+        completed: false,
+        minCursor: 0,
+        sourceCount: 0,
+        sourceCursor: 0,
+      }
+    );
+  }
+
+  async importHistoricalPage(
+    page: HistoricalPage
+  ): Promise<HistoricalImportResult & { progress: MigrationProgress }> {
+    let result: (HistoricalImportResult & { progress: MigrationProgress }) | undefined;
     await this.ctx.blockConcurrencyWhile(async () => {
       if (!(await this.isMaintenanceLocked())) {
         throw new Error('Push maintenance lock must be enabled before migration');
       }
-      result = await new D1SyncStore(this.env.DB).importHistorical(records);
+      const progress = await this.getMigrationProgress();
+      if (progress.completed) throw new Error('Migration is already complete');
+      if (page.sourceCursor !== progress.sourceCursor) {
+        throw new Error(
+          `Invalid migration cursor: expected ${progress.sourceCursor}, received ${page.sourceCursor}`
+        );
+      }
+      if (!page.done && page.records.length === 0) {
+        throw new Error('Invalid migration page: empty page must be final');
+      }
+
+      let expectedCursor = page.sourceCursor === 0 ? 2 : page.sourceCursor + 1;
+      for (const record of page.records) {
+        if (record.serverSeq !== expectedCursor) {
+          throw new Error(
+            `Invalid migration continuity: expected row ${expectedCursor}, received ${record.serverSeq}`
+          );
+        }
+        expectedCursor += 1;
+      }
+      const lastRecord = page.records.at(-1);
+      if (lastRecord && page.nextCursor !== lastRecord.serverSeq) {
+        throw new Error('Invalid migration next cursor');
+      }
+      if (!lastRecord && page.nextCursor < page.sourceCursor) {
+        throw new Error('Invalid migration next cursor');
+      }
+
+      const store = new D1SyncStore(this.env.DB);
+      if (progress.sourceCount === 0 && progress.sourceCursor === 0) {
+        const initialStats = await store.stats();
+        if (initialStats.count !== 0) {
+          throw new Error('Migration target must be empty before the first page');
+        }
+      }
+      const imported = await store.importHistorical(page.records);
+      const nextProgress: MigrationProgress = {
+        completed: page.done,
+        minCursor: progress.minCursor || page.records[0]?.serverSeq || 0,
+        sourceCount: progress.sourceCount + page.records.length,
+        sourceCursor: lastRecord?.serverSeq ?? page.sourceCursor,
+      };
+
+      if (page.done) {
+        const stats = await store.stats();
+        if (
+          stats.count !== nextProgress.sourceCount ||
+          stats.minCursor !== nextProgress.minCursor ||
+          stats.maxCursor !== nextProgress.sourceCursor
+        ) {
+          throw new Error('Migration source and target continuity check failed');
+        }
+      }
+
+      await this.ctx.storage.put(MIGRATION_PROGRESS_KEY, nextProgress);
+      result = { ...imported, progress: nextProgress };
     });
     if (!result) throw new Error('Historical import did not produce a result');
     return result;

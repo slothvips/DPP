@@ -144,17 +144,17 @@ pnpm --filter dpp-worker exec wrangler d1 migrations apply DB --local
 pnpm --filter dpp-worker exec wrangler dev --local --var SYNC_ACCESS_TOKEN:local-token
 ```
 
-验证鉴权和健康检查：
+验证健康检查（不暴露内部状态，不要求同步 Token）：
 
 ```bash
 curl -i http://localhost:8787/health
 curl -H 'X-Access-Token: local-token' http://localhost:8787/health
 ```
 
-预期第一个请求返回 `401`，第二个返回：
+两个请求均返回：
 
 ```json
-{"status":"ok"}
+{ "status": "ok" }
 ```
 
 ### 本地接口验证

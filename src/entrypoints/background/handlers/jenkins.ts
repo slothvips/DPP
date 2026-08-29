@@ -34,8 +34,8 @@ export async function handleJenkinsMessage(message: JenkinsMessage): Promise<Jen
       }
       case 'JENKINS_GET_JOB_DETAILS': {
         const { jobUrl, envId: targetEnvId } = message.payload;
-        const { user, token } = await getJenkinsCredentials(targetEnvId);
-        data = await getJobDetails(jobUrl, user, token);
+        const { host, user, token } = await getJenkinsCredentials(targetEnvId);
+        data = await getJobDetails(jobUrl, user, token, host);
         break;
       }
       case 'JENKINS_CANCEL_BUILD': {

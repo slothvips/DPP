@@ -61,6 +61,18 @@ export function extractHostname(url: string): string | null {
   }
 }
 
+export function extractOrigin(url: string): string | null {
+  if (!url) return null;
+  const normalized = /^[a-z][a-z0-9+.-]*:\/\//i.test(url) ? url : `https://${url}`;
+  try {
+    const parsed = new URL(normalized);
+    if (!ALLOWED_PROTOCOLS.has(parsed.protocol) || parsed.username || parsed.password) return null;
+    return parsed.origin;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 将相对 URL 基于 origin 解析为绝对 URL
  * 如果 url 已经是绝对 URL,直接返回
@@ -83,13 +95,12 @@ export function resolveUrl(url: string, baseOrigin?: string): string | null {
  *
  * 规则:
  * - 必须是 http/https 协议(拒绝 file:、data: 等)
- * - host 必须在白名单内(允许用户配置的内网 Jenkins/ZenTao)
- * - 非白名单的私有 IP/localhost 一律拒绝(防云元数据、内网扫描)
+ * - origin 必须在白名单内(协议、hostname、有效端口完全一致)
  *
  * @param url 待校验的绝对 URL
- * @param allowedHosts 允许的 host 白名单(小写)
+ * @param allowedOrigins 允许的 origin 白名单
  */
-export function assertFetchUrlSafe(url: string, allowedHosts: Set<string>): UrlSafetyResult {
+export function assertFetchUrlSafe(url: string, allowedOrigins: Set<string>): UrlSafetyResult {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -101,10 +112,12 @@ export function assertFetchUrlSafe(url: string, allowedHosts: Set<string>): UrlS
     return { ok: false, reason: `Protocol not allowed: ${parsed.protocol}` };
   }
 
-  const host = parsed.hostname.toLowerCase();
+  if (parsed.username || parsed.password) {
+    return { ok: false, reason: 'URL userinfo is not allowed' };
+  }
 
-  // 白名单优先(允许用户配置的私有内网 Jenkins/ZenTao)
-  if (allowedHosts.has(host)) {
+  const host = parsed.hostname.toLowerCase();
+  if (allowedOrigins.has(parsed.origin)) {
     return { ok: true };
   }
 
@@ -114,5 +127,5 @@ export function assertFetchUrlSafe(url: string, allowedHosts: Set<string>): UrlS
     return { ok: false, reason: `Blocked private/local host: ${host}` };
   }
 
-  return { ok: true };
+  return { ok: false, reason: `Origin not allowed: ${parsed.origin}` };
 }

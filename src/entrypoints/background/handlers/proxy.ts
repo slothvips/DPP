@@ -1,7 +1,7 @@
 // Zen and API proxy handlers for background script
 import { getSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
-import { assertFetchUrlSafe, extractHostname, resolveUrl } from '@/utils/urlSafety';
+import { assertFetchUrlSafe, extractOrigin, resolveUrl } from '@/utils/urlSafety';
 
 export type ProxyMessage =
   | { type: 'ZEN_FETCH_JSON'; payload: { url: string } }
@@ -34,14 +34,14 @@ interface JenkinsEnvironmentLike {
  * 这样既能防止 SSRF(攻击者无法让扩展访问白名单外的 host),
  * 又能保证现有功能正常(用户配置的内网 Jenkins/ZenTao 都在白名单内)。
  */
-async function buildAllowedHosts(senderOrigin?: string): Promise<Set<string>> {
-  const hosts = new Set<string>();
+async function buildAllowedOrigins(senderOrigin?: string): Promise<Set<string>> {
+  const origins = new Set<string>();
 
   try {
     const jenkinsHost = await getSetting('jenkins_host');
     if (jenkinsHost) {
-      const host = extractHostname(jenkinsHost);
-      if (host) hosts.add(host);
+      const origin = extractOrigin(jenkinsHost);
+      if (origin) origins.add(origin);
     }
   } catch (e) {
     logger.warn('[proxy] Failed to read jenkins_host setting:', e);
@@ -54,8 +54,8 @@ async function buildAllowedHosts(senderOrigin?: string): Promise<Set<string>> {
         const envLike = env as JenkinsEnvironmentLike;
         const source = envLike.url || envLike.host;
         if (source) {
-          const host = extractHostname(source);
-          if (host) hosts.add(host);
+          const origin = extractOrigin(source);
+          if (origin) origins.add(origin);
         }
       }
     }
@@ -66,11 +66,11 @@ async function buildAllowedHosts(senderOrigin?: string): Promise<Set<string>> {
   // sender tab 的 origin:内容脚本所在页面(Jenkins/ZenTao 页面)的同源 host
   // 这保证了内容脚本发起的同源请求能正常通过
   if (senderOrigin) {
-    const host = extractHostname(senderOrigin);
-    if (host) hosts.add(host);
+    const origin = extractOrigin(senderOrigin);
+    if (origin) origins.add(origin);
   }
 
-  return hosts;
+  return origins;
 }
 
 /**
@@ -84,19 +84,19 @@ export async function handleZenFetchJson(
   senderOrigin?: string
 ): Promise<{ success: boolean; data?: unknown; error?: string }> {
   try {
-    const allowedHosts = await buildAllowedHosts(senderOrigin);
+    const allowedOrigins = await buildAllowedOrigins(senderOrigin);
     const absoluteUrl = resolveUrl(url, senderOrigin);
     if (!absoluteUrl) {
       return { success: false, error: 'Invalid URL or missing base origin' };
     }
 
-    const safety = assertFetchUrlSafe(absoluteUrl, allowedHosts);
+    const safety = assertFetchUrlSafe(absoluteUrl, allowedOrigins);
     if (!safety.ok) {
       logger.warn(`[proxy] ZEN_FETCH_JSON blocked: ${safety.reason}`);
       return { success: false, error: `URL not allowed: ${safety.reason}` };
     }
 
-    const response = await fetch(absoluteUrl, { credentials: 'include' });
+    const response = await fetch(absoluteUrl, { credentials: 'include', redirect: 'manual' });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -120,13 +120,13 @@ export async function handleJenkinsApiRequest(
   senderOrigin?: string
 ): Promise<{ success: boolean; status?: number; data?: unknown; error?: string }> {
   try {
-    const allowedHosts = await buildAllowedHosts(senderOrigin);
+    const allowedOrigins = await buildAllowedOrigins(senderOrigin);
     const absoluteUrl = resolveUrl(url, senderOrigin);
     if (!absoluteUrl) {
       return { success: false, error: 'Invalid URL or missing base origin' };
     }
 
-    const safety = assertFetchUrlSafe(absoluteUrl, allowedHosts);
+    const safety = assertFetchUrlSafe(absoluteUrl, allowedOrigins);
     if (!safety.ok) {
       logger.warn(`[proxy] JENKINS_API_REQUEST blocked: ${safety.reason}`);
       return { success: false, error: `URL not allowed: ${safety.reason}` };
@@ -141,6 +141,7 @@ export async function handleJenkinsApiRequest(
       body: options?.body,
       signal: controller.signal,
       credentials: 'include',
+      redirect: 'manual',
     });
 
     clearTimeout(timeoutId);

@@ -19,6 +19,8 @@ interface SyncSettingsSectionProps {
   autoSync: AutoSyncState;
   customConfig: CustomConfigState;
   lastSyncTime: number | null;
+  loading?: boolean;
+  saving?: boolean;
   onAccessTokenChange: (value: string) => void;
   onAutoSyncChange: (value: AutoSyncState) => void;
   onCustomConfigChange: (value: CustomConfigState) => void;
@@ -30,6 +32,8 @@ export function SyncSettingsSection({
   autoSync,
   customConfig,
   lastSyncTime,
+  loading = false,
+  saving = false,
   onAccessTokenChange,
   onAutoSyncChange,
   onCustomConfigChange,
@@ -62,6 +66,7 @@ export function SyncSettingsSection({
             onChange={(e) => onCustomConfigChange({ ...customConfig, serverUrl: e.target.value })}
             placeholder="http://localhost:3000"
             maxLength={VALIDATION_LIMITS.SYNC_SERVER_URL_MAX}
+            disabled={loading || saving}
           />
         </div>
         <div className="space-y-2">
@@ -74,6 +79,7 @@ export function SyncSettingsSection({
             onChange={(e) => onAccessTokenChange(e.target.value)}
             placeholder="your-secret-token"
             maxLength={VALIDATION_LIMITS.SYNC_ACCESS_TOKEN_MAX}
+            disabled={loading || saving}
           />
         </div>
 
@@ -95,6 +101,7 @@ export function SyncSettingsSection({
             <Checkbox
               id="auto-sync"
               checked={autoSync.enabled}
+              disabled={loading || saving}
               onCheckedChange={(checked) =>
                 onAutoSyncChange({ ...autoSync, enabled: checked as boolean })
               }
@@ -106,6 +113,7 @@ export function SyncSettingsSection({
               <Label htmlFor="auto-sync-interval">同步间隔</Label>
               <Select
                 value={autoSync.interval.toString()}
+                disabled={loading || saving}
                 onValueChange={(value) =>
                   onAutoSyncChange({ ...autoSync, interval: Number(value) })
                 }
@@ -129,9 +137,10 @@ export function SyncSettingsSection({
         <Button
           onClick={onSave}
           data-testid="button-save-sync"
+          disabled={loading || saving}
           className="bg-primary hover:bg-primary/90 w-full"
         >
-          保存
+          {saving ? '保存中...' : '保存'}
         </Button>
       </div>
     </section>

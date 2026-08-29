@@ -1,6 +1,7 @@
 import { D1SyncStore, SyncConflictError, SyncValidationError } from './lib/d1';
 import type { SyncOperation } from './lib/d1';
 import { SyncPushCoordinator } from './lib/pushCoordinator';
+import { RequestTooLargeError, parsePushRequest } from './lib/requestValidation';
 
 interface WorkerEnv extends Env {
   SYNC_ACCESS_TOKEN: string;
@@ -38,13 +39,15 @@ function errorResponse(error: unknown): Response {
     normalized instanceof SyntaxError ||
     /Invalid|Unencrypted|exceeds the maximum/.test(normalized.message);
   const status =
-    normalized instanceof SyncConflictError ||
-    normalized.name === 'SyncConflictError' ||
-    normalized.message.includes('different content')
-      ? 409
-      : validation
-        ? 400
-        : 500;
+    normalized instanceof RequestTooLargeError || normalized.name === 'RequestTooLargeError'
+      ? 413
+      : normalized instanceof SyncConflictError ||
+          normalized.name === 'SyncConflictError' ||
+          normalized.message.includes('different content')
+        ? 409
+        : validation
+          ? 400
+          : 500;
   return Response.json({ error: normalized.message }, { status });
 }
 
@@ -58,15 +61,7 @@ async function handleRequest(request: Request, env: WorkerEnv): Promise<Response
     return Response.json({ status: 'ok' });
   }
   if (request.method === 'POST' && url.pathname === '/api/sync/push') {
-    const body = await request.json<unknown>();
-    if (typeof body !== 'object' || body === null) {
-      return Response.json({ error: 'Invalid payload' }, { status: 400 });
-    }
-    const { ops, clientId } = body as { ops?: unknown; clientId?: unknown };
-    if (!Array.isArray(ops)) return Response.json({ error: 'Invalid payload' }, { status: 400 });
-    if (clientId !== undefined && typeof clientId !== 'string') {
-      return Response.json({ error: 'Invalid clientId' }, { status: 400 });
-    }
+    const { ops, clientId } = await parsePushRequest(request);
     const coordinator = env.SYNC_PUSH_COORDINATOR.getByName('global');
     const result = await coordinator.push(
       ops as SyncOperation[],
@@ -90,6 +85,12 @@ async function handleRequest(request: Request, env: WorkerEnv): Promise<Response
 
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
+      return url.pathname === '/'
+        ? new Response('DPP Sync Worker')
+        : Response.json({ status: 'ok' });
+    }
     const provided = request.headers.get('X-Access-Token') ?? '';
     if (!env.SYNC_ACCESS_TOKEN || !(await tokensMatch(provided, env.SYNC_ACCESS_TOKEN))) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });

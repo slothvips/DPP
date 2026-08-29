@@ -35,6 +35,8 @@ export async function fetchAllJobs(
   const client = createJenkinsClient({ baseUrl, user, token });
   const jobs: JobItem[] = [];
   const MAX_DEPTH = 10; // Maximum folder depth to prevent infinite recursion
+  const MAX_NODES = 5000;
+  const processedUrls = new Set<string>();
 
   const tree =
     'jobs[name,url,color,fullName,_class,lastBuild[number,url,result,timestamp,building,actions[causes[userId,userName]]]]';
@@ -46,12 +48,33 @@ export async function fetchAllJobs(
       return;
     }
 
+    if (!client.isAllowedUrl(url)) {
+      logger.warn('[Jenkins] Ignoring cross-origin job URL');
+      return;
+    }
+    const normalizedUrl = url.replace(/\/$/, '');
+    if (processedUrls.has(normalizedUrl)) {
+      return;
+    }
+    if (processedUrls.size >= MAX_NODES) {
+      logger.warn(`[Jenkins] Max node count ${MAX_NODES} reached. Stopping traversal.`);
+      return;
+    }
+    processedUrls.add(normalizedUrl);
+
     const data = await client.fetchApi<JenkinsJobsResponse>(url, tree);
     if (!data?.jobs) return;
 
     const folders: string[] = [];
 
     for (const j of data.jobs) {
+      if (
+        !client.isAllowedUrl(j.url) ||
+        (j.lastBuild?.url && !client.isAllowedUrl(j.lastBuild.url))
+      ) {
+        logger.warn('[Jenkins] Ignoring job with a cross-origin URL');
+        continue;
+      }
       let status: JobItem['lastStatus'] = 'Unknown';
       let buildUser: string | undefined;
 

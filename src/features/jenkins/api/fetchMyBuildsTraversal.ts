@@ -6,6 +6,7 @@ interface TraverseJenkinsJobsOptions {
   client: JenkinsClient;
   tree: string;
   maxDepth?: number;
+  maxNodes?: number;
   onJob: (job: JenkinsJobApiItem) => void | Promise<void>;
 }
 
@@ -13,6 +14,7 @@ export async function traverseJenkinsJobs({
   client,
   tree,
   maxDepth = 10,
+  maxNodes = 5000,
   onJob,
 }: TraverseJenkinsJobsOptions) {
   const processedUrls = new Set<string>();
@@ -23,8 +25,17 @@ export async function traverseJenkinsJobs({
       return;
     }
 
+    if (!client.isAllowedUrl(url)) {
+      logger.warn('[Jenkins] Ignoring cross-origin job URL');
+      return;
+    }
+
     const normalizedUrl = url.replace(/\/$/, '');
     if (processedUrls.has(normalizedUrl)) {
+      return;
+    }
+    if (processedUrls.size >= maxNodes) {
+      logger.warn(`[Jenkins] Max node count ${maxNodes} reached. Stopping traversal.`);
       return;
     }
     processedUrls.add(normalizedUrl);
@@ -37,6 +48,13 @@ export async function traverseJenkinsJobs({
     const folders: string[] = [];
 
     for (const job of data.jobs) {
+      if (
+        !client.isAllowedUrl(job.url) ||
+        job.builds?.some((build) => !client.isAllowedUrl(build.url))
+      ) {
+        logger.warn('[Jenkins] Ignoring job with a cross-origin URL');
+        continue;
+      }
       await onJob(job);
       if (client.isFolder(job._class)) {
         folders.push(job.url);

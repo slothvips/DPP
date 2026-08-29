@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
-import type { AIProfile, JenkinsEnvironment, Setting, StoredEncryptedValue } from '@/db/types';
+import type { AIProfile, JenkinsEnvironment, StoredEncryptedValue } from '@/db/types';
 import { isAIProviderType } from '@/lib/ai/providerIds';
 import { decryptData, encryptData, exportKey, importKey, loadKey } from '@/lib/crypto/encryption';
 import { loadPersonalKey } from '@/lib/crypto/personalKey';
@@ -10,7 +10,6 @@ import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import {
   EXCLUDED_SETTINGS,
-  IMPORT_PRESERVED_SETTINGS,
   type ImportedSetting,
   SETTINGS_CATEGORIES,
   isLegacyAISettingKey,
@@ -116,21 +115,9 @@ export function useOptionsImportAndReset() {
     importedSettings: ImportedSetting[],
     importedProfiles: AIProfile[],
     includeAISettings: boolean,
-    hasAIProfiles: boolean,
-    replaceAll: boolean
+    hasAIProfiles: boolean
   ) => {
-    const preservedSettings = replaceAll
-      ? (await Promise.all(IMPORT_PRESERVED_SETTINGS.map((key) => db.settings.get(key)))).filter(
-          (row): row is Setting => row != null
-        )
-      : [];
-
-    const transactionTables = replaceAll ? db.tables : [db.settings, db.aiProfiles];
-    await db.transaction('rw', transactionTables, async () => {
-      if (replaceAll) {
-        await Promise.all(db.tables.map((table) => table.clear()));
-      }
-
+    await db.transaction('rw', [db.settings, db.aiProfiles], async () => {
       let settings = importedSettings.filter((setting) => !EXCLUDED_SETTINGS.includes(setting.key));
 
       const hasEnvironments = settings.some((setting) => setting.key === 'jenkins_environments');
@@ -166,18 +153,11 @@ export function useOptionsImportAndReset() {
 
       if (hasAIProfiles && importedProfiles.length > 0) {
         await db.aiProfiles.bulkAdd(importedProfiles);
-      } else if (replaceAll || includeAISettings) {
+      } else if (includeAISettings) {
         settings = settings.filter((setting) => setting.key !== 'ai_active_profile_id');
       }
 
       await db.settings.bulkPut(settings as Parameters<typeof db.settings.bulkPut>[0]);
-
-      if (preservedSettings.length > 0) {
-        await db.settings.bulkPut(preservedSettings);
-        logger.info(
-          `Preserved ${preservedSettings.length} personal setting(s) across config import`
-        );
-      }
     });
   };
 
@@ -275,11 +255,9 @@ export function useOptionsImportAndReset() {
       } catch (error) {
         logger.warn('[Import] Failed to check personal key before import:', error);
       }
-      const personalKeyClause = hasLocalPersonalKey
-        ? '已配置的个人私钥将保留（不会被清空或覆盖）。\n'
-        : '';
+      const personalKeyClause = hasLocalPersonalKey ? '已配置的个人私钥将保留。\n' : '';
       const confirmed = await confirm(
-        `确定要导入选中的配置数据吗？\n\n导出时间: ${new Date(pendingImport.exportDate).toLocaleString()}\n版本: ${pendingImport.version}\n导入类型: ${selectedImportCategories.length === SETTINGS_CATEGORIES.length ? '全部' : '仅选中项'}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}${personalKeyClause}${replaceAll ? '⚠️ 这将清空本地业务数据并覆盖应用设置，导入后请重新同步！' : '未勾选的设置和本地业务数据将保留。'}`,
+        `确定要导入选中的配置数据吗？\n\n导出时间: ${new Date(pendingImport.exportDate).toLocaleString()}\n版本: ${pendingImport.version}\n导入类型: ${selectedImportCategories.length === SETTINGS_CATEGORIES.length ? '全部' : '仅选中项'}\n${hasKey ? '包含同步密钥: 是\n' : '包含同步密钥: 否\n'}${personalKeyClause}未勾选的设置和本地业务数据将保留。`,
         '确认导入'
       );
 
@@ -291,8 +269,7 @@ export function useOptionsImportAndReset() {
         importedSettings,
         importedProfiles,
         includeAIProfiles,
-        includeAIProfiles && pendingImport.hasAIProfiles,
-        replaceAll
+        includeAIProfiles && pendingImport.hasAIProfiles
       );
       setShowImportDialog(false);
       setPendingImport(null);

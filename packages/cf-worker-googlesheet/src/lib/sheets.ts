@@ -16,7 +16,20 @@ const HEADERS = [
   'serverTimestamp',
   'keyHash',
 ];
+const LEGACY_HEADERS = ['id', 'table', 'type', 'key', 'payload', 'timestamp', 'serverTimestamp'];
 const MAX_SHEET_CELL_CHARS = 3000;
+
+export type SheetSchemaVersion = 'v1' | 'v2';
+
+function hasExactHeaders(actual: string[], expected: string[]): boolean {
+  return actual.length === expected.length && expected.every((header) => actual.includes(header));
+}
+
+export function detectSheetSchema(headers: string[]): SheetSchemaVersion {
+  if (hasExactHeaders(headers, HEADERS)) return 'v2';
+  if (hasExactHeaders(headers, LEGACY_HEADERS)) return 'v1';
+  throw new Error('Operations Sheet header schema is unsupported');
+}
 
 export function getSheetReadOffset(cursor: number): number {
   return cursor > 0 ? cursor - 1 : 0;
@@ -90,6 +103,19 @@ export class SheetsClient {
     });
   }
 
+  private async getReadOnlySheet(): Promise<{
+    schema: SheetSchemaVersion;
+    sheet: gsheet.GoogleSpreadsheetWorksheet;
+  } | null> {
+    return await this.withRetry(async () => {
+      await this.doc.loadInfo();
+      const sheet = this.doc.sheetsByTitle[SHEET_TITLE];
+      if (!sheet) return null;
+      await sheet.loadHeaderRow();
+      return { schema: detectSheetSchema(sheet.headerValues || []), sheet };
+    });
+  }
+
   private async ensureHeaderRow(sheet: gsheet.GoogleSpreadsheetWorksheet): Promise<void> {
     // Reload sheet info to get current row count and header info
     await sheet.loadHeaderRow();
@@ -98,8 +124,11 @@ export class SheetsClient {
     const currentHeaders = sheet.headerValues || [];
     if (currentHeaders.length === 0) {
       await sheet.setHeaderRow(HEADERS);
-    } else if (!currentHeaders.includes('clientId')) {
-      await sheet.setHeaderRow([...currentHeaders, 'clientId']);
+    } else {
+      const missingHeaders = HEADERS.filter((header) => !currentHeaders.includes(header));
+      if (missingHeaders.length > 0) {
+        await sheet.setHeaderRow([...currentHeaders, ...missingHeaders]);
+      }
     }
   }
 
@@ -130,14 +159,22 @@ export class SheetsClient {
 
   async readRows(
     offset: number,
-    limit = 100
+    limit = 100,
+    options?: { requireSheet?: boolean }
   ): Promise<{
     ops: SyncOperation[];
     records: HistoricalOperation[];
     nextCursor: number;
   }> {
     return await this.withRetry(async () => {
-      const sheet = await this.getOrCreateSheet();
+      const readOnlySheet = await this.getReadOnlySheet();
+      if (!readOnlySheet) {
+        if (options?.requireSheet) {
+          throw new Error(`Required Sheet not found: ${SHEET_TITLE}`);
+        }
+        return { ops: [], records: [], nextCursor: offset + 1 };
+      }
+      const { schema, sheet } = readOnlySheet;
 
       // Check if we are trying to read beyond the sheet bounds
       // sheet.rowCount includes headers. We assume 1 header row.
@@ -176,14 +213,20 @@ export class SheetsClient {
             serverSeq: row.rowNumber,
             operation: {
               id: (row.get('id') as string) || '',
-              clientId: (row.get('clientId') as string | undefined) || undefined,
+              clientId:
+                schema === 'v2'
+                  ? (row.get('clientId') as string | undefined) || undefined
+                  : undefined,
               table: (row.get('table') as string) || '',
               type: (row.get('type') as string) || '',
               key: (row.get('key') as string) || '',
               payload,
               timestamp: Number(row.get('timestamp') || 0),
               serverTimestamp: Number(row.get('serverTimestamp') || 0) || undefined,
-              keyHash: (row.get('keyHash') as string | undefined) || undefined,
+              keyHash:
+                schema === 'v2'
+                  ? (row.get('keyHash') as string | undefined) || undefined
+                  : undefined,
             },
           };
         });

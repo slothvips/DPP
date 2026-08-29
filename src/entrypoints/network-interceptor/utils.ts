@@ -1,4 +1,4 @@
-import { NETWORK_EVENT_NAME, type NetworkRequestData } from './types';
+import { NETWORK_EVENT_NAME, type NetworkRequestData, getNetworkChannelToken } from './types';
 
 export function processHeaders(headers: Record<string, string>): Record<string, string> {
   try {
@@ -82,7 +82,7 @@ export function emitNetworkEvent(data: NetworkRequestData) {
   try {
     window.dispatchEvent(
       new CustomEvent(NETWORK_EVENT_NAME, {
-        detail: data,
+        detail: { channelToken: getNetworkChannelToken(), payload: data },
       })
     );
   } catch {

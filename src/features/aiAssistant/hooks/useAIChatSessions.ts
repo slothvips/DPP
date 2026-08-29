@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   createSession,
   deleteSession as dbDeleteSession,
@@ -34,10 +34,15 @@ export function useAIChatSessions({
 }: UseAIChatSessionsOptions): UseAIChatSessionsReturn {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AISession[]>([]);
+  const loadRequestIdRef = useRef(0);
 
   const loadSession = useCallback(
     async (id: string) => {
+      const requestId = ++loadRequestIdRef.current;
       const loadedMessages = await getMessagesBySession(id);
+      if (requestId !== loadRequestIdRef.current) {
+        return;
+      }
       onMessagesLoaded(id, loadedMessages);
       setSessionId(id);
     },
@@ -114,6 +119,7 @@ export function useAIChatSessions({
     void init();
     return () => {
       mounted = false;
+      loadRequestIdRef.current += 1;
     };
   }, [createNewSession, loadSession, loadSessions]);
 

@@ -17,11 +17,16 @@ const FEATURE_OPTIONS = [
 }>;
 
 interface FeatureTogglesSectionProps {
+  disabled?: boolean;
   featureToggles: FeatureTogglesState;
   onToggle: (feature: keyof FeatureTogglesState, enabled: boolean) => void | Promise<void>;
 }
 
-export function FeatureTogglesSection({ featureToggles, onToggle }: FeatureTogglesSectionProps) {
+export function FeatureTogglesSection({
+  disabled = false,
+  featureToggles,
+  onToggle,
+}: FeatureTogglesSectionProps) {
   return (
     <section className="min-w-0 space-y-4 rounded-lg border p-4">
       <h2 className="text-xl font-semibold">功能开关</h2>
@@ -33,6 +38,7 @@ export function FeatureTogglesSection({ featureToggles, onToggle }: FeatureToggl
               id={`feature-${key}`}
               data-testid={`checkbox-feature-${key}`}
               checked={featureToggles[key]}
+              disabled={disabled}
               onCheckedChange={(checked) => onToggle(key, !!checked)}
             />
             <Label htmlFor={`feature-${key}`} className="text-sm font-medium cursor-pointer">

@@ -1,3 +1,4 @@
+import { db } from '@/db';
 import {
   DEFAULT_TOTP_PERIOD,
   isValidTotpSecret,
@@ -99,6 +100,56 @@ export async function addTotpAccount(args: AddTotpAccountArgs): Promise<AddTotpA
     id,
     message: '验证器账户已添加',
   };
+}
+
+export async function addTotpAccounts(argsList: AddTotpAccountArgs[]): Promise<string[]> {
+  const prepared = argsList.map((args) => {
+    const period = args.period ?? DEFAULT_TOTP_PERIOD;
+    validateAccountFields({
+      label: args.label,
+      issuer: args.issuer,
+      account: args.account,
+      secret: args.secret,
+      period,
+    });
+    return {
+      args,
+      id: crypto.randomUUID(),
+      period,
+      secret: normalizeTotpSecret(args.secret),
+    };
+  });
+
+  if (prepared.length === 0) return [];
+
+  return db.transaction('rw', [db.totpAccounts, db.totpLocalOrder], async () => {
+    const existing = (await db.totpAccounts.toArray()).filter((item) => !isSoftDeleted(item));
+    let sortOrder = existing.reduce((max, item) => {
+      const value = typeof item.sortOrder === 'number' ? item.sortOrder : item.createdAt;
+      return Math.max(max, value);
+    }, -1);
+    const now = Date.now();
+    const records = prepared.map(({ args, id, period, secret }) => ({
+      id,
+      label: args.label.trim(),
+      issuer: args.issuer?.trim() || undefined,
+      account: args.account?.trim() || undefined,
+      secret,
+      algorithm: args.algorithm ?? ('SHA1' as const),
+      digits: args.digits ?? (6 as const),
+      period,
+      sortOrder: ++sortOrder,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await db.totpAccounts.bulkAdd(records);
+
+    const localOrder = await getTotpLocalOrder();
+    if (localOrder) {
+      await saveTotpLocalOrder([...localOrder, ...prepared.map((item) => item.id)]);
+    }
+    return prepared.map((item) => item.id);
+  });
 }
 
 /** 本地排序存在时，把新账户追加到末尾，保持"新增出现在列表末尾" */

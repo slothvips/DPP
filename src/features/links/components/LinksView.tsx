@@ -32,17 +32,29 @@ export function LinksView() {
     isInitializedRef.current = true;
 
     const loadSort = async () => {
-      const saved = await getSetting('links_sort_by');
-      if (saved) {
-        setSortBy(saved);
+      try {
+        const saved = await getSetting('links_sort_by');
+        if (saved) {
+          setSortBy(saved);
+        }
+      } catch (error) {
+        logger.error('Failed to load links sort order:', error);
+        toast('读取链接排序失败', 'error');
       }
     };
-    loadSort();
-  }, []);
+    void loadSort();
+  }, [toast]);
 
   const handleSortChange = async (newSort: SortOption) => {
+    const previousSort = sortBy;
     setSortBy(newSort);
-    await updateSetting('links_sort_by', newSort);
+    try {
+      await updateSetting('links_sort_by', newSort);
+    } catch (error) {
+      logger.error('Failed to save links sort order:', error);
+      setSortBy(previousSort);
+      toast('保存链接排序失败', 'error');
+    }
   };
 
   const filteredAndSortedLinks = useSortedFilteredLinks(links, search, sortBy);

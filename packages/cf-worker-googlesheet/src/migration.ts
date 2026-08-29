@@ -1,6 +1,7 @@
 import { D1SyncStore, SyncConflictError, SyncValidationError } from './lib/d1';
 import { getAuthToken } from './lib/google-auth';
 import { MigrationSyncPushCoordinator } from './lib/migrationCoordinator';
+import { RequestTooLargeError, parsePushRequest } from './lib/requestValidation';
 import { SheetsClient, type SyncOperation, getSheetReadOffset } from './lib/sheets';
 
 interface MigrationEnv {
@@ -52,15 +53,18 @@ function errorResponse(error: unknown): Response {
     normalized.name === 'SyncValidationError' ||
     normalized instanceof SyntaxError ||
     /Invalid|Unencrypted|exceeds the maximum/.test(normalized.message);
-  const status = normalized.message.includes('temporarily unavailable')
-    ? 503
-    : normalized.message.includes('must be enabled')
-      ? 409
-      : conflict
-        ? 409
-        : validation
-          ? 400
-          : 500;
+  const status =
+    normalized instanceof RequestTooLargeError || normalized.name === 'RequestTooLargeError'
+      ? 413
+      : normalized.message.includes('temporarily unavailable')
+        ? 503
+        : normalized.message.includes('must be enabled')
+          ? 409
+          : conflict
+            ? 409
+            : validation
+              ? 400
+              : 500;
   return Response.json(
     { error: normalized.message, ...(conflict ? { conflicts: 1 } : {}) },
     { status }
@@ -73,15 +77,7 @@ async function handleSyncRequest(
   url: URL
 ): Promise<Response | null> {
   if (request.method === 'POST' && url.pathname === '/api/sync/push') {
-    const body = await request.json<unknown>();
-    if (typeof body !== 'object' || body === null) {
-      return Response.json({ error: 'Invalid payload' }, { status: 400 });
-    }
-    const { ops, clientId } = body as { ops?: unknown; clientId?: unknown };
-    if (!Array.isArray(ops)) return Response.json({ error: 'Invalid payload' }, { status: 400 });
-    if (clientId !== undefined && typeof clientId !== 'string') {
-      return Response.json({ error: 'Invalid clientId' }, { status: 400 });
-    }
+    const { ops, clientId } = await parsePushRequest(request);
     return Response.json(
       await coordinator(env).push(
         ops as SyncOperation[],
@@ -130,23 +126,45 @@ async function handleMigrationRequest(
     return Response.json({ locked: await coordinator(env).setMaintenanceLocked(locked) });
   }
   if (request.method === 'GET' && url.pathname === '/api/migration/status') {
-    const [locked, database] = await Promise.all([
+    const [locked, database, progress] = await Promise.all([
       coordinator(env).isMaintenanceLocked(),
       new D1SyncStore(env.DB).stats(),
+      coordinator(env).getMigrationProgress(),
     ]);
-    return Response.json({ locked, database });
+    return Response.json({ locked, database, progress });
   }
   if (request.method === 'POST' && url.pathname === '/api/migration/import') {
-    const cursor = parseNonNegativeInteger(url.searchParams.get('cursor'), 'cursor');
+    const migrationCoordinator = coordinator(env);
+    const [locked, progress] = await Promise.all([
+      migrationCoordinator.isMaintenanceLocked(),
+      migrationCoordinator.getMigrationProgress(),
+    ]);
+    if (!locked) throw new Error('Push maintenance lock must be enabled before migration');
+    const requestedCursor = url.searchParams.has('cursor')
+      ? parseNonNegativeInteger(url.searchParams.get('cursor'), 'cursor')
+      : progress.sourceCursor;
+    if (requestedCursor !== progress.sourceCursor) {
+      throw new Error(
+        `Invalid migration cursor: expected ${progress.sourceCursor}, received ${requestedCursor}`
+      );
+    }
     const limit = parseLimit(url.searchParams.get('limit'), 50);
     const client = new SheetsClient(env.GOOGLE_SPREADSHEET_ID, getAuthToken(env));
-    const page = await client.readRows(getSheetReadOffset(cursor), limit);
-    const result = await coordinator(env).importHistorical(page.records);
+    const page = await client.readRows(getSheetReadOffset(progress.sourceCursor), limit, {
+      requireSheet: true,
+    });
+    const done = page.records.length === 0;
+    const result = await migrationCoordinator.importHistoricalPage({
+      done,
+      nextCursor: page.nextCursor,
+      records: page.records,
+      sourceCursor: progress.sourceCursor,
+    });
     return Response.json({
       ...result,
       read: page.records.length,
-      sourceCursor: page.nextCursor,
-      done: page.records.length === 0,
+      sourceCursor: result.progress.sourceCursor,
+      done,
     });
   }
   return null;
@@ -169,8 +187,14 @@ async function handleRequest(request: Request, env: MigrationEnv): Promise<Respo
 
 export default {
   async fetch(request: Request, env: MigrationEnv): Promise<Response> {
+    const url = new URL(request.url);
+    if (request.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
+      return url.pathname === '/'
+        ? new Response('DPP Sync Migration Worker')
+        : Response.json({ status: 'ok' });
+    }
     const provided = request.headers.get('X-Access-Token') ?? '';
-    const pathname = new URL(request.url).pathname;
+    const pathname = url.pathname;
     const expectedToken = pathname.startsWith('/api/migration/')
       ? env.MIGRATION_ADMIN_TOKEN
       : env.SYNC_ACCESS_TOKEN;

@@ -80,6 +80,46 @@ export class SyncValidationError extends Error {
   }
 }
 
+const MAX_OPERATION_DEPTH = 16;
+const MAX_OPERATION_NODES = 2000;
+const MAX_PUSH_SERIALIZED_BYTES = 256 * 1024;
+
+function validateStructuredValue(value: unknown, allowHistoricalPayload: boolean): void {
+  const pending: Array<{ depth: number; value: unknown }> = [{ depth: 0, value }];
+  const maxStringLength = allowHistoricalPayload ? 100_000 : 8192;
+  let nodes = 0;
+  while (pending.length > 0) {
+    const current = pending.pop();
+    if (!current) break;
+    nodes += 1;
+    if (nodes > MAX_OPERATION_NODES) {
+      throw new SyncValidationError('Operation structure exceeds the maximum node count');
+    }
+    if (current.depth > MAX_OPERATION_DEPTH) {
+      throw new SyncValidationError('Operation structure exceeds the maximum depth');
+    }
+    if (typeof current.value === 'string' && current.value.length > maxStringLength) {
+      throw new SyncValidationError('Operation string exceeds the maximum length');
+    }
+    if (Array.isArray(current.value)) {
+      if (current.value.length > 1000) {
+        throw new SyncValidationError('Operation array exceeds the maximum item count');
+      }
+      for (const child of current.value) {
+        pending.push({ depth: current.depth + 1, value: child });
+      }
+      continue;
+    }
+    if (!current.value || typeof current.value !== 'object') continue;
+    for (const [key, child] of Object.entries(current.value)) {
+      if (key.length > 128) {
+        throw new SyncValidationError('Operation object key exceeds the maximum length');
+      }
+      pending.push({ depth: current.depth + 1, value: child });
+    }
+  }
+}
+
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue);
   if (typeof value !== 'object' || value === null) return value;
@@ -112,8 +152,20 @@ function normalizeClientIdentity(operation: SyncOperation, clientId: string): Sy
 }
 
 function validateOperation(operation: SyncOperation, allowHistoricalPayload = false): void {
-  if (!operation.id || typeof operation.id !== 'string') {
+  if (!operation.id || typeof operation.id !== 'string' || operation.id.length > 256) {
     throw new SyncValidationError('Operation id is required');
+  }
+  if (typeof operation.table !== 'string' || operation.table.length > 64) {
+    throw new SyncValidationError(`${operation.id}: Invalid table`);
+  }
+  if (typeof operation.type !== 'string' || operation.type.length > 32) {
+    throw new SyncValidationError(`${operation.id}: Invalid operation type`);
+  }
+  if (
+    operation.keyHash !== undefined &&
+    (typeof operation.keyHash !== 'string' || operation.keyHash.length > 256)
+  ) {
+    throw new SyncValidationError(`${operation.id}: Invalid keyHash`);
   }
   if (operation.table !== 'encrypted' && operation.table !== '__sync_chunk__') {
     throw new SyncValidationError(`${operation.id}: Unencrypted sync operation rejected`);
@@ -142,6 +194,8 @@ function validateOperation(operation: SyncOperation, allowHistoricalPayload = fa
   }
   const chunkError = validateSyncChunkOperation(operation);
   if (chunkError) throw new SyncValidationError(`${operation.id}: ${chunkError}`);
+  validateStructuredValue(operation.key, allowHistoricalPayload);
+  validateStructuredValue(operation.payload, allowHistoricalPayload);
 }
 
 function serializeOperation(
@@ -216,8 +270,15 @@ export class D1SyncStore {
     }
 
     const unique = new Map<string, SerializedOperation>();
+    let serializedBytes = 0;
     for (const operation of operations) {
       const serialized = serializeOperation(operation, requestClientId || 'legacy');
+      serializedBytes += new TextEncoder().encode(
+        `${serialized.keyJson ?? ''}${serialized.payloadJson}${serialized.fingerprint}`
+      ).byteLength;
+      if (serializedBytes > MAX_PUSH_SERIALIZED_BYTES) {
+        throw new SyncValidationError('Push batch exceeds the maximum serialized size');
+      }
       const key = operationKey(serialized);
       const previous = unique.get(key);
       if (previous && previous.fingerprint !== serialized.fingerprint) {

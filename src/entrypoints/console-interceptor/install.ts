@@ -1,3 +1,4 @@
+import { configureConsoleChannelToken } from './runtime';
 import {
   type ConsoleLogData,
   deepClone,
@@ -10,12 +11,13 @@ const CONSOLE_RESTORE_EVENT = 'dpp-console-restore';
 const CONSOLE_METHODS = ['log', 'info', 'warn', 'error', 'debug', 'trace'] as const;
 type ConsoleMethod = (typeof CONSOLE_METHODS)[number];
 
-export function installConsoleInterceptor() {
+export function installConsoleInterceptor(channelToken: string) {
   const runtimeWindow = window as unknown as { __dppConsoleInterceptorInstalled?: boolean };
   if (runtimeWindow.__dppConsoleInterceptorInstalled) {
     return;
   }
   runtimeWindow.__dppConsoleInterceptorInstalled = true;
+  configureConsoleChannelToken(channelToken);
 
   const originalMethods: Record<ConsoleMethod, (...args: unknown[]) => void> = {} as Record<
     ConsoleMethod,
@@ -49,7 +51,16 @@ export function installConsoleInterceptor() {
     };
   }
 
-  function restore() {
+  function restore(event: Event) {
+    const customEvent = event as CustomEvent<unknown>;
+    const detail = customEvent.detail;
+    if (
+      !detail ||
+      typeof detail !== 'object' ||
+      (detail as { channelToken?: unknown }).channelToken !== channelToken
+    ) {
+      return;
+    }
     try {
       for (const method of CONSOLE_METHODS) {
         if (originalMethods[method]) {
@@ -62,10 +73,12 @@ export function installConsoleInterceptor() {
 
     try {
       runtimeWindow.__dppConsoleInterceptorInstalled = false;
+      configureConsoleChannelToken('');
+      window.removeEventListener(CONSOLE_RESTORE_EVENT, restore);
     } catch {
       // ignore
     }
   }
 
-  window.addEventListener(CONSOLE_RESTORE_EVENT, restore, { once: true });
+  window.addEventListener(CONSOLE_RESTORE_EVENT, restore);
 }

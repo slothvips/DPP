@@ -34,7 +34,8 @@ function matchesSearch(account: TotpAccountItem, query: string): boolean {
 }
 
 export function TotpView({ isActive = true }: TotpViewProps) {
-  const { accounts, addAccount, updateAccount, removeAccount, reorderAccounts } = useTotpAccounts();
+  const { accounts, addAccount, addAccounts, updateAccount, removeAccount, reorderAccounts } =
+    useTotpAccounts();
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
@@ -135,8 +136,8 @@ export function TotpView({ isActive = true }: TotpViewProps) {
 
   async function handleImportMany(items: TotpAccountFormData[]) {
     try {
-      for (const data of items) {
-        await addAccount({
+      await addAccounts(
+        items.map((data) => ({
           label: data.label,
           issuer: data.issuer || undefined,
           account: data.account || undefined,
@@ -144,8 +145,8 @@ export function TotpView({ isActive = true }: TotpViewProps) {
           algorithm: data.algorithm,
           digits: data.digits,
           period: data.period,
-        });
-      }
+        }))
+      );
       toast(`已导入 ${items.length} 个账户`, 'success');
       setIsDialogOpen(false);
     } catch (error) {

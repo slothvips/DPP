@@ -1,1 +1,1 @@
-id,table,type,key,payload,timestamp,serverTimestamp
+id,clientId,table,type,key,payload,timestamp,serverTimestamp,keyHash

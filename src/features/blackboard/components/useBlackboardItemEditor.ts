@@ -18,12 +18,14 @@ export function useBlackboardItemEditor({
 }: UseBlackboardItemEditorOptions) {
   const [content, setContent] = useState(item.content);
   const [isEditing, setIsEditing] = useState(false);
+  const [hasExternalConflict, setHasExternalConflict] = useState(false);
   const [minEditHeight, setMinEditHeight] = useState('140px');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const editScrollTopRef = useRef(0);
   const editCaretOffsetRef = useRef<number | undefined>(undefined);
+  const editBaselineRef = useRef(item.content);
 
   useEffect(() => {
     if (!isFocused) {
@@ -60,8 +62,16 @@ export function useBlackboardItemEditor({
   }, [onResize]);
 
   useEffect(() => {
+    if (isEditing) {
+      if (item.content !== editBaselineRef.current) {
+        setHasExternalConflict(true);
+      }
+      return;
+    }
     setContent(item.content);
-  }, [item.content]);
+    editBaselineRef.current = item.content;
+    setHasExternalConflict(false);
+  }, [isEditing, item.content]);
 
   useLayoutEffect(() => {
     if (!isEditing || !textareaRef.current) {
@@ -95,14 +105,33 @@ export function useBlackboardItemEditor({
 
     editScrollTopRef.current = contentRef.current?.scrollTop ?? 0;
     editCaretOffsetRef.current = caretOffset;
+    editBaselineRef.current = item.content;
+    setHasExternalConflict(false);
     setIsEditing(true);
   };
 
   const handleBlur = async () => {
-    setIsEditing(false);
-    if (content !== item.content) {
+    if (hasExternalConflict) {
+      return;
+    }
+    if (content !== editBaselineRef.current) {
       await onUpdate(item.id, content);
     }
+    setIsEditing(false);
+  };
+
+  const handleKeepDraft = async () => {
+    await onUpdate(item.id, content);
+    editBaselineRef.current = content;
+    setHasExternalConflict(false);
+    setIsEditing(false);
+  };
+
+  const handleAcceptExternal = () => {
+    setContent(item.content);
+    editBaselineRef.current = item.content;
+    setHasExternalConflict(false);
+    setIsEditing(false);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -115,13 +144,16 @@ export function useBlackboardItemEditor({
     content,
     contentRef,
     containerRef,
+    hasExternalConflict,
     isEditing,
     minEditHeight,
     textareaRef,
     transforms,
     handleActivateEditing,
+    handleAcceptExternal,
     handleBlur,
     handleChange,
+    handleKeepDraft,
     handleKeyDown,
   };
 }

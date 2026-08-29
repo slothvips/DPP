@@ -119,6 +119,7 @@ export function TagSelector({
                 maxLength={VALIDATION_LIMITS.TAG_NAME_MAX}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleCreate();
+                  if (e.key === 'Enter') e.preventDefault();
                 }}
               />
               <Button size="sm" className="h-7 shrink-0 px-2" onClick={handleCreate}>

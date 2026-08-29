@@ -43,13 +43,16 @@ export function BlackboardItemView({
     content,
     contentRef,
     containerRef,
+    hasExternalConflict,
     isEditing,
     minEditHeight,
     textareaRef,
     transforms,
     handleActivateEditing,
+    handleAcceptExternal,
     handleBlur,
     handleChange,
+    handleKeepDraft,
     handleKeyDown,
   } = useBlackboardItemEditor({
     item,
@@ -82,6 +85,24 @@ export function BlackboardItemView({
     } catch (error) {
       logger.error('Failed to open blackboard note in browser', error);
       toast('无法在浏览器中打开便签', 'error');
+    }
+  }
+
+  async function handleEditorBlur() {
+    try {
+      await handleBlur();
+    } catch (error) {
+      logger.error('Failed to save blackboard draft:', error);
+      toast('保存便签失败', 'error');
+    }
+  }
+
+  async function handleKeepDraftClick() {
+    try {
+      await handleKeepDraft();
+    } catch (error) {
+      logger.error('Failed to keep blackboard draft:', error);
+      toast('保存便签失败', 'error');
     }
   }
 
@@ -192,22 +213,37 @@ export function BlackboardItemView({
         className={`relative min-h-[140px] min-w-0 w-full flex-1 pt-4 ${limitContentHeight ? 'max-h-[420px] overflow-y-auto overscroll-contain custom-scrollbar' : ''}`}
       >
         {isEditing ? (
-          <textarea
-            ref={textareaRef}
-            value={content}
-            wrap="soft"
-            onChange={(event) => {
-              handleChange(event.target.value);
-            }}
-            onBlur={handleBlur}
-            onKeyDown={handleKeyDown}
-            placeholder="写点什么..."
-            className="w-full resize-none overflow-hidden border-none bg-transparent p-0 text-base text-foreground shadow-none outline-none break-words [overflow-wrap:anywhere] placeholder:text-muted-foreground placeholder:italic focus:border-none focus:outline-none focus:ring-0"
-            style={{
-              ...commonStyle,
-              minHeight: minEditHeight,
-            }}
-          />
+          <div className="space-y-2">
+            {hasExternalConflict && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-warning/50 bg-warning/10 p-2 text-xs">
+                <span>内容已在其他位置更新</span>
+                <div className="flex gap-1">
+                  <Button type="button" size="sm" variant="outline" onClick={handleAcceptExternal}>
+                    使用新版本
+                  </Button>
+                  <Button type="button" size="sm" onClick={() => void handleKeepDraftClick()}>
+                    保留我的内容
+                  </Button>
+                </div>
+              </div>
+            )}
+            <textarea
+              ref={textareaRef}
+              value={content}
+              wrap="soft"
+              onChange={(event) => {
+                handleChange(event.target.value);
+              }}
+              onBlur={() => void handleEditorBlur()}
+              onKeyDown={handleKeyDown}
+              placeholder="写点什么..."
+              className="w-full resize-none overflow-hidden border-none bg-transparent p-0 text-base text-foreground shadow-none outline-none break-words [overflow-wrap:anywhere] placeholder:text-muted-foreground placeholder:italic focus:border-none focus:outline-none focus:ring-0"
+              style={{
+                ...commonStyle,
+                minHeight: minEditHeight,
+              }}
+            />
+          </div>
         ) : (
           <BlackboardMarkdownPreview
             content={content}

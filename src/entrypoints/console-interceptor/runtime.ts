@@ -1,5 +1,11 @@
 const CONSOLE_EVENT_NAME = 'dpp-console-log';
 
+let channelToken = '';
+
+export function configureConsoleChannelToken(token: string): void {
+  channelToken = token;
+}
+
 let logIdCounter = 0;
 
 export interface ConsoleLogData {
@@ -28,7 +34,7 @@ export function emitConsoleEvent(data: ConsoleLogData) {
   try {
     window.dispatchEvent(
       new CustomEvent(CONSOLE_EVENT_NAME, {
-        detail: data,
+        detail: { channelToken, payload: data },
       })
     );
   } catch {

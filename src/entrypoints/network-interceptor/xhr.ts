@@ -23,6 +23,8 @@ export function installXHRInterceptor(): () => void {
     password?: string | null
   ) {
     try {
+      this._dppRemoveNetworkListeners?.();
+      this._dppNetworkTerminal = false;
       const resolvedUrl = url.toString();
       if (!isExtensionUrl(resolvedUrl)) {
         this._dppNetworkData = {
@@ -58,10 +60,12 @@ export function installXHRInterceptor(): () => void {
 
   XMLHttpRequest.prototype.abort = function (this: ExtendedXHR) {
     try {
-      if (this._dppNetworkData) {
+      if (this._dppNetworkData && !this._dppNetworkTerminal) {
+        this._dppNetworkTerminal = true;
         emitNetworkEvent(createXhrTerminalEvent(this._dppNetworkData, 'Request aborted', 'abort'));
-        this._dppNetworkData = undefined;
       }
+      this._dppRemoveNetworkListeners?.();
+      this._dppNetworkData = undefined;
     } catch {
       // ignore
     }
@@ -86,7 +90,23 @@ export function installXHRInterceptor(): () => void {
       attachXhrListeners(this, listeners);
     }
 
-    return originalSend.call(this, body);
+    try {
+      return originalSend.call(this, body);
+    } catch (error) {
+      if (data && !this._dppNetworkTerminal) {
+        this._dppNetworkTerminal = true;
+        emitNetworkEvent(
+          createXhrTerminalEvent(
+            data,
+            error instanceof Error ? error.message : 'Request failed',
+            'error'
+          )
+        );
+        this._dppRemoveNetworkListeners?.();
+        this._dppNetworkData = undefined;
+      }
+      throw error;
+    }
   };
 
   return () => {

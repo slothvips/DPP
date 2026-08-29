@@ -7,20 +7,26 @@ import {
   handleRemoteRecordingMessage,
   handleSyncMessage,
 } from './handlers';
+import { authorizeBackgroundMessage } from './messageAuthorization';
 
 type RuntimeMessage = {
   type: string;
   payload?: unknown;
 };
 
-type MessageHandler = (message: RuntimeMessage, sender?: unknown) => unknown;
+type MessageHandler = (message: RuntimeMessage, sender?: chrome.runtime.MessageSender) => unknown;
 
 const messageHandlers: Array<{
   match: (type: string) => boolean;
   handler: MessageHandler;
 }> = [
   {
-    match: (type) => type.startsWith('JENKINS_'),
+    match: (type) =>
+      type === 'JENKINS_FETCH_JOBS' ||
+      type === 'JENKINS_FETCH_MY_BUILDS' ||
+      type === 'JENKINS_TRIGGER_BUILD' ||
+      type === 'JENKINS_GET_JOB_DETAILS' ||
+      type === 'JENKINS_CANCEL_BUILD',
     handler: (message) =>
       handleJenkinsMessage(message as Parameters<typeof handleJenkinsMessage>[0]),
   },
@@ -72,17 +78,33 @@ const messageHandlers: Array<{
   },
   {
     match: (type) =>
-      type === 'OPEN_SIDE_PANEL' || type === 'SAVE_JENKINS_TOKEN' || type === 'CAPTURE_VISIBLE_TAB',
-    handler: (message) =>
-      handleGeneralMessage(message as Parameters<typeof handleGeneralMessage>[0]),
+      type === 'OPEN_SIDE_PANEL' ||
+      type === 'SAVE_JENKINS_TOKEN' ||
+      type === 'CAPTURE_VISIBLE_TAB' ||
+      type === 'JENKINS_VALIDATE_CONTENT_ORIGIN',
+    handler: (message, sender) =>
+      handleGeneralMessage(
+        message as Parameters<typeof handleGeneralMessage>[0],
+        sender as Parameters<typeof handleGeneralMessage>[1]
+      ),
   },
 ];
 
-export function routeBackgroundMessage(message: RuntimeMessage, sender?: unknown): unknown {
+export function routeBackgroundMessage(
+  message: RuntimeMessage,
+  sender?: chrome.runtime.MessageSender
+): unknown {
   if (!message || typeof message.type !== 'string') {
     return false;
   }
   const messageType = message.type;
+  if (!sender) {
+    return { success: false, error: '缺少消息来源信息' };
+  }
+  const authorizationError = authorizeBackgroundMessage(messageType, sender);
+  if (authorizationError) {
+    return { success: false, error: authorizationError };
+  }
 
   for (const { match, handler } of messageHandlers) {
     if (match(messageType)) {

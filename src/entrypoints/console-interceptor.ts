@@ -11,5 +11,9 @@
 import { installConsoleInterceptor } from './console-interceptor/install';
 
 export default defineUnlistedScript(() => {
-  installConsoleInterceptor();
+  const channelToken =
+    document.currentScript instanceof HTMLScriptElement
+      ? document.currentScript.dataset.dppChannelToken || ''
+      : '';
+  installConsoleInterceptor(channelToken);
 });
