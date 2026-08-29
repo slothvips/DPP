@@ -17,6 +17,7 @@ export interface PendingToolCall {
 export interface PendingToolCalls {
   toolCalls: ToolCall[];
   argumentsList: Record<string, unknown>[];
+  requiresActivePlan: boolean;
 }
 
 export interface PendingBuild {

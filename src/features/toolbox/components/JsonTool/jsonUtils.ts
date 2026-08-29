@@ -23,6 +23,47 @@ export function minifyJsonText(value: string): string | null {
   return JSON.stringify(parsed);
 }
 
+/** Parse only repairs that cannot change JSON values or field names. */
+export function parseConservativeJson(value: string): unknown | null {
+  const candidates = [value, value.replace(/,\s*([}\]])/g, '$1')];
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as unknown;
+    } catch {
+      // Try the next conservative candidate.
+    }
+  }
+  return null;
+}
+
+export function areJsonValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((value, index) => areJsonValuesEqual(value, right[index]));
+  }
+  if (
+    !left ||
+    !right ||
+    typeof left !== 'object' ||
+    typeof right !== 'object' ||
+    Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)
+  ) {
+    return false;
+  }
+  const leftRecord = left as Record<string, unknown>;
+  const rightRecord = right as Record<string, unknown>;
+  const leftKeys = Object.keys(leftRecord).sort();
+  const rightKeys = Object.keys(rightRecord).sort();
+  return (
+    leftKeys.length === rightKeys.length &&
+    leftKeys.every(
+      (key, index) =>
+        key === rightKeys[index] && areJsonValuesEqual(leftRecord[key], rightRecord[key])
+    )
+  );
+}
+
 export function extractJsonFromText(text: string): string | null {
   let cleaned = text
     .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')

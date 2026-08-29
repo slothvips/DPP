@@ -1,6 +1,6 @@
 import type Dexie from 'dexie';
 import type { EntityTable } from 'dexie';
-import type { TestCaseMaterial, TestRun } from '@/features/aiAssistant/materials/testCaseTypes';
+import type { MaterialRecord, TestRun } from '@/features/aiAssistant/materials/testCaseTypes';
 import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
 import type { TotpAccountItem } from '@/features/totp/types';
@@ -82,6 +82,6 @@ export type DPPDatabase = Dexie & {
   remoteActivityLog: EntityTable<RemoteActivityLog, 'id'>;
   browserTasks: EntityTable<BrowserTaskRecord, 'taskId'>;
   aiPlans: EntityTable<AIPlanRecord, 'id'>;
-  materials: EntityTable<TestCaseMaterial, 'id'>;
+  materials: EntityTable<MaterialRecord, 'id'>;
   testRuns: EntityTable<TestRun, 'id'>;
 };

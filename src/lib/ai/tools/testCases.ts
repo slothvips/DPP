@@ -222,11 +222,51 @@ export function registerTestCaseTools(): void {
 
 function parseMaterialInput(value: unknown): TestCaseMaterialInput {
   const record = readRecord(value);
+  const definition = parseDefinition(record.definition);
+  const sensitiveValues = definition.testData
+    .filter((item) => item.sensitive && item.value)
+    .map((item) => item.value);
   return {
-    title: readRequiredText(record.title, '测试用例标题'),
-    sourceText: readRequiredText(record.source_text, '测试用例原始描述'),
-    definition: parseDefinition(record.definition),
+    title: redactSensitiveText(readRequiredText(record.title, '测试用例标题'), sensitiveValues),
+    sourceText: redactSensitiveText(
+      readRequiredText(record.source_text, '测试用例原始描述'),
+      sensitiveValues
+    ),
+    definition: redactDefinition(definition, sensitiveValues),
   };
+}
+
+function redactDefinition(
+  definition: TestCaseDefinition,
+  sensitiveValues: string[]
+): TestCaseDefinition {
+  const redact = (value: string): string => redactSensitiveText(value, sensitiveValues);
+  return {
+    ...definition,
+    goal: redact(definition.goal),
+    targets: definition.targets.map((target) => ({
+      ...target,
+      ...(target.name ? { name: redact(target.name) } : {}),
+    })),
+    preconditions: definition.preconditions.map(redact),
+    steps: definition.steps.map((step) => ({
+      ...step,
+      action: redact(step.action),
+      ...(step.expectedResult ? { expectedResult: redact(step.expectedResult) } : {}),
+    })),
+    ...(definition.overallExpectedResult
+      ? { overallExpectedResult: redact(definition.overallExpectedResult) }
+      : {}),
+  };
+}
+
+function redactSensitiveText(value: string, sensitiveValues: string[]): string {
+  return sensitiveValues
+    .reduce((text, secret) => text.replaceAll(secret, '[redacted]'), value)
+    .replace(
+      /(api[-_]?key|private[-_]?key|access[-_]?key|encryption[-_]?key|token|password|passwd|pwd|secret|credential)\s*[:=]\s*([^\s,;]+)/gi,
+      '$1=[redacted]'
+    );
 }
 
 function parseDefinition(value: unknown): TestCaseDefinition {

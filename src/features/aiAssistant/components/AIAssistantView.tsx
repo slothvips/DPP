@@ -199,6 +199,11 @@ export function AIAssistantView() {
     [createNewSession, toast]
   );
 
+  const handleUsePrompt = useCallback(async ({ body }: { title: string; body: string }) => {
+    setInputDraft({ value: body, key: crypto.randomUUID() });
+    setViewMode('chat');
+  }, []);
+
   const handleEditMessage = useCallback(
     async (messageId: string, content: string) => {
       const messageIndex = messages.findIndex((message) => message.id === messageId);
@@ -292,6 +297,7 @@ export function AIAssistantView() {
         <AIMaterialLibraryView
           onImportTestCase={handleImportTestCase}
           onExecuteTestCase={handleExecuteTestCase}
+          onUsePrompt={handleUsePrompt}
         />
       ) : (
         <Allotment vertical separator onDragEnd={saveInputPanelSize} className="min-h-0 flex-1">

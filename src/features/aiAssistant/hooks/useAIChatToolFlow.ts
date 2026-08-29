@@ -167,7 +167,11 @@ export function useAIChatToolFlow({
     void saveToolMessages(cancelMessages);
     const remaining =
       remainingToolCalls.length > 0
-        ? { toolCalls: remainingToolCalls, argumentsList: remainingArguments }
+        ? {
+            toolCalls: remainingToolCalls,
+            argumentsList: remainingArguments,
+            requiresActivePlan: currentPendingToolCalls.requiresActivePlan,
+          }
         : null;
     if (sessionId) {
       if (remaining) pendingToolCallsBySessionRef.current.set(sessionId, remaining);

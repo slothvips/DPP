@@ -5,6 +5,7 @@ import { registerDPPConfigTools } from './tools/dppConfig';
 import { registerJenkinsTools } from './tools/jenkins';
 import { registerLinksTools } from './tools/links';
 import { registerPlanTools } from './tools/plan';
+import { registerPromptTools } from './tools/prompts';
 import { registerRecentActivitiesTools } from './tools/recentActivities';
 import { registerRecorderTools } from './tools/recorder';
 import { registerTagsTools } from './tools/tags';
@@ -28,6 +29,7 @@ export function ensureAIToolsRegistered(): void {
   registerRecentActivitiesTools();
   registerBrowserTaskTools();
   registerPlanTools();
+  registerPromptTools();
   registerTestCaseTools();
   registerTestRunTools();
 

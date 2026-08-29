@@ -45,10 +45,16 @@ import {
 } from '@/lib/db';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
+import { PromptMaterialLibraryView } from './PromptMaterialLibraryView';
 
 const EMPTY_STATE_COPY = {
   title: '还没有测试用例',
   description: '点击“导入测试用例”，让 D 仔从自然语言整理并保存。',
+};
+
+const ALL_EMPTY_STATE_COPY = {
+  title: '还没有物料',
+  description: '可以先创建提示词，或切换到测试用例分类导入用例。',
 };
 
 const RECENT_RUN_COUNT = 2;
@@ -59,18 +65,19 @@ type MaterialFilter = 'all' | MaterialType;
 const MATERIAL_FILTERS: Array<{ value: MaterialFilter; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'prompt', label: '提示词' },
-  { value: 'workflow', label: '工作流' },
   { value: 'testCase', label: '测试用例' },
 ];
 
 interface AIMaterialLibraryViewProps {
   onImportTestCase: () => Promise<void>;
   onExecuteTestCase: (material: { id: string; title: string }) => Promise<void>;
+  onUsePrompt: (prompt: { title: string; body: string }) => Promise<void>;
 }
 
 export function AIMaterialLibraryView({
   onImportTestCase,
   onExecuteTestCase,
+  onUsePrompt,
 }: AIMaterialLibraryViewProps) {
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<MaterialFilter>('all');
@@ -79,11 +86,12 @@ export function AIMaterialLibraryView({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [decryptedMaterials, setDecryptedMaterials] = useState<DecryptedTestCaseMaterial[]>([]);
   const [decryptError, setDecryptError] = useState<string | null>(null);
+  const [hasVisiblePromptSection, setHasVisiblePromptSection] = useState(false);
   const { confirm } = useConfirmDialog();
   const { toast } = useToast();
   const materialRecordsQuery = useLiveQuery(() => listTestCaseMaterialRecords(), []);
   const materialRecords = useMemo(() => materialRecordsQuery ?? [], [materialRecordsQuery]);
-  const emptyState = EMPTY_STATE_COPY;
+  const emptyState = selectedType === 'all' ? ALL_EMPTY_STATE_COPY : EMPTY_STATE_COPY;
 
   useEffect(() => {
     let cancelled = false;
@@ -167,7 +175,7 @@ export function AIMaterialLibraryView({
   const selectedMaterial = selectedId
     ? decryptedMaterials.find((material) => material.id === selectedId)
     : undefined;
-  const canImportTestCase = selectedType === 'all' || selectedType === 'testCase';
+  const canImportTestCase = selectedType === 'testCase';
   const selectedFilterLabel =
     MATERIAL_FILTERS.find((filter) => filter.value === selectedType)?.label ?? '物料';
 
@@ -181,7 +189,7 @@ export function AIMaterialLibraryView({
             </div>
             <div className="min-w-0">
               <h2 className="truncate text-sm font-semibold text-foreground">物料库</h2>
-              <p className="truncate text-xs text-muted-foreground">D 仔的测试用例资产</p>
+              <p className="truncate text-xs text-muted-foreground">D 仔的可复用资产</p>
             </div>
           </div>
           {canImportTestCase && (
@@ -227,83 +235,101 @@ export function AIMaterialLibraryView({
         </div>
       </div>
 
-      {selectedMaterial ? (
-        editingId === selectedMaterial.id ? (
-          <TestCaseEditor
-            material={selectedMaterial}
-            onCancel={() => {
-              setEditingId(null);
-              setSelectedId(null);
-            }}
-            onSaved={() => {
-              setEditingId(null);
-              setSelectedId(null);
-            }}
-          />
-        ) : (
-          <TestCaseDetail material={selectedMaterial} onBack={() => setSelectedId(null)} />
-        )
-      ) : decryptError ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-          <div className="max-w-sm text-center">
-            <h3 className="text-sm font-semibold text-foreground">测试用例内容不可用</h3>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">{decryptError}</p>
-          </div>
-        </div>
-      ) : filteredMaterials.length > 0 ? (
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="grid gap-2">
-            {filteredMaterials.map((material) => (
-              <TestCaseCard
-                key={material.id}
-                material={material}
-                deleting={deletingId === material.id}
-                onOpen={() => {
-                  setEditingId(null);
-                  setSelectedId(material.id);
-                }}
-                onExecute={() => void onExecuteTestCase(material)}
-                onEdit={() => {
-                  setEditingId(material.id);
-                  setSelectedId(material.id);
-                }}
-                onDelete={() => void handleDelete(material)}
-              />
-            ))}
-          </div>
-        </div>
-      ) : materialRecords.length > 0 && decryptedMaterials.length === 0 ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-          <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
+      {selectedType === 'prompt' ? (
+        <PromptMaterialLibraryView key="prompt-library" search={search} onUsePrompt={onUsePrompt} />
       ) : (
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-6">
-          <div className="max-w-xs text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-primary/25 bg-primary/5 text-primary">
-              <Library className="h-7 w-7" />
+        <>
+          {selectedType === 'all' && (
+            <PromptMaterialLibraryView
+              key="prompt-library-compact"
+              search={search}
+              compact
+              hideEmpty
+              onUsePrompt={onUsePrompt}
+              onVisibilityChange={setHasVisiblePromptSection}
+            />
+          )}
+          {selectedMaterial ? (
+            editingId === selectedMaterial.id ? (
+              <TestCaseEditor
+                material={selectedMaterial}
+                onCancel={() => {
+                  setEditingId(null);
+                  setSelectedId(null);
+                }}
+                onSaved={() => {
+                  setEditingId(null);
+                  setSelectedId(null);
+                }}
+              />
+            ) : (
+              <TestCaseDetail material={selectedMaterial} onBack={() => setSelectedId(null)} />
+            )
+          ) : decryptError ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <div className="max-w-sm text-center">
+                <h3 className="text-sm font-semibold text-foreground">测试用例内容不可用</h3>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">{decryptError}</p>
+              </div>
             </div>
-            <h3 className="text-sm font-semibold text-foreground">
-              {selectedType === 'all' ? emptyState.title : `${selectedFilterLabel}暂无物料`}
-            </h3>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">
-              {search.trim()
-                ? `没有匹配的${selectedFilterLabel}。`
-                : selectedType === 'all'
-                  ? emptyState.description
-                  : `当前还没有${selectedFilterLabel}物料。`}
-            </p>
-            {!search.trim() && canImportTestCase && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void onImportTestCase()}
-                className="mt-4 h-8 rounded-lg text-xs"
-              >
-                导入测试用例
-              </Button>
-            )}
-          </div>
-        </div>
+          ) : filteredMaterials.length > 0 ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <div className="grid gap-2">
+                {filteredMaterials.map((material) => (
+                  <TestCaseCard
+                    key={material.id}
+                    material={material}
+                    deleting={deletingId === material.id}
+                    onOpen={() => {
+                      setEditingId(null);
+                      setSelectedId(material.id);
+                    }}
+                    onExecute={() => void onExecuteTestCase(material)}
+                    onEdit={() => {
+                      setEditingId(material.id);
+                      setSelectedId(material.id);
+                    }}
+                    onDelete={() => void handleDelete(material)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : materialRecords.length > 0 && decryptedMaterials.length === 0 ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : selectedType === 'all' && hasVisiblePromptSection ? null : (
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-6">
+              <div className="max-w-xs text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-primary/25 bg-primary/5 text-primary">
+                  <Library className="h-7 w-7" />
+                </div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {selectedType === 'all' ? emptyState.title : `${selectedFilterLabel}暂无物料`}
+                </h3>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {search.trim()
+                    ? selectedType === 'all'
+                      ? '没有匹配的物料。'
+                      : `没有匹配的${selectedFilterLabel}。`
+                    : selectedType === 'all'
+                      ? emptyState.description
+                      : `当前还没有${selectedFilterLabel}物料。`}
+                </p>
+                {!search.trim() && canImportTestCase && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void onImportTestCase()}
+                    className="mt-4 h-8 rounded-lg text-xs"
+                  >
+                    导入测试用例
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

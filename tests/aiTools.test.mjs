@@ -53,8 +53,10 @@ test('strict nested schemas reject unknown fields', () => {
 
 test('tool execution keeps calls after a confirmation behind the same gate', () => {
   const utility = source('../src/features/aiAssistant/lib/toolCallUtils.ts');
+  const flow = source('../src/features/aiAssistant/hooks/useAIChatToolFlowExecution.ts');
   assert.match(utility, /let confirmationStarted = false/);
   assert.match(utility, /if \(requiresConfirmation \|\| confirmationStarted\)/);
+  assert.match(flow, /requiresActivePlan: pendingToolCalls\.requiresActivePlan/);
 });
 
 test('tool execution stops after the first failed call', () => {

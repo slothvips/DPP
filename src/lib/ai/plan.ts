@@ -3,7 +3,7 @@ import { db } from '@/db';
 import type { AIPlanRecord } from '@/db/typesDatabase';
 import type { OpenAIToolDefinition, ToolParameter, ToolProperty } from './types';
 
-export type AIPlanOwnerType = 'ai_session' | 'browser_task' | 'workflow';
+export type AIPlanOwnerType = 'ai_session' | 'browser_task';
 export type AIPlanStepStatus = 'pending' | 'in_progress' | 'completed' | 'blocked';
 export type AIPlanStatus = 'active' | 'completed' | 'blocked' | 'cancelled';
 
@@ -27,7 +27,7 @@ export interface AIPlan {
 }
 
 const STATUS_VALUES: AIPlanStepStatus[] = ['pending', 'in_progress', 'completed', 'blocked'];
-const OWNER_VALUES: AIPlanOwnerType[] = ['ai_session', 'browser_task', 'workflow'];
+const OWNER_VALUES: AIPlanOwnerType[] = ['ai_session', 'browser_task'];
 const MAX_PLAN_STEPS = 50;
 const MAX_PLAN_GOAL_LENGTH = 1000;
 const MAX_PLAN_STEP_ID_LENGTH = 80;

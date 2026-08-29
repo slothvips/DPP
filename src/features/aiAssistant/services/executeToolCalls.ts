@@ -1,5 +1,6 @@
 import type { PendingBuild, PreparedToolCall } from '@/features/aiAssistant/hooks/useAIChat.types';
 import { ensureAIToolsRegistered } from '@/lib/ai';
+import { getPlan } from '@/lib/ai/plan';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import { hasActiveTestRunForSession, stopTestRunForSession } from '@/lib/ai/tools/testRuns';
@@ -37,6 +38,7 @@ export async function executePreparedToolCalls(
     onAIConfigChanged?: () => void;
     browserTaskSessionId?: string;
     sessionId?: string;
+    requiresActivePlan?: boolean;
   }
 ): Promise<{
   toolMessages: ChatMessage[];
@@ -48,6 +50,7 @@ export async function executePreparedToolCalls(
     onAIConfigChanged?: () => void;
     browserTaskSessionId?: string;
     sessionId?: string;
+    requiresActivePlan?: boolean;
   }
 ): Promise<{
   toolMessages: ChatMessage[];
@@ -58,8 +61,19 @@ export async function executePreparedToolCalls(
   const availableToolNames = toolRegistry.getAll().map((tool) => tool.name);
   const toolMessages: ChatMessage[] = [];
 
+  const requiresActivePlan = Boolean(
+    options?.sessionId && (options.requiresActivePlan ?? preparedToolCalls.length > 1)
+  );
+
   for (const [index, preparedToolCall] of preparedToolCalls.entries()) {
     try {
+      if (
+        requiresActivePlan &&
+        preparedToolCall.toolCall.function.name !== 'manage_plan' &&
+        options?.sessionId
+      ) {
+        await enforceActivePlan(options.sessionId);
+      }
       const { toolMessage, pendingBuild } = await executePreparedToolCall(
         preparedToolCall,
         options,
@@ -96,6 +110,13 @@ export async function executePreparedToolCalls(
   return { toolMessages, pendingBuild: null };
 }
 
+async function enforceActivePlan(sessionId: string): Promise<void> {
+  const plan = await getPlan({ type: 'ai_session', id: sessionId });
+  if (!plan || plan.status !== 'active') {
+    throw new Error('多步骤工具调用需要先创建并激活当前会话计划');
+  }
+}
+
 async function executePreparedToolCall(
   preparedToolCall: PreparedToolCall,
   options:
@@ -103,6 +124,7 @@ async function executePreparedToolCall(
         onAIConfigChanged?: () => void;
         browserTaskSessionId?: string;
         sessionId?: string;
+        requiresActivePlan?: boolean;
       }
     | undefined,
   availableToolNames: string[]

@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import type {
   DecryptedTestCaseMaterial,
+  MaterialRecord,
   TestCaseDefinition,
   TestCaseMaterial,
   TestCaseMaterialInput,
@@ -54,7 +55,12 @@ export async function updateTestCaseMaterial(
   });
   return db.transaction('rw', db.materials, async () => {
     const current = await db.materials.get(id);
-    if (!current || current.deletedAt || current.status !== 'ready') {
+    if (
+      !current ||
+      current.type !== 'testCase' ||
+      current.deletedAt ||
+      current.status !== 'ready'
+    ) {
       throw new Error('测试用例不存在或已归档');
     }
     if (current.version !== expectedVersion) {
@@ -76,7 +82,7 @@ export async function updateTestCaseMaterial(
 export async function deleteTestCaseMaterial(id: string): Promise<void> {
   await db.transaction('rw', db.materials, async () => {
     const material = await db.materials.get(id);
-    if (!material || material.deletedAt) {
+    if (!material || material.type !== 'testCase' || material.deletedAt) {
       throw new Error('测试用例不存在或已删除');
     }
 
@@ -107,7 +113,12 @@ export async function getTestCaseMaterial(
   id: string
 ): Promise<DecryptedTestCaseMaterial | undefined> {
   const material = await db.materials.get(id);
-  if (!material || material.deletedAt || material.status !== 'ready') {
+  if (
+    !material ||
+    material.type !== 'testCase' ||
+    material.deletedAt ||
+    material.status !== 'ready'
+  ) {
     return undefined;
   }
 
@@ -123,7 +134,7 @@ export async function listTestCaseMaterialRecords(): Promise<TestCaseMaterial[]>
     .equals('testCase')
     .and((material) => material.status === 'ready' && !material.deletedAt)
     .sortBy('updatedAt');
-  return materials.reverse();
+  return materials.filter(isTestCaseMaterial).reverse();
 }
 
 export async function listTestCaseMaterials(): Promise<DecryptedTestCaseMaterial[]> {
@@ -314,4 +325,8 @@ async function buildTestCaseMaterial(input: TestCaseMaterialInput): Promise<Test
     createdAt: now,
     updatedAt: now,
   };
+}
+
+function isTestCaseMaterial(material: MaterialRecord): material is TestCaseMaterial {
+  return material.type === 'testCase';
 }

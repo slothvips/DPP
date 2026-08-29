@@ -18,10 +18,14 @@ export function getPendingToolCall(
   };
 }
 
-export function createPendingToolCalls(toolCalls: PreparedToolCall[]): PendingToolCalls {
+export function createPendingToolCalls(
+  toolCalls: PreparedToolCall[],
+  requiresActivePlan = toolCalls.length > 1
+): PendingToolCalls {
   return {
     toolCalls: toolCalls.map(({ toolCall }) => toolCall),
     argumentsList: toolCalls.map(({ arguments: args }) => args),
+    requiresActivePlan,
   };
 }
 
@@ -42,6 +46,7 @@ export function splitPendingToolCalls(pendingToolCalls: PendingToolCalls): {
         ? {
             toolCalls: remainingToolCalls,
             argumentsList: remainingArguments,
+            requiresActivePlan: pendingToolCalls.requiresActivePlan,
           }
         : null,
   };

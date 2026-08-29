@@ -36,12 +36,14 @@ export function useAIChatToolFlowExecution({
   sessionId,
 }: UseAIChatToolFlowExecutionOptions) {
   async function executePreparedCallsAndContinue(
-    preparedToolCalls: ReturnType<typeof toPreparedToolCalls>
+    preparedToolCalls: ReturnType<typeof toPreparedToolCalls>,
+    requiresActivePlan: boolean
   ) {
     const { toolMessages, pendingBuild } = await executePreparedToolCalls(preparedToolCalls, {
       onAIConfigChanged,
       browserTaskSessionId: browserTaskSessionId ?? undefined,
       sessionId: sessionId ?? undefined,
+      requiresActivePlan,
     });
 
     if (isExecutionCancelled()) return false;
@@ -74,6 +76,7 @@ export function useAIChatToolFlowExecution({
       toolCalls,
       yoloMode
     );
+    const requiresActivePlan = toolCalls.length > 1;
 
     if (toolCallsToExecute.length > 0) {
       onStatusChange('loading');
@@ -81,6 +84,7 @@ export function useAIChatToolFlowExecution({
         onAIConfigChanged,
         browserTaskSessionId: browserTaskSessionId ?? undefined,
         sessionId: sessionId ?? undefined,
+        requiresActivePlan,
       });
 
       if (isExecutionCancelled()) return;
@@ -96,7 +100,7 @@ export function useAIChatToolFlowExecution({
     }
 
     if (toolCallsToConfirm.length > 0) {
-      onPendingToolCallsChange(createPendingToolCalls(toolCallsToConfirm));
+      onPendingToolCallsChange(createPendingToolCalls(toolCallsToConfirm, requiresActivePlan));
       onStatusChange('confirming');
       return;
     }
@@ -121,6 +125,7 @@ export function useAIChatToolFlowExecution({
         onAIConfigChanged,
         browserTaskSessionId: browserTaskSessionId ?? undefined,
         sessionId: sessionId ?? undefined,
+        requiresActivePlan: pendingToolCalls.requiresActivePlan,
       }
     );
 
@@ -154,7 +159,10 @@ export function useAIChatToolFlowExecution({
     onExecutionStart();
     onPendingToolCallsChange(null);
     onStatusChange('loading');
-    await executePreparedCallsAndContinue(toPreparedToolCalls(pendingToolCalls));
+    await executePreparedCallsAndContinue(
+      toPreparedToolCalls(pendingToolCalls),
+      pendingToolCalls.requiresActivePlan
+    );
   }
 
   return {

@@ -3,7 +3,12 @@ import { useCallback, useState } from 'react';
 import { createProvider } from '@/lib/ai/provider';
 import type { AIProviderType, ChatMessage } from '@/lib/ai/types';
 import { getAIConfig } from '@/lib/db/settings';
-import { buildDiffSummaryPrompt, getDiffEditorContent } from './diffAiShared';
+import {
+  buildDiffSummaryPrompt,
+  calculateDiffStats,
+  getDiffEditorContent,
+  normalizeDiffSummaryStats,
+} from './diffAiShared';
 
 const MAX_DIFF_AI_INPUT_LENGTH = 100_000;
 
@@ -23,6 +28,7 @@ export function useDiffAiSummary(
     }
 
     const { originalValue, modifiedValue } = diffContent;
+    const stats = calculateDiffStats(originalValue, modifiedValue);
 
     if (!originalValue.trim() && !modifiedValue.trim()) {
       setAiError('请先输入要对比的内容');
@@ -79,6 +85,7 @@ export function useDiffAiSummary(
           setAiSummary(fullContent);
         },
       });
+      setAiSummary(normalizeDiffSummaryStats(fullContent, stats));
     } catch (error) {
       setAiError(error instanceof Error ? error.message : 'AI 解读失败');
     } finally {

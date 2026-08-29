@@ -2,6 +2,7 @@ import { ArrowDown, Bot, Sparkles } from 'lucide-react';
 import { Fragment, type RefObject, type UIEventHandler } from 'react';
 import { Button } from '@/components/ui/button';
 import type { AIPlan } from '@/lib/ai/plan';
+import type { OpenAIToolCall } from '@/lib/ai/types';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
 import type { BrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import type { ChatMessage } from '../types';
@@ -63,6 +64,18 @@ function readBrowserTaskArgument(argumentsJson: string): string | undefined {
   }
 }
 
+function isTaskForToolCall(task: BrowserTaskProgress, toolCall: OpenAIToolCall): boolean {
+  if (!task.toolCallId) return false;
+  return task.toolCallId === toolCall.id || task.toolCallId.startsWith(`${toolCall.id}:`);
+}
+
+function isBrowserTaskToolCall(toolCall: OpenAIToolCall): boolean {
+  return (
+    toolCall.function.name === 'delegate_browser_agent' ||
+    toolCall.function.name === 'test_run_execute'
+  );
+}
+
 function getAssistantProgressText(
   status: AIChatStatus,
   browserTaskProgress: BrowserTaskProgress[]
@@ -85,10 +98,10 @@ function placeBrowserTasks(messages: ChatMessage[], progress: BrowserTaskProgres
 
   for (const message of messages) {
     for (const toolCall of message.toolCalls || []) {
-      if (toolCall.function.name !== 'delegate_browser_agent') continue;
+      if (!isBrowserTaskToolCall(toolCall)) continue;
 
       const exactMatches = progress.filter(
-        (task) => task.toolCallId === toolCall.id && !anchoredTaskIds.has(task.taskId)
+        (task) => isTaskForToolCall(task, toolCall) && !anchoredTaskIds.has(task.taskId)
       );
       const taskArgument = readBrowserTaskArgument(toolCall.function.arguments);
       const matches =
@@ -108,6 +121,22 @@ function placeBrowserTasks(messages: ChatMessage[], progress: BrowserTaskProgres
       tasksByMessageId.set(message.id, [...(tasksByMessageId.get(message.id) || []), ...matches]);
       for (const task of matches) anchoredTaskIds.add(task.taskId);
     }
+  }
+
+  // Older records may not have a usable tool call ID. Keep them in the
+  // conversation timeline when their creation time falls after a message.
+  for (const task of progress) {
+    if (task.toolCallId || anchoredTaskIds.has(task.taskId)) continue;
+
+    const anchor = messages.reduce<ChatMessage | undefined>((latest, message) => {
+      if (message.createdAt > task.createdAt) return latest;
+      if (!latest || message.createdAt >= latest.createdAt) return message;
+      return latest;
+    }, undefined);
+    if (!anchor) continue;
+
+    tasksByMessageId.set(anchor.id, [...(tasksByMessageId.get(anchor.id) || []), task]);
+    anchoredTaskIds.add(task.taskId);
   }
 
   return {

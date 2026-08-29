@@ -1,6 +1,40 @@
 import type { EncryptedData } from '@/lib/crypto/encryption';
 
-export type MaterialType = 'prompt' | 'workflow' | 'testCase';
+export type MaterialType = 'prompt' | 'testCase';
+
+export type MaterialStatus = 'ready' | 'archived';
+
+export interface MaterialRecordBase {
+  id: string;
+  title: string;
+  status: MaterialStatus;
+  version: number;
+  encryptedContent: EncryptedData;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export interface PromptVariable {
+  key: string;
+  label: string;
+  description?: string;
+  required: boolean;
+  defaultValue?: string;
+  sensitive?: boolean;
+}
+
+export interface PromptMaterialContent {
+  body: string;
+  summary?: string;
+  category?: string;
+  tags: string[];
+  variables: PromptVariable[];
+}
+
+export interface PromptMaterial extends MaterialRecordBase {
+  type: 'prompt';
+}
 
 export interface TestCaseTarget {
   id: string;
@@ -37,16 +71,23 @@ export interface TestCaseMaterialContent {
   definition: TestCaseDefinition;
 }
 
-export interface TestCaseMaterial {
-  id: string;
+export interface TestCaseMaterial extends MaterialRecordBase {
   type: 'testCase';
+}
+
+export type MaterialRecord = PromptMaterial | TestCaseMaterial;
+
+export interface PromptMaterialInput {
   title: string;
-  status: 'ready' | 'archived';
-  version: number;
-  encryptedContent: EncryptedData;
-  createdAt: number;
-  updatedAt: number;
-  deletedAt?: number;
+  body: string;
+  summary?: string;
+  category?: string;
+  tags: string[];
+  variables: PromptVariable[];
+}
+
+export interface DecryptedPromptMaterial extends PromptMaterial {
+  content: PromptMaterialContent;
 }
 
 export type TestRunStatus =
