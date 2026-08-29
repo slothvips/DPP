@@ -13,7 +13,7 @@ const TASK_QUEUE_TIMEOUT_MS = 5 * 60 * 1000;
 const taskIdsBySession = new Map<string, Set<string>>();
 const testTabsByTarget = new Map<string, number>();
 
-type BrowserTaskFailureReason =
+export type BrowserTaskFailureReason =
   | 'invalid_request'
   | 'resource_conflict'
   | 'page_unavailable'
@@ -22,11 +22,14 @@ type BrowserTaskFailureReason =
   | 'execution_failed'
   | 'stopped';
 
-interface BrowserTaskToolResult {
+export interface BrowserTaskToolResult {
   success: boolean;
   message: string;
   failure_reason?: BrowserTaskFailureReason;
   retryable?: boolean;
+  browser_task_id?: string;
+  test_step_result?: BrowserTaskSummary['testStepResult'];
+  test_step_attempts?: BrowserTaskSummary['testStepAttempts'];
 }
 
 function getTestTabKey(sessionId: string, testRunId: string, targetId: string): string {
@@ -82,12 +85,7 @@ export async function delegateBrowserAgent(args: {
     args.session_id?.trim() && args.test_run_id?.trim() && args.test_target_id?.trim()
       ? getTestTabKey(args.session_id.trim(), args.test_run_id.trim(), args.test_target_id.trim())
       : undefined;
-  const target = await getTargetTab(
-    args.tab_id,
-    args.initial_url,
-    args.open_new_tab,
-    testTabKey
-  );
+  const target = await getTargetTab(args.tab_id, args.initial_url, args.open_new_tab, testTabKey);
   if (!target) {
     if (reservationCreated) await deleteBrowserTaskRecord(taskId);
     return createBrowserTaskFailure('当前活动页面无法运行网页助手', 'page_unavailable');
@@ -109,6 +107,7 @@ export async function delegateBrowserAgent(args: {
           sessionId: args.session_id,
           toolCallId: args.tool_call_id,
           initialTabId: target.tabId,
+          initialUrl: args.initial_url,
           resultMode: args.test_target_id ? 'test-step' : undefined,
           resourceKeys: normalizeResourceKeys(
             args.resource_keys,
@@ -363,11 +362,24 @@ function createBrowserTaskToolResult(summary: BrowserTaskSummary): BrowserTaskTo
     0,
     MAX_TASK_RESULT_LENGTH
   );
-  if (summary.status === 'completed') return { success: true, message };
-  return createBrowserTaskFailure(
-    message,
-    summary.status === 'stopped' ? 'stopped' : classifyBrowserTaskFailure(message)
-  );
+  if (summary.status === 'completed') {
+    return {
+      success: true,
+      message,
+      browser_task_id: summary.taskId,
+      ...(summary.testStepResult ? { test_step_result: summary.testStepResult } : {}),
+      ...(summary.testStepAttempts ? { test_step_attempts: summary.testStepAttempts } : {}),
+    };
+  }
+  return {
+    ...createBrowserTaskFailure(
+      message,
+      summary.status === 'stopped' ? 'stopped' : classifyBrowserTaskFailure(message)
+    ),
+    browser_task_id: summary.taskId,
+    ...(summary.testStepResult ? { test_step_result: summary.testStepResult } : {}),
+    ...(summary.testStepAttempts ? { test_step_attempts: summary.testStepAttempts } : {}),
+  };
 }
 
 function createBrowserTaskFailure(
@@ -378,7 +390,10 @@ function createBrowserTaskFailure(
     success: false,
     message: message.slice(0, MAX_TASK_RESULT_LENGTH),
     failure_reason: reason,
-    retryable: reason === 'resource_conflict',
+    retryable:
+      reason === 'resource_conflict' ||
+      reason === 'page_unavailable' ||
+      reason === 'page_load_timeout',
   };
 }
 

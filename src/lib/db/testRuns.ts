@@ -16,6 +16,7 @@ import { getTestCaseMaterial } from './materials';
 import { decryptTestCaseContent, encryptTestCaseContent } from './testCaseShared';
 
 const MAX_REPORT_TEXT_LENGTH = 4_000;
+const MAX_TEST_RUN_PAGE_SIZE = 50;
 const testRunLocks = new Map<string, Promise<void>>();
 
 export interface TestRunStepUpdate {
@@ -106,12 +107,31 @@ export async function setTestRunCurrentStep(id: string, currentStepId: string): 
 
 export async function listTestRuns(testCaseMaterialId: string): Promise<DecryptedTestRun[]> {
   const runs = await listTestRunRecords(testCaseMaterialId);
-  return Promise.all(
-    runs.reverse().map(async (run) => ({
-      ...run,
-      content: await decryptTestCaseContent<TestRunContent>(run.encryptedContent),
-    }))
-  );
+  return decryptTestRunRecords(runs.reverse());
+}
+
+export interface TestRunPage {
+  runs: DecryptedTestRun[];
+  total: number;
+}
+
+export async function listTestRunsPage(
+  testCaseMaterialId: string,
+  offset: number,
+  limit: number
+): Promise<TestRunPage> {
+  if (!Number.isInteger(offset) || offset < 0) {
+    throw new Error('测试执行记录分页偏移量无效');
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_TEST_RUN_PAGE_SIZE) {
+    throw new Error(`测试执行记录每页数量必须在 1-${MAX_TEST_RUN_PAGE_SIZE} 之间`);
+  }
+
+  const records = (await listTestRunRecords(testCaseMaterialId)).reverse();
+  return {
+    runs: await decryptTestRunRecords(records.slice(offset, offset + limit)),
+    total: records.length,
+  };
 }
 
 export async function listTestRunRecords(testCaseMaterialId: string): Promise<TestRun[]> {
@@ -120,6 +140,15 @@ export async function listTestRunRecords(testCaseMaterialId: string): Promise<Te
     .equals(testCaseMaterialId)
     .and((run) => !run.deletedAt)
     .sortBy('startedAt');
+}
+
+async function decryptTestRunRecords(records: TestRun[]): Promise<DecryptedTestRun[]> {
+  return Promise.all(
+    records.map(async (run) => ({
+      ...run,
+      content: await decryptTestCaseContent<TestRunContent>(run.encryptedContent),
+    }))
+  );
 }
 
 export async function findActiveTestRunForSession(sessionId: string): Promise<TestRun | undefined> {
@@ -169,6 +198,7 @@ export async function updateTestRunStep(id: string, update: TestRunStepUpdate): 
     );
     if (
       update.result.status !== 'blocked' &&
+      update.result.status !== 'error' &&
       update.currentStepId &&
       update.currentStepId !== nextStepAfterResultId
     ) {
@@ -186,12 +216,19 @@ export async function updateTestRunStep(id: string, update: TestRunStepUpdate): 
         redactTestData(update.result.detail, content.testCaseSnapshot),
         '步骤说明'
       ),
+      attempts: update.result.attempts?.map((attempt) => ({
+        ...attempt,
+        detail: limitReportText(
+          redactTestData(attempt.detail, content.testCaseSnapshot),
+          '尝试说明'
+        ),
+      })),
       updatedAt: now,
     };
     const report: TestReport = {
       ...content.report,
       stepResults: [...content.report.stepResults, result],
-      ...(result.status === 'failed' || result.status === 'blocked'
+      ...(result.status === 'failed' || result.status === 'blocked' || result.status === 'error'
         ? {
             error: limitReportText(
               redactTestData(result.detail ?? result.actualResult, content.testCaseSnapshot),
@@ -201,8 +238,11 @@ export async function updateTestRunStep(id: string, update: TestRunStepUpdate): 
         : {}),
       updatedAt: now,
     };
-    // 阻塞是终态；即使调用方误传下一步，也不能留下可继续执行的游标。
-    const nextStepIdToRun = update.result.status === 'blocked' ? undefined : update.currentStepId;
+    // 阻塞和技术错误都是终态；即使调用方误传下一步，也不能留下可继续执行的游标。
+    const nextStepIdToRun =
+      update.result.status === 'blocked' || update.result.status === 'error'
+        ? undefined
+        : update.currentStepId;
     const nextRun: TestRun = {
       ...run,
       status: getTestRunStatusAfterStep(update.result.status),
@@ -223,7 +263,7 @@ export async function updateTestRunStep(id: string, update: TestRunStepUpdate): 
 
 export async function finishTestRun(
   id: string,
-  status: Extract<TestRunStatus, 'passed' | 'failed' | 'blocked' | 'stopped'>,
+  status: Extract<TestRunStatus, 'passed' | 'failed' | 'blocked' | 'error' | 'stopped'>,
   summary: string,
   error?: string
 ): Promise<TestRun> {

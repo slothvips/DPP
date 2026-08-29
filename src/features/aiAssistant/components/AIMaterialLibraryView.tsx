@@ -3,6 +3,10 @@ import {
   ArrowLeft,
   Ban,
   CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
   ClipboardCheck,
   Library,
   LoaderCircle,
@@ -28,23 +32,27 @@ import type {
   TestCaseStep,
   TestCaseTarget,
   TestCaseTestData,
-  TestRun,
   TestRunStatus,
+  TestStepAttemptTrigger,
   TestStepResult,
 } from '@/features/aiAssistant/materials/testCaseTypes';
 import {
+  deleteTestCaseMaterial,
   getTestCaseMaterial,
   listTestCaseMaterialRecords,
-  listTestRunRecords,
-  listTestRuns,
+  listTestRunsPage,
   updateTestCaseMaterial,
 } from '@/lib/db';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
 const EMPTY_STATE_COPY = {
   title: '还没有测试用例',
   description: '点击“导入测试用例”，让 D 仔从自然语言整理并保存。',
 };
+
+const RECENT_RUN_COUNT = 2;
+const RUN_HISTORY_PAGE_SIZE = 10;
 
 type MaterialFilter = 'all' | MaterialType;
 
@@ -67,27 +75,14 @@ export function AIMaterialLibraryView({
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<MaterialFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [decryptedMaterials, setDecryptedMaterials] = useState<DecryptedTestCaseMaterial[]>([]);
   const [decryptError, setDecryptError] = useState<string | null>(null);
+  const { confirm } = useConfirmDialog();
+  const { toast } = useToast();
   const materialRecordsQuery = useLiveQuery(() => listTestCaseMaterialRecords(), []);
   const materialRecords = useMemo(() => materialRecordsQuery ?? [], [materialRecordsQuery]);
-  const latestRunsQuery = useLiveQuery(
-    () =>
-      Promise.all(
-        materialRecords.map(
-          async (material) => [material.id, await listTestRunRecords(material.id)] as const
-        )
-      ),
-    [materialRecords]
-  );
-  const latestRuns = useMemo(() => {
-    const runs = new Map<string, TestRun>();
-    for (const [materialId, records] of latestRunsQuery ?? []) {
-      const latest = records.at(-1);
-      if (latest) runs.set(materialId, latest);
-    }
-    return runs;
-  }, [latestRunsQuery]);
   const emptyState = EMPTY_STATE_COPY;
 
   useEffect(() => {
@@ -134,6 +129,29 @@ export function AIMaterialLibraryView({
   const handleTypeChange = (type: MaterialFilter) => {
     setSelectedType(type);
     setSelectedId(null);
+    setEditingId(null);
+  };
+
+  const handleDelete = async (material: DecryptedTestCaseMaterial) => {
+    const confirmed = await confirm(
+      `确定要删除“${material.title}”吗？\n测试用例将从团队共享库中移除，历史执行记录不会一并删除。`,
+      '确认删除测试用例',
+      'danger'
+    );
+    if (!confirmed) return;
+
+    setDeletingId(material.id);
+    try {
+      await deleteTestCaseMaterial(material.id);
+      if (selectedId === material.id) setSelectedId(null);
+      if (editingId === material.id) setEditingId(null);
+      toast('测试用例已删除', 'success');
+    } catch (error) {
+      logger.error('[MaterialLibrary] Failed to delete test case:', error);
+      toast(error instanceof Error ? error.message : '删除测试用例失败', 'error');
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const filteredMaterials = useMemo(() => {
@@ -152,10 +170,6 @@ export function AIMaterialLibraryView({
   const canImportTestCase = selectedType === 'all' || selectedType === 'testCase';
   const selectedFilterLabel =
     MATERIAL_FILTERS.find((filter) => filter.value === selectedType)?.label ?? '物料';
-  const selectedMaterialRunsQuery = useLiveQuery(
-    () => (selectedId ? listTestRuns(selectedId) : Promise.resolve([] as DecryptedTestRun[])),
-    [selectedId]
-  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-muted/10">
@@ -214,13 +228,21 @@ export function AIMaterialLibraryView({
       </div>
 
       {selectedMaterial ? (
-        <TestCaseDetail
-          material={selectedMaterial}
-          runs={selectedMaterialRunsQuery ?? []}
-          runsLoading={selectedMaterialRunsQuery === undefined}
-          onBack={() => setSelectedId(null)}
-          onExecute={() => void onExecuteTestCase(selectedMaterial)}
-        />
+        editingId === selectedMaterial.id ? (
+          <TestCaseEditor
+            material={selectedMaterial}
+            onCancel={() => {
+              setEditingId(null);
+              setSelectedId(null);
+            }}
+            onSaved={() => {
+              setEditingId(null);
+              setSelectedId(null);
+            }}
+          />
+        ) : (
+          <TestCaseDetail material={selectedMaterial} onBack={() => setSelectedId(null)} />
+        )
       ) : decryptError ? (
         <div className="flex min-h-0 flex-1 items-center justify-center p-6">
           <div className="max-w-sm text-center">
@@ -235,8 +257,17 @@ export function AIMaterialLibraryView({
               <TestCaseCard
                 key={material.id}
                 material={material}
-                latestRun={latestRuns.get(material.id)}
-                onClick={() => setSelectedId(material.id)}
+                deleting={deletingId === material.id}
+                onOpen={() => {
+                  setEditingId(null);
+                  setSelectedId(material.id);
+                }}
+                onExecute={() => void onExecuteTestCase(material)}
+                onEdit={() => {
+                  setEditingId(material.id);
+                  setSelectedId(material.id);
+                }}
+                onDelete={() => void handleDelete(material)}
               />
             ))}
           </div>
@@ -280,63 +311,169 @@ export function AIMaterialLibraryView({
 
 function TestCaseCard({
   material,
-  latestRun,
-  onClick,
+  deleting,
+  onOpen,
+  onExecute,
+  onEdit,
+  onDelete,
 }: {
   material: DecryptedTestCaseMaterial;
-  latestRun?: TestRun;
-  onClick: () => void;
+  deleting: boolean;
+  onOpen: () => void;
+  onExecute: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historyPage, setHistoryPage] = useState(0);
+  const historyLimit = historyExpanded ? RUN_HISTORY_PAGE_SIZE : RECENT_RUN_COUNT;
+  const historyOffset = historyExpanded ? historyPage * RUN_HISTORY_PAGE_SIZE : 0;
+  const runsPageQuery = useLiveQuery(
+    () => listTestRunsPage(material.id, historyOffset, historyLimit),
+    [material.id, historyOffset, historyLimit]
+  );
+  const runs = runsPageQuery?.runs ?? [];
+  const runCount = runsPageQuery?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(runCount / RUN_HISTORY_PAGE_SIZE));
+
+  useEffect(() => {
+    if (historyPage >= pageCount) setHistoryPage(pageCount - 1);
+  }, [historyPage, pageCount]);
+
+  const toggleHistory = () => {
+    setHistoryExpanded((current) => !current);
+    setHistoryPage(0);
+  };
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full rounded-xl border border-border/60 bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/[0.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <article className="w-full rounded-xl border border-border/60 bg-background p-3 transition-colors hover:border-primary/40">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
           <h3 className="truncate text-sm font-medium text-foreground">{material.title}</h3>
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
             {material.content.definition.goal}
           </p>
-        </div>
+        </button>
         <span className="shrink-0 text-[11px] text-muted-foreground">v{material.version}</span>
       </div>
       <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
         <span>{material.content.definition.targets.length} 个目标网页</span>
         <span>{material.content.definition.steps.length} 个步骤</span>
-        {latestRun && <RunStatus status={latestRun.status} />}
         <span className="ml-auto">{formatDate(material.updatedAt)}</span>
       </div>
-    </button>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Button size="sm" onClick={onExecute} className="h-8 gap-1.5 rounded-lg text-xs">
+          <Play className="h-3.5 w-3.5" />
+          执行
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onEdit}
+          disabled={deleting}
+          className="h-8 gap-1.5 rounded-lg text-xs"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          编辑
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          disabled={deleting}
+          className="h-8 gap-1.5 rounded-lg text-xs text-destructive hover:text-destructive"
+        >
+          {deleting ? (
+            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Trash2 className="h-3.5 w-3.5" />
+          )}
+          删除
+        </Button>
+      </div>
+
+      <section className="mt-3 border-t border-border/50 pt-3">
+        <div className="flex min-h-8 items-center justify-between gap-2">
+          <div className="text-xs font-medium text-foreground">
+            {historyExpanded ? '全部执行记录' : '最近执行记录'}
+            {runsPageQuery && (
+              <span className="ml-1.5 font-normal text-muted-foreground">{runCount} 条</span>
+            )}
+          </div>
+          {runCount > RECENT_RUN_COUNT && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleHistory}
+              aria-expanded={historyExpanded}
+              className="h-7 gap-1 px-2 text-[11px] text-muted-foreground"
+            >
+              {historyExpanded ? '收起' : '查看全部'}
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${historyExpanded ? 'rotate-180' : ''}`}
+              />
+            </Button>
+          )}
+        </div>
+
+        {runsPageQuery === undefined ? (
+          <LoaderCircle className="my-2 h-4 w-4 animate-spin text-muted-foreground" />
+        ) : runs.length === 0 ? (
+          <p className="py-2 text-xs text-muted-foreground">还没有执行记录。</p>
+        ) : (
+          <div>
+            {runs.map((run) => (
+              <TestRunReport key={run.id} run={run} />
+            ))}
+          </div>
+        )}
+
+        {historyExpanded && pageCount > 1 && (
+          <div className="mt-2 flex items-center justify-end gap-2 border-t border-border/40 pt-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setHistoryPage((current) => Math.max(0, current - 1))}
+              disabled={historyPage === 0}
+              aria-label="上一页执行记录"
+              title="上一页"
+              className="h-7 w-7 rounded-lg"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </Button>
+            <span className="min-w-16 text-center text-[11px] text-muted-foreground">
+              {historyPage + 1} / {pageCount}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setHistoryPage((current) => Math.min(pageCount - 1, current + 1))}
+              disabled={historyPage >= pageCount - 1}
+              aria-label="下一页执行记录"
+              title="下一页"
+              className="h-7 w-7 rounded-lg"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+      </section>
+    </article>
   );
 }
 
 function TestCaseDetail({
   material,
-  runs,
-  runsLoading,
   onBack,
-  onExecute,
 }: {
   material: DecryptedTestCaseMaterial;
-  runs: DecryptedTestRun[];
-  runsLoading: boolean;
   onBack: () => void;
-  onExecute: () => void;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
   const { definition } = material.content;
-
-  if (isEditing) {
-    return (
-      <TestCaseEditor
-        material={material}
-        onCancel={() => setIsEditing(false)}
-        onSaved={() => setIsEditing(false)}
-      />
-    );
-  }
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -361,36 +498,7 @@ function TestCaseDetail({
           <p className="mt-1 text-[11px] text-muted-foreground">
             更新于 {formatDate(material.updatedAt)}
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" onClick={onExecute} className="h-8 gap-1.5 rounded-lg text-xs">
-              <Play className="h-3.5 w-3.5" />
-              执行测试
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditing(true)}
-              className="h-8 gap-1.5 rounded-lg text-xs"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              编辑
-            </Button>
-          </div>
         </div>
-
-        <DetailSection title="执行历史">
-          {runsLoading ? (
-            <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
-          ) : runs.length === 0 ? (
-            <p className="text-xs text-muted-foreground">还没有执行记录。</p>
-          ) : (
-            <div className="space-y-2">
-              {runs.map((run) => (
-                <TestRunReport key={run.id} run={run} />
-              ))}
-            </div>
-          )}
-        </DetailSection>
 
         <DetailSection title="目标网页">
           <ol className="space-y-2">
@@ -547,7 +655,7 @@ function TestCaseEditor({
           className="h-8 gap-1.5 rounded-lg px-2 text-xs"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          返回详情
+          返回列表
         </Button>
         <span className="text-[11px] text-muted-foreground">保存为 v{material.version + 1}</span>
       </div>
@@ -830,6 +938,7 @@ function splitLines(value: string): string[] {
 }
 
 function TestRunReport({ run }: { run: DecryptedTestRun }) {
+  const [open, setOpen] = useState(false);
   const definition = run.content.testCaseSnapshot;
   const resultByStep = new Map(
     run.content.report.stepResults.map((result) => [result.stepId, result])
@@ -840,54 +949,64 @@ function TestRunReport({ run }: { run: DecryptedTestRun }) {
   const currentSteps = definition.steps.filter((step) => currentStepIds.has(step.id));
 
   return (
-    <details className="rounded-lg border border-border/55 bg-background/70 px-3 py-2">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs">
+    <div className="border-b border-border/45 py-2 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <RunStatus status={run.status} />
         <span className="min-w-0 flex-1 truncate">{formatDate(run.startedAt)}</span>
         <span className="text-[11px] text-muted-foreground">v{run.testCaseVersion}</span>
-      </summary>
-      <div className="mt-3 space-y-3 border-t border-border/50 pt-3 text-xs">
-        <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-          <span>开始：{formatDateWithSeconds(run.startedAt)}</span>
-          <span>结束：{run.finishedAt ? formatDateWithSeconds(run.finishedAt) : '进行中'}</span>
-        </div>
-        <div>
-          <span className="font-medium text-foreground">目标网页顺序</span>
-          <p className="mt-1 break-all leading-5 text-muted-foreground">
-            {definition.targets.map((target) => target.url).join(' -> ')}
-          </p>
-        </div>
-        <div>
-          <span className="font-medium text-foreground">当前步骤</span>
-          <p className="mt-1 text-muted-foreground">
-            {currentSteps.length > 0
-              ? currentSteps.map((step) => `${step.order}. ${step.action}`).join('；')
-              : '无'}
-          </p>
-        </div>
-        <div className="space-y-2">
-          <span className="font-medium text-foreground">步骤结果</span>
-          {definition.steps.map((step) => {
-            const result = resultByStep.get(step.id);
-            return <TestStepReport key={step.id} step={step} result={result} />;
-          })}
-        </div>
-        <div>
-          <span className="font-medium text-foreground">总结</span>
-          <p className="mt-1 whitespace-pre-wrap leading-5 text-muted-foreground">
-            {run.content.report.summary || '尚未生成总结。'}
-          </p>
-        </div>
-        {run.content.report.error && (
+        <ChevronDown
+          className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3 border-t border-border/50 pt-3 text-xs">
+          <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+            <span>开始：{formatDateWithSeconds(run.startedAt)}</span>
+            <span>结束：{run.finishedAt ? formatDateWithSeconds(run.finishedAt) : '进行中'}</span>
+          </div>
           <div>
-            <span className="font-medium text-destructive">失败、阻塞或停止原因</span>
-            <p className="mt-1 whitespace-pre-wrap leading-5 text-destructive/85">
-              {run.content.report.error}
+            <span className="font-medium text-foreground">目标网页顺序</span>
+            <p className="mt-1 break-all leading-5 text-muted-foreground">
+              {definition.targets.map((target) => target.url).join(' -> ')}
             </p>
           </div>
-        )}
-      </div>
-    </details>
+          <div>
+            <span className="font-medium text-foreground">当前步骤</span>
+            <p className="mt-1 text-muted-foreground">
+              {currentSteps.length > 0
+                ? currentSteps.map((step) => `${step.order}. ${step.action}`).join('；')
+                : '无'}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <span className="font-medium text-foreground">步骤结果</span>
+            {definition.steps.map((step) => {
+              const result = resultByStep.get(step.id);
+              return <TestStepReport key={step.id} step={step} result={result} />;
+            })}
+          </div>
+          <div>
+            <span className="font-medium text-foreground">总结</span>
+            <p className="mt-1 whitespace-pre-wrap leading-5 text-muted-foreground">
+              {run.content.report.summary || '尚未生成总结。'}
+            </p>
+          </div>
+          {run.content.report.error && (
+            <div>
+              <span className="font-medium text-destructive">失败、阻塞或停止原因</span>
+              <p className="mt-1 whitespace-pre-wrap leading-5 text-destructive/85">
+                {run.content.report.error}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -913,6 +1032,20 @@ function TestStepReport({
           {result?.detail && (
             <p className="mt-1 leading-5 text-muted-foreground">说明：{result.detail}</p>
           )}
+          {result?.attempts && result.attempts.length > 1 && (
+            <details className="mt-2 text-muted-foreground">
+              <summary className="cursor-pointer">尝试记录（{result.attempts.length} 次）</summary>
+              <div className="mt-1 space-y-1 border-l border-border pl-2">
+                {result.attempts.map((attempt) => (
+                  <p key={`${attempt.attempt}-${attempt.startedAt}`} className="break-words">
+                    第 {attempt.attempt} 次 · {getAttemptTriggerLabel(attempt.trigger)} ·{' '}
+                    {attempt.failureCode || attempt.status}
+                    {attempt.detail ? `：${attempt.detail}` : ''}
+                  </p>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
         {result ? (
           <RunStatus status={result.status} />
@@ -931,6 +1064,7 @@ function RunStatus({ status }: { status: TestRunStatus | TestStepResult['status'
     passed: { label: '通过', icon: CheckCircle2, className: 'text-success' },
     failed: { label: '失败', icon: XCircle, className: 'text-destructive' },
     blocked: { label: '阻塞', icon: Ban, className: 'text-warning' },
+    error: { label: '技术错误', icon: CircleAlert, className: 'text-destructive' },
     stopped: { label: '已停止', icon: Square, className: 'text-muted-foreground' },
     skipped: { label: '已跳过', icon: Square, className: 'text-muted-foreground' },
   }[status];
@@ -941,6 +1075,12 @@ function RunStatus({ status }: { status: TestRunStatus | TestStepResult['status'
       {config.label}
     </span>
   );
+}
+
+function getAttemptTriggerLabel(trigger: TestStepAttemptTrigger): string {
+  if (trigger === 'automatic_retry') return '自动重试';
+  if (trigger === 'manual_retry') return '人工重试';
+  return '首次执行';
 }
 
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {

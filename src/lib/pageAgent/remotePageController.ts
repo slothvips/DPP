@@ -6,7 +6,10 @@ import type { TabsController } from './tabsController';
 export class RemotePageController {
   private lastState: BrowserState | null = null;
 
-  constructor(private readonly tabs: TabsController) {}
+  constructor(
+    private readonly tabs: TabsController,
+    private readonly onSensitiveInput?: (reason: string) => Promise<void>
+  ) {}
   async getLastUpdateTime(): Promise<number> {
     return this.send<number>('get_last_update_time');
   }
@@ -28,7 +31,11 @@ export class RemotePageController {
   async inputText(index: number, text: string): Promise<unknown> {
     const target = this.describeElement(index);
     if (/password|passwd|密码|验证码|verification code|token|secret/i.test(target)) {
-      throw new Error('敏感输入必须由用户接管完成');
+      if (!this.onSensitiveInput) throw new Error('当前任务不支持用户接管');
+      await this.onSensitiveInput(
+        '检测到密码、验证码或 Token 等敏感输入。请在目标页面手动填写该字段，完成后返回此处继续任务。'
+      );
+      return '用户已完成敏感字段输入，继续当前步骤';
     }
     return this.send('input_text', [index, text]);
   }

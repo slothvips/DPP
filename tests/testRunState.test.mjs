@@ -21,7 +21,9 @@ test('test run follows the minimal queued-running-terminal flow', () => {
   assert.equal(getTestRunStatusAfterStep('passed'), 'running');
   assert.equal(getTestRunStatusAfterStep('failed'), 'running');
   assert.equal(getTestRunStatusAfterStep('blocked'), 'blocked');
+  assert.equal(getTestRunStatusAfterStep('error'), 'error');
   assert.equal(isTerminalTestRunStatus('failed'), true);
+  assert.equal(isTerminalTestRunStatus('error'), true);
   assert.equal(isTerminalTestRunStatus('stopped'), true);
 });
 
@@ -103,7 +105,53 @@ test('test run state enforces serial step order', () => {
   assert.match(runs, /必须按顺序保存下一个步骤/);
   assert.match(runs, /只能设置紧邻的下一个步骤/);
   assert.doesNotMatch(runs, /阻塞后不能继续设置下一个步骤/);
-  assert.match(tools, /currentStepId: result\.status === 'blocked' \? undefined : currentStepId/);
+  assert.match(tools, /result\.status === 'blocked' \|\| result\.status === 'error'/);
+});
+
+test('v2 runner exposes one confirmed execution tool and hides legacy orchestration tools', () => {
+  const registry = source('../src/lib/ai/toolRegistry.ts');
+  const tools = source('../src/lib/ai/tools/testRuns.ts');
+  const prompt = source('../src/lib/ai/promptTestCases.ts');
+
+  assert.match(registry, /filter\(\(tool\) => tool\.exposeToModel !== false\)/);
+  assert.match(tools, /name: 'test_run_execute'/);
+  assert.match(tools, /requiresConfirmation: true/);
+  assert.match(tools, /exposeToModel: !TEST_RUNNER_V2_ENABLED/g);
+  assert.match(prompt, /只调用一次 test_run_execute/);
+  assert.doesNotMatch(prompt, /解析失败必须保存 blocked/);
+});
+
+test('malformed legacy agent results are technical errors instead of blocked results', () => {
+  const tools = source('../src/lib/ai/tools/testRuns.ts');
+
+  assert.match(tools, /status: 'error',\n\s+actualResult: '网页子 Agent 返回结果无法解析'/);
+  assert.doesNotMatch(tools, /解析型|无法解析[^\n]+blocked/);
+});
+
+test('browser step mode captures structured done results and applies phase-aware retry limits', () => {
+  const handler = source('../src/entrypoints/background/handlers/browserTask.ts');
+  const agent = source('../src/lib/pageAgent/multiPageAgent.ts');
+  const done = source('../src/lib/pageAgent/testStepDoneTool.ts');
+
+  assert.match(agent, /done\(\{ status, actualResult, detail \}\)/);
+  assert.doesNotMatch(agent, /done 的 text 必须是严格 JSON/);
+  assert.match(done, /onDone\(result\)/);
+  assert.match(handler, /MAX_AUTOMATIC_RETRIES = 1/);
+  assert.match(handler, /MAX_MANUAL_RETRIES = 2/);
+  assert.match(handler, /!hasPageAction\(combinedHistory\)/);
+  assert.match(handler, /waitingReason: 'retry'/);
+  assert.match(handler, /recoverTargetTab/);
+  assert.match(handler, /testStepAttempts: attempts/);
+});
+
+test('error status is persisted, merged, and rendered without rewriting legacy blocked records', () => {
+  const database = source('../src/lib/db/testRuns.ts');
+  const merge = source('../src/lib/sync/testRunMerge.ts');
+  const view = source('../src/features/aiAssistant/components/AIMaterialLibraryView.tsx');
+
+  assert.match(database, /result\.status === 'blocked' \|\| result\.status === 'error'/);
+  assert.match(merge, /result\.status === 'error'/);
+  assert.match(view, /error: \{ label: '技术错误'/);
 });
 
 test('v17 database upgrades to encrypted material and test run tables', async () => {

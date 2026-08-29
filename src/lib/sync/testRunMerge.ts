@@ -80,6 +80,7 @@ function resolveMergedStatus(
   if (status !== 'passed') return status;
   if (stepResults.some((result) => result.status === 'failed')) return 'failed';
   if (stepResults.some((result) => result.status === 'blocked')) return 'blocked';
+  if (stepResults.some((result) => result.status === 'error')) return 'error';
   return stepResults.length === stepCount &&
     stepResults.every((result) => result.status === 'passed')
     ? 'passed'

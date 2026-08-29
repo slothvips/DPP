@@ -1,3 +1,4 @@
+import type { TestStepAttempt } from '@/features/aiAssistant/materials/testCaseTypes';
 import type { ChatMessage } from '@/lib/ai/types';
 
 export const BROWSER_TASK_HOST_PORT_NAME = 'DPP_BROWSER_TASK_HOST';
@@ -10,6 +11,15 @@ export type BrowserTaskStatus =
   | 'failed'
   | 'stopped';
 export type BrowserTaskStopSource = 'chat' | 'browser' | 'system' | 'timeout';
+export type BrowserTaskWaitingReason = 'user_action' | 'retry';
+
+export interface BrowserTestStepResult {
+  status: 'passed' | 'failed' | 'blocked';
+  actualResult: string;
+  detail?: string;
+  browserTaskId: string;
+  attempts: TestStepAttempt[];
+}
 
 export interface BrowserTaskSummary {
   taskId: string;
@@ -22,10 +32,13 @@ export interface BrowserTaskSummary {
   resourceKeys?: string[];
   status: BrowserTaskStatus;
   stopSource?: BrowserTaskStopSource;
+  waitingReason?: BrowserTaskWaitingReason;
   history: unknown[];
   conversation?: ChatMessage[];
   activity?: unknown;
   result?: string;
+  testStepResult?: BrowserTestStepResult;
+  testStepAttempts?: TestStepAttempt[];
   error?: string;
   createdAt?: number;
   updatedAt: number;
@@ -38,6 +51,7 @@ export interface BrowserTaskStartMessage {
   sessionId?: string;
   toolCallId?: string;
   initialTabId: number;
+  initialUrl?: string;
   resourceKeys?: string[];
   resultMode?: 'test-step';
   closeInitialTab?: boolean;

@@ -73,6 +73,22 @@ export async function updateTestCaseMaterial(
   });
 }
 
+export async function deleteTestCaseMaterial(id: string): Promise<void> {
+  await db.transaction('rw', db.materials, async () => {
+    const material = await db.materials.get(id);
+    if (!material || material.deletedAt) {
+      throw new Error('测试用例不存在或已删除');
+    }
+
+    const now = Date.now();
+    await db.materials.update(id, {
+      status: 'archived',
+      deletedAt: now,
+      updatedAt: now,
+    });
+  });
+}
+
 export async function importTestCaseMaterials(
   inputs: TestCaseMaterialInput[]
 ): Promise<TestCaseMaterial[]> {

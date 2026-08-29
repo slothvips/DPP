@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import type { ChatMessage as AgentChatMessage, OpenAIToolCall } from '@/lib/ai/types';
-import type { BrowserTaskStatus } from '@/lib/browserTask/types';
+import type { BrowserTaskStatus, BrowserTaskWaitingReason } from '@/lib/browserTask/types';
 import { listBrowserTaskRecords } from '@/lib/db/browserTasks';
 
 export interface BrowserTaskProgress {
@@ -15,6 +15,7 @@ export interface BrowserTaskProgress {
   createdAt: number;
   updatedAt: number;
   stopSource?: 'chat' | 'browser' | 'system' | 'timeout';
+  waitingReason?: BrowserTaskWaitingReason;
   history: unknown[];
   activity?: unknown;
 }
@@ -108,6 +109,10 @@ function readTaskProgress(message: unknown): BrowserTaskProgress | null {
         : undefined,
     history: readHistory(event),
     activity: event.activity,
+    waitingReason:
+      event.waitingReason === 'retry' || event.waitingReason === 'user_action'
+        ? event.waitingReason
+        : undefined,
   };
 }
 
@@ -134,6 +139,10 @@ function readTaskDetail(value: unknown): BrowserTaskDetail | null {
     updatedAt: typeof value.updatedAt === 'number' ? value.updatedAt : Date.now(),
     history: readHistory(value),
     activity: value.activity,
+    waitingReason:
+      value.waitingReason === 'retry' || value.waitingReason === 'user_action'
+        ? value.waitingReason
+        : undefined,
   };
 }
 

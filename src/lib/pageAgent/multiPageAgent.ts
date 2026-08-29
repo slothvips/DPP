@@ -4,7 +4,8 @@ import type { AgentConfig, ToolContext } from '@page-agent/core';
 import type { PageController } from '@page-agent/page-controller';
 import { RemotePageController } from './remotePageController';
 import { TabsController } from './tabsController';
-import { testStepDoneTool } from './testStepDoneTool';
+import { createTestStepDoneTool } from './testStepDoneTool';
+import type { PageAgentTestStepResult } from './testStepDoneTool';
 
 export interface MultiPageAgentConfig extends AgentConfig {
   initialTabId: number;
@@ -13,12 +14,18 @@ export interface MultiPageAgentConfig extends AgentConfig {
 }
 
 export class MultiPageAgent extends PageAgentCore {
+  private readonly readCapturedTestStepResult: () => PageAgentTestStepResult | undefined;
+
   constructor(config: MultiPageAgentConfig) {
+    let capturedTestStepResult: PageAgentTestStepResult | undefined;
     const tabs = new TabsController(config.initialTabId);
-    const controller = new RemotePageController(tabs);
+    const controller = new RemotePageController(tabs, async (reason) => {
+      if (!config.onRequestUser) throw new Error('当前任务不支持用户接管');
+      await config.onRequestUser(reason);
+    });
     const testStepInstructions =
       config.resultMode === 'test-step'
-        ? '当前是测试步骤模式。完成当前步骤后必须调用 done 工具结束任务；不要用普通文字结束。done 的 text 必须是严格 JSON，格式为 {"status":"passed | failed | blocked","actualResult":"实际观察结果","detail":"补充说明"}。只报告当前步骤，不执行后续步骤；证据不足时使用 failed 或 blocked，不得猜测为 passed。'
+        ? '当前是测试步骤模式。完成当前步骤后必须调用 done({ status, actualResult, detail }) 结束任务；不要用普通文字结束。status 只能是 passed、failed 或 blocked，actualResult 必须是基于页面事实的非空文本，detail 可选。只报告当前步骤，不执行后续步骤；断言不符或证据不足时使用 failed，只有前置条件、权限或业务状态确实阻止继续时使用 blocked，不得猜测为 passed。'
         : undefined;
     super({
       ...config,
@@ -36,7 +43,13 @@ export class MultiPageAgent extends PageAgentCore {
       },
       customTools: {
         ...config.customTools,
-        ...(config.resultMode === 'test-step' ? { done: testStepDoneTool } : {}),
+        ...(config.resultMode === 'test-step'
+          ? {
+              done: createTestStepDoneTool((result) => {
+                capturedTestStepResult = result;
+              }),
+            }
+          : {}),
         open_new_tab: tool({
           description: '打开一个新浏览器标签页，并切换到该页面。',
           inputSchema: z.object({
@@ -80,5 +93,10 @@ export class MultiPageAgent extends PageAgentCore {
         config.onDispose?.(agent, reason);
       },
     });
+    this.readCapturedTestStepResult = () => capturedTestStepResult;
+  }
+
+  get testStepResult(): PageAgentTestStepResult | undefined {
+    return this.readCapturedTestStepResult();
   }
 }

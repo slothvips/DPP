@@ -26,7 +26,9 @@ export class ToolRegistry {
   }
 
   getOpenAITools(): OpenAIToolDefinition[] {
-    return this.getAll().map(toOpenAIToolDefinition);
+    return this.getAll()
+      .filter((tool) => tool.exposeToModel !== false)
+      .map(toOpenAIToolDefinition);
   }
 
   async execute<T = unknown>(name: string, args: Record<string, unknown>): Promise<T> {
@@ -46,7 +48,7 @@ export class ToolRegistry {
 
   getConfirmationRequired(): string[] {
     return this.getAll()
-      .filter((tool) => tool.requiresConfirmation)
+      .filter((tool) => tool.exposeToModel !== false && tool.requiresConfirmation)
       .map((tool) => tool.name);
   }
 

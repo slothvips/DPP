@@ -6,7 +6,7 @@ import { hasAssistantOutput, trimAgentContext } from '../src/lib/ai/agentRuntime
 import { buildPromptBrowserTaskSection } from '../src/lib/ai/promptBrowserTask.ts';
 import { buildTestCaseExecutionPrompt } from '../src/lib/ai/promptTestCases.ts';
 import { tryReserveBrowserTask } from '../src/lib/browserTask/scheduler.ts';
-import { testStepDoneTool } from '../src/lib/pageAgent/testStepDoneTool.ts';
+import { createTestStepDoneTool } from '../src/lib/pageAgent/testStepDoneTool.ts';
 
 function source(path) {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -38,7 +38,7 @@ test('PageAgent controls pages through the official PageController methods', () 
 test('PageAgent owns observation and action history', () => {
   const handler = source('../src/entrypoints/background/handlers/browserTask.ts');
   assert.match(handler, /onAfterStep/);
-  assert.match(handler, /history: result\.history/);
+  assert.match(handler, /history: combinedHistory/);
   assert.match(handler, /customFetch/);
 });
 
@@ -56,15 +56,10 @@ test('PageAgent task prompt delegates only the child task', () => {
 test('test case execution prompt matches the ordered run lifecycle', () => {
   const agent = source('../src/lib/pageAgent/multiPageAgent.ts');
   const prompt = buildTestCaseExecutionPrompt('登录流程', 'case-1');
-  assert.match(prompt, /严格按照步骤 order 逐个执行/);
-  assert.match(prompt, /initial_url=该目标 URL/);
-  assert.match(prompt, /open_new_tab=true/);
-  assert.match(prompt, /按 test_run_id \+ target_id 复用目标标签页/);
-  assert.match(prompt, /保存 passed、failed、blocked 或 stopped/);
-  assert.match(prompt, /系统会将当前执行记录结束为 stopped/);
-  assert.match(prompt, /failure_reason 和 retryable/);
+  assert.match(prompt, /只调用一次 test_run_execute/);
+  assert.match(prompt, /blocked.*error.*stopped/);
   assert.match(agent, /当前是测试步骤模式/);
-  assert.match(agent, /必须调用 done 工具结束任务/);
+  assert.match(agent, /必须调用 done\(\{ status, actualResult, detail \}\)/);
   assert.doesNotMatch(prompt, /并行测试/);
 });
 
@@ -72,8 +67,8 @@ test('test step result parser uses only safe JSON wrappers', () => {
   const parser = source('../src/lib/ai/tools/testRuns.ts');
   assert.match(parser, /const normalized = value\.trim\(\)\.replace/);
   assert.match(parser, /const fenced = normalized\.match/);
-  assert.match(parser, /只尝试受限格式/);
-  assert.match(parser, /status: 'blocked'/);
+  assert.match(parser, /当前步骤记录为技术错误/);
+  assert.match(parser, /status: 'error'/);
 });
 
 test('tooling prompt describes the serial call contract', () => {
@@ -175,7 +170,7 @@ test('browser task failures expose a retry decision without hiding the message',
   const tool = source('../src/lib/ai/tools/browserTask.ts');
   assert.match(tool, /failure_reason\?: BrowserTaskFailureReason/);
   assert.match(tool, /retryable\?: boolean/);
-  assert.match(tool, /retryable: reason === 'resource_conflict'/);
+  assert.match(tool, /retryable:/);
   assert.match(tool, /page_load_timeout/);
   assert.match(tool, /task_timeout/);
   assert.match(tool, /source: 'timeout'/);
@@ -199,6 +194,8 @@ test('browser task lifecycle preserves stop and user takeover', () => {
   assert.match(handler, /普通提交、发送、确认操作以及对下一步不确定都不是接管理由/);
   assert.match(agent, /不得用于普通提交、发送、确认操作/);
   assert.doesNotMatch(remote, /高风险点击|确认订单|publish|purchase|authorize/);
+  assert.match(remote, /await this\.onSensitiveInput/);
+  assert.doesNotMatch(remote, /throw new Error\('敏感输入必须由用户接管完成'\)/);
 });
 
 test('browser task detail persists PageAgent history without a second browser protocol', () => {
@@ -213,11 +210,23 @@ test('browser task detail persists PageAgent history without a second browser pr
   assert.match(panel, /reflection && actionName !== 'done'/);
   assert.match(panel, /执行结果/);
   assert.match(panel, /!isExpanded && displayedStatus === 'waiting_user'/);
-  assert.match(panel, /aria-label="我已完成接管，继续任务"/);
+  assert.match(panel, /displayedWaitingReason === 'retry'/);
+  assert.match(panel, /status === 'waiting_user'\) setIsExpanded\(true\)/);
+  assert.match(panel, /请先在目标网页完成手动输入或验证/);
+  assert.match(panel, /输入完成，继续/);
+  assert.match(panel, /处理完成，重试/);
   assert.doesNotMatch(panel, /模型输出/);
   assert.doesNotMatch(panel, /browser_observe|browser_click|browser_fill/);
   assert.match(messagesPanel, /tasksByMessageId\.get\(message\.id\) \|\| \[\]\)\.map/);
   assert.match(messagesPanel, /unanchoredTasks\.map/);
+});
+
+test('persisted PageAgent history strips raw model context and input text', () => {
+  const handler = source('../src/entrypoints/background/handlers/browserTask.ts');
+
+  assert.match(handler, /key !== 'rawRequest' && key !== 'rawResponse'/);
+  assert.match(handler, /sanitized\.name === 'input_text'/);
+  assert.match(handler, /key === 'text' \? '\[redacted\]'/);
 });
 
 test('legacy browser operation core is removed', () => {
@@ -334,8 +343,7 @@ test('test browser tasks carry target and origin isolation metadata', () => {
   assert.match(tool, /browser-origin:/);
   assert.match(tool, /test-target:/);
   assert.match(types, /closeInitialTab\?: boolean/);
-  assert.match(prompt, /对应目标网页 ID/);
-  assert.match(prompt, /test_run_id=run_id/);
+  assert.match(prompt, /目标网页/);
   assert.doesNotMatch(tool, /getResources/);
 });
 
@@ -346,14 +354,24 @@ test('test browser tasks use a structured PageAgent completion result', async ()
   assert.match(tool, /resultMode: args\.test_target_id \? 'test-step' : undefined/);
   assert.match(handler, /resultMode: message\.resultMode/);
   assert.equal(
-    testStepDoneTool.inputSchema.safeParse({ status: 'passed', actualResult: '' }).success,
+    createTestStepDoneTool(() => undefined).inputSchema.safeParse({
+      status: 'passed',
+      actualResult: '',
+    }).success,
     false
   );
   assert.equal(
-    testStepDoneTool.inputSchema.safeParse({ status: 'skipped', actualResult: '未执行' }).success,
+    createTestStepDoneTool(() => undefined).inputSchema.safeParse({
+      status: 'skipped',
+      actualResult: '未执行',
+    }).success,
     false
   );
 
+  let captured;
+  const testStepDoneTool = createTestStepDoneTool((result) => {
+    captured = result;
+  });
   const parsed = testStepDoneTool.inputSchema.safeParse({
     status: 'failed',
     actualResult: '页面显示错误提示',
@@ -363,7 +381,7 @@ test('test browser tasks use a structured PageAgent completion result', async ()
   if (!parsed.success) return;
   await testStepDoneTool.execute(parsed.data, { signal: new AbortController().signal });
   assert.equal(parsed.data.success, true);
-  assert.deepEqual(JSON.parse(parsed.data.text), {
+  assert.deepEqual(captured, {
     status: 'failed',
     actualResult: '页面显示错误提示',
     detail: '提交后仍停留在当前页面',

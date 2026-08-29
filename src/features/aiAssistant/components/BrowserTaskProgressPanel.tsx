@@ -21,7 +21,7 @@ function getStatusText(status: BrowserTaskProgress['status']): string {
   if (status === 'completed') return '已完成';
   if (status === 'failed') return '执行失败';
   if (status === 'stopped') return '已停止';
-  if (status === 'waiting_user') return '等待用户';
+  if (status === 'waiting_user') return '需要你操作';
   if (status === 'queued') return '排队中';
   return '运行中';
 }
@@ -86,6 +86,16 @@ function getHistoryLabel(type: string, actionName?: string): string {
   if (type === 'action') return '页面操作';
   if (type === 'result') return '执行结果';
   return '执行记录';
+}
+
+function getWaitingInstruction(reason: BrowserTaskDetail['waitingReason']): string {
+  return reason === 'retry'
+    ? '请先检查目标网页并完成必要操作，再重试当前步骤。'
+    : '请先在目标网页完成手动输入或验证，再继续测试。';
+}
+
+function getWaitingActionLabel(reason: BrowserTaskDetail['waitingReason']): string {
+  return reason === 'retry' ? '我已处理页面，重试当前步骤' : '我已完成手动输入，继续测试';
 }
 
 function PageAgentHistory({ history }: { history: unknown[] }) {
@@ -216,7 +226,7 @@ function BrowserTaskDetailView({
           onClick={onResume}
         >
           <Play className="h-3.5 w-3.5" />
-          我已完成接管，继续任务
+          {getWaitingActionLabel(detail.waitingReason)}
         </button>
       )}
       {resumeError && <p className="mt-2 text-xs text-destructive">{resumeError}</p>}
@@ -263,8 +273,14 @@ export function BrowserTaskProgressPanel({ progress }: BrowserTaskProgressPanelP
     };
   }, [detailSessionId, detailTaskId]);
 
+  useEffect(() => {
+    const status = detail?.status || latestTask?.status;
+    if (status === 'waiting_user') setIsExpanded(true);
+  }, [detail?.status, latestTask?.status]);
+
   if (!latestTask) return null;
   const displayedStatus = detail?.status || latestTask.status;
+  const displayedWaitingReason = detail?.waitingReason || latestTask.waitingReason;
   const handleResume = () => {
     setResumeError(null);
     void resumeBrowserTask(latestTask.taskId, latestTask.sessionId).then((success) => {
@@ -294,19 +310,24 @@ export function BrowserTaskProgressPanel({ progress }: BrowserTaskProgressPanelP
             <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
           )}
         </button>
-        {!isExpanded && displayedStatus === 'waiting_user' && (
+      </div>
+      {!isExpanded && displayedStatus === 'waiting_user' && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-warning/20 px-3 py-2">
+          <p className="min-w-0 flex-1 text-[11px] leading-4 text-warning">
+            {getWaitingInstruction(displayedWaitingReason)}
+          </p>
           <button
             type="button"
-            className="mr-2 flex h-7 shrink-0 items-center gap-1 rounded border border-warning/40 px-2 text-[11px] text-warning hover:bg-warning/10"
+            className="flex min-h-7 shrink-0 items-center gap-1 rounded border border-warning/40 px-2 py-1 text-[11px] text-warning hover:bg-warning/10"
             onClick={handleResume}
-            aria-label="我已完成接管，继续任务"
-            title="我已完成接管，继续任务"
+            aria-label={getWaitingActionLabel(displayedWaitingReason)}
+            title={getWaitingActionLabel(displayedWaitingReason)}
           >
             <Play className="h-3.5 w-3.5" />
-            继续
+            {displayedWaitingReason === 'retry' ? '处理完成，重试' : '输入完成，继续'}
           </button>
-        )}
-      </div>
+        </div>
+      )}
       {resumeError && !isExpanded && (
         <p className="border-t border-destructive/20 px-3 py-2 text-xs text-destructive">
           {resumeError}

@@ -1,11 +1,17 @@
 import type { TestCaseStep, TestRunStatus, TestStepResult } from './testCaseTypes';
 
 export function isTerminalTestRunStatus(status: TestRunStatus): boolean {
-  return status === 'passed' || status === 'failed' || status === 'blocked' || status === 'stopped';
+  return (
+    status === 'passed' ||
+    status === 'failed' ||
+    status === 'blocked' ||
+    status === 'error' ||
+    status === 'stopped'
+  );
 }
 
 export function getTestRunStatusAfterStep(status: TestStepResult['status']): TestRunStatus {
-  if (status === 'blocked') return 'blocked';
+  if (status === 'blocked' || status === 'error') return status;
   return 'running';
 }
 

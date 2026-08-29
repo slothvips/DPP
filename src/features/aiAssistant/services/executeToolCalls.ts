@@ -133,7 +133,13 @@ async function executePreparedToolCall(
       : toolCall.function.name === 'manage_plan' && options?.sessionId
         ? { ...args, __ownerType: 'ai_session', __ownerId: options.sessionId }
         : isTestRunTool(toolCall.function.name) && options?.sessionId
-          ? { ...args, session_id: options.sessionId }
+          ? {
+              ...args,
+              session_id: options.sessionId,
+              ...(toolCall.function.name === 'test_run_execute'
+                ? { tool_call_id: toolCall.id }
+                : {}),
+            }
           : args;
   const result = await toolRegistry.execute(toolCall.function.name, toolArgs);
   const resultObj = result as {
@@ -160,11 +166,18 @@ async function executePreparedToolCall(
 }
 
 function isTestRunTool(name: string): boolean {
-  return name === 'test_run_start' || name === 'test_run_update_step' || name === 'test_run_finish';
+  return (
+    name === 'test_run_execute' ||
+    name === 'test_run_start' ||
+    name === 'test_run_update_step' ||
+    name === 'test_run_finish'
+  );
 }
 
 function isTestRunMutation(name: string): boolean {
-  return name === 'test_run_update_step' || name === 'test_run_finish';
+  return (
+    name === 'test_run_execute' || name === 'test_run_update_step' || name === 'test_run_finish'
+  );
 }
 
 function createToolMessage(toolCall: PreparedToolCall['toolCall'], result: unknown): ChatMessage {

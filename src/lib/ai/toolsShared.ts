@@ -10,6 +10,7 @@ export interface AIToolMetadata {
   parameters: ToolParameter;
   handler: ToolHandler;
   requiresConfirmation?: boolean;
+  exposeToModel?: boolean;
 }
 
 export function toOpenAIToolDefinition(tool: AIToolMetadata): OpenAIToolDefinition {

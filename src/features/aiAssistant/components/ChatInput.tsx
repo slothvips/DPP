@@ -47,6 +47,8 @@ export const ChatInput = memo(function ChatInput({
   const [isReadingFile, setIsReadingFile] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasInput = input.trim().length > 0;
+  const showStopAction = isRunning && (!queueWhileRunning || !hasInput);
 
   // Sync initialInput to input state when it changes (e.g., preset prompt from other tabs)
   useEffect(() => {
@@ -136,35 +138,20 @@ export const ChatInput = memo(function ChatInput({
             >
               <FileUp className="h-4 w-4" />
             </Button>
-            {isRunning && queueWhileRunning && (
-              <Button
-                onClick={onStop}
-                disabled={false}
-                size="icon"
-                title="停止当前任务"
-                className="pointer-events-auto h-10 w-10 rounded-xl border border-destructive/40 bg-destructive/8 hover:bg-destructive/12"
-              >
-                <Square className="h-3 w-3 fill-destructive text-destructive" />
-              </Button>
-            )}
             <Button
-              onClick={isRunning ? onStop : handleSend}
-              disabled={
-                isRunning && queueWhileRunning
-                  ? !input.trim() || disabled
-                  : isRunning
-                    ? false
-                    : !input.trim() || disabled
-              }
+              onClick={showStopAction ? onStop : handleSend}
+              disabled={showStopAction ? false : !hasInput || disabled}
               size="icon"
-              data-testid={isRunning ? 'ai-chat-stop' : 'ai-chat-send'}
-              title={isRunning ? '停止' : '发送'}
+              data-testid={showStopAction ? 'ai-chat-stop' : 'ai-chat-send'}
+              title={showStopAction ? '停止' : '发送'}
+              aria-label={showStopAction ? '停止当前任务' : '发送消息'}
               className={cn(
                 'pointer-events-auto h-10 w-10 rounded-xl transition-all duration-200',
-                isRunning && 'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
+                showStopAction &&
+                  'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
               )}
             >
-              {isRunning && !queueWhileRunning ? (
+              {showStopAction ? (
                 <div className="relative flex items-center justify-center">
                   <Square className="h-3 w-3 fill-destructive text-destructive" />
                 </div>

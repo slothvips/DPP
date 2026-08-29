@@ -1,21 +1,47 @@
-import type { TestStepResult } from '@/features/aiAssistant/materials/testCaseTypes';
+import type {
+  DecryptedTestRun,
+  TestCaseDefinition,
+  TestCaseStep,
+  TestRunStatus,
+  TestStepAttempt,
+  TestStepResult,
+} from '@/features/aiAssistant/materials/testCaseTypes';
 import { createToolParameter, toolRegistry } from '@/lib/ai/tools';
 import type { ToolHandler } from '@/lib/ai/tools';
 import {
   findActiveTestRunForSession,
   finishTestRun,
+  getTestRun,
   setTestRunCurrentStep,
   startTestRun,
   updateTestRunStep,
 } from '@/lib/db';
 import { logger } from '@/utils/logger';
-import { releaseTestBrowserTabs } from './browserTask';
+import {
+  type BrowserTaskToolResult,
+  delegateBrowserAgent,
+  releaseTestBrowserTabs,
+} from './browserTask';
 
-const STEP_STATUSES = ['passed', 'failed', 'blocked', 'skipped'] as const;
-const RUN_STATUSES = ['passed', 'failed', 'blocked', 'stopped'] as const;
+const STEP_STATUSES = ['passed', 'failed', 'blocked', 'error', 'skipped'] as const;
+const RUN_STATUSES = ['passed', 'failed', 'blocked', 'error', 'stopped'] as const;
+export const TEST_RUNNER_V2_ENABLED = true;
 const activeRunIdsBySession = new Map<string, string>();
 
 export function registerTestRunTools(): void {
+  toolRegistry.register({
+    name: 'test_run_execute',
+    description:
+      '执行一个 ready 状态的完整测试用例。DPP 会确定性地创建记录、顺序执行全部步骤、重试技术故障并生成报告；整次执行只需确认一次。',
+    parameters: createToolParameter(
+      { test_case_id: { type: 'string', description: '测试用例 ID' } },
+      ['test_case_id']
+    ),
+    handler: executeTestRun as ToolHandler,
+    requiresConfirmation: true,
+    exposeToModel: TEST_RUNNER_V2_ENABLED,
+  });
+
   toolRegistry.register({
     name: 'test_run_start',
     description: '为一个 ready 状态的测试用例创建新的共享执行记录并保存测试定义快照。',
@@ -43,6 +69,7 @@ export function registerTestRunTools(): void {
         test_case_version: run.testCaseVersion,
       };
     }) as ToolHandler,
+    exposeToModel: !TEST_RUNNER_V2_ENABLED,
   });
 
   toolRegistry.register({
@@ -102,7 +129,8 @@ export function registerTestRunTools(): void {
       };
       const run = await updateTestRunStep(runId, {
         result,
-        currentStepId: result.status === 'blocked' ? undefined : currentStepId,
+        currentStepId:
+          result.status === 'blocked' || result.status === 'error' ? undefined : currentStepId,
       });
       return {
         success: true,
@@ -112,6 +140,7 @@ export function registerTestRunTools(): void {
         ...(run.currentStepIds ? { current_step_ids: run.currentStepIds } : {}),
       };
     }) as ToolHandler,
+    exposeToModel: !TEST_RUNNER_V2_ENABLED,
   });
 
   toolRegistry.register({
@@ -139,7 +168,292 @@ export function registerTestRunTools(): void {
       if (sessionId) releaseTestBrowserTabs(sessionId, run.id);
       return { success: true, run_id: run.id, status: run.status, finished_at: run.finishedAt };
     }) as ToolHandler,
+    exposeToModel: !TEST_RUNNER_V2_ENABLED,
   });
+}
+
+async function executeTestRun(args: unknown): Promise<Record<string, unknown>> {
+  const record = readRecord(args);
+  const testCaseId = readText(record.test_case_id, '测试用例 ID');
+  const sessionId = readOptionalSessionId(record);
+  const toolCallId = optionalText(record.tool_call_id) ?? crypto.randomUUID();
+  await assertNoActiveRun(sessionId);
+
+  const run = await startTestRun(testCaseId, sessionId);
+  if (sessionId) activeRunIdsBySession.set(sessionId, run.id);
+  const executionSessionId = sessionId ?? `test-run:${run.id}`;
+
+  try {
+    const snapshotRun = await requireActiveRun(run.id);
+    const definition = snapshotRun.content.testCaseSnapshot;
+    const steps = [...definition.steps].sort((left, right) => left.order - right.order);
+    let failedSteps = 0;
+
+    for (const [index, step] of steps.entries()) {
+      const current = await getTestRun(run.id);
+      if (!current || isStoppedRun(current)) return createExecutionResult(current ?? snapshotRun);
+      await setTestRunCurrentStep(run.id, step.id);
+      const target = definition.targets.find((item) => item.id === step.targetId);
+      if (!target) {
+        const result = createTechnicalStepResult(
+          step,
+          'invalid_test_target',
+          '测试步骤目标网页不存在'
+        );
+        await updateTestRunStep(run.id, { result });
+        return finishExecution(run.id, 'error', failedSteps, result.detail);
+      }
+
+      const browserResult = await executeBrowserStep({
+        definition,
+        step,
+        stepIndex: index,
+        stepCount: steps.length,
+        targetUrl: target.url,
+        runId: run.id,
+        sessionId: executionSessionId,
+        toolCallId,
+      });
+      const latest = await getTestRun(run.id);
+      if (!latest || isStoppedRun(latest)) return createExecutionResult(latest ?? snapshotRun);
+      if (browserResult.stopped) {
+        const stopped = await finishTestRun(
+          run.id,
+          'stopped',
+          '测试执行已停止',
+          browserResult.detail
+        );
+        return createExecutionResult(await requireRun(stopped.id));
+      }
+
+      const stepResult = browserResult.result;
+      const nextStepId = steps[index + 1]?.id;
+      await updateTestRunStep(run.id, {
+        result: stepResult,
+        currentStepId:
+          stepResult.status === 'passed' || stepResult.status === 'failed' ? nextStepId : undefined,
+      });
+      if (stepResult.status === 'failed') failedSteps += 1;
+      if (stepResult.status === 'blocked' || stepResult.status === 'error') {
+        return finishExecution(run.id, stepResult.status, failedSteps, stepResult.detail);
+      }
+    }
+
+    return finishExecution(run.id, failedSteps > 0 ? 'failed' : 'passed', failedSteps);
+  } catch (error) {
+    logger.error('[TestRun] Deterministic execution failed:', error);
+    const current = await getTestRun(run.id);
+    if (current && isStoppedRun(current)) return createExecutionResult(current);
+    const detail = sanitizeExecutionError(error);
+    if (current && current.finishedAt === undefined) {
+      const finished = await finishTestRun(run.id, 'error', '测试执行因技术错误结束', detail);
+      return createExecutionResult(await requireRun(finished.id));
+    }
+    throw error;
+  } finally {
+    if (sessionId && activeRunIdsBySession.get(sessionId) === run.id) {
+      activeRunIdsBySession.delete(sessionId);
+    }
+    releaseTestBrowserTabs(executionSessionId, run.id);
+  }
+}
+
+async function assertNoActiveRun(sessionId: string | undefined): Promise<void> {
+  if (!sessionId) return;
+  const activeRunId = activeRunIdsBySession.get(sessionId);
+  const persistedRun = activeRunId ? undefined : await findActiveTestRunForSession(sessionId);
+  if (persistedRun) activeRunIdsBySession.set(sessionId, persistedRun.id);
+  if (activeRunId || persistedRun) throw new Error('当前 AI 会话已有测试执行正在进行');
+}
+
+async function executeBrowserStep(input: {
+  definition: TestCaseDefinition;
+  step: TestCaseStep;
+  stepIndex: number;
+  stepCount: number;
+  targetUrl: string;
+  runId: string;
+  sessionId: string;
+  toolCallId: string;
+}): Promise<{ result: TestStepResult; stopped?: false } | { stopped: true; detail: string }> {
+  const attempts: TestStepAttempt[] = [];
+  for (let delegationAttempt = 0; delegationAttempt < 2; delegationAttempt += 1) {
+    const startedAt = Date.now();
+    const browserResult = await delegateBrowserAgent({
+      task: buildBrowserStepTask(input),
+      initial_url: input.targetUrl,
+      open_new_tab: true,
+      test_target_id: input.step.targetId,
+      test_run_id: input.runId,
+      session_id: input.sessionId,
+      tool_call_id: `${input.toolCallId}:${input.step.id}:${delegationAttempt + 1}`,
+    });
+    if (browserResult.test_step_result) {
+      return {
+        result: {
+          stepId: input.step.id,
+          order: input.step.order,
+          status: browserResult.test_step_result.status,
+          actualResult: browserResult.test_step_result.actualResult,
+          detail: browserResult.test_step_result.detail,
+          browserTaskId: browserResult.test_step_result.browserTaskId,
+          attempts: [...attempts, ...browserResult.test_step_result.attempts],
+        },
+      };
+    }
+    if (browserResult.failure_reason === 'stopped') {
+      return { stopped: true, detail: browserResult.message || '网页任务已停止' };
+    }
+
+    const browserAttempts = browserResult.test_step_attempts;
+    attempts.push(
+      ...(browserAttempts && browserAttempts.length > 0
+        ? browserAttempts
+        : [createDelegateFailureAttempt(browserResult, delegationAttempt, startedAt)])
+    );
+    if (delegationAttempt === 0 && browserResult.retryable === true) continue;
+    return {
+      result: createTechnicalStepResult(
+        input.step,
+        browserResult.failure_reason ?? 'execution_failed',
+        browserResult.message || '网页步骤执行发生技术错误',
+        browserResult.browser_task_id,
+        attempts
+      ),
+    };
+  }
+  return {
+    result: createTechnicalStepResult(input.step, 'retry_exhausted', '技术错误重试次数已用尽'),
+  };
+}
+
+function buildBrowserStepTask(input: {
+  definition: TestCaseDefinition;
+  step: TestCaseStep;
+  stepIndex: number;
+  stepCount: number;
+}): string {
+  const sensitiveValues = input.definition.testData
+    .filter((item) => item.sensitive && item.value)
+    .map((item) => item.value);
+  const redact = (value: string): string =>
+    sensitiveValues.reduce((text, secret) => text.replaceAll(secret, '[需要用户接管]'), value);
+  const preconditions = input.definition.preconditions.map(redact).filter(Boolean);
+  return [
+    `执行测试步骤 ${input.stepIndex + 1}/${input.stepCount}。`,
+    `测试目标：${redact(input.definition.goal)}`,
+    ...(preconditions.length > 0 ? [`前置条件：${preconditions.join('；')}`] : []),
+    `当前操作：${redact(input.step.action)}`,
+    `预期结果：${redact(input.step.expectedResult || '页面操作按描述完成')}`,
+    '只执行当前步骤。完成后调用结构化 done 工具；不得执行后续步骤。',
+  ].join('\n');
+}
+
+function createDelegateFailureAttempt(
+  browserResult: BrowserTaskToolResult,
+  delegationAttempt: number,
+  startedAt: number
+): TestStepAttempt {
+  return {
+    attempt: delegationAttempt + 1,
+    trigger: delegationAttempt === 0 ? 'initial' : 'automatic_retry',
+    status: 'error',
+    failureCode: browserResult.failure_reason ?? 'execution_failed',
+    browserTaskId: browserResult.browser_task_id,
+    detail: sanitizeExecutionError(browserResult.message),
+    startedAt,
+    finishedAt: Date.now(),
+  };
+}
+
+function createTechnicalStepResult(
+  step: TestCaseStep,
+  failureCode: string,
+  detail: string,
+  browserTaskId?: string,
+  attempts?: TestStepAttempt[]
+): TestStepResult {
+  return {
+    stepId: step.id,
+    order: step.order,
+    status: 'error',
+    actualResult: `步骤发生技术错误（${failureCode}）`,
+    detail: sanitizeExecutionError(detail),
+    browserTaskId,
+    attempts: attempts ?? [
+      {
+        attempt: 1,
+        trigger: 'initial',
+        status: 'error',
+        failureCode,
+        browserTaskId,
+        detail: sanitizeExecutionError(detail),
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+      },
+    ],
+  };
+}
+
+async function finishExecution(
+  runId: string,
+  status: Extract<TestRunStatus, 'passed' | 'failed' | 'blocked' | 'error'>,
+  failedSteps: number,
+  error?: string
+): Promise<Record<string, unknown>> {
+  const summary =
+    status === 'passed'
+      ? '全部测试步骤通过'
+      : status === 'failed'
+        ? `测试完成，${failedSteps} 个步骤未通过`
+        : status === 'blocked'
+          ? '测试因业务前置条件或权限阻塞而结束'
+          : '测试因技术错误结束';
+  const finished = await finishTestRun(runId, status, summary, error);
+  return createExecutionResult(await requireRun(finished.id));
+}
+
+function createExecutionResult(run: DecryptedTestRun): Record<string, unknown> {
+  return {
+    success: run.status === 'passed' || run.status === 'failed',
+    run_id: run.id,
+    status: run.status,
+    summary: run.content.report.summary,
+    completed_steps: run.content.report.stepResults.length,
+    total_steps: run.content.testCaseSnapshot.steps.length,
+    ...(run.content.report.error ? { error: run.content.report.error } : {}),
+  };
+}
+
+async function requireActiveRun(runId: string): Promise<DecryptedTestRun> {
+  const run = await requireRun(runId);
+  if (run.finishedAt !== undefined) throw new Error('测试执行已结束');
+  return run;
+}
+
+async function requireRun(runId: string): Promise<DecryptedTestRun> {
+  const run = await getTestRun(runId);
+  if (!run) throw new Error('测试执行记录不存在');
+  return run;
+}
+
+function isStoppedRun(run: DecryptedTestRun): boolean {
+  return run.status === 'stopped' && run.finishedAt !== undefined;
+}
+
+function sanitizeExecutionError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/https?:\/\/[^\s]+/g, (rawUrl) => {
+      try {
+        const url = new URL(rawUrl);
+        return `${url.origin}${url.pathname}`;
+      } catch {
+        return '[url]';
+      }
+    })
+    .replace(/(token|password|passwd|secret|api[_-]?key)=([^\s&]+)/gi, '$1=[redacted]')
+    .slice(0, 2_000);
 }
 
 export function hasActiveTestRunForSession(sessionId: string): boolean {
@@ -214,7 +528,7 @@ function readInteger(value: unknown, label: string): number {
 }
 
 function parseAgentResult(value: string): {
-  status: Extract<TestStepResult['status'], 'passed' | 'failed' | 'blocked'>;
+  status: Extract<TestStepResult['status'], 'passed' | 'failed' | 'blocked' | 'error'>;
   actualResult: string;
   detail?: string;
 } {
@@ -242,14 +556,14 @@ function parseAgentResult(value: string): {
         ...optionalMappedText(record.detail, 'detail'),
       };
     } catch {
-      // 只尝试受限格式，所有格式都失败时保留 blocked 语义。
+      // Legacy compatibility path: malformed agent output is a technical error.
     }
   }
 
   return {
-    status: 'blocked',
+    status: 'error',
     actualResult: '网页子 Agent 返回结果无法解析',
-    detail: 'DPP 未收到合法的步骤结果 JSON，已阻塞当前测试执行',
+    detail: 'DPP 未收到合法的步骤结果 JSON，当前步骤记录为技术错误',
   };
 }
 

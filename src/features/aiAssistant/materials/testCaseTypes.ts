@@ -49,14 +49,37 @@ export interface TestCaseMaterial {
   deletedAt?: number;
 }
 
-export type TestRunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'blocked' | 'stopped';
+export type TestRunStatus =
+  | 'queued'
+  | 'running'
+  | 'passed'
+  | 'failed'
+  | 'blocked'
+  | 'error'
+  | 'stopped';
+
+export type TestStepAttemptTrigger = 'initial' | 'automatic_retry' | 'manual_retry';
+
+export interface TestStepAttempt {
+  attempt: number;
+  trigger: TestStepAttemptTrigger;
+  status: 'passed' | 'failed' | 'blocked' | 'error' | 'stopped';
+  failureCode?: string;
+  browserTaskId?: string;
+  recovery?: 'same_tab' | 'reopened_target';
+  detail?: string;
+  startedAt: number;
+  finishedAt: number;
+}
 
 export interface TestStepResult {
   stepId: string;
   order: number;
-  status: 'passed' | 'failed' | 'blocked' | 'skipped';
+  status: 'passed' | 'failed' | 'blocked' | 'error' | 'skipped';
   actualResult?: string;
   detail?: string;
+  browserTaskId?: string;
+  attempts?: TestStepAttempt[];
   updatedAt?: number;
 }
 
