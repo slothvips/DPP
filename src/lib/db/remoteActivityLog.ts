@@ -43,9 +43,16 @@ export async function addRemoteActivities(
  */
 export async function getRemoteActivities(
   startTime: number,
-  endTime: number
+  endTime: number,
+  limit?: number
 ): Promise<RemoteActivityLog[]> {
-  return db.remoteActivityLog.where('timestamp').between(startTime, endTime).toArray();
+  const query = db.remoteActivityLog.where('timestamp').between(startTime, endTime);
+  return limit === undefined ? query.toArray() : query.reverse().limit(limit).toArray();
+}
+
+/** Count remote activities in a time range without materializing their payloads. */
+export async function countRemoteActivities(startTime: number, endTime: number): Promise<number> {
+  return db.remoteActivityLog.where('timestamp').between(startTime, endTime).count();
 }
 
 /**
@@ -53,7 +60,14 @@ export async function getRemoteActivities(
  */
 export async function getLocalOperations(
   startTime: number,
-  endTime: number
+  endTime: number,
+  limit?: number
 ): Promise<SyncOperation[]> {
-  return db.operations.where('timestamp').between(startTime, endTime).toArray();
+  const query = db.operations.where('timestamp').between(startTime, endTime);
+  return limit === undefined ? query.toArray() : query.reverse().limit(limit).toArray();
+}
+
+/** Count local operations in a time range without materializing their payloads. */
+export async function countLocalOperations(startTime: number, endTime: number): Promise<number> {
+  return db.operations.where('timestamp').between(startTime, endTime).count();
 }

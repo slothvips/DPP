@@ -20,8 +20,9 @@ function getBejingDate(offsetDays = 0): string {
 /**
  * Get hot news from cache
  */
-async function hotnews_get(args: { date?: string }) {
+async function hotnews_get(args: { date?: string; limit?: number }) {
   const date = args.date || getBejingDate(0);
+  const limit = Math.min(Math.max(1, args.limit ?? 50), 100);
 
   // Try to get from cache
   const cached = await getHotNews({ date });
@@ -41,19 +42,22 @@ async function hotnews_get(args: { date?: string }) {
     }>;
   };
 
+  const sections =
+    data.sections?.map((section) => ({
+      title: `${section.icon} ${section.source}`,
+      news:
+        section.items?.slice(0, limit).map((item) => ({
+          title: item.title,
+          url: item.url,
+          hot: item.hot,
+        })) || [],
+      total: section.items?.length ?? 0,
+      truncated: (section.items?.length ?? 0) > limit,
+    })) || [];
   return {
     date: cached.date,
     source: 'cache',
-    sections:
-      data.sections?.map((section) => ({
-        title: `${section.icon} ${section.source}`,
-        news:
-          section.items?.map((item) => ({
-            title: item.title,
-            url: item.url,
-            hot: item.hot,
-          })) || [],
-      })) || [],
+    sections,
   };
 }
 
@@ -86,6 +90,12 @@ export function registerHotNewsTools() {
         date: {
           type: 'string',
           description: 'Date in YYYY-MM-DD format (optional, defaults to today)',
+        },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: '每个榜单最多返回多少条，默认 50，最大 100',
         },
       },
       []

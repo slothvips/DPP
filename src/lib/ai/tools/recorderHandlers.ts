@@ -7,9 +7,14 @@ import {
 } from '@/lib/db';
 import { resolveRecorderTabId, sendRecorderMessage } from './recorderShared';
 
-export async function recorder_list() {
-  const recordings = await sendRecorderMessage<
-    Array<{
+export async function recorder_list(args: { page?: number; pageSize?: number }) {
+  const page = Number.isInteger(args.page) && (args.page ?? 0) > 0 ? args.page! : 1;
+  const pageSize = Math.min(
+    Number.isInteger(args.pageSize) && (args.pageSize ?? 0) > 0 ? args.pageSize! : 20,
+    100
+  );
+  const recordings = await sendRecorderMessage<{
+    items: Array<{
       id: string;
       title: string;
       url: string;
@@ -18,12 +23,16 @@ export async function recorder_list() {
       duration: number;
       eventsCount: number;
       fileSize: number;
-    }>
-  >({ type: 'RECORDER_GET_ALL_RECORDINGS' });
+    }>;
+    total: number;
+  }>({ type: 'RECORDER_GET_ALL_RECORDINGS', offset: (page - 1) * pageSize, limit: pageSize });
 
   return {
-    total: recordings.length,
-    recordings: recordings.map((recording) => ({
+    total: recordings.total,
+    page,
+    pageSize,
+    hasMore: page * pageSize < recordings.total,
+    recordings: recordings.items.map((recording) => ({
       id: recording.id,
       title: recording.title,
       url: recording.url,

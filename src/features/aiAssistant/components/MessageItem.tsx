@@ -135,6 +135,7 @@ export const MessageItem = memo(
     const [draft, setDraft] = useState(message.content);
     const [isSaving, setIsSaving] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [isToolResultExpanded, setIsToolResultExpanded] = useState(false);
     const copyTimeoutRef = useRef<number | null>(null);
     const isUser = message.role === 'user';
     const isToolResult = message.role === 'tool';
@@ -312,20 +313,25 @@ export const MessageItem = memo(
               </div>
             </div>
           ) : isToolResult ? (
-            <details className="group border-l-2 border-border/60 bg-muted/20 pl-3">
+            <details
+              className="group border-l-2 border-border/60 bg-muted/20 pl-3"
+              onToggle={(event) => setIsToolResultExpanded(event.currentTarget.open)}
+            >
               <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-foreground outline-none transition-colors hover:bg-muted/35 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                 <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-open:rotate-90" />
                 <span className="min-w-0 flex-1 truncate">查看详细结果</span>
                 <span className="text-muted-foreground group-open:hidden">展开</span>
                 <span className="hidden text-muted-foreground group-open:inline">收起</span>
               </summary>
-              <div className="border-t border-border/55 px-3 py-3">
-                <div className={contentClassName}>
-                  <ReactMarkdown components={MARKDOWN_COMPONENTS} remarkPlugins={[remarkGfm]}>
-                    {message.content}
-                  </ReactMarkdown>
+              {isToolResultExpanded && (
+                <div className="border-t border-border/55 px-3 py-3">
+                  <div className={contentClassName}>
+                    <ReactMarkdown components={MARKDOWN_COMPONENTS} remarkPlugins={[remarkGfm]}>
+                      {message.content}
+                    </ReactMarkdown>
+                  </div>
                 </div>
-              </div>
+              )}
             </details>
           ) : (
             <div

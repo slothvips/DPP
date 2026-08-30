@@ -55,7 +55,10 @@ export function getToolConfirmationContent(
       return {
         title: '确认委派网页任务',
         description: '网页子 Agent 将只处理以下边界明确的任务；同一标签页的任务会排队。',
-        impact: `目标标签页: ${typeof args.tab_id === 'number' ? args.tab_id : '当前活动页'}；任务: ${typeof args.task === 'string' ? args.task : '未提供'}`,
+        impact:
+          typeof args.tab_id === 'number'
+            ? `复用标签页: ${args.tab_id}；任务: ${typeof args.task === 'string' ? args.task : '未提供'}`
+            : `新建任务标签页: ${typeof args.initial_url === 'string' ? args.initial_url : '未提供 URL'}；任务: ${typeof args.task === 'string' ? args.task : '未提供'}`,
         confirmText: '委派任务',
         isDestructive: false,
       };

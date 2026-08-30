@@ -41,6 +41,10 @@ export interface ActivitiesResult {
     };
   };
   activities: ActivityDescription[];
+  /** Number of activities included in the response. */
+  returned: number;
+  /** True when older activities were omitted to keep the chat response bounded. */
+  truncated: boolean;
 }
 
 export const TABLE_LABELS: Record<string, string> = {

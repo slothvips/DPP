@@ -223,4 +223,10 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(22).stores({
     testRuns: '&id, testCaseMaterialId, sessionId, status, startedAt, updatedAt, deletedAt',
   });
+
+  // v23: indexes used by bounded list queries.
+  db.version(23).stores({
+    tags: 'id, &name, deletedAt, updatedAt',
+    blackboard: 'id, createdAt, pinned, updatedAt, deletedAt',
+  });
 }

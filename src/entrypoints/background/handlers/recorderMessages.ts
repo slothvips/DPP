@@ -1,6 +1,11 @@
 import { browser } from 'wxt/browser';
 import type { RecordingState } from '@/features/recorder/types';
-import { addRecording, getAllRecordingMetas, getRecordingById } from '@/lib/db/recorder';
+import {
+  addRecording,
+  countRecordings,
+  getAllRecordingMetas,
+  getRecordingById,
+} from '@/lib/db/recorder';
 import { logger } from '@/utils/logger';
 import { clearRecordingState, getRecordingState, setRecordingState } from './recorderState';
 
@@ -16,7 +21,7 @@ export type RecorderMessage =
   | { type: 'RECORDER_STOP'; tabId: number }
   | { type: 'RECORDER_GET_STATUS'; tabId: number }
   | { type: 'RECORDER_GET_STATUS_FOR_CONTENT' }
-  | { type: 'RECORDER_GET_ALL_RECORDINGS' }
+  | { type: 'RECORDER_GET_ALL_RECORDINGS'; offset?: number; limit?: number }
   | { type: 'RECORDER_GET_RECORDING_BY_ID'; id: string }
   | {
       type: 'RECORDER_COMPLETE';
@@ -64,10 +69,13 @@ export function handleRecorderStatusForContent(sender: chrome.runtime.MessageSen
   return { success: true, data: getRecordingState(tabId) };
 }
 
-export async function handleGetAllRecordings() {
+export async function handleGetAllRecordings(args: { offset?: number; limit?: number } = {}) {
   // 直接查询元数据,避免读取大量 events 数组占用内存
-  const metas = await getAllRecordingMetas();
-  return { success: true, data: metas };
+  if (args.offset === undefined && args.limit === undefined) {
+    return { success: true, data: await getAllRecordingMetas({ offset: 0, limit: 100 }) };
+  }
+  const [metas, total] = await Promise.all([getAllRecordingMetas(args), countRecordings()]);
+  return { success: true, data: { items: metas, total } };
 }
 
 export async function handleGetRecordingById(id: string) {

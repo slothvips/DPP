@@ -6,14 +6,14 @@ import type { ToolHandler } from '../tools';
 /**
  * List all Jenkins jobs, optionally filtered by keyword
  */
-async function jenkins_list_jobs(args: { keyword?: string }) {
+async function jenkins_list_jobs(args: { keyword?: string; page?: number; pageSize?: number }) {
   return listJobs(args);
 }
 
 /**
  * List build history for a job
  */
-async function jenkins_list_builds(args: { jobUrl: string; limit?: number }) {
+async function jenkins_list_builds(args: { jobUrl: string; limit?: number; offset?: number }) {
   return listBuilds(args);
 }
 
@@ -79,6 +79,13 @@ export function registerJenkinsTools() {
           type: 'string',
           description: 'Keyword to filter jobs by name, fullName, or URL',
         },
+        page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
+        pageSize: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: '每页数量，默认 20，最大 100',
+        },
       },
       []
     ),
@@ -97,6 +104,7 @@ export function registerJenkinsTools() {
           minimum: 1,
           description: 'Maximum number of builds to return (default: 10)',
         },
+        offset: { type: 'integer', minimum: 0, description: '跳过的构建数量，默认 0' },
       },
       ['jobUrl']
     ),

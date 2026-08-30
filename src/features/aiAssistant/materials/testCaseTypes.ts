@@ -27,7 +27,6 @@ export interface PromptVariable {
 export interface PromptMaterialContent {
   body: string;
   summary?: string;
-  category?: string;
   tags: string[];
   variables: PromptVariable[];
 }
@@ -81,7 +80,6 @@ export interface PromptMaterialInput {
   title: string;
   body: string;
   summary?: string;
-  category?: string;
   tags: string[];
   variables: PromptVariable[];
 }

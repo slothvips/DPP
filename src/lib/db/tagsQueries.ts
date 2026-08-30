@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import type { JobTagItem, TagItem, TagWithCounts } from '@/db/types';
+import { type PageArgs, normalizePage } from './pagination';
 
 export interface TagAssociation {
   entityId: string;
@@ -41,35 +42,54 @@ export async function getActiveEntityTagIds(
   return jobTags.map((jobTag) => jobTag.tagId);
 }
 
-export async function listTags(): Promise<{
+export async function listTags(args: PageArgs = {}): Promise<{
   total: number;
   tags: TagWithCounts[];
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 }> {
-  const tags = await db.tags.filter((tag) => !tag.deletedAt).toArray();
-  const [allLinkTags, allJobTags] = await Promise.all([
-    db.linkTags.filter((linkTag) => !linkTag.deletedAt).toArray(),
-    db.jobTags.filter((jobTag) => !jobTag.deletedAt).toArray(),
-  ]);
-
-  const linkCountByTagId = new Map<string, number>();
-  const jobCountByTagId = new Map<string, number>();
-
-  for (const linkTag of allLinkTags) {
-    linkCountByTagId.set(linkTag.tagId, (linkCountByTagId.get(linkTag.tagId) ?? 0) + 1);
-  }
-
-  for (const jobTag of allJobTags) {
-    jobCountByTagId.set(jobTag.tagId, (jobCountByTagId.get(jobTag.tagId) ?? 0) + 1);
-  }
+  const { page, pageSize, offset } = normalizePage(args, 20, 100);
+  const total = await db.tags.filter((tag) => !tag.deletedAt).count();
+  const tags = await db.tags
+    .orderBy('updatedAt')
+    .reverse()
+    .filter((tag) => !tag.deletedAt)
+    .offset(offset)
+    .limit(pageSize)
+    .toArray();
+  const counts = await Promise.all(
+    tags.map(async (tag) => {
+      const [linkCount, jobCount] = await Promise.all([
+        db.linkTags
+          .where('tagId')
+          .equals(tag.id)
+          .filter((item) => !item.deletedAt)
+          .count(),
+        db.jobTags
+          .where('tagId')
+          .equals(tag.id)
+          .filter((item) => !item.deletedAt)
+          .count(),
+      ]);
+      return [tag.id, linkCount, jobCount] as const;
+    })
+  );
+  const countMap = new Map(
+    counts.map(([id, linkCount, jobCount]) => [id, { linkCount, jobCount }])
+  );
 
   return {
-    total: tags.length,
+    total,
+    page,
+    pageSize,
+    hasMore: offset + pageSize < total,
     tags: tags.map((tag) => ({
       id: tag.id,
       name: tag.name,
       color: tag.color,
-      linkCount: linkCountByTagId.get(tag.id) ?? 0,
-      jobCount: jobCountByTagId.get(tag.id) ?? 0,
+      linkCount: countMap.get(tag.id)?.linkCount ?? 0,
+      jobCount: countMap.get(tag.id)?.jobCount ?? 0,
       createdAt: tag.updatedAt,
       updatedAt: tag.updatedAt,
     })),

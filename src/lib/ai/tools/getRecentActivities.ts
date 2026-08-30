@@ -1,13 +1,21 @@
 // Recent activities AI tool - query user operations from sync operations table
-import { getLocalOperations, getRemoteActivities } from '@/lib/db';
+import {
+  countLocalOperations,
+  countRemoteActivities,
+  getLocalOperations,
+  getRemoteActivities,
+} from '@/lib/db';
 import {
   type ActivitiesResult,
   type DetailLevel,
-  type RemoteActivity,
   appendActivity,
   createActivitiesSummary,
   sortActivitiesByTimeDesc,
 } from './getRecentActivitiesShared';
+
+// Keep tool messages small enough for the chat renderer and provider context window.
+const SUMMARY_ACTIVITY_LIMIT = 100;
+const DETAILED_ACTIVITY_LIMIT = 50;
 
 export async function getRecentActivities({
   days,
@@ -24,11 +32,16 @@ export async function getRecentActivities({
   const now = Date.now();
   const startTime = now - days * 24 * 60 * 60 * 1000;
 
-  // 查询本地操作记录
-  const localOps = await getLocalOperations(startTime, now);
-
-  // 查询远程操作记录
-  const remoteOps = (await getRemoteActivities(startTime, now)) as RemoteActivity[];
+  const activityLimit =
+    detailLevel === 'detailed' ? DETAILED_ACTIVITY_LIMIT : SUMMARY_ACTIVITY_LIMIT;
+  // Fetch only the newest records while counting the full range separately. This avoids
+  // materializing thousands of operation payloads just to answer a "recent" query.
+  const [localOps, remoteOps, localTotal, remoteTotal] = await Promise.all([
+    getLocalOperations(startTime, now, activityLimit),
+    getRemoteActivities(startTime, now, activityLimit),
+    countLocalOperations(startTime, now),
+    countRemoteActivities(startTime, now),
+  ]);
 
   const summary = createActivitiesSummary(localOps.length + remoteOps.length);
   const activities = [] as ActivitiesResult['activities'];
@@ -42,6 +55,8 @@ export async function getRecentActivities({
   }
 
   sortActivitiesByTimeDesc(activities);
+  const total = localTotal + remoteTotal;
+  const boundedActivities = activities.slice(0, activityLimit);
 
   return {
     period: {
@@ -49,7 +64,9 @@ export async function getRecentActivities({
       startTime,
       endTime: now,
     },
-    summary,
-    activities,
+    summary: { ...summary, total },
+    activities: boundedActivities,
+    returned: boundedActivities.length,
+    truncated: total > boundedActivities.length,
   };
 }

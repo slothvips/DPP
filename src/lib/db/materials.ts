@@ -9,6 +9,7 @@ import type {
   TestCaseTarget,
   TestCaseTestData,
 } from '@/features/aiAssistant/materials/testCaseTypes';
+import { type PageResult, normalizePage } from './pagination';
 import { decryptTestCaseContent, encryptTestCaseContent } from './testCaseShared';
 
 const MAX_TITLE_LENGTH = 200;
@@ -135,6 +136,29 @@ export async function listTestCaseMaterialRecords(): Promise<TestCaseMaterial[]>
     .and((material) => material.status === 'ready' && !material.deletedAt)
     .sortBy('updatedAt');
   return materials.filter(isTestCaseMaterial).reverse();
+}
+
+export async function listTestCaseMaterialRecordsPage(
+  args: { page?: number; pageSize?: number } = {}
+): Promise<PageResult<TestCaseMaterial>> {
+  const { page, pageSize, offset } = normalizePage(args, 20, 100);
+  const query = db.materials.where('type').equals('testCase');
+  const total = await query
+    .and((material) => material.status === 'ready' && !material.deletedAt)
+    .count();
+  const items = (
+    await db.materials
+      .orderBy('updatedAt')
+      .reverse()
+      .filter(
+        (material) =>
+          material.type === 'testCase' && material.status === 'ready' && !material.deletedAt
+      )
+      .offset(offset)
+      .limit(pageSize)
+      .toArray()
+  ).filter(isTestCaseMaterial);
+  return { items, total, page, pageSize, hasMore: offset + pageSize < total };
 }
 
 export async function listTestCaseMaterials(): Promise<DecryptedTestCaseMaterial[]> {

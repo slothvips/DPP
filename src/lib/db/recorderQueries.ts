@@ -24,9 +24,22 @@ export async function getAllRecordings(): Promise<Recording[]> {
  * 真正彻底的优化需要将 events 拆到独立表(需 schema 迁移),
  * 为兼容现有数据暂不拆表。
  */
-export async function getAllRecordingMetas(): Promise<RecordingMeta[]> {
-  const recordings = await db.recordings.orderBy('createdAt').reverse().toArray();
+export async function getAllRecordingMetas(
+  args: { offset?: number; limit?: number } = {}
+): Promise<RecordingMeta[]> {
+  const query = db.recordings.orderBy('createdAt').reverse();
+  const recordings =
+    args.offset === undefined && args.limit === undefined
+      ? await query.toArray()
+      : await query
+          .offset(Math.max(0, args.offset ?? 0))
+          .limit(Math.min(Math.max(1, args.limit ?? 20), 100))
+          .toArray();
   return recordings.map(({ events: _events, ...meta }) => meta);
+}
+
+export async function countRecordings(): Promise<number> {
+  return db.recordings.count();
 }
 
 export async function getRecordingById(id: string): Promise<Recording | undefined> {

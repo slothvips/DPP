@@ -14,8 +14,20 @@ import {
 export function registerRecorderTools() {
   toolRegistry.register({
     name: 'recorder_list',
-    description: 'List all recordings',
-    parameters: createToolParameter({}, []),
+    description:
+      'List recordings with pagination; recording events are never returned by this tool',
+    parameters: createToolParameter(
+      {
+        page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
+        pageSize: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: '每页数量，默认 20，最大 100',
+        },
+      },
+      []
+    ),
     handler: recorder_list as ToolHandler,
   });
 

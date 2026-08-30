@@ -8,7 +8,7 @@ import {
   archivePromptMaterial,
   createPromptMaterial,
   getPromptMaterial,
-  listPromptMaterialRecords,
+  listPromptMaterialRecordsPage,
   updatePromptMaterial,
   validatePromptMaterialInput,
 } from '@/lib/db';
@@ -17,12 +17,27 @@ export function registerPromptTools(): void {
   toolRegistry.register({
     name: 'prompt_list',
     description: '列出团队共享提示词的标题、ID、版本和更新时间，不返回提示词正文。',
-    parameters: createToolParameter({}, []),
-    handler: (async () => {
-      const prompts = await listPromptMaterialRecords();
+    parameters: createToolParameter(
+      {
+        page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
+        pageSize: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: '每页数量，默认 20，最大 100',
+        },
+      },
+      []
+    ),
+    handler: (async (args: unknown) => {
+      const page = await listPromptMaterialRecordsPage(readRecord(args));
       return {
         success: true,
-        prompts: prompts.map((prompt) => ({
+        total: page.total,
+        page: page.page,
+        pageSize: page.pageSize,
+        hasMore: page.hasMore,
+        prompts: page.items.map((prompt) => ({
           id: prompt.id,
           title: prompt.title,
           status: prompt.status,
@@ -35,7 +50,7 @@ export function registerPromptTools(): void {
 
   toolRegistry.register({
     name: 'prompt_get',
-    description: '按 ID 读取一个团队共享提示词的正文、变量、分类和标签。',
+    description: '按 ID 读取一个团队共享提示词的正文、变量和标签。',
     parameters: createToolParameter({ id: { type: 'string', description: '提示词 ID' } }, ['id']),
     handler: (async (args: unknown) => {
       const id = readRequiredText(readRecord(args).id, '提示词 ID');
@@ -131,7 +146,6 @@ function promptInputProperties() {
     title: { type: 'string' as const, description: '提示词标题' },
     body: { type: 'string' as const, description: '提示词正文，使用 {{variable}} 表示变量' },
     summary: { type: 'string' as const, description: '提示词摘要，可选' },
-    category: { type: 'string' as const, description: '提示词分类，可选' },
     tags: {
       type: 'array' as const,
       description: '提示词标签，可为空数组',
@@ -165,7 +179,6 @@ function parsePromptInput(value: unknown): PromptMaterialInput {
     title: readRequiredText(record.title, '提示词标题'),
     body: readRequiredText(record.body, '提示词正文'),
     ...(readOptionalText(record.summary) ? { summary: readOptionalText(record.summary) } : {}),
-    ...(readOptionalText(record.category) ? { category: readOptionalText(record.category) } : {}),
     tags: readStringList(record.tags, '提示词标签'),
     variables,
   });

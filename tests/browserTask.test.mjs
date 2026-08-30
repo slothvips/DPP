@@ -57,6 +57,9 @@ test('PageAgent owns observation and action history', () => {
 test('PageAgent task prompt delegates only the child task', () => {
   const prompt = buildPromptBrowserTaskSection();
   assert.match(prompt, /delegate_browser_agent/);
+  assert.match(prompt, /先使用 list_browser_tabs/);
+  assert.match(prompt, /不得默认当前页或任意可操作页/);
+  assert.match(prompt, /只有明确需要隔离时才设置 open_new_tab=true/);
   assert.doesNotMatch(prompt, /browser_observe|browser_click|browser_fill|browser_openUrl/);
   assert.match(prompt, /逐个委派/);
   assert.doesNotMatch(prompt, /并行|同时委派/);
@@ -207,6 +210,27 @@ test('PageAgent waits for a newly created initial tab before validating it', () 
   assert.match(tabs, /await this\.waitUntilTabLoaded\(this\.initialTabId, true\)/);
   assert.match(tabs, /await browser\.tabs\.reload\(tabId\)/);
   assert.match(tabs, /private async waitUntilTabLoadedOnce/);
+});
+
+test('browser tasks reuse a selected tab and isolate only explicit new tabs', () => {
+  const tool = source('../src/lib/ai/tools/browserTask.ts');
+
+  assert.match(tool, /args\.tab_id === undefined && !isInjectableUrl\(args\.initial_url\)/);
+  assert.doesNotMatch(tool, /browser\.tabs\.query\(\{ currentWindow: true \}\)/);
+  assert.match(
+    tool,
+    /if \(tabId !== undefined\)[\s\S]*?return typeof tab\.id === 'number' && isInjectableUrl\(tab\.url\)/
+  );
+  assert.doesNotMatch(tool, /browser\.tabs\.create\(\{ url, windowId: tab\?\.windowId/);
+  assert.match(tool, /browser\.tabs\.create\(\{ url: initialUrl, active: false \}\)/);
+});
+
+test('browser tab listing marks the focused current tab', () => {
+  const tool = source('../src/lib/ai/tools/browserTask.ts');
+  assert.match(tool, /browser\.tabs\.query\(\{ active: true, lastFocusedWindow: true \}\)/);
+  assert.match(tool, /active: tab\.active === true/);
+  assert.match(tool, /is_current: tab\.id === currentTabId/);
+  assert.match(tool, /windowId: tab\.windowId/);
 });
 
 test('test steps reuse their target tab and its DPP tab group', () => {
@@ -469,7 +493,7 @@ test('tool calls are temporarily executed one at a time', () => {
   assert.doesNotMatch(executor, /const canParallel/);
 });
 
-test('browser task retries check idempotency before opening a target tab without closing it', () => {
+test('browser task retries check idempotency before selecting the target tab', () => {
   const tool = source('../src/lib/ai/tools/browserTask.ts');
   const handler = source('../src/entrypoints/background/handlers/browserTask.ts');
 
@@ -478,7 +502,7 @@ test('browser task retries check idempotency before opening a target tab without
   assert.ok(
     tool.indexOf('const idempotencyKey =') < tool.indexOf('const target = await getTargetTab')
   );
-  assert.doesNotMatch(tool, /closeInitialTab:/);
+  assert.match(tool, /closeInitialTab: target\.created && !testTabKey/);
   assert.match(handler, /if \(message\.closeInitialTab\)/);
   assert.match(handler, /if \(task\.closeInitialTab\)/);
   assert.match(tool, /if \(openNewTab\)/);

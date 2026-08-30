@@ -11,7 +11,7 @@ import type { ToolProperty } from '@/lib/ai/types';
 import {
   getTestCaseMaterial,
   importTestCaseMaterials,
-  listTestCaseMaterialRecords,
+  listTestCaseMaterialRecordsPage,
   updateTestCaseMaterial,
 } from '@/lib/db';
 
@@ -91,12 +91,27 @@ export function registerTestCaseTools(): void {
   toolRegistry.register({
     name: 'test_case_list',
     description: '列出团队共享测试用例的标题、ID、版本和更新时间，不返回测试数据明文。',
-    parameters: createToolParameter({}, []),
-    handler: (async () => {
-      const materials = await listTestCaseMaterialRecords();
+    parameters: createToolParameter(
+      {
+        page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
+        pageSize: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: '每页数量，默认 20，最大 100',
+        },
+      },
+      []
+    ),
+    handler: (async (args: unknown) => {
+      const page = await listTestCaseMaterialRecordsPage(readRecord(args));
       return {
         success: true,
-        test_cases: materials.map((material) => ({
+        total: page.total,
+        page: page.page,
+        pageSize: page.pageSize,
+        hasMore: page.hasMore,
+        test_cases: page.items.map((material) => ({
           id: material.id,
           title: material.title,
           status: material.status,

@@ -12,8 +12,8 @@ import { createToolParameter, toolRegistry } from '../tools';
 /**
  * List all tags
  */
-async function tags_list() {
-  return listTags();
+async function tags_list(args: { page?: number; pageSize?: number }) {
+  return listTags(args);
 }
 
 /**
@@ -51,8 +51,19 @@ export function registerTagsTools() {
   // tags_list
   toolRegistry.register({
     name: 'tags_list',
-    description: 'List all tags with link and job counts',
-    parameters: createToolParameter({}, []),
+    description: 'List tags with link and job counts using pagination',
+    parameters: createToolParameter(
+      {
+        page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
+        pageSize: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: '每页数量，默认 20，最大 100',
+        },
+      },
+      []
+    ),
     handler: tags_list as ToolHandler,
   });
 

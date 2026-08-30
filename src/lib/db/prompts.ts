@@ -8,6 +8,8 @@ import type {
   PromptMaterialInput,
   PromptVariable,
 } from '@/features/aiAssistant/materials/testCaseTypes';
+import { type PageResult, normalizePage } from './pagination';
+import { ensureTagsExist } from './tagsMutations';
 import { decryptMaterialContent, encryptMaterialContent } from './testCaseShared';
 
 export {
@@ -18,7 +20,6 @@ export {
 const MAX_TITLE_LENGTH = 200;
 const MAX_BODY_LENGTH = 32_000;
 const MAX_SUMMARY_LENGTH = 500;
-const MAX_CATEGORY_LENGTH = 80;
 const MAX_TAGS = 20;
 const MAX_TAG_LENGTH = 50;
 const MAX_VARIABLES = 30;
@@ -29,6 +30,7 @@ const MAX_VARIABLE_DEFAULT_LENGTH = 2_000;
 
 export async function createPromptMaterial(input: PromptMaterialInput): Promise<PromptMaterial> {
   const normalized = validatePromptMaterialInput(input);
+  await ensureTagsExist(normalized.tags);
   const now = Date.now();
   const material: PromptMaterial = {
     id: crypto.randomUUID(),
@@ -51,6 +53,7 @@ export async function updatePromptMaterial(
   expectedVersion: number
 ): Promise<PromptMaterial> {
   const normalized = validatePromptMaterialInput(input);
+  await ensureTagsExist(normalized.tags);
   const encryptedContent = await encryptMaterialContent(toPromptContent(normalized));
 
   return await db.transaction('rw', db.materials, async () => {
@@ -101,7 +104,7 @@ export async function getPromptMaterial(id: string): Promise<DecryptedPromptMate
     return undefined;
   }
 
-  const content = await decryptMaterialContent<PromptMaterialContent>(material.encryptedContent);
+  const content = await decryptAndNormalizePromptContent(material.encryptedContent);
   return { ...material, content };
 }
 
@@ -114,14 +117,48 @@ export async function listPromptMaterialRecords(): Promise<PromptMaterial[]> {
   return materials.filter(isPromptMaterial).reverse();
 }
 
+export async function listPromptMaterialRecordsPage(
+  args: { page?: number; pageSize?: number } = {}
+): Promise<PageResult<PromptMaterial>> {
+  const { page, pageSize, offset } = normalizePage(args, 20, 100);
+  const query = db.materials.where('type').equals('prompt');
+  const total = await query
+    .and((material) => material.status === 'ready' && !material.deletedAt)
+    .count();
+  const items = (
+    await db.materials
+      .orderBy('updatedAt')
+      .reverse()
+      .filter(
+        (material) =>
+          material.type === 'prompt' && material.status === 'ready' && !material.deletedAt
+      )
+      .offset(offset)
+      .limit(pageSize)
+      .toArray()
+  ).filter(isPromptMaterial);
+  return { items, total, page, pageSize, hasMore: offset + pageSize < total };
+}
+
 export async function listPromptMaterials(): Promise<DecryptedPromptMaterial[]> {
   const records = await listPromptMaterialRecords();
   return await Promise.all(
     records.map(async (material) => ({
       ...material,
-      content: await decryptMaterialContent<PromptMaterialContent>(material.encryptedContent),
+      content: await decryptAndNormalizePromptContent(material.encryptedContent),
     }))
   );
+}
+
+async function decryptAndNormalizePromptContent(
+  encryptedContent: PromptMaterial['encryptedContent']
+): Promise<PromptMaterialContent> {
+  const decrypted = await decryptMaterialContent<PromptMaterialContent & { category?: string }>(
+    encryptedContent
+  );
+  const content = { ...decrypted };
+  delete content.category;
+  return content;
 }
 
 export function validatePromptMaterialInput(input: PromptMaterialInput): PromptMaterialInput {
@@ -132,7 +169,6 @@ export function validatePromptMaterialInput(input: PromptMaterialInput): PromptM
   const title = requireText(input.title, '提示词标题', MAX_TITLE_LENGTH);
   const body = requireText(input.body, '提示词正文', MAX_BODY_LENGTH);
   const summary = optionalText(input.summary, '提示词摘要', MAX_SUMMARY_LENGTH);
-  const category = optionalText(input.category, '提示词分类', MAX_CATEGORY_LENGTH);
   const tags = validateTags(input.tags);
   const variables = validateVariables(input.variables, body);
 
@@ -140,7 +176,6 @@ export function validatePromptMaterialInput(input: PromptMaterialInput): PromptM
     title,
     body,
     ...(summary ? { summary } : {}),
-    ...(category ? { category } : {}),
     tags,
     variables,
   };
@@ -150,7 +185,6 @@ function toPromptContent(input: PromptMaterialInput): PromptMaterialContent {
   return {
     body: input.body,
     ...(input.summary ? { summary: input.summary } : {}),
-    ...(input.category ? { category: input.category } : {}),
     tags: input.tags,
     variables: input.variables,
   };

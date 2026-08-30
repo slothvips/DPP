@@ -32,6 +32,15 @@ export interface BrowserTaskToolResult {
   test_step_attempts?: BrowserTaskSummary['testStepAttempts'];
 }
 
+export interface BrowserTabInfo {
+  tabId: number;
+  title: string;
+  url: string;
+  windowId: number;
+  active: boolean;
+  is_current: boolean;
+}
+
 function getTestTabKey(sessionId: string, testRunId: string, targetId: string): string {
   return `${sessionId}\0${testRunId}\0${targetId}`;
 }
@@ -57,6 +66,12 @@ export async function delegateBrowserAgent(args: {
 }): Promise<BrowserTaskToolResult> {
   if (args.test_target_id?.trim() && !args.test_run_id?.trim()) {
     return createBrowserTaskFailure('测试步骤缺少测试执行 ID', 'invalid_request');
+  }
+  if (args.tab_id === undefined && !isInjectableUrl(args.initial_url)) {
+    return createBrowserTaskFailure(
+      '必须指定与任务相关的标签页 ID 或明确的 HTTP(S) 初始 URL',
+      'invalid_request'
+    );
   }
   const idempotencyKey =
     args.session_id && args.tool_call_id ? `${args.session_id}:${args.tool_call_id}` : undefined;
@@ -88,7 +103,7 @@ export async function delegateBrowserAgent(args: {
   const target = await getTargetTab(args.tab_id, args.initial_url, args.open_new_tab, testTabKey);
   if (!target) {
     if (reservationCreated) await deleteBrowserTaskRecord(taskId);
-    return createBrowserTaskFailure('当前活动页面无法运行网页助手', 'page_unavailable');
+    return createBrowserTaskFailure('没有可运行网页助手的 HTTP(S) 标签页', 'page_unavailable');
   }
   const sessionKey = args.session_id || '';
   const taskIds = taskIdsBySession.get(sessionKey) || new Set<string>();
@@ -107,18 +122,18 @@ export async function delegateBrowserAgent(args: {
           sessionId: args.session_id,
           toolCallId: args.tool_call_id,
           initialTabId: target.tabId,
-          initialUrl: args.initial_url,
+          initialUrl: target.url,
+          closeInitialTab: target.created && !testTabKey,
           resultMode: args.test_target_id ? 'test-step' : undefined,
-          resourceKeys: normalizeResourceKeys(
-            args.resource_keys,
-            args.initial_url,
-            args.test_target_id
-          ),
+          resourceKeys: normalizeResourceKeys(args.resource_keys, target.url, args.test_target_id),
         }) as Promise<{ success?: boolean; error?: string; queued?: boolean }>
     );
     return createBrowserTaskToolResult(summary);
   } catch (error) {
     if (reservationCreated) await deleteBrowserTaskRecord(taskId);
+    if (target.created && !testTabKey) {
+      await browser.tabs.remove(target.tabId).catch(() => undefined);
+    }
     const message = error instanceof Error ? error.message : String(error);
     return createBrowserTaskFailure(message, classifyBrowserTaskFailure(message));
   } finally {
@@ -139,11 +154,31 @@ export async function stopActiveBrowserTask(
   );
 }
 
-export async function listBrowserTabs(): Promise<{ tabId: number; title: string; url: string }[]> {
-  const tabs = await browser.tabs.query({});
+export async function listBrowserTabs(): Promise<BrowserTabInfo[]> {
+  const [tabs, currentTabs] = await Promise.all([
+    browser.tabs.query({}),
+    browser.tabs.query({ active: true, lastFocusedWindow: true }),
+  ]);
+  const currentTabId = currentTabs.find((tab) => typeof tab.id === 'number')?.id;
+
   return tabs.flatMap((tab) => {
-    if (typeof tab.id !== 'number' || !isInjectableUrl(tab.url)) return [];
-    return [{ tabId: tab.id, title: tab.title || '', url: tab.url }];
+    if (
+      typeof tab.id !== 'number' ||
+      typeof tab.windowId !== 'number' ||
+      !isInjectableUrl(tab.url)
+    ) {
+      return [];
+    }
+    return [
+      {
+        tabId: tab.id,
+        title: tab.title || '',
+        url: tab.url,
+        windowId: tab.windowId,
+        active: tab.active === true,
+        is_current: tab.id === currentTabId,
+      },
+    ];
   });
 }
 
@@ -151,7 +186,7 @@ export function registerBrowserTaskTools(): void {
   toolRegistry.register({
     name: 'delegate_browser_agent',
     description:
-      '接受 D 仔委派的网页任务，独立执行并在完成后向 D 仔汇报结果。只能处理当前任务，不得扩展目标。可通过 tab_id 指定目标标签页。',
+      '接受 D 仔委派的网页任务，在指定标签页中执行并在完成后向 D 仔汇报结果。默认复用 tab_id 指定的已有标签页；只有明确要求新标签页时才使用 open_new_tab 和 initial_url。',
     parameters: createToolParameter(
       {
         task: {
@@ -160,15 +195,16 @@ export function registerBrowserTaskTools(): void {
         },
         tab_id: {
           type: 'integer',
-          description: '目标标签页 ID；不填写时使用当前活动标签页',
+          description: '目标网页的标签页 ID；提供后直接复用该标签页，不会复制 URL 或创建同页标签',
         },
         initial_url: {
           type: 'string',
-          description: '没有可用 HTTP(S) 活动页时创建的初始目标 URL',
+          description: '未提供 tab_id 时用于创建任务标签页的明确 HTTP(S) 目标 URL',
         },
         open_new_tab: {
           type: 'boolean',
-          description: '需要为目标 URL 创建独立任务标签页时设为 true；必须同时提供 initial_url',
+          description:
+            '明确需要隔离的新标签页时设为 true；必须同时提供 initial_url。默认不创建新标签页',
         },
         test_target_id: {
           type: 'string',
@@ -191,7 +227,8 @@ export function registerBrowserTaskTools(): void {
   });
   toolRegistry.register({
     name: 'list_browser_tabs',
-    description: '列出当前可操作的 HTTP(S) 标签页，供选择网页任务目标。',
+    description:
+      '列出当前可操作的 HTTP(S) 标签页，并标记每个窗口的活动页以及浏览器当前聚焦窗口中的活动页（is_current）。',
     parameters: createToolParameter({}),
     handler: listBrowserTabs as ToolHandler,
   });
@@ -202,14 +239,14 @@ async function getTargetTab(
   initialUrl?: string,
   openNewTab = false,
   testTabKey?: string
-): Promise<{ tabId: number; created: boolean } | null> {
+): Promise<{ tabId: number; url: string; created: boolean } | null> {
   if (openNewTab) {
     if (!initialUrl || !isInjectableUrl(initialUrl)) return null;
     const reusableTabId = testTabKey ? testTabsByTarget.get(testTabKey) : undefined;
     if (reusableTabId !== undefined) {
       const reusableTab = await browser.tabs.get(reusableTabId).catch(() => null);
       if (reusableTab && isInjectableUrl(reusableTab.url)) {
-        return { tabId: reusableTabId, created: false };
+        return { tabId: reusableTabId, url: reusableTab.url, created: false };
       }
       if (testTabKey) testTabsByTarget.delete(testTabKey);
     }
@@ -217,31 +254,26 @@ async function getTargetTab(
       const created = await browser.tabs.create({ url: initialUrl, active: false });
       if (typeof created.id !== 'number') return null;
       if (testTabKey) testTabsByTarget.set(testTabKey, created.id);
-      return { tabId: created.id, created: true };
+      return { tabId: created.id, url: initialUrl, created: true };
     } catch {
       return null;
     }
   }
 
   try {
-    const tab =
-      tabId === undefined
-        ? (await browser.tabs.query({ active: true, currentWindow: true }))[0]
-        : await browser.tabs.get(tabId);
-    if (typeof tab?.id === 'number' && isInjectableUrl(tab.url)) {
-      return { tabId: tab.id, created: false };
+    if (tabId !== undefined) {
+      const tab = await browser.tabs.get(tabId);
+      return typeof tab.id === 'number' && isInjectableUrl(tab.url)
+        ? { tabId: tab.id, url: tab.url, created: false }
+        : null;
     }
     if (!initialUrl || !isInjectableUrl(initialUrl)) return null;
-    const created = await browser.tabs.create({ url: initialUrl, active: true });
-    return typeof created.id === 'number' ? { tabId: created.id, created: true } : null;
+    const created = await browser.tabs.create({ url: initialUrl, active: false });
+    return typeof created.id === 'number'
+      ? { tabId: created.id, url: initialUrl, created: true }
+      : null;
   } catch {
-    if (!initialUrl || !isInjectableUrl(initialUrl)) return null;
-    try {
-      const created = await browser.tabs.create({ url: initialUrl, active: true });
-      return typeof created.id === 'number' ? { tabId: created.id, created: true } : null;
-    } catch {
-      return null;
-    }
+    return null;
   }
 }
 

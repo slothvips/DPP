@@ -13,8 +13,8 @@ import { createToolParameter, toolRegistry } from '../tools';
 /**
  * List all blackboard items
  */
-async function blackboard_list() {
-  return listBlackboard();
+async function blackboard_list(args: { page?: number; pageSize?: number }) {
+  return listBlackboard(args);
 }
 
 /**
@@ -65,7 +65,18 @@ export function registerBlackboardTools() {
   toolRegistry.register({
     name: 'blackboard_list',
     description: 'List all blackboard items (便签)',
-    parameters: createToolParameter({}, []),
+    parameters: createToolParameter(
+      {
+        page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
+        pageSize: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 100,
+          description: '每页数量，默认 20，最大 100',
+        },
+      },
+      []
+    ),
     handler: blackboard_list as ToolHandler,
   });
 

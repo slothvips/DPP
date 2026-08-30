@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import type { LinkItem, LinkStatItem, LinkTagItem } from '@/db/types';
 import { buildLinkTagsMap, getLinkTagsTable } from './linksShared';
+import { normalizePage } from './pagination';
 
 export async function listLinks(args: {
   keyword?: string;
@@ -24,33 +25,16 @@ export async function listLinks(args: {
     updatedAt: number;
   }>;
 }> {
-  const page = args.page ?? 1;
-  const pageSize = args.pageSize ?? 20;
-
-  const [allLinks, allLinkTags, allTags, allStats] = await Promise.all([
-    db.links.filter((link) => !link.deletedAt).toArray(),
-    getLinkTagsTable()
-      .filter((linkTag) => !linkTag.deletedAt)
-      .toArray(),
-    db.tags.filter((tag) => !tag.deletedAt).toArray(),
-    db.linkStats.toArray(),
-  ]);
-
-  const statsMap = new Map(allStats.map((stat) => [stat.id, stat]));
-  const linkTagsMap = buildLinkTagsMap(allLinkTags, allTags);
-
-  let filteredLinks = allLinks;
-  if (args.keyword) {
-    const keyword = args.keyword.toLowerCase();
-    filteredLinks = filteredLinks.filter(
-      (link) =>
-        link.name.toLowerCase().includes(keyword) ||
-        link.url.toLowerCase().includes(keyword) ||
-        (link.note && link.note.toLowerCase().includes(keyword))
-    );
-  }
+  const { page, pageSize, offset } = normalizePage(args, 20, 100);
+  const keyword = args.keyword?.toLowerCase();
+  const activeTags = args.tags && args.tags.length > 0;
+  const allTags = activeTags ? await db.tags.filter((tag) => !tag.deletedAt).toArray() : [];
+  let linkIdsWithTags: Set<string> | undefined;
 
   if (args.tags && args.tags.length > 0) {
+    const allLinkTags = await getLinkTagsTable()
+      .filter((linkTag) => !linkTag.deletedAt)
+      .toArray();
     const tagNameToId = new Map(allTags.map((tag) => [tag.name.toLowerCase(), tag.id]));
     const tagIdSet = new Set(
       args.tags.map((tag) =>
@@ -58,15 +42,47 @@ export async function listLinks(args: {
       )
     );
 
-    const linkIdsWithTags = new Set<string>();
+    linkIdsWithTags = new Set<string>();
     for (const linkTag of allLinkTags) {
       if (tagIdSet.has(linkTag.tagId)) {
         linkIdsWithTags.add(linkTag.linkId);
       }
     }
-
-    filteredLinks = filteredLinks.filter((link) => linkIdsWithTags.has(link.id));
   }
+
+  const matches = db.links
+    .toCollection()
+    .filter(
+      (link) =>
+        !link.deletedAt &&
+        (!keyword ||
+          link.name.toLowerCase().includes(keyword) ||
+          link.url.toLowerCase().includes(keyword) ||
+          Boolean(link.note?.toLowerCase().includes(keyword))) &&
+        (!linkIdsWithTags || linkIdsWithTags.has(link.id))
+    );
+  const total = await matches.count();
+  const filteredLinks = await matches.offset(offset).limit(pageSize).toArray();
+  const linkIds = filteredLinks.map((link) => link.id);
+  const [pageLinkTags, pageStats] = await Promise.all([
+    getLinkTagsTable()
+      .where('linkId')
+      .anyOf(linkIds)
+      .filter((linkTag) => !linkTag.deletedAt)
+      .toArray(),
+    db.linkStats.bulkGet(linkIds),
+  ]);
+  const pageTags =
+    pageLinkTags.length > 0 ? await db.tags.bulkGet(pageLinkTags.map((item) => item.tagId)) : [];
+  const statsMap = new Map(
+    pageStats
+      .filter((stat): stat is LinkStatItem => stat !== undefined)
+      .map((stat) => [stat.id, stat])
+  );
+  const linkTagsMap = buildLinkTagsMap(
+    pageLinkTags,
+    pageTags.filter((tag) => tag !== undefined)
+  );
 
   const linksWithTags = filteredLinks.map((link) => {
     const linkTags = linkTagsMap.get(link.id) || [];
@@ -85,15 +101,12 @@ export async function listLinks(args: {
     };
   });
 
-  const total = linksWithTags.length;
-  const startIndex = (page - 1) * pageSize;
-
   return {
     total,
     page,
     pageSize,
-    hasMore: startIndex + pageSize < total,
-    links: linksWithTags.slice(startIndex, startIndex + pageSize),
+    hasMore: offset + pageSize < total,
+    links: linksWithTags,
   };
 }
 

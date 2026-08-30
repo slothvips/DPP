@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { TagSelector } from '@/components/ui/tag-selector';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import type {
@@ -31,8 +32,11 @@ import type {
 } from '@/features/aiAssistant/materials/testCaseTypes';
 import {
   archivePromptMaterial,
+  createOrReactivateTag,
   createPromptMaterial,
+  deleteTag,
   extractPromptVariableKeys,
+  getAllActiveTags,
   getPromptMaterial,
   listPromptMaterialRecords,
   renderPromptTemplate,
@@ -329,7 +333,6 @@ function PromptMaterialCard({
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
         <span>{content.variables.length} 个变量</span>
-        {content.category && <span>{content.category}</span>}
         <span className="ml-auto">{formatDate(material.updatedAt)}</span>
       </div>
       {content.tags.length > 0 && (
@@ -513,11 +516,10 @@ function PromptMaterialEditor({
           title: material.title,
           body: material.content.body,
           summary: material.content.summary,
-          category: material.content.category,
           tags: [...material.content.tags],
           variables: material.content.variables.map((variable) => ({ ...variable })),
         }
-      : { title: '', body: '', summary: '', category: '', tags: [], variables: [] }
+      : { title: '', body: '', summary: '', tags: [], variables: [] }
   );
 
   const updateBody = (body: string) => {
@@ -595,30 +597,11 @@ function PromptMaterialEditor({
           disabled={saving}
         />
       </EditorField>
-      <EditorField label="分类">
-        <Input
-          value={input.category ?? ''}
-          onChange={(event) =>
-            setInput((current) => ({ ...current, category: event.target.value }))
-          }
-          placeholder="例如：开发、写作、分析"
-          disabled={saving}
-        />
-      </EditorField>
       <EditorField label="标签">
-        <Input
-          value={input.tags.join(', ')}
-          onChange={(event) =>
-            setInput((current) => ({
-              ...current,
-              tags: event.target.value
-                .split(',')
-                .map((tag) => tag.trim())
-                .filter(Boolean),
-            }))
-          }
-          placeholder="用逗号分隔（可选）"
+        <PromptTagSelector
+          tags={input.tags}
           disabled={saving}
+          onChange={(tags) => setInput((current) => ({ ...current, tags }))}
         />
       </EditorField>
       <EditorField label="提示词正文">
@@ -722,6 +705,67 @@ function PromptMaterialEditor({
           {saving ? '保存中...' : material ? '保存提示词' : '创建提示词'}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function PromptTagSelector({
+  tags,
+  disabled,
+  onChange,
+}: {
+  tags: string[];
+  disabled: boolean;
+  onChange: (tags: string[]) => void;
+}) {
+  const { toast } = useToast();
+  const availableTagsQuery = useLiveQuery(() => getAllActiveTags(), []);
+  const availableTags = useMemo(() => availableTagsQuery ?? [], [availableTagsQuery]);
+  const selectedTagIds = useMemo(() => {
+    const names = new Set(tags.map((tag) => tag.toLowerCase()));
+    return new Set(
+      availableTags.filter((tag) => names.has(tag.name.toLowerCase())).map((tag) => tag.id)
+    );
+  }, [availableTags, tags]);
+
+  const handleToggle = (tagId: string) => {
+    const tag = availableTags.find((item) => item.id === tagId);
+    if (!tag) return;
+    if (selectedTagIds.has(tagId)) {
+      onChange(tags.filter((name) => name.toLowerCase() !== tag.name.toLowerCase()));
+    } else {
+      onChange([...tags, tag.name]);
+    }
+  };
+
+  const handleCreate = async (name: string) => {
+    const result = await createOrReactivateTag({ name });
+    const existing = availableTags.find((tag) => tag.id === result.id);
+    const canonicalName = existing?.name ?? name.trim();
+    if (!tags.some((tag) => tag.toLowerCase() === canonicalName.toLowerCase())) {
+      onChange([...tags, canonicalName]);
+    }
+  };
+
+  const handleDelete = async (tagId: string, tagName: string) => {
+    try {
+      await deleteTag({ id: tagId });
+      onChange(tags.filter((name) => name.toLowerCase() !== tagName.toLowerCase()));
+      toast('标签已删除', 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '删除标签失败', 'error');
+    }
+  };
+
+  return (
+    <div className={disabled ? 'pointer-events-none opacity-60' : undefined}>
+      <TagSelector
+        availableTags={availableTags}
+        selectedTagIds={selectedTagIds}
+        onToggleTag={handleToggle}
+        onCreateTag={handleCreate}
+        onDeleteTag={(tagId, tagName) => void handleDelete(tagId, tagName)}
+      />
     </div>
   );
 }

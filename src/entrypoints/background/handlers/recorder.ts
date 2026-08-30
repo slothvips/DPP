@@ -29,7 +29,7 @@ export async function handleRecorderMessage(
       case 'RECORDER_GET_STATUS_FOR_CONTENT':
         return handleRecorderStatusForContent(sender);
       case 'RECORDER_GET_ALL_RECORDINGS':
-        return await handleGetAllRecordings();
+        return await handleGetAllRecordings(message);
       case 'RECORDER_GET_RECORDING_BY_ID':
         return await handleGetRecordingById(message.id);
       case 'RECORDER_COMPLETE':

@@ -425,6 +425,9 @@ list_browser_tabs
   tabId: number;
   title: string;
   url: string;
+  windowId: number;
+  active: boolean;
+  is_current: boolean;
 }
 ```
 
@@ -432,6 +435,8 @@ list_browser_tabs
 
 - 只返回 HTTP(S) 且可注入的页面。
 - 不返回扩展页、设置页等不可操作页面。
+- `active` 标记标签页是否为其所属窗口的活动页。
+- `is_current` 标记标签页是否为浏览器当前聚焦窗口中的活动页。
 - URL 可能包含敏感信息，必须按现有敏感数据规则处理日志。
 - 该工具本身是只读工具，可以标记为可并行。
 - D 仔先调用该工具获取 tab 列表，再决定任务分配。
@@ -444,8 +449,9 @@ tab_id?: number
 
 行为：
 
-- 指定 `tab_id` 时使用指定 tab。
-- 未指定时使用当前活动 tab。
+- 指定 `tab_id` 时直接复用指定 tab，不复制其 URL。
+- 未指定 `tab_id` 但提供明确 `initial_url` 时创建新 tab。
+- 只有显式设置 `open_new_tab: true` 时才为已有目标创建隔离 tab。
 - 指定 tab 不存在或不可操作时立即返回错误。
 - 任务的 `initialTabId` 写入后台任务记录。
 - 任务进度继续通过 `sessionId` 和 `toolCallId` 关联。
