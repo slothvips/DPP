@@ -62,7 +62,7 @@ export class TabsController {
       url,
       windowId: this.windowId,
       openerTabId: this.currentTabId ?? undefined,
-      active: true,
+      active: false,
     });
     if (tab.id === undefined) throw new Error('无法打开新的任务标签页');
     this.tabs.push({ id: tab.id, initial: false, url, status: 'loading' });
@@ -89,7 +89,6 @@ export class TabsController {
     if (!this.tabs.some((tab) => tab.id === tabId))
       throw new Error(`任务标签页列表中找不到 ${tabId}`);
     this.currentTabId = tabId;
-    await browser.tabs.update(tabId, { active: true });
     await this.waitUntilTabLoaded(tabId);
     return `已切换到任务标签页 ${tabId}`;
   }

@@ -186,7 +186,7 @@ export function registerBrowserTaskTools(): void {
   toolRegistry.register({
     name: 'delegate_browser_agent',
     description:
-      '接受 D 仔委派的网页任务，在指定标签页中执行并在完成后向 D 仔汇报结果。默认复用 tab_id 指定的已有标签页；只有明确要求新标签页时才使用 open_new_tab 和 initial_url。',
+      '接受 D 仔委派的网页任务，在指定标签页中执行并在完成后向 D 仔汇报结果。后台标签页会直接复用；如果指定的是用户当前聚焦页，则会复制为后台任务页。',
     parameters: createToolParameter(
       {
         task: {
@@ -195,7 +195,8 @@ export function registerBrowserTaskTools(): void {
         },
         tab_id: {
           type: 'integer',
-          description: '目标网页的标签页 ID；提供后直接复用该标签页，不会复制 URL 或创建同页标签',
+          description:
+            '目标网页的标签页 ID；后台标签页直接复用，用户当前聚焦页会复制为不抢焦点的任务标签页',
         },
         initial_url: {
           type: 'string',
@@ -263,9 +264,24 @@ async function getTargetTab(
   try {
     if (tabId !== undefined) {
       const tab = await browser.tabs.get(tabId);
-      return typeof tab.id === 'number' && isInjectableUrl(tab.url)
-        ? { tabId: tab.id, url: tab.url, created: false }
-        : null;
+      if (typeof tab.id !== 'number' || !isInjectableUrl(tab.url)) return null;
+
+      const currentTabs = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+      const isUserFocusedTab = currentTabs.some((currentTab) => currentTab.id === tab.id);
+      if (!isUserFocusedTab) return { tabId: tab.id, url: tab.url, created: false };
+
+      try {
+        const created = await browser.tabs.create({
+          url: tab.url,
+          ...(typeof tab.windowId === 'number' ? { windowId: tab.windowId } : {}),
+          active: false,
+        });
+        return typeof created.id === 'number'
+          ? { tabId: created.id, url: tab.url, created: true }
+          : null;
+      } catch {
+        return null;
+      }
     }
     if (!initialUrl || !isInjectableUrl(initialUrl)) return null;
     const created = await browser.tabs.create({ url: initialUrl, active: false });

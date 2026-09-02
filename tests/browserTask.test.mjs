@@ -212,17 +212,27 @@ test('PageAgent waits for a newly created initial tab before validating it', () 
   assert.match(tabs, /private async waitUntilTabLoadedOnce/);
 });
 
-test('browser tasks reuse a selected tab and isolate only explicit new tabs', () => {
+test('browser tasks protect the focused tab and reuse only background tabs', () => {
   const tool = source('../src/lib/ai/tools/browserTask.ts');
 
   assert.match(tool, /args\.tab_id === undefined && !isInjectableUrl\(args\.initial_url\)/);
   assert.doesNotMatch(tool, /browser\.tabs\.query\(\{ currentWindow: true \}\)/);
   assert.match(
     tool,
-    /if \(tabId !== undefined\)[\s\S]*?return typeof tab\.id === 'number' && isInjectableUrl\(tab\.url\)/
+    /if \(tabId !== undefined\)[\s\S]*?if \(typeof tab\.id !== 'number' \|\| !isInjectableUrl\(tab\.url\)\) return null/
   );
+  assert.match(tool, /browser\.tabs\.query\(\{ active: true, lastFocusedWindow: true \}\)/);
+  assert.match(tool, /isUserFocusedTab/);
+  assert.match(tool, /url: tab\.url,[\s\S]*?active: false/);
   assert.doesNotMatch(tool, /browser\.tabs\.create\(\{ url, windowId: tab\?\.windowId/);
   assert.match(tool, /browser\.tabs\.create\(\{ url: initialUrl, active: false \}\)/);
+});
+
+test('PageAgent tab switching never steals the user browser focus', () => {
+  const tabs = source('../src/lib/pageAgent/tabsController.ts');
+
+  assert.match(tabs, /active: false/);
+  assert.doesNotMatch(tabs, /browser\.tabs\.update\(tabId, \{ active: true \}\)/);
 });
 
 test('browser tab listing marks the focused current tab', () => {
