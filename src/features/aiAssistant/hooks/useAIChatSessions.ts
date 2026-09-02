@@ -6,11 +6,7 @@ import {
   listSessions,
 } from '@/lib/db/ai';
 import type { AISession, ChatMessage } from '../types';
-import {
-  listRemainingSessions,
-  resolveInitialSessionId,
-  setStoredCurrentSessionId,
-} from './useAIChatSessions.shared';
+import { listRemainingSessions, setStoredCurrentSessionId } from './useAIChatSessions.shared';
 
 interface UseAIChatSessionsOptions {
   onMessagesLoaded: (sessionId: string, messages: ChatMessage[]) => void;
@@ -35,6 +31,7 @@ export function useAIChatSessions({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AISession[]>([]);
   const loadRequestIdRef = useRef(0);
+  const initializedRef = useRef(false);
 
   const loadSession = useCallback(
     async (id: string) => {
@@ -94,26 +91,15 @@ export function useAIChatSessions({
         return;
       }
 
-      const initialSessionId = await resolveInitialSessionId();
-      if (!mounted) {
-        return;
-      }
-
-      if (initialSessionId) {
-        await loadSessions();
-        if (!mounted) {
-          return;
-        }
-        await loadSession(initialSessionId);
-        return;
-      }
-
       await loadSessions();
       if (!mounted) {
         return;
       }
 
       await createNewSession();
+      if (mounted) {
+        initializedRef.current = true;
+      }
     };
 
     void init();
@@ -122,6 +108,23 @@ export function useAIChatSessions({
       loadRequestIdRef.current += 1;
     };
   }, [createNewSession, loadSession, loadSessions]);
+
+  useEffect(() => {
+    let wasHidden = document.visibilityState === 'hidden';
+
+    const handleVisibilityChange = () => {
+      const isVisible = document.visibilityState === 'visible';
+      const reopened = wasHidden && isVisible;
+      wasHidden = !isVisible;
+
+      if (reopened && initializedRef.current) {
+        void createNewSession();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [createNewSession]);
 
   useEffect(() => {
     if (sessionId) {

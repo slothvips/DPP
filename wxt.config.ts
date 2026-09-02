@@ -100,18 +100,15 @@ export default defineConfig({
     // storage: 存储扩展配置
     // sidePanel: 侧边面板功能
     // alarms: 定时任务
-    // activeTab: 获取标签页信息
     // scripting: 仅用于向未及时建立 content script 的页面补发控制器
     // tabs: 获取标签页列表信息
     permissions: [
       'storage',
       'sidePanel',
       'alarms',
-      'activeTab',
       'scripting',
       'tabs',
       'tabGroups',
-      'webNavigation',
       'clipboardWrite',
     ],
     host_permissions: ['<all_urls>'],
