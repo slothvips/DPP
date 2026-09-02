@@ -37,16 +37,17 @@ export function JenkinsView() {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-auto">
-      <JenkinsToolbar
-        currentEnvId={currentEnvId}
-        environments={environments}
-        filter={filter}
-        loading={loading}
-        onEnvChange={handleEnvChange}
-        onFilterChange={setFilter}
-        onSync={handleSync}
-        showEnvManager={environments.length > 0}
-      />
+      {environments.length > 0 && (
+        <JenkinsToolbar
+          currentEnvId={currentEnvId}
+          environments={environments}
+          filter={filter}
+          loading={loading}
+          onEnvChange={handleEnvChange}
+          onFilterChange={setFilter}
+          onSync={handleSync}
+        />
+      )}
 
       {environments.length === 0 ? (
         <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-border/60 bg-muted/15 px-5 py-10">

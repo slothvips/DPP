@@ -415,6 +415,7 @@ test('recent action replay waits for TOTP security state and stays local to the 
   assert.doesNotMatch(moduleLauncher, /aspect-square/);
   assert.doesNotMatch(moduleLauncher, /max-w-md/);
   assert.match(jenkinsView, /environments\.length === 0/);
+  assert.match(jenkinsView, /environments\.length > 0 && \([\s\S]*?<JenkinsToolbar/);
   assert.match(jenkinsView, /添加 Jenkins 环境/);
   assert.match(jenkinsView, /<JenkinsEnvManager/);
   assert.match(jenkinsToolbar, /showEnvManager\?: boolean/);
