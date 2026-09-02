@@ -1,4 +1,4 @@
-import { GripHorizontal, Scissors, Trash2 } from 'lucide-react';
+import { GripHorizontal, Scissors, Settings, Trash2 } from 'lucide-react';
 import { YoloButton } from '@/components/YoloButton';
 import { Button } from '@/components/ui/button';
 import type { AIProviderType, TokenUsage } from '@/lib/ai/types';
@@ -76,24 +76,39 @@ export function AIAssistantInputSection({
         </div>
       )}
 
-      <div className="mb-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-1 text-[11px] text-muted-foreground">
-        <div className="flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-1">
-          <span className="shrink-0">当前供应商 / 模型:</span>
-          <span
-            className="min-w-0 truncate font-medium text-foreground/80"
-            title={
-              currentProvider && currentModel
-                ? `${currentProviderName || currentProvider} / ${currentModel}`
-                : undefined
-            }
-          >
-            {currentProvider && currentModel
-              ? `${currentProviderName || currentProvider} / ${currentModel}`
-              : '未连接'}
-          </span>
-        </div>
-        <div className="min-w-0 max-w-full flex-[1_1_12rem]">
-          <AIUsageIndicator usage={usage} />
+      <div className="mb-2 min-w-0 border-b border-border/45 px-1 pb-2 text-[11px] text-muted-foreground">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          <div className="flex min-w-[10rem] flex-[1_1_15rem] items-center gap-2">
+            <span className="shrink-0 font-medium text-foreground/70">供应商</span>
+            <span className="min-w-0 truncate font-medium text-foreground/90">
+              {currentProviderName || currentProvider || '未连接'}
+            </span>
+            <span className="text-muted-foreground/60">/</span>
+            <span className="shrink-0 font-medium text-foreground/70">模型</span>
+            <span
+              className="min-w-0 truncate font-medium text-foreground/90"
+              title={currentModel || undefined}
+            >
+              {currentModel || '未设置'}
+            </span>
+            <AIConfigDialog onSaved={onConfigSaved}>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={isRunning}
+                className="h-7 w-7 shrink-0 rounded-md text-muted-foreground"
+                aria-label="AI 设置"
+                title="AI 设置"
+                data-testid="ai-config-button"
+              >
+                <Settings className="h-3.5 w-3.5" />
+              </Button>
+            </AIConfigDialog>
+          </div>
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            <span className="shrink-0 font-medium text-foreground/70">当前会话上下文</span>
+            <AIUsageIndicator usage={usage} />
+          </div>
         </div>
       </div>
 
@@ -109,7 +124,7 @@ export function AIAssistantInputSection({
           initialInputKey={presetPromptKey}
           onFileError={onFileError}
           leftSlot={
-            <div className="flex max-w-full flex-wrap items-center gap-0.5 rounded-lg border border-border/50 bg-background/90 p-0.5 shadow-sm">
+            <div className="flex flex-wrap items-center gap-0.5 rounded-lg border border-border/50 bg-background/90 p-0.5 shadow-sm">
               <YoloButton compact disabled={isRunning} />
               <Button
                 variant="ghost"

@@ -1,29 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { DragEvent } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_TAB_ORDER, TAB_CONFIG } from './sidepanelTabs';
 import type { FeatureToggles, TabId } from './sidepanelTypes';
+
+const RECENT_TABS_KEY = 'dpp_recent_tabs';
+const RECENT_TAB_LIMIT = 3;
 
 function isValidTabId(value: string | null): value is TabId {
   return value !== null && DEFAULT_TAB_ORDER.includes(value as TabId);
 }
 
-function getInitialTabOrder(): TabId[] {
-  if (typeof localStorage === 'undefined') {
-    return DEFAULT_TAB_ORDER;
-  }
-
-  const saved = localStorage.getItem('dpp_tab_order');
-  if (!saved) {
-    return DEFAULT_TAB_ORDER;
-  }
+function getInitialRecentTabs(): TabId[] {
+  if (typeof localStorage === 'undefined') return [];
 
   try {
-    const parsed = JSON.parse(saved) as TabId[];
-    const validTabs = parsed.filter((tabId): tabId is TabId => DEFAULT_TAB_ORDER.includes(tabId));
+    const stored = JSON.parse(localStorage.getItem(RECENT_TABS_KEY) ?? 'null') as unknown;
+    if (!Array.isArray(stored)) return [];
 
-    return validTabs.length === DEFAULT_TAB_ORDER.length ? validTabs : DEFAULT_TAB_ORDER;
+    return stored
+      .filter((tabId): tabId is string => typeof tabId === 'string')
+      .filter((tabId): tabId is TabId => isValidTabId(tabId))
+      .filter((tabId) => tabId !== 'aiAssistant')
+      .slice(0, RECENT_TAB_LIMIT);
   } catch {
-    return DEFAULT_TAB_ORDER;
+    return [];
   }
 }
 
@@ -33,29 +32,22 @@ function getInitialActiveTab(): TabId {
     return tabParam;
   }
 
-  if (typeof localStorage === 'undefined') {
-    return 'blackboard';
-  }
-
-  const saved = localStorage.getItem('dpp_active_tab');
-  return isValidTabId(saved) ? saved : 'blackboard';
+  return 'aiAssistant';
 }
 
 interface UseSidepanelTabsOptions {
   featureToggles: FeatureToggles;
 }
 
-function getFirstVisibleTab(tabOrder: TabId[], featureToggles: FeatureToggles): TabId | null {
-  return tabOrder.find((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles })) ?? null;
+function getFirstVisibleTab(featureToggles: FeatureToggles): TabId | null {
+  return (
+    DEFAULT_TAB_ORDER.find((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles })) ?? null
+  );
 }
 
 export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
-  const [tabOrder, setTabOrder] = useState<TabId[]>(getInitialTabOrder);
   const [activeTab, setActiveTab] = useState<TabId>(getInitialActiveTab);
-  const [draggedTab, setDraggedTab] = useState<TabId | null>(null);
-  const tabOrderRef = useRef(tabOrder);
-
-  tabOrderRef.current = tabOrder;
+  const [recentTabs, setRecentTabs] = useState<TabId[]>(getInitialRecentTabs);
 
   useEffect(() => {
     const isActiveTabVisible = TAB_CONFIG[activeTab].getVisible({ featureToggles });
@@ -63,7 +55,7 @@ export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
       return;
     }
 
-    const fallbackTab = getFirstVisibleTab(tabOrder, featureToggles);
+    const fallbackTab = getFirstVisibleTab(featureToggles);
     if (!fallbackTab) {
       return;
     }
@@ -72,46 +64,21 @@ export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('dpp_active_tab', fallbackTab);
     }
-  }, [activeTab, featureToggles, tabOrder]);
-
-  const handleDragStart = useCallback((tabId: TabId) => {
-    setDraggedTab(tabId);
-  }, []);
-
-  const handleDragOver = useCallback(
-    (event: DragEvent, targetTab: TabId) => {
-      event.preventDefault();
-      if (!draggedTab || draggedTab === targetTab) {
-        return;
-      }
-
-      setTabOrder((prev) => {
-        const next = [...prev];
-        const draggedIndex = next.indexOf(draggedTab);
-        const targetIndex = next.indexOf(targetTab);
-
-        if (draggedIndex === -1 || targetIndex === -1) {
-          return prev;
-        }
-
-        next.splice(draggedIndex, 1);
-        next.splice(targetIndex, 0, draggedTab);
-        return next;
-      });
-    },
-    [draggedTab]
-  );
-
-  const handleDragEnd = useCallback(() => {
-    setDraggedTab(null);
-
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('dpp_tab_order', JSON.stringify(tabOrderRef.current));
-    }
-  }, []);
+  }, [activeTab, featureToggles]);
 
   const handleTabChange = useCallback((tabId: TabId) => {
     setActiveTab(tabId);
+
+    if (tabId !== 'aiAssistant') {
+      setRecentTabs((previous) => {
+        const next = [tabId, ...previous.filter((recentTab) => recentTab !== tabId)].slice(
+          0,
+          RECENT_TAB_LIMIT
+        );
+        localStorage.setItem(RECENT_TABS_KEY, JSON.stringify(next));
+        return next;
+      });
+    }
 
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('dpp_active_tab', tabId);
@@ -120,11 +87,7 @@ export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
 
   return {
     activeTab,
-    draggedTab,
-    handleDragEnd,
-    handleDragOver,
-    handleDragStart,
     handleTabChange,
-    tabOrder,
+    recentTabs,
   };
 }

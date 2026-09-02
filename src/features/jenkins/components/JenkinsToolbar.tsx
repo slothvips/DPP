@@ -19,6 +19,7 @@ interface JenkinsToolbarProps {
   onEnvChange: (envId: string) => void;
   onFilterChange: (value: string) => void;
   onSync: () => void;
+  showEnvManager?: boolean;
 }
 
 export function JenkinsToolbar({
@@ -29,6 +30,7 @@ export function JenkinsToolbar({
   onEnvChange,
   onFilterChange,
   onSync,
+  showEnvManager = true,
 }: JenkinsToolbarProps) {
   return (
     <div className="rounded-2xl border border-border/55 bg-success/6 p-2.5">
@@ -75,7 +77,7 @@ export function JenkinsToolbar({
             </Button>
           </>
         )}
-        <JenkinsEnvManager />
+        {showEnvManager && <JenkinsEnvManager />}
       </div>
     </div>
   );

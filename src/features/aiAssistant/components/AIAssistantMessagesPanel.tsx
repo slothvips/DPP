@@ -10,6 +10,7 @@ import { AIConfigDialog } from './AIConfigDialog';
 import { AIPlanPanel } from './AIPlanPanel';
 import { BrowserTaskProgressPanel } from './BrowserTaskProgressPanel';
 import { MessageItem } from './MessageItem';
+import { RecentActions } from './RecentActions';
 
 interface AIAssistantMessagesPanelProps {
   messages: ChatMessage[];
@@ -25,34 +26,9 @@ interface AIAssistantMessagesPanelProps {
   onEditMessage: (messageId: string, content: string) => Promise<void>;
   browserTaskProgress: BrowserTaskProgress[];
   plan: AIPlan | null;
+  recentActions: import('@/db').RecentAction[];
+  onReplayRecentAction: (action: import('@/db').RecentAction) => Promise<void>;
 }
-
-const CAPABILITY_GROUPS = [
-  {
-    title: '页面与浏览器',
-    items: ['总结页面内容', '提取结构化信息', '翻译页面内容', '打开链接', '执行页面操作'],
-  },
-  {
-    title: '链接与标签',
-    items: ['查询链接', '新增或批量导入链接', '更新或删除链接', '创建和整理标签', '给链接打标签'],
-  },
-  {
-    title: '便笺与记录',
-    items: ['查看便笺', '新增或修改便笺', '置顶或锁定便笺', '查看最近操作记录'],
-  },
-  {
-    title: 'Jenkins',
-    items: ['查找 Job', '查看构建历史', '切换环境', '同步 Jenkins 数据', '发起构建'],
-  },
-  {
-    title: '录制与数据',
-    items: ['开始或停止录制', '重命名录像', '导入或导出录像', '删除录像', '触发同步'],
-  },
-  {
-    title: '资讯辅助',
-    items: ['查看今日热榜缓存', '结合本地数据回答问题', '按目标串联多步操作'],
-  },
-] as const;
 
 function readBrowserTaskArgument(argumentsJson: string): string | undefined {
   try {
@@ -159,6 +135,8 @@ export function AIAssistantMessagesPanel({
   onEditMessage,
   browserTaskProgress,
   plan,
+  recentActions,
+  onReplayRecentAction,
 }: AIAssistantMessagesPanelProps) {
   const { tasksByMessageId, unanchoredTasks } = placeBrowserTasks(messages, browserTaskProgress);
 
@@ -205,20 +183,7 @@ export function AIAssistantMessagesPanel({
               <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-muted-foreground">
                 把目标告诉我，我可以帮你处理页面、链接、记录和工程任务。
               </p>
-
-              <div className="mt-6 grid gap-2 text-left sm:grid-cols-2">
-                {CAPABILITY_GROUPS.map((group) => (
-                  <div
-                    key={group.title}
-                    className="rounded-xl border border-border/55 bg-background px-3 py-2.5"
-                  >
-                    <p className="text-xs font-medium text-foreground">{group.title}</p>
-                    <p className="mt-1 truncate text-[11px] text-muted-foreground">
-                      {group.items.slice(0, 3).join(' · ')}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              <RecentActions actions={recentActions} onReplay={onReplayRecentAction} />
             </div>
           </div>
         )}

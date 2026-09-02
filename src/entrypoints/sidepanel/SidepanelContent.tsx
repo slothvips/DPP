@@ -1,11 +1,27 @@
+import { ArrowLeft, LayoutGrid, Lightbulb, X } from 'lucide-react';
 import React from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { GlobalSyncButton } from '@/components/GlobalSyncButton';
+import { SystemSettingsButton } from '@/components/SystemSettingsButton';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  type AIModuleItem,
+  AIModuleLauncher,
+} from '@/features/aiAssistant/components/AIModuleLauncher';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
 import { LinksView } from '@/features/links/components/LinksView';
-import { cn } from '@/utils/cn';
 import { KeepAliveTabPanel } from './KeepAliveTabPanel';
 import { LazyTabPanel } from './LazyTabPanel';
-import { TAB_CONFIG } from './sidepanelTabs';
+import { DEFAULT_TAB_ORDER, TAB_CONFIG } from './sidepanelTabs';
 import type { FeatureToggles, TabId } from './sidepanelTypes';
 
 // 懒加载较重的视图,避免首屏加载全部代码
@@ -46,7 +62,11 @@ const TotpView = React.lazy(() =>
 interface SidepanelContentProps {
   activeTab: TabId;
   featureToggles: FeatureToggles;
-  reserveFloatingNav?: boolean;
+  onModuleSelect: (tabId: TabId) => void;
+  onBackToAssistant: () => void;
+  recentTabs: TabId[];
+  isMinimalMode: boolean;
+  showSyncButton: boolean;
 }
 
 function SidepanelLoadingFallback() {
@@ -68,19 +88,144 @@ function SidepanelLoadingFallback() {
 export function SidepanelContent({
   activeTab,
   featureToggles,
-  reserveFloatingNav = false,
+  onModuleSelect,
+  onBackToAssistant,
+  recentTabs,
+  isMinimalMode,
+  showSyncButton,
 }: SidepanelContentProps) {
+  const moduleItems: AIModuleItem[] = DEFAULT_TAB_ORDER.filter(
+    (tabId) => tabId !== 'aiAssistant' && TAB_CONFIG[tabId].getVisible({ featureToggles })
+  ).map((tabId) => ({
+    id: tabId,
+    label: TAB_CONFIG[tabId].label,
+    description: TAB_CONFIG[tabId].description,
+    icon: TAB_CONFIG[tabId].icon,
+  }));
+  const recentModuleItems = recentTabs.flatMap((tabId) => {
+    const item = moduleItems.find((moduleItem) => moduleItem.id === tabId);
+    return item ? [item] : [];
+  });
+  const [showModuleLauncher, setShowModuleLauncher] = React.useState(false);
+  const [isGuideOpen, setIsGuideOpen] = React.useState(false);
+  const activeTabConfig = TAB_CONFIG[activeTab];
+  const handleModuleSelect = (tabId: TabId) => {
+    setShowModuleLauncher(false);
+    onModuleSelect(tabId);
+  };
+
   return (
     <main
-      className={cn(
-        'relative min-h-0 min-w-0 flex-1 overflow-hidden pb-3 pr-3 pt-1.5 [@media(max-height:520px)]:pb-2 [@media(max-height:520px)]:pr-2 [@media(max-height:520px)]:pt-1',
-        reserveFloatingNav
-          ? 'pl-[3.75rem] [@media(max-height:520px)]:pl-[3.5rem]'
-          : 'pl-3 [@media(max-height:520px)]:pl-2'
-      )}
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
       data-testid="main-content"
     >
-      <div className="relative h-full min-h-0 min-w-0 overflow-hidden rounded-[22px] border border-border/55 bg-background/76 dark:bg-card/84">
+      <header className="relative z-40 flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-b border-border/60 bg-background px-2.5 py-2 shadow-[0_1px_4px_rgba(0,0,0,0.08)]">
+        {activeTab === 'aiAssistant' ? (
+          <div id="sidepanel-ai-toolbar-slot" className="min-w-max flex-1" />
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-lg border border-border/55 bg-muted/35 text-muted-foreground"
+              aria-label="返回 D 仔"
+              title="返回 D 仔"
+              onClick={onBackToAssistant}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                {TAB_CONFIG[activeTab].icon}
+              </span>
+              <div className="min-w-0">
+                <h1 className="truncate text-sm font-semibold text-foreground">
+                  {TAB_CONFIG[activeTab].label}
+                </h1>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {TAB_CONFIG[activeTab].description}
+                </p>
+              </div>
+              <Dialog open={isGuideOpen} onOpenChange={setIsGuideOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`${activeTabConfig.label}使用说明`}
+                    title={`${activeTabConfig.label}使用说明`}
+                    className="h-7 w-7 shrink-0 rounded-lg border border-border/55 bg-muted/35 text-muted-foreground hover:text-foreground"
+                  >
+                    <Lightbulb className="h-3.5 w-3.5" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-h-[82vh] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border-border/60 bg-background/96 shadow-xl sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>{activeTabConfig.label}使用说明</DialogTitle>
+                    <DialogDescription>{activeTabConfig.usageGuide.summary}</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-3">
+                    {activeTabConfig.usageGuide.sections.map((section) => (
+                      <section key={section.title} className="grid gap-2">
+                        <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
+                        <ul className="grid gap-1.5 text-sm leading-6 text-muted-foreground">
+                          {section.items.map((item) => (
+                            <li key={item} className="flex gap-2">
+                              <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </>
+        )}
+        {!isMinimalMode && (
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowModuleLauncher((visible) => !visible)}
+              aria-label={showModuleLauncher ? '关闭模块面板' : '打开模块面板'}
+              aria-expanded={showModuleLauncher}
+              title={showModuleLauncher ? '关闭模块面板' : '打开模块面板'}
+              className="h-8 w-8 shrink-0 rounded-md border border-border/70 bg-muted/55 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_1px_rgba(0,0,0,0.08)] hover:bg-muted hover:text-foreground"
+            >
+              {showModuleLauncher ? <X className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+            </Button>
+            {recentModuleItems.map((item) => (
+              <Button
+                key={item.id}
+                variant="ghost"
+                size="icon"
+                onClick={() => handleModuleSelect(item.id)}
+                title={`最近使用：${item.label}`}
+                aria-label={`打开最近使用模块：${item.label}`}
+                className="h-8 w-8 shrink-0 rounded-md border border-border/70 bg-muted/55 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_1px_rgba(0,0,0,0.08)] hover:bg-muted hover:text-foreground"
+              >
+                {item.icon}
+              </Button>
+            ))}
+            <SystemSettingsButton />
+            <ThemeToggle />
+            {showSyncButton && <GlobalSyncButton />}
+          </div>
+        )}
+      </header>
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+        {showModuleLauncher && !isMinimalMode && (
+          <div className="absolute inset-0 z-50 overflow-hidden bg-background">
+            <AIModuleLauncher
+              activeId={activeTab}
+              items={moduleItems}
+              onClose={() => setShowModuleLauncher(false)}
+              onSelect={handleModuleSelect}
+            />
+          </div>
+        )}
         {/* 同步导入的轻量视图:始终挂载(KeepAlive)；各模块独立 ErrorBoundary，避免单模块错误拖垮整页 */}
         <KeepAliveTabPanel active={activeTab === 'links'} visible={featureToggles.links}>
           <ErrorBoundary moduleName={TAB_CONFIG.links.label} className="h-full">
@@ -94,7 +239,7 @@ export function SidepanelContent({
         </KeepAliveTabPanel>
 
         {/* 懒加载的重型视图:首次激活才挂载,之后保持(KeepAlive)
-            这样用户不打开某 tab,该 tab 的代码就不会被下载 */}
+              这样用户不打开某 tab,该 tab 的代码就不会被下载 */}
         <LazyTabPanel
           active={activeTab === 'recorder'}
           visible={featureToggles.recorder}
@@ -128,7 +273,10 @@ export function SidepanelContent({
           fallback={<SidepanelLoadingFallback />}
         >
           <ErrorBoundary moduleName={TAB_CONFIG.aiAssistant.label} className="h-full">
-            <AIAssistantView />
+            <AIAssistantView
+              isActive={activeTab === 'aiAssistant'}
+              onModuleSelect={onModuleSelect}
+            />
           </ErrorBoundary>
         </LazyTabPanel>
         <LazyTabPanel

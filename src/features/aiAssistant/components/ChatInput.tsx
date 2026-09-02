@@ -102,7 +102,7 @@ export const ChatInput = memo(function ChatInput({
     <div className="flex h-full min-h-0 flex-col gap-2">
       {rightSlot}
       {bottomSlot}
-      <div className="relative min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-2">
         <Textarea
           ref={textareaRef}
           value={input}
@@ -110,12 +110,12 @@ export const ChatInput = memo(function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="h-full min-h-[120px] max-h-none w-full resize-none rounded-2xl border-border/70 bg-background px-4 py-3 pb-20 pr-24 shadow-none"
+          className="min-h-[120px] min-w-0 flex-1 resize-none rounded-2xl border-border/70 bg-background px-4 py-3 shadow-none"
           rows={1}
           data-testid="ai-chat-input"
         />
-        <div className="pointer-events-none absolute inset-x-2 bottom-2 flex flex-wrap items-end justify-between gap-2">
-          {leftSlot && <div className="pointer-events-auto min-w-0 max-w-full">{leftSlot}</div>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {leftSlot && <div className="min-w-0 flex-1">{leftSlot}</div>}
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <input
               ref={fileInputRef}
@@ -133,7 +133,7 @@ export const ChatInput = memo(function ChatInput({
               disabled={disabled || isReadingFile}
               title={isReadingFile ? '正在读取文件' : '选择文件'}
               aria-label={isReadingFile ? '正在读取文件' : '选择文件'}
-              className="pointer-events-auto h-10 w-10 rounded-xl text-muted-foreground"
+              className="h-10 w-10 rounded-xl text-muted-foreground"
               data-testid="ai-chat-file-button"
             >
               <FileUp className="h-4 w-4" />
@@ -146,7 +146,7 @@ export const ChatInput = memo(function ChatInput({
               title={showStopAction ? '停止' : '发送'}
               aria-label={showStopAction ? '停止当前任务' : '发送消息'}
               className={cn(
-                'pointer-events-auto h-10 w-10 rounded-xl transition-all duration-200',
+                'h-10 w-10 rounded-xl transition-all duration-200',
                 showStopAction &&
                   'border border-destructive/40 bg-destructive/8 hover:bg-destructive/12'
               )}

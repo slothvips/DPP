@@ -9,28 +9,12 @@ interface GlobalSyncButtonProps {
 }
 
 export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButtonProps) {
-  const { isSyncing, status, phase, pendingCounts, push, pull } = useGlobalSync();
+  const { isSyncing, pendingCounts, push, pull } = useGlobalSync();
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
 
   const isAnyOperating = isSyncing || isPushing || isPulling;
   const isVertical = orientation === 'vertical';
-  let statusLabel: string | null = null;
-  if (isPushing || phase === 'database-push') {
-    statusLabel = '正在推送本地变更';
-  } else if (isPulling || phase === 'database-pull') {
-    statusLabel = '正在拉取远程变更';
-  } else if (phase === 'database') {
-    statusLabel = '正在同步数据';
-  } else if (phase === 'jenkins') {
-    statusLabel = '正在同步 Jenkins';
-  } else if (phase === 'hotNews') {
-    statusLabel = '正在同步热点';
-  } else if (status === 'partial') {
-    statusLabel = '同步部分完成';
-  } else if (status === 'error') {
-    statusLabel = '同步失败';
-  }
 
   const handlePush = async () => {
     setIsPushing(true);
@@ -90,23 +74,6 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
         <span className="text-xs tabular-nums">{pendingCounts.pull}</span>
         {isVertical && <span className="text-xs">拉取</span>}
       </Button>
-
-      {statusLabel && (
-        <span
-          className={cn(
-            'whitespace-nowrap px-1.5 text-xs',
-            isSyncing
-              ? 'text-primary'
-              : status === 'error'
-                ? 'text-destructive'
-                : 'text-muted-foreground'
-          )}
-          role="status"
-          aria-live="polite"
-        >
-          {statusLabel}
-        </span>
-      )}
     </div>
   );
 }

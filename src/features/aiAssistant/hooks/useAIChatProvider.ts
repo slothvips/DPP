@@ -1,6 +1,8 @@
-import { useCallback, useRef, useState } from 'react';
-import { createConfiguredProvider } from '@/lib/ai/config';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createConfiguredProvider, loadAIProviderConfig } from '@/lib/ai/config';
+import type { AIProviderConfig } from '@/lib/ai/config';
 import type { AIProviderType, ModelProvider } from '@/lib/ai/types';
+import { logger } from '@/utils/logger';
 
 interface UseAIChatProviderReturn {
   currentProvider: AIProviderType | null;
@@ -16,6 +18,26 @@ export function useAIChatProvider(): UseAIChatProviderReturn {
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const providerRef = useRef<ModelProvider | null>(null);
 
+  const applyConfig = useCallback((config: AIProviderConfig) => {
+    setCurrentProvider(config.providerType);
+    setCurrentProviderName(config.displayName);
+    setCurrentModel(config.model || null);
+  }, []);
+
+  const refreshConfig = useCallback(async () => {
+    try {
+      applyConfig(
+        await loadAIProviderConfig({ includeLegacyFallback: true, logPrefix: '[AIChat]' })
+      );
+    } catch (error) {
+      logger.error('[AIChat] Failed to load current provider config:', error);
+    }
+  }, [applyConfig]);
+
+  useEffect(() => {
+    void refreshConfig();
+  }, [refreshConfig]);
+
   const getProvider = useCallback(async (): Promise<ModelProvider> => {
     if (providerRef.current) {
       return providerRef.current;
@@ -25,20 +47,16 @@ export function useAIChatProvider(): UseAIChatProviderReturn {
       includeLegacyFallback: true,
       logPrefix: '[AIChat]',
     });
-    setCurrentProvider(configured.providerType);
-    setCurrentProviderName(configured.displayName);
-    setCurrentModel(configured.provider.getModelName());
+    applyConfig({ ...configured, model: configured.provider.getModelName() });
     providerRef.current = configured.provider;
 
     return providerRef.current;
-  }, []);
+  }, [applyConfig]);
 
   const resetProvider = useCallback(() => {
     providerRef.current = null;
-    setCurrentProvider(null);
-    setCurrentProviderName(null);
-    setCurrentModel(null);
-  }, []);
+    void refreshConfig();
+  }, [refreshConfig]);
 
   return {
     currentProvider,

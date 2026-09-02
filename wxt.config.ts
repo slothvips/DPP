@@ -112,6 +112,7 @@ export default defineConfig({
       'tabs',
       'tabGroups',
       'webNavigation',
+      'clipboardWrite',
     ],
     host_permissions: ['<all_urls>'],
     side_panel: {

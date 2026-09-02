@@ -1,5 +1,5 @@
 // AI Session List Component
-import { Check, ChevronDown, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, History, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
@@ -53,10 +53,11 @@ export function AISessionList({
         size="sm"
         onClick={handleToggle}
         disabled={disabled}
-        className="h-8 w-full min-w-0 max-w-[180px] rounded-lg border border-border/55 bg-muted/35 px-3 text-xs font-normal"
+        className="h-8 w-full min-w-0 max-w-[180px] justify-start rounded-lg border border-border/55 bg-muted/35 px-2.5 text-xs font-normal"
         title={currentSession?.title || '新会话'}
       >
-        <span className="truncate">{currentSession?.title || '新会话'}</span>
+        <History className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate">历史</span>
         <ChevronDown className="ml-1 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
       </Button>
 

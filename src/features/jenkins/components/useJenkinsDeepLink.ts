@@ -49,6 +49,12 @@ export function useJenkinsDeepLink({
       }
     };
 
+    const handleRecentActionReplay = () => {
+      void checkDeepLink();
+    };
+
+    window.addEventListener('dpp:replay-jenkins', handleRecentActionReplay);
     void checkDeepLink();
+    return () => window.removeEventListener('dpp:replay-jenkins', handleRecentActionReplay);
   }, [currentEnvId, environments, onBuildJobChange, onShouldCloseOnSuccessChange]);
 }

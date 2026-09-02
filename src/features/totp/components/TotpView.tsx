@@ -3,10 +3,12 @@ import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
+import { getTotpAccount, recordRecentAction } from '@/lib/db';
+import { clearTotpReplayIntent, getTotpReplayIntent } from '@/lib/recentActionIntent';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { useTotpAccounts } from '../hooks/useTotpAccounts';
-import { useTotpTicker } from '../hooks/useTotpCode';
+import { getTotpCodeAt, useTotpTicker } from '../hooks/useTotpCode';
 import { useTotpPinLock } from '../hooks/useTotpPinLock';
 import type { TotpAccountFormData, TotpAccountItem } from '../types';
 import { TotpAccountDialog } from './TotpAccountDialog';
@@ -46,6 +48,7 @@ export function TotpView({ isActive = true }: TotpViewProps) {
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [orderedAccounts, setOrderedAccounts] = useState<TotpAccountItem[]>([]);
   const orderedAccountsRef = useRef(orderedAccounts);
+  const replayingIntentKeyRef = useRef<string | null>(null);
   const { toast } = useToast();
   const { confirm } = useConfirmDialog();
   const pinLock = useTotpPinLock({ isActive });
@@ -73,6 +76,47 @@ export function TotpView({ isActive = true }: TotpViewProps) {
     setShowCodes(false);
     setEditingAccount(null);
   }, [pinLock.locked]);
+
+  useEffect(() => {
+    if (!pinLock.ready || pinLock.locked) return;
+
+    const pendingAction = getTotpReplayIntent();
+    if (!pendingAction) return;
+
+    const intentKey = `${pendingAction.type}:${pendingAction.targetId}`;
+    if (replayingIntentKeyRef.current === intentKey) return;
+    replayingIntentKeyRef.current = intentKey;
+
+    const replay = async () => {
+      try {
+        const account = await getTotpAccount(pendingAction.targetId);
+        if (!account) {
+          clearTotpReplayIntent();
+          toast('验证器账户已不存在', 'error');
+          return;
+        }
+        const { code } = getTotpCodeAt(account, Date.now());
+        if (code === '------') throw new Error('无法生成验证码');
+        await navigator.clipboard.writeText(code);
+        clearTotpReplayIntent();
+        await recordRecentAction({
+          type: 'totp_copy',
+          targetId: account.id,
+          label: account.label,
+        });
+        toast('验证码已复制', 'success');
+      } catch (error) {
+        logger.error('Failed to replay TOTP copy:', error);
+        toast('验证码复制失败，请重试', 'error');
+      } finally {
+        if (replayingIntentKeyRef.current === intentKey) {
+          replayingIntentKeyRef.current = null;
+        }
+      }
+    };
+
+    void replay();
+  }, [accounts, pinLock.locked, pinLock.ready, toast]);
 
   function handleImport() {
     setEditingAccount(null);

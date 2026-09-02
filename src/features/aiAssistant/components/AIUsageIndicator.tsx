@@ -26,12 +26,11 @@ export function AIUsageIndicator({ usage }: AIUsageIndicatorProps) {
 
   return (
     <div
-      className="flex min-h-6 min-w-0 max-w-full flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground"
+      className="flex min-w-0 shrink-0 items-center gap-x-3 text-[11px] text-muted-foreground"
       title="最近一次模型请求的服务商 usage 数据"
     >
-      <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
         <Gauge className="h-3.5 w-3.5" />
-        <span>上下文</span>
         <span className="font-medium tabular-nums text-foreground/80">
           {usage
             ? `${formatTokens(usage.inputTokens)}${
@@ -41,7 +40,7 @@ export function AIUsageIndicator({ usage }: AIUsageIndicatorProps) {
         </span>
         {contextPercentage !== null && (
           <>
-              <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
+            <div className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full rounded-full bg-info transition-[width]"
                 style={{ width: `${contextPercentage}%` }}

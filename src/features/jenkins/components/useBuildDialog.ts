@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import type { BuildParameter } from '@/features/jenkins/api/build';
 import { JenkinsService } from '@/features/jenkins/service';
+import { recordRecentAction } from '@/lib/db';
 import { logger } from '@/utils/logger';
 
 interface UseBuildDialogOptions {
@@ -44,6 +45,7 @@ function buildDefaultFormValues(parameters: BuildParameter[]) {
 
 export function useBuildDialog({
   jobUrl,
+  jobName,
   envId,
   isOpen,
   onClose,
@@ -110,6 +112,13 @@ export function useBuildDialog({
         return;
       }
 
+      await recordRecentAction({
+        type: 'jenkins_build',
+        targetId: `${envId || ''}:${jobUrl}`,
+        label: jobName,
+        jobUrl,
+        envId,
+      });
       toast('构建已触发！', 'success');
       onClose();
       onBuildSuccess?.();

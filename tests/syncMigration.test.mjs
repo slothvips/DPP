@@ -120,3 +120,31 @@ test('v17 archives legacy test data before the new encrypted test tables replace
 
   await db.delete();
 });
+
+test('v24 adds the local recent actions table without changing existing data', async () => {
+  const name = `DPPRecentActionsMigration-${crypto.randomUUID()}`;
+  const oldDb = new Dexie(name);
+  oldDb.version(23).stores({
+    links: 'id, category, name, deletedAt',
+    recentActions: null,
+  });
+  await oldDb.open();
+  await oldDb.table('links').put({
+    id: 'link-1',
+    category: 'default',
+    name: 'Example',
+    url: 'https://example.com',
+    createdAt: 1,
+    updatedAt: 1,
+  });
+  await oldDb.close();
+
+  const db = new Dexie(name);
+  registerDatabaseSchema(db);
+  await db.open();
+
+  assert.ok(db.tables.some((table) => table.name === 'recentActions'));
+  assert.equal((await db.table('links').get('link-1')).name, 'Example');
+
+  await db.delete();
+});

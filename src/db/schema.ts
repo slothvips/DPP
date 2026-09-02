@@ -229,4 +229,9 @@ export function registerDatabaseSchema(db: Dexie) {
     tags: 'id, &name, deletedAt, updatedAt',
     blackboard: 'id, createdAt, pinned, updatedAt, deletedAt',
   });
+
+  // v24: local shortcuts for recently completed user actions.
+  db.version(24).stores({
+    recentActions: 'id, type, lastUsedAt',
+  });
 }

@@ -1,6 +1,7 @@
 import { Check, GripVertical, Pencil, Trash2 } from 'lucide-react';
 import { type DragEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { recordRecentAction } from '@/lib/db';
 import { cn } from '@/utils/cn';
 import { logger } from '@/utils/logger';
 import { getTotpCodeAt } from '../hooks/useTotpCode';
@@ -45,6 +46,11 @@ export function TotpAccountListItem({
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(code);
+      await recordRecentAction({
+        type: 'totp_copy',
+        targetId: account.id,
+        label: account.label,
+      });
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1200);
     } catch {

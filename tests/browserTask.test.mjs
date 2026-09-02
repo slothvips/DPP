@@ -382,6 +382,37 @@ test('session compression replaces messages in the current session', () => {
   assert.match(view, /当前会话已更新/);
 });
 
+test('recent action replay waits for TOTP security state and stays local to the UI', () => {
+  const totpView = source('../src/features/totp/components/TotpView.tsx');
+  const assistantView = source('../src/features/aiAssistant/components/AIAssistantView.tsx');
+  const moduleLauncher = source('../src/features/aiAssistant/components/AIModuleLauncher.tsx');
+  const jenkinsView = source('../src/features/jenkins/components/JenkinsView.tsx');
+  const jenkinsToolbar = source('../src/features/jenkins/components/JenkinsToolbar.tsx');
+  const jenkinsEnvManager = source('../src/features/settings/components/JenkinsEnvManager.tsx');
+  const reset = source('../src/lib/sync/SyncEngine.reset.ts');
+  const config = source('../wxt.config.ts');
+
+  assert.match(totpView, /if \(!pinLock\.ready \|\| pinLock\.locked\) return;/);
+  assert.match(totpView, /await getTotpAccount\(pendingAction\.targetId\)/);
+  assert.match(totpView, /replayingIntentKeyRef/);
+  assert.doesNotMatch(totpView, /let cancelled = false/);
+  assert.match(assistantView, /navigator\.clipboard\.writeText/);
+  assert.doesNotMatch(assistantView, /toolRegistry\.execute/);
+  assert.match(moduleLauncher, /grid-cols-3/);
+  assert.match(moduleLauncher, /h-full min-h-0 w-full/);
+  assert.match(moduleLauncher, /border border-border\/70/);
+  assert.match(moduleLauncher, /onClose: \(\) => void/);
+  assert.doesNotMatch(moduleLauncher, /aspect-square/);
+  assert.doesNotMatch(moduleLauncher, /max-w-md/);
+  assert.match(jenkinsView, /environments\.length === 0/);
+  assert.match(jenkinsView, /添加 Jenkins 环境/);
+  assert.match(jenkinsView, /<JenkinsEnvManager/);
+  assert.match(jenkinsToolbar, /showEnvManager\?: boolean/);
+  assert.match(jenkinsEnvManager, /trigger\?: ReactNode/);
+  assert.match(config, /'clipboardWrite'/);
+  assert.doesNotMatch(reset, /recentActions/);
+});
+
 test('AI sessions keep runtime and streamed messages isolated', () => {
   const runtime = source('../src/features/aiAssistant/hooks/useAIChatRuntime.ts');
   const messages = source('../src/features/aiAssistant/hooks/useAIChatMessages.ts');

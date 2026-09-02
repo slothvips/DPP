@@ -18,6 +18,7 @@ import type {
   OthersBuildItem,
   TagItem,
 } from './typesDomain';
+import type { RecentAction } from './typesRecentActions';
 import type { Setting } from './typesSettings';
 import type {
   DeferredOp,
@@ -84,4 +85,5 @@ export type DPPDatabase = Dexie & {
   aiPlans: EntityTable<AIPlanRecord, 'id'>;
   materials: EntityTable<MaterialRecord, 'id'>;
   testRuns: EntityTable<TestRun, 'id'>;
+  recentActions: EntityTable<RecentAction, 'id'>;
 };

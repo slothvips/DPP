@@ -12,6 +12,7 @@ import {
   type SortOption,
   useSortedFilteredLinks,
 } from '@/features/links/hooks/useSortedFilteredLinks';
+import { recordRecentAction } from '@/lib/db/recentActions';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
@@ -62,6 +63,14 @@ export function LinksView() {
   const handleLinkClick = async (id: string) => {
     try {
       await recordVisit(id);
+      const link = links?.find((item) => item.id === id);
+      if (link) {
+        await recordRecentAction({
+          type: 'link_visit',
+          targetId: link.id,
+          label: link.name,
+        });
+      }
     } catch (e) {
       logger.error('Failed to record visit:', e);
       toast('记录访问失败', 'error');

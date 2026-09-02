@@ -1,11 +1,26 @@
 // AI Assistant View - Main conversation interface
 import { Allotment } from 'allotment';
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useCallback, useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { useToast } from '@/components/ui/toast';
+import type { RecentAction } from '@/db';
+import type { TabId } from '@/entrypoints/sidepanel/sidepanelTypes';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
+import { openLink } from '@/features/links/utils';
+import { getTotpCodeAt } from '@/features/totp/hooks/useTotpCode';
+import { getTotpPinConfig } from '@/features/totp/totpPin';
+import { isTotpPinSessionUnlocked } from '@/features/totp/totpPinSession';
 import { TEST_CASE_IMPORT_PROMPT, buildTestCaseExecutionPrompt } from '@/lib/ai/promptTestCases';
 import { YOLO_MODE_KEY } from '@/lib/ai/tools';
+import {
+  deleteRecentAction,
+  getLink,
+  getTotpAccount,
+  listRecentActions,
+  recordRecentAction,
+} from '@/lib/db';
+import { setTotpReplayIntent } from '@/lib/recentActionIntent';
 import { logger } from '@/utils/logger';
 import { useAIAssistantConfig } from '../hooks/useAIAssistantConfig';
 import { useAIAssistantScroll } from '../hooks/useAIAssistantScroll';
@@ -48,7 +63,12 @@ function getLatestUsage(messages: ReturnType<typeof useAIChat>['messages']) {
   return undefined;
 }
 
-export function AIAssistantView() {
+interface AIAssistantViewProps {
+  isActive: boolean;
+  onModuleSelect: (tabId: TabId) => void;
+}
+
+export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewProps) {
   const {
     messages,
     status,
@@ -98,6 +118,7 @@ export function AIAssistantView() {
     invalidatedBrowserTaskIds
   );
   const plan = useAIPlan(sessionId);
+  const recentActions = useLiveQuery(() => listRecentActions(), []) ?? [];
 
   useEffect(() => {
     const handleBrowserTaskStopped = (message: unknown) => {
@@ -154,9 +175,11 @@ export function AIAssistantView() {
   );
 
   const handleCreateSession = useCallback(async () => {
+    if (messages.length === 0) return;
+
     setInputDraft(null);
     await createNewSession();
-  }, [createNewSession]);
+  }, [createNewSession, messages.length]);
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
@@ -203,6 +226,66 @@ export function AIAssistantView() {
     setInputDraft({ value: body, key: crypto.randomUUID() });
     setViewMode('chat');
   }, []);
+
+  const handleReplayRecentAction = useCallback(
+    async (action: RecentAction) => {
+      try {
+        if (action.type === 'link_visit') {
+          const link = await getLink({ id: action.targetId });
+          if (!link) {
+            await deleteRecentAction(action.type, action.targetId);
+            toast('链接已不存在', 'error');
+            return;
+          }
+          await openLink(link.url);
+          await recordRecentAction({
+            type: 'link_visit',
+            targetId: link.id,
+            label: link.name,
+          });
+          return;
+        }
+
+        if (action.type === 'jenkins_build') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('buildJobUrl', action.jobUrl || action.targetId);
+          if (action.envId) url.searchParams.set('envId', action.envId);
+          window.history.replaceState({}, '', url.toString());
+          onModuleSelect('jenkins');
+          window.dispatchEvent(new Event('dpp:replay-jenkins'));
+          return;
+        }
+
+        const account = await getTotpAccount(action.targetId);
+        if (!account) {
+          await deleteRecentAction(action.type, action.targetId);
+          toast('验证器账户已不存在', 'error');
+          return;
+        }
+
+        const pinConfig = await getTotpPinConfig();
+        if (pinConfig.enabled && !isTotpPinSessionUnlocked()) {
+          setTotpReplayIntent(action);
+          onModuleSelect('totp');
+          return;
+        }
+
+        const { code } = getTotpCodeAt(account, Date.now());
+        if (code === '------') throw new Error('无法生成验证码');
+        await navigator.clipboard.writeText(code);
+        await recordRecentAction({
+          type: 'totp_copy',
+          targetId: account.id,
+          label: account.label,
+        });
+        toast('验证码已复制', 'success');
+      } catch (error) {
+        logger.error('[AIChat] Failed to replay recent action:', error);
+        toast('操作回放失败，请重试', 'error');
+      }
+    },
+    [onModuleSelect, toast]
+  );
 
   const handleEditMessage = useCallback(
     async (messageId: string, content: string) => {
@@ -278,14 +361,12 @@ export function AIAssistantView() {
   }, [isSummarizing, messages.length, sessionId, status, summarizeSession, switchSession, toast]);
 
   return (
-    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-[22px] border border-border/60 bg-background/90">
+    <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       <AIAssistantHeader
+        isActive={isActive}
         sessions={sessions}
         currentSessionId={sessionId}
         sessionStatuses={sessionStatuses}
-        isRunning={isRunning}
-        isConfigMissing={isConfigMissing}
-        onConfigSaved={handleConfigSaved}
         onSelectSession={handleSelectSession}
         onDeleteSession={handleDeleteSession}
         onCreateSession={handleCreateSession}
@@ -317,6 +398,8 @@ export function AIAssistantView() {
                 onEditMessage={handleEditMessage}
                 browserTaskProgress={browserTaskProgress}
                 plan={plan}
+                recentActions={recentActions}
+                onReplayRecentAction={handleReplayRecentAction}
               />
             </div>
           </Allotment.Pane>

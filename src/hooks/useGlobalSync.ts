@@ -97,6 +97,8 @@ export function useGlobalSync(): GlobalSyncState {
   }, [isSyncing, refreshCounts, sendSyncMessage, toast]);
 
   const push = useCallback(async () => {
+    if (isSyncing) return;
+
     try {
       await sendSyncMessage('GLOBAL_SYNC_PUSH');
       await refreshCounts();
@@ -104,9 +106,11 @@ export function useGlobalSync(): GlobalSyncState {
       logger.error('[useGlobalSync] Push failed:', e);
       toast(e instanceof Error ? `推送失败：${e.message}` : '推送失败，请重试', 'error');
     }
-  }, [refreshCounts, sendSyncMessage, toast]);
+  }, [isSyncing, refreshCounts, sendSyncMessage, toast]);
 
   const pull = useCallback(async () => {
+    if (isSyncing) return;
+
     try {
       await sendSyncMessage('GLOBAL_SYNC_PULL');
       await refreshCounts();
@@ -114,7 +118,7 @@ export function useGlobalSync(): GlobalSyncState {
       logger.error('[useGlobalSync] Pull failed:', e);
       toast(e instanceof Error ? `拉取失败：${e.message}` : '拉取失败，请重试', 'error');
     }
-  }, [refreshCounts, sendSyncMessage, toast]);
+  }, [isSyncing, refreshCounts, sendSyncMessage, toast]);
 
   return {
     isSyncing,
