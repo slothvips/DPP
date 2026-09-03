@@ -6,7 +6,7 @@ import {
   listSessions,
 } from '@/lib/db/ai';
 import type { AISession, ChatMessage } from '../types';
-import { listRemainingSessions, setStoredCurrentSessionId } from './useAIChatSessions.shared';
+import { planEmptySessionCleanup, setStoredCurrentSessionId } from './useAIChatSessions.shared';
 
 interface UseAIChatSessionsOptions {
   onMessagesLoaded: (sessionId: string, messages: ChatMessage[]) => void;
@@ -31,7 +31,7 @@ export function useAIChatSessions({
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<AISession[]>([]);
   const loadRequestIdRef = useRef(0);
-  const initializedRef = useRef(false);
+  const newSessionRequestRef = useRef<Promise<void> | null>(null);
 
   const loadSession = useCallback(
     async (id: string) => {
@@ -52,10 +52,48 @@ export function useAIChatSessions({
   }, []);
 
   const createNewSession = useCallback(async () => {
-    const session = await createSession('新会话');
-    await loadSessions();
-    await loadSession(session.id);
-    resetFirstMessageFlag();
+    if (newSessionRequestRef.current) {
+      await newSessionRequestRef.current;
+      return;
+    }
+
+    const request = (async () => {
+      const loadedSessions = await listSessions();
+      const emptySessionIds = new Set(
+        (
+          await Promise.all(
+            loadedSessions
+              .filter((session) => session.title === '新会话')
+              .map(async (session) => {
+                const messages = await getMessagesBySession(session.id);
+                return messages.length === 0 ? session.id : null;
+              })
+          )
+        ).filter((id): id is string => id !== null)
+      );
+      const { reusableSession, staleSessionIds } = planEmptySessionCleanup(
+        loadedSessions,
+        emptySessionIds
+      );
+
+      for (const id of staleSessionIds) {
+        await dbDeleteSession(id);
+      }
+
+      const session = reusableSession ?? (await createSession('新会话'));
+      await loadSessions();
+      await loadSession(session.id);
+      resetFirstMessageFlag();
+    })();
+
+    newSessionRequestRef.current = request;
+    try {
+      await request;
+    } finally {
+      if (newSessionRequestRef.current === request) {
+        newSessionRequestRef.current = null;
+      }
+    }
   }, [loadSession, loadSessions, resetFirstMessageFlag]);
 
   const switchSession = useCallback(
@@ -72,7 +110,7 @@ export function useAIChatSessions({
       await loadSessions();
 
       if (sessionId === id) {
-        const remainingSessions = await listRemainingSessions();
+        const remainingSessions = await listSessions();
         if (remainingSessions.length > 0) {
           await loadSession(remainingSessions[0].id);
         } else {
@@ -97,9 +135,6 @@ export function useAIChatSessions({
       }
 
       await createNewSession();
-      if (mounted) {
-        initializedRef.current = true;
-      }
     };
 
     void init();
@@ -108,23 +143,6 @@ export function useAIChatSessions({
       loadRequestIdRef.current += 1;
     };
   }, [createNewSession, loadSession, loadSessions]);
-
-  useEffect(() => {
-    let wasHidden = document.visibilityState === 'hidden';
-
-    const handleVisibilityChange = () => {
-      const isVisible = document.visibilityState === 'visible';
-      const reopened = wasHidden && isVisible;
-      wasHidden = !isVisible;
-
-      if (reopened && initializedRef.current) {
-        void createNewSession();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [createNewSession]);
 
   useEffect(() => {
     if (sessionId) {
