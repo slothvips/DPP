@@ -1,314 +1,155 @@
-# 隐私政策 (Privacy Policy)
+# DPP 隐私政策 / Privacy Policy
 
-**最后更新日期**: 2026年2月3日
-**生效日期**: 2026年2月3日
+**最后更新日期 / Last updated:** 2026年9月3日 / September 3, 2026  
+**生效日期 / Effective date:** 2026年9月3日 / September 3, 2026
 
----
+本政策适用于 DPP 浏览器扩展（以下简称“DPP”或“本扩展”）。DPP 是一个本地优先的开发和团队工作工具。本政策说明 DPP 收集、使用、存储和共享哪些数据，以及您如何控制这些数据。
 
-## 概述
+This policy applies to the DPP browser extension. DPP is a local-first development and team-work tool. It explains what data DPP collects, how it is used, where it is stored, when it is shared, and how you can control it.
 
-DPP ("本扩展") 尊重并保护用户隐私。本隐私政策说明了我们如何收集、使用、存储和保护您的个人信息。
+## 1. 数据控制者和联系方式 / Controller and contact
 
-**核心原则**：
+DPP 由开源项目维护者运营。隐私问题、数据请求或安全问题请联系：
 
-- ✅ 所有数据默认存储在**您的本地设备**
-- ✅ 不会在未经授权的情况下上传数据到任何服务器
-- ✅ 可选的同步功能使用**端到端加密** (E2EE)
-- ✅ 我们**无法访问**您的加密数据
+- 邮箱 / Email: `18512857416@163.com`
+- GitHub: https://github.com/slothvips/DPP/issues
 
----
+## 2. 我们处理的数据 / Data we process
 
-## 1. 我们收集的信息
+除非本政策另有说明，DPP 不会因为安装扩展而自动收集或上传个人数据。DPP 处理的数据可能包括以下内容：
 
-### 1.1 本地存储数据
+### 2.1 您主动输入或导入的数据
 
-以下数据仅存储在您的浏览器本地存储 (IndexedDB) 中，**不会自动上传到任何服务器**：
+- 链接、链接名称、分类、备注、标签和访问次数；
+- 黑板内容、团队资料、测试物料和测试执行结果；
+- Jenkins 服务器地址、用户名、访问令牌、任务参数、任务结果和构建用户名；
+- TOTP/验证器账户名称、发行方、密钥及生成的验证码配置；
+- AI 服务地址、模型、API 密钥、AI 对话标题、提示词、回答、工具调用、推理元数据和您提交的图片；
+- DPP 设置、功能开关、同步配置、访问令牌和本地客户端标识符；
+- 您导入的配置文件或录制文件。
 
-| 数据类型         | 包含内容                              | 用途                              |
-| ---------------- | ------------------------------------- | --------------------------------- |
-| **Jenkins 配置** | Jenkins 服务器地址、用户名、API Token | 连接 Jenkins 服务器、触发构建任务 |
-| **团队链接**     | 链接名称、URL、备注、标签             | 管理团队常用链接                  |
-| **使用统计**     | 链接访问次数、最后访问时间            | 提供"最近使用"功能                |
-| **扩展设置**     | 界面偏好设置                          | 保存用户个性化配置                |
+### 2.2 网页任务和浏览器录制数据
 
-### 1.2 同步功能 (可选)
+当您主动使用网页助手或开始录制时，DPP 可能处理当前网页及任务相关标签页的：
 
-如果您**主动启用**数据同步功能：
+- 页面 URL、标题、DOM/页面结构、用户操作和任务状态；
+- 网页控制台日志；
+- 网络请求的 URL、方法、时间、状态、请求/响应头和可读取的请求/响应内容；
+- rrweb 页面事件流，包括页面结构、文本、表单变化、鼠标和键盘交互等内容。
 
-- **加密传输**: 数据在上传前使用 AES-GCM 加密，只有您持有的加密密钥能解密
-- **存储位置**: 您自己部署的同步服务器 (Cloudflare Workers 或 Node.js 服务器)
-- **服务器无法解密**: 同步服务器只存储加密数据，无法读取内容
+这些数据可能包含您访问网站时提交的个人信息、会话标识、令牌或其他敏感内容。录制数据默认保存在本地，只有在您主动导出、同步或发送给 AI 服务时才会离开设备。请勿录制您无权处理的页面内容。
 
-### 1.3 第三方服务访问
+### 2.3 自动产生的技术数据
 
-本扩展会访问以下第三方服务 (仅在您主动使用相关功能时)：
+DPP 可能在本地保存任务时间、同步游标、操作记录、错误信息和近期操作记录，用于恢复任务、执行同步、排查故障和显示最近使用内容。DPP 不运行广告、画像或第三方分析服务，也不建立跨网站的浏览历史档案。
 
-- **Jenkins 服务器**: 您配置的 Jenkins 地址 (用于获取任务列表、触发构建)
-- **HackerNews API**: 获取技术资讯 (公开API，无需认证)
-- **GitHub Trending**: 获取热门项目 (公开API，无需认证)
+## 3. 数据用途 / How we use data
 
-**我们不会向这些服务发送您的个人信息。**
+DPP 仅为以下目的处理数据：
 
----
+1. 提供链接、黑板、Jenkins、TOTP、技术资讯、网页录制和网页助手等用户主动启用的功能；
+2. 保存设置、恢复本地任务、展示历史记录和近期操作；
+3. 在您开启同步后，在您的设备之间同步指定数据；
+4. 在您主动发起 AI 请求时，将必要的对话上下文和任务上下文发送给您选择的 AI 服务并显示结果；
+5. 在您主动使用 Jenkins 功能时，向您配置的 Jenkins 服务器发起请求；
+6. 处理您主动提交的支持请求，并维护扩展安全和稳定性。
 
-## 2. 我们如何使用信息
+DPP 不会将数据用于广告、出售、信用评估、个性化营销或与用户功能无关的画像。DPP 不会为了收集数据而追踪您的浏览活动。
 
-我们收集的信息**仅用于**以下目的：
+## 4. 数据发送给谁 / Who receives data
 
-| 用途             | 说明                                |
-| ---------------- | ----------------------------------- |
-| **提供核心功能** | 存储和管理您的链接、Jenkins 配置    |
-| **跨设备同步**   | (仅在您启用时) 同步数据到您的服务器 |
-| **改善用户体验** | 记录使用统计，提供"最近使用"排序    |
+数据是否离开设备取决于您使用的功能和配置：
 
-**我们不会**：
+### 4.1 AI 服务
 
-- ❌ 将您的数据出售给第三方
-- ❌ 用于广告或营销目的
-- ❌ 在未经您同意的情况下分享您的数据
+使用 AI 助手时，您的提示词、对话上下文、网页任务上下文、工具调用和可选图片会发送到您在 DPP 中选择的 AI 服务地址。服务可能包括 Anthropic、Google Gemini、OpenCode 或您配置的其他 OpenAI 兼容服务。API 密钥通过请求认证发送给对应服务。
 
----
+这些服务由各自的运营方独立控制，可能按照各自的隐私政策和数据保留规则处理请求。请在发送敏感内容前阅读相应服务的政策。DPP 不控制第三方服务如何保留或使用其收到的数据。
 
-## 3. 数据存储和安全
+### 4.2 Jenkins
 
-### 3.1 本地存储
+使用 Jenkins 功能时，DPP 会向您配置的 Jenkins 地址发送认证请求、任务查询、构建触发或取消请求。Jenkins 服务器将按照其运营方的规则处理这些请求和返回数据。
 
-- **位置**: 浏览器 IndexedDB (chrome-extension://[扩展ID])
-- **访问权限**: 只有本扩展可以访问
-- **保护措施**: 浏览器沙箱隔离
+### 4.3 您配置的同步服务器
 
-### 3.2 同步服务器 (可选)
+开启同步后，DPP 仅同步属于已启用同步范围的数据。同步数据在发送前使用您设备上的同步密钥进行 AES-GCM 加密；同步服务器通常可看到请求时间、客户端标识符、操作类型、表名、数据大小和加密载荷等技术元数据，但无法使用其自身数据解密载荷。
 
-如果您启用同步功能：
+同步服务器由您或您的组织配置和控制。DPP 不运营默认的同步服务器，也不会将同步密钥上传到同步服务器。同步服务器使用 `http://` 时传输可能未加密；生产环境应使用您信任的 HTTPS 服务器。
 
-- **端到端加密**: 使用 AES-256-GCM 加密
-- **密钥管理**: 加密密钥仅存储在您的本地设备，**永不上传**
-- **服务器访问**: 同步服务器只能看到加密数据，无法解密
-- **传输安全**: 所有网络传输使用 HTTPS
+### 4.4 公开信息服务
 
-### 3.3 敏感信息处理
+使用技术资讯或更新日志功能时，DPP 可能从公开的 Hacker News、GitHub Trending、GitHub 仓库或相关公开地址读取内容。这些请求不包含您的链接、对话、凭据或录制内容。
 
-- **Jenkins API Token**: 存储在本地加密数据库，仅在请求 Jenkins API 时使用
-- **链接备注**: 可能包含敏感信息 (如密码)，建议启用同步加密
+除上述情况外，DPP 不向第三方出售或提供您的个人数据。法律要求、保护安全以及处理您主动提交的支持请求除外；在法律允许的范围内，我们会尽量通知您。
 
----
+## 5. 存储位置和保留期限 / Storage and retention
 
-## 4. 权限说明
+- **本地数据：** 链接、凭据、AI 对话、录制、TOTP、任务和设置默认保存在浏览器扩展的 IndexedDB、`chrome.storage` 或网页存储中，并保留至您删除、清空数据、卸载扩展或浏览器清除这些数据。
+- **导出文件：** 导出的 JSON 或录制文件由您选择保存位置；DPP 无法控制操作系统或其他应用对其的保留时间。
+- **同步数据：** 加密同步数据保留在您配置的同步服务器上，期限由该服务器的管理员、服务器配置和删除操作决定。卸载 DPP 不会自动删除同步服务器上的数据。
+- **AI/Jenkins/公开服务：** 请求和返回数据的保留期限由对应服务运营方的政策和配置决定。
 
-本扩展请求以下浏览器权限：
+DPP 不在开发者自有服务器上建立用户账户，也不维护用于广告或分析的用户画像数据库。
 
-| 权限         | 用途           | 说明                               |
-| ------------ | -------------- | ---------------------------------- |
-| `storage`    | 存储配置和数据 | 保存链接、设置到本地 IndexedDB     |
-| `alarms`     | 定时任务       | 定期同步数据、更新技术资讯         |
-| `activeTab`  | 标签页访问     | 地址栏快捷访问 (输入 `dpp` + 空格) |
-| `<all_urls>` | 访问网站       | 调用 Jenkins API、注入内容脚本     |
+## 6. 安全措施 / Security
 
-**我们不会**：
+- 同步数据在上传前使用设备上的密钥进行 AES-GCM 加密；团队数据和个人数据使用不同的同步密钥范围；
+- AI API 密钥在支持的本地配置路径中加密保存，密钥材料保存在本地；
+- 浏览器扩展页面使用浏览器提供的存储隔离；
+- 网络请求尽量使用 HTTPS，但您配置的 Jenkins 或同步服务器地址可能允许 HTTP，连接安全由该服务器配置决定；
+- DPP 不会在日志中主动记录完整的 API 密钥，但网页录制和控制台内容本身可能包含敏感数据。
 
-- ❌ 追踪您的浏览历史
-- ❌ 读取其他网站的敏感信息
-- ❌ 在未经授权的情况下发送网络请求
+任何本地存储或网络传输都不能保证绝对安全。请使用强密码、HTTPS、可信的 AI/Jenkins/同步服务器，并妥善保管导出文件和同步密钥。
 
----
+## 7. 您的控制权 / Your choices and rights
 
-## 5. 数据共享
+您可以：
 
-我们**不会**与第三方共享您的个人数据，除非：
+- 在设置页关闭不需要的功能和自动同步；
+- 使用设置页的数据导出功能导出可导出的配置和记录；
+- 使用“清空所有数据”删除 DPP 在当前设备上的本地数据；
+- 删除录制、对话、链接、TOTP 和其他记录；
+- 卸载扩展以移除浏览器中的扩展数据；
+- 登录您配置的同步服务器，单独删除服务器上的同步数据；
+- 联系我们查询、纠正或删除由支持请求产生的数据，并提出隐私问题。
 
-1. **法律要求**: 根据法律、法规或法律程序要求
-2. **您的同意**: 在获得您明确同意的情况下
-3. **服务提供商**: 您自己部署的同步服务器 (您完全控制)
+由于 DPP 默认不在开发者服务器上保存用户账户数据，我们通常无法恢复或直接删除只存在于您设备、第三方服务或您自建同步服务器上的数据。请向相应的设备管理员或服务运营方提出请求。
 
----
+## 8. Cookie、追踪和儿童隐私 / Cookies, tracking, and children
 
-## 6. 您的权利
+DPP 不使用 Cookie、广告标识符、第三方分析 SDK 或跨网站追踪技术。DPP 不面向 13 岁以下儿童，也不会明知收集 13 岁以下儿童的个人信息。
 
-您对自己的数据拥有完全控制权：
+## 9. 权限说明 / Browser permissions
 
-| 权利         | 如何操作                                             |
-| ------------ | ---------------------------------------------------- |
-| **查看数据** | 浏览器 DevTools → Application → IndexedDB → DPPDB    |
-| **导出数据** | (功能开发中)                                         |
-| **删除数据** | 扩展选项页 → "清空所有数据并重置"                    |
-| **停用同步** | 扩展选项页 → 关闭同步功能                            |
-| **卸载扩展** | chrome://extensions/ → 移除扩展 (将删除所有本地数据) |
+- `storage`：保存设置、链接、任务和其他用户数据；
+- `sidePanel`：提供侧边栏工作界面；
+- `alarms`：执行用户启用的定时同步或资讯更新；
+- `scripting`、`tabs`、`tabGroups`：在用户主动使用网页助手、录制或标签页相关功能时读取和操作相关标签页；
+- `clipboardWrite`：执行用户主动发起的复制操作；
+- `<all_urls>`：让用户在任意网站上使用网页助手、录制、网络/控制台查看及相关页面功能。
 
----
+权限不会改变本政策所述的数据用途。网页权限使 DPP 能够处理当前网页内容，但 DPP 不会因获得权限而自动把所有浏览历史上传给开发者。
 
-## 7. Cookie 和追踪技术
+## 10. 政策更新 / Changes to this policy
 
-本扩展**不使用** Cookie 或任何追踪技术。
+我们可能因功能、法律或数据处理方式变化而更新本政策。更新后会修改本页面的“最后更新日期”。重大变化会在扩展中或发布页面以合理方式提示。继续使用 DPP 即表示您已阅读更新后的政策；如不同意，请停止使用并删除本扩展及相关数据。
 
-我们**不会**：
+## 11. 开源代码 / Open source
 
-- ❌ 追踪您的在线活动
-- ❌ 收集匿名使用统计
-- ❌ 使用第三方分析服务
+DPP 源代码公开于： https://github.com/slothvips/DPP
+
+源代码公开不代表第三方服务受 DPP 控制；使用 AI、Jenkins 或同步服务时，仍应阅读相应运营方的政策。
 
 ---
 
-## 8. 未成年人隐私
+# English Summary
 
-本扩展不针对 13 岁以下儿童。我们不会故意收集未成年人的个人信息。
+DPP is a local-first browser extension. It does not automatically collect or upload personal data merely because it is installed. Depending on the features you use, DPP may process locally stored links, notes, tags, blackboard content, Jenkins credentials and build metadata, TOTP accounts, AI settings and conversations, test materials, browser-task state, and browser recordings.
 
----
+When you actively use web assistance or recording, the extension may process the current page's URL, DOM, visible content, user interactions, console logs, and network request information, including headers and readable bodies. These records may contain sensitive information. They remain local unless you explicitly export, sync, or send them to an AI provider.
 
-## 9. 国际数据传输
+When you use an AI feature, the relevant prompts, conversation context, page context, tool calls, and optional images are sent to the AI provider endpoint you configured, such as Anthropic, Google Gemini, OpenCode, or another compatible provider. When you use Jenkins features, requests and credentials are sent to the Jenkins server you configured. Those services operate independently under their own policies.
 
-- **本地优先**: 数据默认存储在您的本地设备
-- **同步服务器位置**: 由您决定 (您自己部署的服务器位置)
-- **加密保护**: 即使数据跨境传输，也受端到端加密保护
+When optional sync is enabled, selected sync data is encrypted on your device with AES-GCM before being sent to the sync server you configured. The server may see technical metadata such as timestamps, client identifiers, operation types, table names, and encrypted payloads, but it cannot decrypt the payload without your key. You are responsible for the sync server and its retention. DPP does not operate a default sync server.
 
----
-
-## 10. 隐私政策更新
-
-我们可能会不时更新本隐私政策。更新时：
-
-1. 在扩展页面显示通知
-2. 更新本文档的"最后更新日期"
-3. 如有重大变更，会在扩展中弹窗通知
-
----
-
-## 11. 开源透明
-
-本扩展代码**开源**，您可以审查源代码以验证我们的隐私承诺：
-
-- **源代码仓库**: [[GitHub 仓库 URL](https://github.com/slothvips/DPP)]
-- **安全审计**: 欢迎安全研究人员审查代码
-
----
-
-## 12. 联系我们
-
-如果您对本隐私政策有任何疑问或担忧，请通过以下方式联系我们：
-
-- **邮箱**: [18512857416@163.com]
-- **GitHub Issues**: [https://github.com/slothvips/DPP/issues]
-
-我们会在 **7 个工作日内**回复您的询问。
-
----
-
-## 13. 数据泄露应对
-
-如果发生数据泄露事件：
-
-1. **立即通知**: 我们会在发现后 72 小时内通知受影响用户
-2. **泄露范围**: 说明受影响的数据类型和用户范围
-3. **补救措施**: 提供必要的补救建议
-4. **加密保护**: 由于使用端到端加密，即使数据泄露也无法被解密
-
----
-
-## 14. 您的同意
-
-使用本扩展即表示您已阅读并同意本隐私政策。
-
-如果您不同意本政策，请不要使用本扩展。
-
----
-
-## 附录: 常见问题
-
-### Q1: 我的 Jenkins API Token 安全吗?
-
-**A**: 是的。Token 存储在本地 IndexedDB 中，受浏览器沙箱保护。如果启用同步，会先加密再上传。
-
-### Q2: 同步服务器能看到我的数据吗?
-
-**A**: 不能。所有数据在上传前使用您的密钥加密，服务器只能看到加密数据。
-
-### Q3: 如果丢失加密密钥怎么办?
-
-**A**: 加密数据将**永久无法恢复**。请务必备份您的加密密钥。
-
-### Q4: 卸载扩展后数据会保留吗?
-
-**A**: 不会。卸载扩展会删除所有本地数据。同步服务器的数据需要手动删除。
-
----
-
-**本政策使用 [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/) 许可协议**
-
----
-
-## English Version
-
-# Privacy Policy
-
-**Last Updated**: February 3, 2026
-**Effective Date**: February 3, 2026
-
-### Overview
-
-DPP ("the Extension") respects and protects user privacy. This Privacy Policy explains how we collect, use, store, and protect your personal information.
-
-**Core Principles**:
-
-- ✅ All data is stored **locally on your device** by default
-- ✅ No data is uploaded to any server without your authorization
-- ✅ Optional sync feature uses **end-to-end encryption** (E2EE)
-- ✅ We **cannot access** your encrypted data
-
-### 1. Information We Collect
-
-**Locally Stored Data** (stored in browser IndexedDB only):
-
-- Jenkins configurations (server URL, username, API Token)
-- Team links (name, URL, notes, tags)
-- Usage statistics (visit count, last used time)
-- Extension settings
-
-**Sync Feature** (optional):
-
-- Encrypted data transmitted to your self-hosted server
-- End-to-end encrypted with AES-256-GCM
-- Server cannot decrypt your data
-
-**Third-Party Services**:
-
-- Your Jenkins server (when you use Jenkins features)
-- HackerNews API (public, read-only)
-- GitHub Trending (public, read-only)
-
-### 2. How We Use Information
-
-We use collected information **solely** for:
-
-- Providing core features (link management, Jenkins integration)
-- Cross-device synchronization (when enabled)
-- Improving user experience (usage statistics)
-
-We **do NOT**:
-
-- ❌ Sell your data to third parties
-- ❌ Use data for advertising or marketing
-- ❌ Share data without your consent
-
-### 3. Data Security
-
-- **Local Storage**: Browser IndexedDB with sandbox isolation
-- **Sync Encryption**: AES-256-GCM end-to-end encryption
-- **Transport Security**: HTTPS for all network requests
-- **Key Management**: Encryption keys never leave your device
-
-### 4. Your Rights
-
-- **View Data**: Browser DevTools → IndexedDB → DPPDB
-- **Delete Data**: Extension Options → "Clear all data"
-- **Export Data**: (Coming soon)
-- **Disable Sync**: Extension Options → Turn off sync
-
-### 5. Contact Us
-
-For privacy concerns, contact us at:
-
-- **Email**: 18512857416@163.com
-- **GitHub**: https://github.com/slothvips/DPP
-
----
-
-**By using this extension, you agree to this Privacy Policy.**
+DPP does not sell personal data, use it for advertising, run third-party analytics, or track browsing history for unrelated purposes. Local data remains until you delete it, clear extension data, or uninstall the extension. Exported files and data held by AI, Jenkins, public-information, or sync services are governed by the relevant device administrator or service operator. Contact `18512857416@163.com` or https://github.com/slothvips/DPP/issues for privacy questions or data requests.

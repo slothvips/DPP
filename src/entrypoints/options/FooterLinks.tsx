@@ -1,4 +1,4 @@
-import { FileText, Github } from 'lucide-react';
+import { FileText, Github, ShieldCheck } from 'lucide-react';
 import { browser } from 'wxt/browser';
 
 export function FooterLinks() {
@@ -12,6 +12,15 @@ export function FooterLinks() {
       >
         <Github className="w-3 h-3" />
         Open Source on GitHub
+      </a>
+      <a
+        href="https://github.com/slothvips/DPP/blob/main/PRIVACY.md"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ShieldCheck className="w-3 h-3" />
+        隐私政策
       </a>
       <a
         href={
