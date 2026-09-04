@@ -1,4 +1,3 @@
-import { ChevronLeft } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { TabId } from '@/entrypoints/sidepanel/sidepanelTypes';
 import { cn } from '@/utils/cn';
@@ -11,11 +10,9 @@ export interface AIModuleItem {
 }
 
 interface AIModuleLauncherProps {
-  activeId?: TabId;
+  activeId: TabId;
   items: AIModuleItem[];
-  onClose: () => void;
   onSelect: (id: TabId) => void;
-  className?: string;
 }
 
 function getModuleTone(id: TabId): string {
@@ -28,37 +25,16 @@ function getModuleTone(id: TabId): string {
   return 'bg-[#56616b] text-white';
 }
 
-export function AIModuleLauncher({
-  activeId,
-  items,
-  onClose,
-  onSelect,
-  className,
-}: AIModuleLauncherProps) {
+export function AIModuleLauncher({ activeId, items, onSelect }: AIModuleLauncherProps) {
   return (
     <section
-      className={cn(
-        'flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground',
-        className
-      )}
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-background text-foreground"
       aria-label="模块入口"
     >
-      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border/60 px-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-muted/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_1px_rgba(0,0,0,0.08)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-label="关闭模块入口"
-            title="关闭模块入口"
-            onClick={onClose}
-          >
-            <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-          </button>
-          <span className="text-sm font-semibold text-foreground">模块</span>
-        </div>
-        <span className="text-[10px] text-muted-foreground">{items.length} 项</span>
+      <div className="flex h-12 shrink-0 items-center border-b border-border/60 px-3 pr-12">
+        <span className="text-sm font-semibold text-foreground">模块</span>
       </div>
-      <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-3 gap-2 overflow-y-auto border-b border-border/60 px-2 py-3">
+      <div className="grid min-h-0 flex-1 auto-rows-[7rem] grid-cols-3 content-start gap-2 overflow-y-auto border-b border-border/60 px-2 py-3">
         {items.map((item) => (
           <button
             key={item.id}

@@ -32,7 +32,9 @@ function getInitialActiveTab(): TabId {
     return tabParam;
   }
 
-  return 'aiAssistant';
+  if (typeof localStorage === 'undefined') return 'aiAssistant';
+  const storedTab = localStorage.getItem('dpp_active_tab');
+  return isValidTabId(storedTab) ? storedTab : 'aiAssistant';
 }
 
 interface UseSidepanelTabsOptions {
@@ -48,6 +50,9 @@ function getFirstVisibleTab(featureToggles: FeatureToggles): TabId | null {
 export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
   const [activeTab, setActiveTab] = useState<TabId>(getInitialActiveTab);
   const [recentTabs, setRecentTabs] = useState<TabId[]>(getInitialRecentTabs);
+  const visibleActiveTab = TAB_CONFIG[activeTab].getVisible({ featureToggles })
+    ? activeTab
+    : (getFirstVisibleTab(featureToggles) ?? activeTab);
 
   useEffect(() => {
     const isActiveTabVisible = TAB_CONFIG[activeTab].getVisible({ featureToggles });
@@ -86,7 +91,7 @@ export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
   }, []);
 
   return {
-    activeTab,
+    activeTab: visibleActiveTab,
     handleTabChange,
     recentTabs,
   };

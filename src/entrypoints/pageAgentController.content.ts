@@ -51,6 +51,7 @@ function isPageControlAction(value: unknown): value is PageControlAction {
   return (
     value === 'get_last_update_time' ||
     value === 'get_browser_state' ||
+    value === 'read_page' ||
     value === 'update_tree' ||
     value === 'clean_up_highlights' ||
     value === 'click_element' ||
@@ -71,6 +72,8 @@ function execute(
       return controller.getLastUpdateTime();
     case 'get_browser_state':
       return controller.getBrowserState();
+    case 'read_page':
+      return Promise.resolve(readPage(payload));
     case 'update_tree':
       return controller.updateTree();
     case 'clean_up_highlights':
@@ -88,6 +91,23 @@ function execute(
         readScrollOptions<Parameters<PageController['scrollHorizontally']>[0]>(payload)
       );
   }
+}
+
+function readPage(payload: unknown[]) {
+  const requestedLimit = payload[0];
+  const maxChars =
+    typeof requestedLimit === 'number' && Number.isInteger(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 1_000), 20_000)
+      : 10_000;
+  const content = document.body?.innerText?.replace(/\s+\n/g, '\n').trim() || '';
+  const selectedText = window.getSelection()?.toString().trim() || '';
+  return {
+    title: document.title,
+    url: location.href,
+    selectedText: selectedText.slice(0, maxChars),
+    content: content.slice(0, maxChars),
+    truncated: content.length > maxChars,
+  };
 }
 
 function readElementIndex(payload: unknown[]): number {

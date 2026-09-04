@@ -12,6 +12,7 @@ import {
   findActiveTestRunForSession,
   finishTestRun,
   getTestRun,
+  redactTestData,
   setTestRunCurrentStep,
   startTestRun,
   updateTestRunStep,
@@ -40,6 +41,23 @@ export function registerTestRunTools(): void {
     handler: executeTestRun as ToolHandler,
     requiresConfirmation: true,
     exposeToModel: TEST_RUNNER_V2_ENABLED,
+  });
+
+  toolRegistry.register({
+    name: 'test_run_report',
+    description:
+      '读取一次测试执行的完整报告，包括步骤状态、实际结果、失败原因和关联的浏览器任务 ID。敏感测试数据会被脱敏。',
+    parameters: createToolParameter(
+      {
+        run_id: { type: 'string', description: '测试执行记录 ID' },
+        include_attempts: {
+          type: 'boolean',
+          description: '是否包含每一步的重试详情，默认 false',
+        },
+      },
+      ['run_id']
+    ),
+    handler: testRunReport as ToolHandler,
   });
 
   toolRegistry.register({
@@ -170,6 +188,64 @@ export function registerTestRunTools(): void {
     }) as ToolHandler,
     exposeToModel: !TEST_RUNNER_V2_ENABLED,
   });
+}
+
+async function testRunReport(args: { run_id: string; include_attempts?: boolean }) {
+  const run = await getTestRun(args.run_id);
+  if (!run) throw new Error('测试执行记录不存在');
+  const definition = run.content.testCaseSnapshot;
+  const results = new Map(run.content.report.stepResults.map((result) => [result.stepId, result]));
+  const steps = [...definition.steps]
+    .sort((left, right) => left.order - right.order)
+    .map((step) => {
+      const result = results.get(step.id);
+      return {
+        id: step.id,
+        order: step.order,
+        target_id: step.targetId,
+        action: redactTestData(step.action, definition),
+        expected_result: redactTestData(step.expectedResult, definition),
+        status:
+          result?.status ||
+          (run.currentStepId === step.id || run.currentStepIds?.includes(step.id)
+            ? 'running'
+            : 'pending'),
+        actual_result: redactTestData(result?.actualResult, definition),
+        detail: redactTestData(result?.detail, definition),
+        browser_task_id: result?.browserTaskId,
+        ...(args.include_attempts
+          ? {
+              attempts: result?.attempts?.map((attempt) => ({
+                ...attempt,
+                detail: redactTestData(attempt.detail, definition),
+              })),
+            }
+          : {}),
+      };
+    });
+
+  return {
+    success: true,
+    run_id: run.id,
+    test_case_id: run.testCaseMaterialId,
+    test_case_version: run.testCaseVersion,
+    status: run.status,
+    started_at: run.startedAt,
+    finished_at: run.finishedAt,
+    current_step_id: run.currentStepId,
+    summary: redactTestData(run.content.report.summary, definition),
+    error: redactTestData(run.content.report.error, definition),
+    progress: {
+      completed: run.content.report.stepResults.length,
+      total: definition.steps.length,
+    },
+    targets: definition.targets.map((target) => ({
+      id: target.id,
+      name: target.name,
+      url: redactTestData(target.url, definition),
+    })),
+    steps,
+  };
 }
 
 async function executeTestRun(args: unknown): Promise<Record<string, unknown>> {

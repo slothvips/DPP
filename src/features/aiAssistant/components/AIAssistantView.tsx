@@ -36,7 +36,7 @@ import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 const AI_INPUT_PANEL_SIZE_KEY = 'ai-assistant-input-panel-height';
 const DEFAULT_AI_INPUT_PANEL_SIZE = 260;
-const MIN_AI_INPUT_PANEL_SIZE = 220;
+const MIN_AI_INPUT_PANEL_SIZE = 180;
 
 function getSavedInputPanelSize(): number {
   const saved = Number(localStorage.getItem(AI_INPUT_PANEL_SIZE_KEY));
@@ -382,7 +382,7 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
         />
       ) : (
         <Allotment vertical separator onDragEnd={saveInputPanelSize} className="min-h-0 flex-1">
-          <Allotment.Pane minSize={180}>
+          <Allotment.Pane minSize={96}>
             <div className="flex h-full min-h-0 min-w-0 flex-col">
               <AIAssistantMessagesPanel
                 messages={messages}
@@ -407,7 +407,7 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
             preferredSize={getSavedInputPanelSize()}
             minSize={MIN_AI_INPUT_PANEL_SIZE}
           >
-            <div className="h-full min-h-[220px] overflow-y-auto">
+            <div className="h-full min-h-[180px] overflow-y-auto">
               <AIAssistantInputSection
                 isConfigMissing={isConfigMissing}
                 currentProvider={currentProvider}

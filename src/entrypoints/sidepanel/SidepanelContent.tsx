@@ -1,4 +1,4 @@
-import { ArrowLeft, LayoutGrid, Lightbulb, X } from 'lucide-react';
+import { ArrowLeft, LayoutGrid, Lightbulb } from 'lucide-react';
 import React from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { GlobalSyncButton } from '@/components/GlobalSyncButton';
@@ -184,18 +184,31 @@ export function SidepanelContent({
           </>
         )}
         {!isMinimalMode && (
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowModuleLauncher((visible) => !visible)}
-              aria-label={showModuleLauncher ? '关闭模块面板' : '打开模块面板'}
-              aria-expanded={showModuleLauncher}
-              title={showModuleLauncher ? '关闭模块面板' : '打开模块面板'}
-              className="h-8 w-8 shrink-0 rounded-md border border-border/70 bg-muted/55 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_1px_rgba(0,0,0,0.08)] hover:bg-muted hover:text-foreground"
-            >
-              {showModuleLauncher ? <X className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-            </Button>
+          <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1">
+            <Dialog open={showModuleLauncher} onOpenChange={setShowModuleLauncher}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="打开模块面板"
+                  title="打开模块面板"
+                  className="h-8 w-8 shrink-0 rounded-md border border-border/70 bg-muted/55 text-muted-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_1px_rgba(0,0,0,0.08)] hover:bg-muted hover:text-foreground"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                aria-describedby={undefined}
+                className="inset-0 left-0 top-0 flex h-full max-h-none w-full max-w-none translate-x-0 translate-y-0 gap-0 border-0 p-0 shadow-none sm:rounded-none"
+              >
+                <DialogTitle className="sr-only">模块入口</DialogTitle>
+                <AIModuleLauncher
+                  activeId={activeTab}
+                  items={moduleItems}
+                  onSelect={handleModuleSelect}
+                />
+              </DialogContent>
+            </Dialog>
             {recentModuleItems.map((item) => (
               <Button
                 key={item.id}
@@ -216,16 +229,6 @@ export function SidepanelContent({
         )}
       </header>
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-        {showModuleLauncher && !isMinimalMode && (
-          <div className="absolute inset-0 z-50 overflow-hidden bg-background">
-            <AIModuleLauncher
-              activeId={activeTab}
-              items={moduleItems}
-              onClose={() => setShowModuleLauncher(false)}
-              onSelect={handleModuleSelect}
-            />
-          </div>
-        )}
         {/* 同步导入的轻量视图:始终挂载(KeepAlive)；各模块独立 ErrorBoundary，避免单模块错误拖垮整页 */}
         <KeepAliveTabPanel active={activeTab === 'links'} visible={featureToggles.links}>
           <ErrorBoundary moduleName={TAB_CONFIG.links.label} className="h-full">

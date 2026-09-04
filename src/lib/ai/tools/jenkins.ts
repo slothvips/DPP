@@ -1,5 +1,13 @@
 // Jenkins management AI tools
-import { getJob, listBuilds, listJobs, switchJenkinsEnv, syncJenkins } from '@/lib/db/jenkins';
+import { getBuildDetails } from '@/features/jenkins/api/buildDetails';
+import {
+  getJenkinsCredentials,
+  getJob,
+  listBuilds,
+  listJobs,
+  switchJenkinsEnv,
+  syncJenkins,
+} from '@/lib/db/jenkins';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
 
@@ -15,6 +23,21 @@ async function jenkins_list_jobs(args: { keyword?: string; page?: number; pageSi
  */
 async function jenkins_list_builds(args: { jobUrl: string; limit?: number; offset?: number }) {
   return listBuilds(args);
+}
+
+async function jenkins_get_build_details(args: {
+  buildUrl: string;
+  envId?: string;
+  consoleTailLines?: number;
+}) {
+  const { host, user, token } = await getJenkinsCredentials(args.envId);
+  return getBuildDetails(
+    args.buildUrl,
+    user,
+    token,
+    host,
+    Math.min(Math.max(0, args.consoleTailLines ?? 100), 200)
+  );
 }
 
 /**
@@ -109,6 +132,26 @@ export function registerJenkinsTools() {
       ['jobUrl']
     ),
     handler: jenkins_list_builds as ToolHandler,
+  });
+
+  toolRegistry.register({
+    name: 'jenkins_get_build_details',
+    description:
+      '读取一个 Jenkins 构建的状态、参数、变更、产物、测试统计和脱敏后的控制台日志尾部。先用 jenkins_list_builds 获取 buildUrl。',
+    parameters: createToolParameter(
+      {
+        buildUrl: { type: 'string', description: 'Jenkins 构建 URL' },
+        envId: { type: 'string', description: 'Jenkins 环境 ID，不提供时使用当前环境' },
+        consoleTailLines: {
+          type: 'integer',
+          minimum: 0,
+          maximum: 200,
+          description: '控制台日志尾部行数，默认 100；设为 0 不读取日志',
+        },
+      },
+      ['buildUrl']
+    ),
+    handler: jenkins_get_build_details as ToolHandler,
   });
 
   // jenkins_trigger_build (requires confirmation)

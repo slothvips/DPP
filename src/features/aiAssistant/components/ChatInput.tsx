@@ -110,7 +110,7 @@ export const ChatInput = memo(function ChatInput({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="min-h-[120px] min-w-0 flex-1 resize-none rounded-2xl border-border/70 bg-background px-4 py-3 shadow-none"
+          className="min-h-[48px] min-w-0 flex-1 resize-none rounded-2xl border-border/70 bg-background px-4 py-3 shadow-none"
           rows={1}
           data-testid="ai-chat-input"
         />

@@ -3,28 +3,28 @@ import { db } from '@/db';
 import { DEFAULT_FEATURE_TOGGLES } from './sidepanelTypes';
 
 export function useSidepanelSettings() {
-  const featureToggles =
-    useLiveQuery(async () => {
-      const hotNews = await db.settings.get('feature_hotnews_enabled');
-      const links = await db.settings.get('feature_links_enabled');
-      const blackboard = await db.settings.get('feature_blackboard_enabled');
-      const jenkins = await db.settings.get('feature_jenkins_enabled');
-      const recorder = await db.settings.get('feature_recorder_enabled');
-      const aiAssistant = await db.settings.get('feature_ai_assistant_enabled');
-      const playground = await db.settings.get('feature_playground_enabled');
-      const totp = await db.settings.get('feature_totp_enabled');
+  const storedFeatureToggles = useLiveQuery(async () => {
+    const hotNews = await db.settings.get('feature_hotnews_enabled');
+    const links = await db.settings.get('feature_links_enabled');
+    const blackboard = await db.settings.get('feature_blackboard_enabled');
+    const jenkins = await db.settings.get('feature_jenkins_enabled');
+    const recorder = await db.settings.get('feature_recorder_enabled');
+    const aiAssistant = await db.settings.get('feature_ai_assistant_enabled');
+    const playground = await db.settings.get('feature_playground_enabled');
+    const totp = await db.settings.get('feature_totp_enabled');
 
-      return {
-        hotNews: hotNews?.value !== false,
-        links: links?.value !== false,
-        blackboard: blackboard?.value !== false,
-        jenkins: jenkins?.value !== false,
-        recorder: recorder?.value !== false,
-        aiAssistant: aiAssistant?.value !== false,
-        playground: playground?.value !== false,
-        totp: totp?.value !== false,
-      };
-    }) ?? DEFAULT_FEATURE_TOGGLES;
+    return {
+      hotNews: hotNews?.value !== false,
+      links: links?.value !== false,
+      blackboard: blackboard?.value !== false,
+      jenkins: jenkins?.value !== false,
+      recorder: recorder?.value !== false,
+      aiAssistant: aiAssistant?.value !== false,
+      playground: playground?.value !== false,
+      totp: totp?.value !== false,
+    };
+  });
+  const featureToggles = storedFeatureToggles ?? DEFAULT_FEATURE_TOGGLES;
 
   const serverUrl = useLiveQuery(async () => {
     const setting = await db.settings.get('custom_server_url');
@@ -35,6 +35,7 @@ export function useSidepanelSettings() {
 
   return {
     featureToggles,
+    settingsReady: storedFeatureToggles !== undefined,
     isMinimalMode,
     showSyncButton: !!serverUrl,
   };

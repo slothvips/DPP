@@ -348,7 +348,7 @@ function limitReportText(value: string | undefined, label: string): string | und
   return normalized;
 }
 
-function redactTestData(
+export function redactTestData(
   value: string | undefined,
   definition: TestRunContent['testCaseSnapshot']
 ): string | undefined {

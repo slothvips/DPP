@@ -7,6 +7,8 @@ import {
   getBrowserTaskRecord,
   reserveBrowserTask,
 } from '@/lib/db/browserTasks';
+import type { PageControlMessage } from '@/lib/pageAgent/multiPageTypes';
+import { redactSensitiveText } from '@/utils/sensitive';
 
 const MAX_TASK_RESULT_LENGTH = 2000;
 const TASK_QUEUE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -182,6 +184,53 @@ export async function listBrowserTabs(): Promise<BrowserTabInfo[]> {
   });
 }
 
+async function pageRead(args: { tab_id?: number; max_chars?: number }) {
+  const tab =
+    args.tab_id === undefined
+      ? (await browser.tabs.query({ active: true, lastFocusedWindow: true }))[0]
+      : await browser.tabs.get(args.tab_id);
+  if (typeof tab?.id !== 'number' || !isInjectableUrl(tab.url)) {
+    throw new Error('没有可读取的 HTTP(S) 标签页');
+  }
+  const message: PageControlMessage = {
+    type: 'PAGE_AGENT_PAGE_CONTROL',
+    action: 'read_page',
+    targetTabId: tab.id,
+    payload: [Math.min(Math.max(1_000, args.max_chars ?? 10_000), 20_000)],
+  };
+  let response: unknown;
+  try {
+    response = await browser.tabs.sendMessage(tab.id, message);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !/Receiving end does not exist|Could not establish connection/i.test(error.message)
+    ) {
+      throw error;
+    }
+    await browser.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['/content-scripts/pageAgentController.js'],
+    });
+    response = await browser.tabs.sendMessage(tab.id, message);
+  }
+  if (!isRecord(response) || response.success === false || !isRecord(response.data)) {
+    throw new Error(
+      isRecord(response) && typeof response.error === 'string' ? response.error : '页面读取失败'
+    );
+  }
+  const data = response.data;
+  return {
+    tab_id: tab.id,
+    title: typeof data.title === 'string' ? data.title : tab.title || '',
+    url: redactSensitiveText(typeof data.url === 'string' ? data.url : tab.url),
+    selected_text:
+      typeof data.selectedText === 'string' ? redactSensitiveText(data.selectedText) : '',
+    content: typeof data.content === 'string' ? redactSensitiveText(data.content) : '',
+    truncated: data.truncated === true,
+  };
+}
+
 export function registerBrowserTaskTools(): void {
   toolRegistry.register({
     name: 'delegate_browser_agent',
@@ -232,6 +281,28 @@ export function registerBrowserTaskTools(): void {
       '列出当前可操作的 HTTP(S) 标签页，并标记每个窗口的活动页以及浏览器当前聚焦窗口中的活动页（is_current）。',
     parameters: createToolParameter({}),
     handler: listBrowserTabs as ToolHandler,
+  });
+  toolRegistry.register({
+    name: 'page_read',
+    description:
+      '读取当前或指定 HTTP(S) 标签页的标题、选中文本和可见正文。只读操作，不返回输入框值。',
+    parameters: createToolParameter(
+      {
+        tab_id: {
+          type: 'integer',
+          description: '标签页 ID；不提供时读取浏览器当前聚焦窗口的活动页',
+        },
+        max_chars: {
+          type: 'integer',
+          minimum: 1_000,
+          maximum: 20_000,
+          description: '正文最大字符数，默认 10000',
+        },
+      },
+      []
+    ),
+    handler: pageRead as ToolHandler,
+    requiresConfirmation: true,
   });
 }
 

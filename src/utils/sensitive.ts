@@ -36,3 +36,12 @@ export function redactSensitiveJsonObject(json: string): string {
     );
   }
 }
+
+export function redactSensitiveText(value: string): string {
+  return value
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/-]+=*/gi, '$1 [redacted]')
+    .replace(
+      /((?:api[-_]?key|private[-_]?key|access[-_]?key|encryption[-_]?key|token|password|passwd|pwd|secret|credential)\s*[=:]\s*)(?:"[^"]*"|'[^']*'|[^\s,;&]+)/gi,
+      '$1[redacted]'
+    );
+}

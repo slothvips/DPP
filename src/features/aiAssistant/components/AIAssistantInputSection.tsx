@@ -50,7 +50,7 @@ export function AIAssistantInputSection({
   const disabled = isConfirming;
 
   return (
-    <div className="relative flex h-full min-h-[220px] flex-col border-t border-border/60 bg-background p-3 backdrop-blur">
+    <div className="relative flex h-full min-h-[180px] flex-col border-t border-border/60 bg-background p-3 backdrop-blur [@media(max-height:520px)]:p-2">
       <div
         className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 text-muted-foreground/55"
         title="拖动上边缘调整输入区高度"
@@ -59,7 +59,7 @@ export function AIAssistantInputSection({
         <GripHorizontal className="h-3 w-8" />
       </div>
       {isConfigMissing && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-warning/20 bg-warning/6 px-3 py-2.5">
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-warning/20 bg-warning/6 px-3 py-2.5 [@media(max-height:520px)]:hidden">
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-warning">连接 AI 服务后开始对话</p>
             <AIConfigDialog onSaved={onConfigSaved}>
@@ -112,7 +112,7 @@ export function AIAssistantInputSection({
         </div>
       </div>
 
-      <div className="min-h-[120px] flex-1 rounded-2xl border border-border/70 bg-muted/20 p-2 shadow-sm">
+      <div className="min-h-0 flex-1 rounded-2xl border border-border/70 bg-muted/20 p-2 shadow-sm">
         <ChatInput
           onSend={onSend}
           onStop={onStop}

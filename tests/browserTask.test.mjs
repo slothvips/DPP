@@ -411,7 +411,7 @@ test('recent action replay waits for TOTP security state and stays local to the 
   assert.match(moduleLauncher, /grid-cols-3/);
   assert.match(moduleLauncher, /h-full min-h-0 w-full/);
   assert.match(moduleLauncher, /border border-border\/70/);
-  assert.match(moduleLauncher, /onClose: \(\) => void/);
+  assert.doesNotMatch(moduleLauncher, /onClose: \(\) => void/);
   assert.doesNotMatch(moduleLauncher, /aspect-square/);
   assert.doesNotMatch(moduleLauncher, /max-w-md/);
   assert.match(jenkinsView, /environments\.length === 0/);
@@ -422,6 +422,30 @@ test('recent action replay waits for TOTP security state and stays local to the 
   assert.match(jenkinsEnvManager, /trigger\?: ReactNode/);
   assert.match(config, /'clipboardWrite'/);
   assert.doesNotMatch(reset, /recentActions/);
+});
+
+test('sidepanel UI keeps core actions visible and replay interactions safe', () => {
+  const tabs = source('../src/entrypoints/sidepanel/useSidepanelTabs.ts');
+  const settings = source('../src/entrypoints/sidepanel/useSidepanelSettings.ts');
+  const sidepanel = source('../src/entrypoints/sidepanel/SidepanelContent.tsx');
+  const assistant = source('../src/features/aiAssistant/components/AIAssistantView.tsx');
+  const input = source('../src/features/aiAssistant/components/ChatInput.tsx');
+  const moduleLauncher = source('../src/features/aiAssistant/components/AIModuleLauncher.tsx');
+  const recentActions = source('../src/features/aiAssistant/components/RecentActions.tsx');
+  const syncButton = source('../src/components/GlobalSyncButton.tsx');
+
+  assert.match(tabs, /localStorage\.getItem\('dpp_active_tab'\)/);
+  assert.match(settings, /settingsReady: storedFeatureToggles !== undefined/);
+  assert.match(sidepanel, /<Dialog open=\{showModuleLauncher\}/);
+  assert.match(assistant, /const MIN_AI_INPUT_PANEL_SIZE = 180/);
+  assert.match(assistant, /<Allotment\.Pane minSize=\{96\}>/);
+  assert.match(assistant, /min-h-\[180px\] overflow-y-auto/);
+  assert.match(input, /min-h-\[48px\]/);
+  assert.match(moduleLauncher, /auto-rows-\[7rem\]/);
+  assert.doesNotMatch(moduleLauncher, /auto-rows-fr/);
+  assert.match(recentActions, /disabled=\{replayingId !== null\}/);
+  assert.match(recentActions, /dateStyle: 'short'/);
+  assert.match(syncButton, /role="status"/);
 });
 
 test('AI sessions keep runtime and streamed messages isolated', () => {

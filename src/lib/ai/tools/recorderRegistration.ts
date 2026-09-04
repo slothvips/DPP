@@ -10,6 +10,7 @@ import {
   recorder_stop,
   recorder_updateTitle,
 } from './recorderHandlers';
+import { recorderInspect } from './recorderInspect';
 
 export function registerRecorderTools() {
   toolRegistry.register({
@@ -29,6 +30,29 @@ export function registerRecorderTools() {
       []
     ),
     handler: recorder_list as ToolHandler,
+  });
+
+  toolRegistry.register({
+    name: 'recorder_inspect',
+    description: '检查一条录制的概况、控制台错误和失败网络请求。不会返回请求头、请求体或响应体。',
+    parameters: createToolParameter(
+      {
+        id: { type: 'string', description: '录制 ID' },
+        include: {
+          type: 'string',
+          enum: ['summary', 'errors', 'network', 'all'],
+          description: '返回范围，默认 summary',
+        },
+        limit: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 50,
+          description: '错误或失败请求最多返回多少条，默认 20',
+        },
+      },
+      ['id']
+    ),
+    handler: recorderInspect as ToolHandler,
   });
 
   toolRegistry.register({

@@ -9,12 +9,19 @@ interface GlobalSyncButtonProps {
 }
 
 export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButtonProps) {
-  const { isSyncing, pendingCounts, push, pull } = useGlobalSync();
+  const { isSyncing, status, error, pendingCounts, push, pull } = useGlobalSync();
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
 
   const isAnyOperating = isSyncing || isPushing || isPulling;
   const isVertical = orientation === 'vertical';
+  const statusLabel = isSyncing
+    ? '同步中'
+    : status === 'error'
+      ? '同步失败'
+      : status === 'partial'
+        ? '部分完成'
+        : null;
 
   const handlePush = async () => {
     setIsPushing(true);
@@ -74,6 +81,20 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
         <span className="text-xs tabular-nums">{pendingCounts.pull}</span>
         {isVertical && <span className="text-xs">拉取</span>}
       </Button>
+
+      {statusLabel && (
+        <span
+          className={cn(
+            'whitespace-nowrap px-1.5 text-xs',
+            isSyncing ? 'text-primary' : status === 'error' ? 'text-destructive' : 'text-warning'
+          )}
+          role="status"
+          aria-live="polite"
+          title={error || statusLabel}
+        >
+          {statusLabel}
+        </span>
+      )}
     </div>
   );
 }

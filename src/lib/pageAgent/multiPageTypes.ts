@@ -1,6 +1,7 @@
 export type PageControlAction =
   | 'get_last_update_time'
   | 'get_browser_state'
+  | 'read_page'
   | 'update_tree'
   | 'clean_up_highlights'
   | 'click_element'

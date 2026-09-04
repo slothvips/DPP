@@ -18,7 +18,7 @@ export function App() {
     return () => port.disconnect();
   }, []);
 
-  const { featureToggles, isMinimalMode, showSyncButton } = useSidepanelSettings();
+  const { featureToggles, settingsReady, isMinimalMode, showSyncButton } = useSidepanelSettings();
   const { activeTab, handleTabChange, recentTabs } = useSidepanelTabs({ featureToggles });
   useEffect(() => {
     const handleOpenAISession = () => handleTabChange('aiAssistant');
@@ -30,15 +30,17 @@ export function App() {
     <ToastProvider>
       <ConfirmDialogProvider>
         <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background text-foreground">
-          <SidepanelContent
-            activeTab={activeTab}
-            featureToggles={featureToggles}
-            onModuleSelect={handleTabChange}
-            onBackToAssistant={() => handleTabChange('aiAssistant')}
-            recentTabs={recentTabs}
-            isMinimalMode={isMinimalMode}
-            showSyncButton={showSyncButton}
-          />
+          {settingsReady && (
+            <SidepanelContent
+              activeTab={activeTab}
+              featureToggles={featureToggles}
+              onModuleSelect={handleTabChange}
+              onBackToAssistant={() => handleTabChange('aiAssistant')}
+              recentTabs={recentTabs}
+              isMinimalMode={isMinimalMode}
+              showSyncButton={showSyncButton}
+            />
+          )}
         </div>
       </ConfirmDialogProvider>
     </ToastProvider>

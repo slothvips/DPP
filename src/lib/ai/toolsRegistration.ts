@@ -2,6 +2,7 @@ import { registerAIConfigTools } from './tools/aiConfig';
 import { registerBlackboardTools } from './tools/blackboard';
 import { registerBrowserTaskTools } from './tools/browserTask';
 import { registerDPPConfigTools } from './tools/dppConfig';
+import { registerDppSearchTools } from './tools/dppSearch';
 import { registerJenkinsTools } from './tools/jenkins';
 import { registerLinksTools } from './tools/links';
 import { registerPlanTools } from './tools/plan';
@@ -21,6 +22,7 @@ export function ensureAIToolsRegistered(): void {
 
   registerAIConfigTools();
   registerDPPConfigTools();
+  registerDppSearchTools();
   registerLinksTools();
   registerTagsTools();
   registerJenkinsTools();
