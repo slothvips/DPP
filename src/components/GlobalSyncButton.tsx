@@ -15,13 +15,7 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
 
   const isAnyOperating = isSyncing || isPushing || isPulling;
   const isVertical = orientation === 'vertical';
-  const statusLabel = isSyncing
-    ? '同步中'
-    : status === 'error'
-      ? '同步失败'
-      : status === 'partial'
-        ? '部分完成'
-        : null;
+  const statusLabel = status === 'error' ? '同步失败' : status === 'partial' ? '部分完成' : null;
 
   const handlePush = async () => {
     setIsPushing(true);
@@ -86,7 +80,7 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
         <span
           className={cn(
             'whitespace-nowrap px-1.5 text-xs',
-            isSyncing ? 'text-primary' : status === 'error' ? 'text-destructive' : 'text-warning'
+            status === 'error' ? 'text-destructive' : 'text-warning'
           )}
           role="status"
           aria-live="polite"
