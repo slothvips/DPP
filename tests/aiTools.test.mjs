@@ -66,6 +66,16 @@ test('tool execution stops after the first failed call', () => {
   assert.match(executor, /return \{ toolMessages, pendingBuild: null \};/);
 });
 
+test('role tool permissions are enforced during classification and execution', () => {
+  const utility = source('../src/features/aiAssistant/lib/toolCallUtils.ts');
+  const executor = source('../src/features/aiAssistant/services/executeToolCalls.ts');
+  const registry = source('../src/lib/ai/toolRegistry.ts');
+  assert.match(utility, /当前角色未启用工具/);
+  assert.match(executor, /allowedToolNames/);
+  assert.match(executor, /toolRegistry\.execute\([\s\S]*options\?\.allowedToolNames/);
+  assert.match(registry, /allowedToolNames/);
+});
+
 test('generic DPP config tools cannot write sensitive settings', () => {
   const config = source('../src/lib/ai/tools/dppConfig.ts');
   assert.match(config, /if \(definition\.sensitive\)/);

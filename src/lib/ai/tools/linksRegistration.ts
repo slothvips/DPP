@@ -14,28 +14,26 @@ import {
 export function registerLinksTools() {
   toolRegistry.register({
     name: 'links_list',
-    description:
-      'List all links with pagination support. Returns total count, current page, and hasMore flag for pagination.',
+    description: '分页列出所有链接，返回总数、当前页和用于继续分页的 hasMore 标记。',
     parameters: createToolParameter(
       {
         keyword: {
           type: 'string',
-          description: 'Keyword to filter links by name, URL, or note',
+          description: '按链接名称、URL 或备注筛选链接的关键词',
         },
         tags: {
           type: 'array',
-          description: 'Tag names to filter links',
+          description: '用于筛选链接的标签名称',
         },
         page: {
           type: 'integer',
           minimum: 1,
-          description: 'Page number (starting from 1). Default: 1',
+          description: '页码，从 1 开始，默认 1',
         },
         pageSize: {
           type: 'integer',
           minimum: 1,
-          description:
-            'Number of items per page. Default: 20. Recommended: 10-20 to avoid overwhelming the context',
+          description: '每页数量，默认 20；建议使用 10-20，避免占用过多上下文',
         },
       },
       []
@@ -45,12 +43,12 @@ export function registerLinksTools() {
 
   toolRegistry.register({
     name: 'links_add',
-    description: 'Add a new link with name, URL, note, and tags',
+    description: '添加带有名称、URL、备注和标签的新链接',
     parameters: createToolParameter(
       {
-        name: { type: 'string', description: 'Link name' },
-        url: { type: 'string', description: 'Link URL' },
-        note: { type: 'string', description: 'Optional note for the link' },
+        name: { type: 'string', description: '链接名称' },
+        url: { type: 'string', description: '链接 URL' },
+        note: { type: 'string', description: '链接备注，可选' },
         tags: {
           type: 'array',
           description:
@@ -65,13 +63,13 @@ export function registerLinksTools() {
 
   toolRegistry.register({
     name: 'links_update',
-    description: 'Update an existing link',
+    description: '更新已有链接',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'Link ID to update' },
-        name: { type: 'string', description: 'New name (optional)' },
-        url: { type: 'string', description: 'New URL (optional)' },
-        note: { type: 'string', description: 'New note (optional)' },
+        id: { type: 'string', description: '要更新的链接 ID' },
+        name: { type: 'string', description: '新的名称，可选' },
+        url: { type: 'string', description: '新的 URL，可选' },
+        note: { type: 'string', description: '新的备注，可选' },
         tags: {
           type: 'array',
           description:
@@ -86,10 +84,10 @@ export function registerLinksTools() {
 
   toolRegistry.register({
     name: 'links_delete',
-    description: 'Delete a link (soft delete)',
+    description: '删除链接（软删除）',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'Link ID to delete' },
+        id: { type: 'string', description: '要删除的链接 ID' },
       },
       ['id']
     ),
@@ -99,10 +97,10 @@ export function registerLinksTools() {
 
   toolRegistry.register({
     name: 'links_visit',
-    description: 'Visit a link in a new tab and record statistics',
+    description: '在新标签页中访问链接并记录统计信息',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'Link ID to visit' },
+        id: { type: 'string', description: '要访问的链接 ID' },
       },
       ['id']
     ),
@@ -111,10 +109,10 @@ export function registerLinksTools() {
 
   toolRegistry.register({
     name: 'links_togglePin',
-    description: 'Toggle link pin status (pin or unpin a link)',
+    description: '切换链接的置顶状态（置顶或取消置顶）',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'Link ID to toggle pin status' },
+        id: { type: 'string', description: '要切换置顶状态的链接 ID' },
       },
       ['id']
     ),
@@ -124,10 +122,10 @@ export function registerLinksTools() {
 
   toolRegistry.register({
     name: 'links_recordVisit',
-    description: 'Record a link visit (increment usage count and update last used time)',
+    description: '记录一次链接访问（增加使用次数并更新上次使用时间）',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'Link ID to record visit' },
+        id: { type: 'string', description: '要记录访问的链接 ID' },
       },
       ['id']
     ),
@@ -137,13 +135,13 @@ export function registerLinksTools() {
   toolRegistry.register({
     name: 'links_bulkAdd',
     description:
-      'Bulk add multiple links at once. Prefer this tool when the user wants to import, batch create, or整理一组链接到 DPP。',
+      '一次批量添加多个链接。用户希望导入、批量创建或整理一组链接到 DPP 时优先使用此工具。',
     parameters: createToolParameter(
       {
         links: {
           type: 'array',
           description:
-            'Array of links to add, each with name, url, optional note and tags. Call tags_list first and reuse existing tags; do not create new tags unless the user explicitly requests it.',
+            '要添加的链接数组，每项包含 name、url，以及可选的 note 和 tags。先调用 tags_list 并复用已有标签；除非用户明确要求，否则不要创建新标签。',
         },
       },
       ['links']

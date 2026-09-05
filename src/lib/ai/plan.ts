@@ -215,7 +215,7 @@ export function createPlanToolDefinition(): OpenAIToolDefinition {
     function: {
       name: 'manage_plan',
       description:
-        '管理当前执行 owner 的结构化计划。需要多个步骤、多个工具或页面、观察/验证结果、等待确认，或可能中断后继续的任务，必须先 create；创建后立即用 update 将第一个步骤设为 in_progress；步骤完成或阻塞时 update；方向不确定时 get。单步读取、单次写入和直接回答不需要计划。不要把计划当作用户消息重复输出。',
+        '管理当前执行者的结构化计划。需要多个步骤、多个工具或页面、观察/验证结果、等待确认，或可能中断后继续的任务，必须先 create；创建后立即用 update 将第一个步骤设为 in_progress；步骤完成或阻塞时 update；方向不确定时 get。单步读取、单次写入和直接回答不需要计划。不要把计划当作用户消息重复输出。',
       parameters,
     },
   };

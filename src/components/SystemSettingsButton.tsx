@@ -11,7 +11,7 @@ export function SystemSettingsButton() {
     <Button
       variant="ghost"
       size="icon"
-      className="h-8 w-8 shrink-0 rounded-xl border border-border/55 bg-background/78 text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground"
+      className="h-8 w-8 shrink-0 rounded-lg border border-border/55 bg-muted/35 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
       aria-label="打开系统设置"
       title="系统设置"
       onClick={openSettings}

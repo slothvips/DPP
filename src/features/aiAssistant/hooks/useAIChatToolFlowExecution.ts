@@ -20,6 +20,7 @@ interface UseAIChatToolFlowExecutionOptions {
   isExecutionCancelled: () => boolean;
   browserTaskSessionId: string | null;
   sessionId: string | null;
+  allowedToolNames: readonly string[];
 }
 
 export function useAIChatToolFlowExecution({
@@ -34,6 +35,7 @@ export function useAIChatToolFlowExecution({
   isExecutionCancelled,
   browserTaskSessionId,
   sessionId,
+  allowedToolNames,
 }: UseAIChatToolFlowExecutionOptions) {
   async function executePreparedCallsAndContinue(
     preparedToolCalls: ReturnType<typeof toPreparedToolCalls>,
@@ -43,6 +45,7 @@ export function useAIChatToolFlowExecution({
       onAIConfigChanged,
       browserTaskSessionId: browserTaskSessionId ?? undefined,
       sessionId: sessionId ?? undefined,
+      allowedToolNames,
       requiresActivePlan,
     });
 
@@ -74,9 +77,10 @@ export function useAIChatToolFlowExecution({
 
     const { toolCallsToConfirm, toolCallsToExecute } = normalizeAndClassifyToolCalls(
       toolCalls,
-      yoloMode
+      yoloMode,
+      allowedToolNames
     );
-    const requiresActivePlan = toolCalls.length > 1;
+    const requiresActivePlan = toolCalls.length > 1 && allowedToolNames.includes('manage_plan');
 
     if (toolCallsToExecute.length > 0) {
       onStatusChange('loading');
@@ -84,6 +88,7 @@ export function useAIChatToolFlowExecution({
         onAIConfigChanged,
         browserTaskSessionId: browserTaskSessionId ?? undefined,
         sessionId: sessionId ?? undefined,
+        allowedToolNames,
         requiresActivePlan,
       });
 
@@ -125,6 +130,7 @@ export function useAIChatToolFlowExecution({
         onAIConfigChanged,
         browserTaskSessionId: browserTaskSessionId ?? undefined,
         sessionId: sessionId ?? undefined,
+        allowedToolNames,
         requiresActivePlan: pendingToolCalls.requiresActivePlan,
       }
     );

@@ -5,9 +5,11 @@ import type { AIPlan } from '@/lib/ai/plan';
 import type { OpenAIToolCall } from '@/lib/ai/types';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
 import type { BrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
+import type { AISessionRoleSnapshot } from '../materials/testCaseTypes';
 import type { ChatMessage } from '../types';
 import { AIConfigDialog } from './AIConfigDialog';
 import { AIPlanPanel } from './AIPlanPanel';
+import { AIRoleSelector } from './AIRoleSelector';
 import { BrowserTaskProgressPanel } from './BrowserTaskProgressPanel';
 import { MessageItem } from './MessageItem';
 import { RecentActions } from './RecentActions';
@@ -28,6 +30,8 @@ interface AIAssistantMessagesPanelProps {
   plan: AIPlan | null;
   recentActions: import('@/db').RecentAction[];
   onReplayRecentAction: (action: import('@/db').RecentAction) => Promise<void>;
+  currentRole: AISessionRoleSnapshot;
+  onRoleSelect: (roleId: string) => Promise<void>;
 }
 
 function readBrowserTaskArgument(argumentsJson: string): string | undefined {
@@ -137,6 +141,8 @@ export function AIAssistantMessagesPanel({
   plan,
   recentActions,
   onReplayRecentAction,
+  currentRole,
+  onRoleSelect,
 }: AIAssistantMessagesPanelProps) {
   const { tasksByMessageId, unanchoredTasks } = placeBrowserTasks(messages, browserTaskProgress);
 
@@ -177,11 +183,12 @@ export function AIAssistantMessagesPanel({
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
                 <Sparkles className="h-6 w-6" />
               </div>
-              <p className="mt-4 text-lg font-semibold tracking-tight text-foreground">
-                你好，我是 D 仔
+              <p className="mt-4 flex flex-wrap items-center justify-center gap-1 text-lg font-semibold tracking-tight text-foreground">
+                <span>你好，我是</span>
+                <AIRoleSelector currentRole={currentRole} onSelect={onRoleSelect} />
               </p>
               <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-muted-foreground">
-                把目标告诉我，我可以帮你处理页面、链接、记录和工程任务。
+                {currentRole.description || '告诉我你想完成的目标，我会按当前角色协助你。'}
               </p>
               <RecentActions actions={recentActions} onReplay={onReplayRecentAction} />
             </div>
@@ -194,6 +201,7 @@ export function AIAssistantMessagesPanel({
               <MessageItem
                 message={message}
                 canEdit={status !== 'loading' && status !== 'streaming' && status !== 'confirming'}
+                assistantLabel={currentRole.title}
                 onEditMessage={onEditMessage}
               />
               {(tasksByMessageId.get(message.id) || []).map((task) => (

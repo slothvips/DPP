@@ -8,5 +8,6 @@ export {
   createSession,
   deleteSession,
   updateSession,
+  updateSessionRole,
   updateSessionTitle,
 } from './aiMutations';

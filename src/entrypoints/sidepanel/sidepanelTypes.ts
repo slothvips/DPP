@@ -8,6 +8,8 @@ export type TabId =
   | 'playground'
   | 'totp';
 
+export type ModuleTabId = Exclude<TabId, 'aiAssistant'>;
+
 export interface FeatureToggles {
   hotNews: boolean;
   links: boolean;

@@ -15,8 +15,7 @@ import { recorderInspect } from './recorderInspect';
 export function registerRecorderTools() {
   toolRegistry.register({
     name: 'recorder_list',
-    description:
-      'List recordings with pagination; recording events are never returned by this tool',
+    description: '分页列出录制记录；此工具不会返回录制事件',
     parameters: createToolParameter(
       {
         page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
@@ -57,12 +56,12 @@ export function registerRecorderTools() {
 
   toolRegistry.register({
     name: 'recorder_start',
-    description: 'Start recording a tab (requires user confirmation)',
+    description: '开始录制标签页（需要用户确认）',
     parameters: createToolParameter(
       {
         tabId: {
           type: 'integer',
-          description: 'Tab ID to record (optional, defaults to current tab)',
+          description: '要录制的标签页 ID，可选，默认使用当前标签页',
         },
       },
       []
@@ -73,12 +72,12 @@ export function registerRecorderTools() {
 
   toolRegistry.register({
     name: 'recorder_stop',
-    description: 'Stop recording',
+    description: '停止录制',
     parameters: createToolParameter(
       {
         tabId: {
           type: 'number',
-          description: 'Tab ID to stop recording (optional, defaults to current tab)',
+          description: '要停止录制的标签页 ID，可选，默认使用当前标签页',
         },
       },
       []
@@ -88,12 +87,12 @@ export function registerRecorderTools() {
 
   toolRegistry.register({
     name: 'recorder_delete',
-    description: 'Delete a recording by ID',
+    description: '按 ID 删除录制记录',
     parameters: createToolParameter(
       {
         id: {
           type: 'string',
-          description: 'The ID of the recording to delete',
+          description: '要删除的录制记录 ID',
         },
       },
       ['id']
@@ -104,7 +103,7 @@ export function registerRecorderTools() {
 
   toolRegistry.register({
     name: 'recorder_clear',
-    description: 'Clear all recordings from the database',
+    description: '清空数据库中的所有录制记录',
     parameters: createToolParameter({}, []),
     handler: recorder_clear as ToolHandler,
     requiresConfirmation: true,
@@ -112,16 +111,16 @@ export function registerRecorderTools() {
 
   toolRegistry.register({
     name: 'recorder_updateTitle',
-    description: 'Update the title of a recording',
+    description: '更新录制记录的标题',
     parameters: createToolParameter(
       {
         id: {
           type: 'string',
-          description: 'The ID of the recording to update',
+          description: '要更新的录制记录 ID',
         },
         title: {
           type: 'string',
-          description: 'The new title for the recording',
+          description: '录制记录的新标题',
         },
       },
       ['id', 'title']
@@ -132,16 +131,16 @@ export function registerRecorderTools() {
 
   toolRegistry.register({
     name: 'recorder_import',
-    description: 'Import a recording from JSON events array',
+    description: '从 JSON 事件数组导入录制记录',
     parameters: createToolParameter(
       {
         events: {
           type: 'array',
-          description: 'The JSON events array to import',
+          description: '要导入的 JSON 事件数组',
         },
         title: {
           type: 'string',
-          description: 'Optional title for the imported recording',
+          description: '导入录制记录的标题，可选',
         },
       },
       ['events']
@@ -152,12 +151,12 @@ export function registerRecorderTools() {
 
   toolRegistry.register({
     name: 'recorder_export',
-    description: 'Export a recording as JSON',
+    description: '将录制记录导出为 JSON',
     parameters: createToolParameter(
       {
         id: {
           type: 'string',
-          description: 'The ID of the recording to export',
+          description: '要导出的录制记录 ID',
         },
       },
       ['id']

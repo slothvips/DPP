@@ -1,3 +1,4 @@
+import type { AISessionRoleSnapshot } from '@/features/aiAssistant/materials/testCaseTypes';
 import type { AIProviderType } from '@/lib/ai/providerIds';
 import type { OpenAIToolCall, ProviderMessageMetadata, TokenUsage } from '@/lib/ai/types';
 
@@ -17,6 +18,7 @@ export interface AIProfile {
 export interface AISession {
   id: string;
   title: string;
+  role?: AISessionRoleSnapshot;
   createdAt: number;
   updatedAt: number;
 }

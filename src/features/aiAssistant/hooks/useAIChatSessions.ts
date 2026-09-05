@@ -1,10 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { AISessionRoleSnapshot } from '@/features/aiAssistant/materials/testCaseTypes';
+import {
+  DEFAULT_AI_ROLE_ID,
+  createDefaultRoleSnapshot,
+  createRoleSnapshot,
+} from '@/features/aiAssistant/roles/roleRuntime';
 import {
   createSession,
   deleteSession as dbDeleteSession,
   getMessagesBySession,
   listSessions,
+  updateSessionRole,
 } from '@/lib/db/ai';
+import { getRoleMaterial } from '@/lib/db/roles';
 import type { AISession, ChatMessage } from '../types';
 import { planEmptySessionCleanup, setStoredCurrentSessionId } from './useAIChatSessions.shared';
 
@@ -17,8 +25,10 @@ interface UseAIChatSessionsOptions {
 interface UseAIChatSessionsReturn {
   sessionId: string | null;
   sessions: AISession[];
+  currentRole: AISessionRoleSnapshot;
   loadSessions: () => Promise<void>;
   createNewSession: () => Promise<void>;
+  selectRole: (roleId: string) => Promise<void>;
   switchSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
 }
@@ -32,6 +42,10 @@ export function useAIChatSessions({
   const [sessions, setSessions] = useState<AISession[]>([]);
   const loadRequestIdRef = useRef(0);
   const newSessionRequestRef = useRef<Promise<void> | null>(null);
+  const currentRole = useMemo(
+    () => sessions.find((session) => session.id === sessionId)?.role ?? createDefaultRoleSnapshot(),
+    [sessionId, sessions]
+  );
 
   const loadSession = useCallback(
     async (id: string) => {
@@ -80,7 +94,8 @@ export function useAIChatSessions({
         await dbDeleteSession(id);
       }
 
-      const session = reusableSession ?? (await createSession('新会话'));
+      const session =
+        reusableSession ?? (await createSession('新会话', createDefaultRoleSnapshot()));
       await loadSessions();
       await loadSession(session.id);
       resetFirstMessageFlag();
@@ -95,6 +110,25 @@ export function useAIChatSessions({
       }
     }
   }, [loadSession, loadSessions, resetFirstMessageFlag]);
+
+  const selectRole = useCallback(
+    async (roleId: string) => {
+      if (!sessionId) throw new Error('缺少 AI 会话 ID');
+      const messages = await getMessagesBySession(sessionId);
+      if (messages.length > 0) throw new Error('已有消息的会话不能切换角色');
+
+      const role =
+        roleId === DEFAULT_AI_ROLE_ID
+          ? createDefaultRoleSnapshot()
+          : await getRoleMaterial(roleId).then((material) => {
+              if (!material) throw new Error('角色不存在或已归档');
+              return createRoleSnapshot(material);
+            });
+      await updateSessionRole(sessionId, role);
+      await loadSessions();
+    },
+    [loadSessions, sessionId]
+  );
 
   const switchSession = useCallback(
     async (id: string) => {
@@ -153,8 +187,10 @@ export function useAIChatSessions({
   return {
     sessionId,
     sessions,
+    currentRole,
     loadSessions,
     createNewSession,
+    selectRole,
     switchSession,
     deleteSession,
   };

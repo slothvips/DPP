@@ -15,6 +15,7 @@ export * from './hotnews';
 export * from './totp';
 export * from './materials';
 export * from './prompts';
+export * from './roles';
 export * from './testRuns';
 export * from './pagination';
 export * from './recentActions';

@@ -39,6 +39,7 @@ export async function executePreparedToolCalls(
     browserTaskSessionId?: string;
     sessionId?: string;
     requiresActivePlan?: boolean;
+    allowedToolNames?: readonly string[];
   }
 ): Promise<{
   toolMessages: ChatMessage[];
@@ -51,6 +52,7 @@ export async function executePreparedToolCalls(
     browserTaskSessionId?: string;
     sessionId?: string;
     requiresActivePlan?: boolean;
+    allowedToolNames?: readonly string[];
   }
 ): Promise<{
   toolMessages: ChatMessage[];
@@ -67,6 +69,12 @@ export async function executePreparedToolCalls(
 
   for (const [index, preparedToolCall] of preparedToolCalls.entries()) {
     try {
+      if (
+        options?.allowedToolNames &&
+        !options.allowedToolNames.includes(preparedToolCall.toolCall.function.name)
+      ) {
+        throw new Error(`当前角色未启用工具：${preparedToolCall.toolCall.function.name}`);
+      }
       if (
         requiresActivePlan &&
         preparedToolCall.toolCall.function.name !== 'manage_plan' &&
@@ -125,6 +133,7 @@ async function executePreparedToolCall(
         browserTaskSessionId?: string;
         sessionId?: string;
         requiresActivePlan?: boolean;
+        allowedToolNames?: readonly string[];
       }
     | undefined,
   availableToolNames: string[]
@@ -163,7 +172,11 @@ async function executePreparedToolCall(
                 : {}),
             }
           : args;
-  const result = await toolRegistry.execute(toolCall.function.name, toolArgs);
+  const result = await toolRegistry.execute(
+    toolCall.function.name,
+    toolArgs,
+    options?.allowedToolNames
+  );
   const resultObj = result as {
     action?: string;
     jobUrl?: string;

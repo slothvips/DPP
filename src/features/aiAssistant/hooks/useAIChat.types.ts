@@ -38,6 +38,7 @@ export interface UseAIChatReturn {
   pendingBuild: PendingBuild | null;
   sessionId: string | null;
   sessions: import('../types').AISession[];
+  currentRole: import('@/features/aiAssistant/materials/testCaseTypes').AISessionRoleSnapshot;
   sessionStatuses: Record<string, AIChatStatus>;
   currentProvider: import('@/lib/ai/types').AIProviderType | null;
   currentProviderName: string | null;
@@ -53,6 +54,7 @@ export interface UseAIChatReturn {
   clearMessages: () => Promise<void>;
   editMessage: (messageId: string, content: string) => Promise<void>;
   createNewSession: () => Promise<void>;
+  selectRole: (roleId: string) => Promise<void>;
   switchSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
   resetProvider: () => void;

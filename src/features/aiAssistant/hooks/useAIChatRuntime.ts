@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { ensureAIToolsRegistered } from '@/lib/ai';
 import { hasAssistantOutput, runAgentTurn } from '@/lib/ai/agentRuntime';
 import { formatPlanContext, getPlan } from '@/lib/ai/plan';
-import { generateSystemPrompt } from '@/lib/ai/prompt';
-import { ensureAIToolsRegistered } from '@/lib/ai';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import { stopTestRunForSession } from '@/lib/ai/tools/testRuns';
 import type {
   AIProviderType,
-  ChatMessage as ProviderChatMessage,
   ModelProvider,
+  ChatMessage as ProviderChatMessage,
 } from '@/lib/ai/types';
+import type { AISessionRoleSnapshot } from '../materials/testCaseTypes';
 import type { ChatMessage } from '../types';
 import { useAIChatProvider } from './useAIChatProvider';
 import {
@@ -29,6 +29,7 @@ interface SessionRuntime {
 
 interface UseAIChatRuntimeOptions {
   sessionId: string | null;
+  role: AISessionRoleSnapshot;
   createAssistantPlaceholder: (sessionId: string | null) => string | undefined;
   onStreamStart: (sessionId: string) => void;
   onStreamChunk: (sessionId: string, assistantMessageId: string, chunk: string) => void;
@@ -55,6 +56,7 @@ function createRunId(): string {
 
 export function useAIChatRuntime({
   sessionId,
+  role,
   createAssistantPlaceholder,
   onStreamStart,
   onStreamChunk,
@@ -110,12 +112,19 @@ export function useAIChatRuntime({
 
       try {
         const provider = await getProvider();
-        const plan = await getPlan({ type: 'ai_session', id: targetSessionId });
-        const systemPrompt = `${generateSystemPrompt()}
-
-${formatPlanContext(plan, 'ai_session')}`;
+        const plan =
+          role.roleId === 'builtin:d-zai'
+            ? await getPlan({ type: 'ai_session', id: targetSessionId })
+            : undefined;
+        const systemPrompt =
+          role.roleId === 'builtin:d-zai'
+            ? `${role.systemPrompt}\n\n${formatPlanContext(plan, 'ai_session')}`
+            : role.systemPrompt;
         ensureAIToolsRegistered();
-        const tools = toolRegistry.getOpenAITools();
+        const allowedTools = new Set(role.allowedToolNames);
+        const tools = toolRegistry
+          .getOpenAITools()
+          .filter((tool) => allowedTools.has(tool.function.name));
         const assistantMessageId = createAssistantPlaceholder(targetSessionId);
         if (!assistantMessageId) throw new Error('无法创建 assistant 消息');
         const contextWindowPromise = provider.getContextWindow?.();
@@ -187,6 +196,7 @@ ${formatPlanContext(plan, 'ai_session')}`;
       onStreamStart,
       resetRuntimeState,
       sessionId,
+      role,
     ]
   );
 

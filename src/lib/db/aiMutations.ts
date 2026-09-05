@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import type { AIMessage, AISession } from '@/db/types';
+import type { AISessionRoleSnapshot } from '@/features/aiAssistant/materials/testCaseTypes';
 import {
   type NewAIMessage,
   generateAIId,
@@ -7,17 +8,25 @@ import {
   getAISessionsTable,
 } from './aiShared';
 
-export async function createSession(title: string): Promise<AISession> {
+export async function createSession(
+  title: string,
+  role?: AISessionRoleSnapshot
+): Promise<AISession> {
   const now = Date.now();
   const session: AISession = {
     id: generateAIId(),
     title,
+    ...(role ? { role } : {}),
     createdAt: now,
     updatedAt: now,
   };
 
   await getAISessionsTable().add(session);
   return session;
+}
+
+export async function updateSessionRole(id: string, role: AISessionRoleSnapshot): Promise<void> {
+  await getAISessionsTable().update(id, { role, updatedAt: Date.now() });
 }
 
 export async function updateSession(

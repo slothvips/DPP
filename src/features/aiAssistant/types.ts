@@ -1,4 +1,5 @@
 // AI Assistant feature types
+import type { AISessionRoleSnapshot } from '@/features/aiAssistant/materials/testCaseTypes';
 import type {
   AIProviderType,
   OpenAIToolCall,
@@ -34,6 +35,7 @@ export interface ChatRequest {
 export interface AISession {
   id: string;
   title: string;
+  role?: AISessionRoleSnapshot;
   createdAt: number;
   updatedAt: number;
 }

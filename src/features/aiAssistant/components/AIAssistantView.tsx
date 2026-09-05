@@ -77,6 +77,7 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
     pendingToolCalls,
     pendingBuild,
     sessions,
+    currentRole,
     sessionStatuses,
     sessionId,
     currentProvider,
@@ -92,6 +93,7 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
     clearMessages,
     createNewSession,
     switchSession,
+    selectRole,
     deleteSession,
     resetProvider,
     completeBuild,
@@ -106,6 +108,11 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
   const [invalidatedBrowserTaskIds, setInvalidatedBrowserTaskIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<AIAssistantViewMode>('chat');
   const [inputDraft, setInputDraft] = useState<{ value: string; key: string } | null>(null);
+  const [replayBuildJob, setReplayBuildJob] = useState<{
+    jobUrl: string;
+    jobName: string;
+    envId?: string;
+  } | null>(null);
 
   const { isConfigMissing, presetPrompt, handleConfigSaved, ensureConfigReady } =
     useAIAssistantConfig({ resetProvider });
@@ -247,12 +254,11 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
         }
 
         if (action.type === 'jenkins_build') {
-          const url = new URL(window.location.href);
-          url.searchParams.set('buildJobUrl', action.jobUrl || action.targetId);
-          if (action.envId) url.searchParams.set('envId', action.envId);
-          window.history.replaceState({}, '', url.toString());
-          onModuleSelect('jenkins');
-          window.dispatchEvent(new Event('dpp:replay-jenkins'));
+          setReplayBuildJob({
+            jobUrl: action.jobUrl || action.targetId,
+            jobName: action.label,
+            envId: action.envId,
+          });
           return;
         }
 
@@ -400,6 +406,8 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
                 plan={plan}
                 recentActions={recentActions}
                 onReplayRecentAction={handleReplayRecentAction}
+                currentRole={currentRole}
+                onRoleSelect={selectRole}
               />
             </div>
           </Allotment.Pane>
@@ -451,6 +459,16 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
             setTimeout(() => cancelBuild(), 0);
           }}
           onBuildSuccess={completeBuild}
+        />
+      )}
+
+      {replayBuildJob && (
+        <BuildDialog
+          isOpen={true}
+          jobUrl={replayBuildJob.jobUrl}
+          jobName={replayBuildJob.jobName}
+          envId={replayBuildJob.envId}
+          onClose={() => setReplayBuildJob(null)}
         />
       )}
     </div>

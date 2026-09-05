@@ -19,7 +19,7 @@ export function App() {
   }, []);
 
   const { featureToggles, settingsReady, isMinimalMode, showSyncButton } = useSidepanelSettings();
-  const { activeTab, handleTabChange, recentTabs } = useSidepanelTabs({ featureToggles });
+  const { activeModule, handleTabChange, recentTabs } = useSidepanelTabs({ featureToggles });
   useEffect(() => {
     const handleOpenAISession = () => handleTabChange('aiAssistant');
     window.addEventListener('dpp:open-ai-session', handleOpenAISession);
@@ -32,7 +32,7 @@ export function App() {
         <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background text-foreground">
           {settingsReady && (
             <SidepanelContent
-              activeTab={activeTab}
+              activeModule={activeModule}
               featureToggles={featureToggles}
               onModuleSelect={handleTabChange}
               onBackToAssistant={() => handleTabChange('aiAssistant')}

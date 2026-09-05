@@ -227,8 +227,7 @@ async function ai_config_update(args: unknown) {
 export function registerAIConfigTools() {
   toolRegistry.register({
     name: 'ai_config_get',
-    description:
-      'Get D仔 current AI configuration and all provider configurations. API keys are masked.',
+    description: '获取 D 仔当前 AI 配置以及所有服务商配置。API 密钥会被隐藏。',
     parameters: createToolParameter({}, []),
     handler: ai_config_get as ToolHandler,
   });
@@ -236,53 +235,50 @@ export function registerAIConfigTools() {
   toolRegistry.register({
     name: 'ai_config_update',
     description:
-      'Update D仔 AI configuration. Can change provider, baseUrl, model, apiKey, clear apiKey, and choose whether to activate the provider.',
+      '更新 D 仔 AI 配置。可以修改服务商、baseUrl、模型、apiKey、清除 apiKey，并选择是否激活该服务商。',
     parameters: createToolParameter(
       {
         provider: {
           type: 'string',
-          description:
-            'Target protocol adapter to update. Use profileId for an existing profile. Defaults to the current configuration.',
+          description: '要更新的协议适配器。更新已有配置档案时使用 profileId。默认使用当前配置。',
           enum: ['opencode', 'custom', 'anthropic', 'google'],
         },
         profileId: {
           type: 'string',
-          description:
-            'Existing profile ID. Omit to update the current configuration or create one.',
+          description: '已有配置档案 ID。不提供时更新当前配置或创建新配置。',
         },
         name: {
           type: 'string',
-          description: 'Profile display name.',
+          description: '配置档案显示名称。',
         },
         baseUrl: {
           type: 'string',
-          description: 'New provider base URL. Omit to keep the existing value.',
+          description: '新的服务商基础 URL。不提供时保留现有值。',
         },
         model: {
           type: 'string',
-          description: 'New model name. Omit to keep the existing value.',
+          description: '新的模型名称。不提供时保留现有值。',
         },
         apiKey: {
           type: 'string',
-          description: 'New API key. Omit to keep the existing value.',
+          description: '新的 API 密钥。不提供时保留现有值。',
         },
         clearApiKey: {
           type: 'boolean',
-          description: 'Clear the API key for the target provider.',
+          description: '清除目标服务商的 API 密钥。',
         },
         activateProvider: {
           type: 'boolean',
-          description:
-            'Whether to switch D仔 to the target provider after updating. Defaults to true.',
+          description: '更新后是否将 D 仔切换到目标服务商。默认为 true。',
         },
         contextWindow: {
           type: 'number',
           minimum: 1,
-          description: 'Optional positive context window override.',
+          description: '可选的正数上下文窗口覆盖值。',
         },
         visionEnabled: {
           type: 'boolean',
-          description: 'Whether the target model accepts browser screenshot image input.',
+          description: '目标模型是否接受浏览器截图作为图像输入。',
         },
       },
       []

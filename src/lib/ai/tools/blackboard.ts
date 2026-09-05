@@ -64,7 +64,7 @@ export function registerBlackboardTools() {
   // blackboard_list
   toolRegistry.register({
     name: 'blackboard_list',
-    description: 'List all blackboard items (便签)',
+    description: '列出所有便签',
     parameters: createToolParameter(
       {
         page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
@@ -83,14 +83,14 @@ export function registerBlackboardTools() {
   // blackboard_add (requires confirmation)
   toolRegistry.register({
     name: 'blackboard_add',
-    description: 'Add a new blackboard item (便签)',
+    description: '添加一条新便签',
     parameters: createToolParameter(
       {
         content: {
           type: 'string',
-          description: 'The content of the blackboard item (supports markdown)',
+          description: '便签内容，支持 Markdown',
         },
-        pinned: { type: 'boolean', description: 'Whether to pin this item to top (optional)' },
+        pinned: { type: 'boolean', description: '是否置顶，可选' },
       },
       ['content']
     ),
@@ -101,13 +101,13 @@ export function registerBlackboardTools() {
   // blackboard_update (requires confirmation)
   toolRegistry.register({
     name: 'blackboard_update',
-    description: 'Update a blackboard item (便签)',
+    description: '更新一条便签',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'The item ID to update' },
-        content: { type: 'string', description: 'New content (optional, supports markdown)' },
-        pinned: { type: 'boolean', description: 'Whether to pin to top (optional)' },
-        locked: { type: 'boolean', description: 'Whether to lock this item (optional)' },
+        id: { type: 'string', description: '要更新的便签 ID' },
+        content: { type: 'string', description: '新的便签内容，可选，支持 Markdown' },
+        pinned: { type: 'boolean', description: '是否置顶，可选' },
+        locked: { type: 'boolean', description: '是否锁定此便签，可选' },
       },
       ['id']
     ),
@@ -118,10 +118,10 @@ export function registerBlackboardTools() {
   // blackboard_delete (requires confirmation)
   toolRegistry.register({
     name: 'blackboard_delete',
-    description: 'Delete a blackboard item (便签)',
+    description: '删除一条便签',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'The item ID to delete' },
+        id: { type: 'string', description: '要删除的便签 ID' },
       },
       ['id']
     ),
@@ -132,10 +132,10 @@ export function registerBlackboardTools() {
   // blackboard_togglePin
   toolRegistry.register({
     name: 'blackboard_togglePin',
-    description: 'Toggle pin status of a blackboard item (便签)',
+    description: '切换便签的置顶状态',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'The item ID to toggle pin status' },
+        id: { type: 'string', description: '要切换置顶状态的便签 ID' },
       },
       ['id']
     ),
@@ -146,10 +146,10 @@ export function registerBlackboardTools() {
   // blackboard_toggleLock
   toolRegistry.register({
     name: 'blackboard_toggleLock',
-    description: 'Toggle lock status of a blackboard item (便签)',
+    description: '切换便签的锁定状态',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'The item ID to toggle lock status' },
+        id: { type: 'string', description: '要切换锁定状态的便签 ID' },
       },
       ['id']
     ),

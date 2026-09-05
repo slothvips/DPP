@@ -18,6 +18,7 @@ interface UseAIChatToolFlowOptions {
   onStatusChange: (status: 'idle' | 'loading' | 'confirming') => void;
   onAIConfigChanged: () => void;
   sessionId: string | null;
+  allowedToolNames: readonly string[];
 }
 
 interface UseAIChatToolFlowReturn {
@@ -43,6 +44,7 @@ export function useAIChatToolFlow({
   onStatusChange,
   onAIConfigChanged,
   sessionId,
+  allowedToolNames,
 }: UseAIChatToolFlowOptions): UseAIChatToolFlowReturn {
   const [, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
   const pendingToolCallsBySessionRef = useRef(new Map<string, PendingToolCalls>());
@@ -89,6 +91,7 @@ export function useAIChatToolFlow({
       sessionId ? executionCancelledBySessionRef.current.has(sessionId) : true,
     browserTaskSessionId: sessionId,
     sessionId,
+    allowedToolNames,
   });
 
   const processAssistantResponse = useCallback(

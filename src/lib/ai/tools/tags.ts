@@ -51,7 +51,7 @@ export function registerTagsTools() {
   // tags_list
   toolRegistry.register({
     name: 'tags_list',
-    description: 'List tags with link and job counts using pagination',
+    description: '分页列出标签，并返回每个标签关联的链接和任务数量',
     parameters: createToolParameter(
       {
         page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
@@ -74,8 +74,8 @@ export function registerTagsTools() {
       'Create a new tag only when the user explicitly requests it and no suitable existing tag can be reused. Repeated or matching names are reused or reactivated instead of creating duplicates.',
     parameters: createToolParameter(
       {
-        name: { type: 'string', description: 'Tag name' },
-        color: { type: 'string', description: 'Tag color (hex color like #FF5733, optional)' },
+        name: { type: 'string', description: '标签名称' },
+        color: { type: 'string', description: '标签颜色，可选十六进制颜色值，例如 #FF5733' },
       },
       ['name']
     ),
@@ -86,12 +86,15 @@ export function registerTagsTools() {
   // tags_update (requires confirmation)
   toolRegistry.register({
     name: 'tags_update',
-    description: 'Update an existing tag (name or color)',
+    description: '更新已有标签的名称或颜色',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'Tag ID to update' },
-        name: { type: 'string', description: 'New tag name (optional)' },
-        color: { type: 'string', description: 'New tag color (optional, hex like #FF5733)' },
+        id: { type: 'string', description: '要更新的标签 ID' },
+        name: { type: 'string', description: '新的标签名称，可选' },
+        color: {
+          type: 'string',
+          description: '新的标签颜色，可选，使用十六进制颜色值，例如 #FF5733',
+        },
       },
       ['id']
     ),
@@ -102,10 +105,10 @@ export function registerTagsTools() {
   // tags_delete (requires confirmation)
   toolRegistry.register({
     name: 'tags_delete',
-    description: 'Delete a tag (removes from all links and jobs)',
+    description: '删除标签，并从所有链接和任务中移除关联',
     parameters: createToolParameter(
       {
-        id: { type: 'string', description: 'Tag ID to delete' },
+        id: { type: 'string', description: '要删除的标签 ID' },
       },
       ['id']
     ),
@@ -116,12 +119,12 @@ export function registerTagsTools() {
   // tags_toggle (requires confirmation)
   toolRegistry.register({
     name: 'tags_toggle',
-    description: 'Toggle tag association with a link or job',
+    description: '切换标签与链接或任务的关联状态',
     parameters: createToolParameter(
       {
-        tagId: { type: 'string', description: 'Tag ID to toggle' },
-        entityId: { type: 'string', description: 'Link or Job ID to associate/disassociate' },
-        entityType: { type: 'string', description: 'Entity type: "link" or "job"' },
+        tagId: { type: 'string', description: '要切换关联状态的标签 ID' },
+        entityId: { type: 'string', description: '要关联或取消关联的链接或任务 ID' },
+        entityType: { type: 'string', description: '实体类型："link" 或 "job"' },
       },
       ['tagId', 'entityId', 'entityType']
     ),

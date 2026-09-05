@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_TAB_ORDER, TAB_CONFIG } from './sidepanelTabs';
-import type { FeatureToggles, TabId } from './sidepanelTypes';
+import type { FeatureToggles, ModuleTabId, TabId } from './sidepanelTypes';
 
 const RECENT_TABS_KEY = 'dpp_recent_tabs';
 const RECENT_TAB_LIMIT = 3;
@@ -26,72 +26,49 @@ function getInitialRecentTabs(): TabId[] {
   }
 }
 
-function getInitialActiveTab(): TabId {
+function getInitialModule(): ModuleTabId | null {
   const tabParam = new URLSearchParams(window.location.search).get('tab');
-  if (isValidTabId(tabParam)) {
+  if (isValidTabId(tabParam) && tabParam !== 'aiAssistant') {
     return tabParam;
   }
-
-  if (typeof localStorage === 'undefined') return 'aiAssistant';
-  const storedTab = localStorage.getItem('dpp_active_tab');
-  return isValidTabId(storedTab) ? storedTab : 'aiAssistant';
+  return null;
 }
 
 interface UseSidepanelTabsOptions {
   featureToggles: FeatureToggles;
 }
 
-function getFirstVisibleTab(featureToggles: FeatureToggles): TabId | null {
-  return (
-    DEFAULT_TAB_ORDER.find((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles })) ?? null
-  );
-}
-
 export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
-  const [activeTab, setActiveTab] = useState<TabId>(getInitialActiveTab);
+  const [activeModule, setActiveModule] = useState<ModuleTabId | null>(getInitialModule);
   const [recentTabs, setRecentTabs] = useState<TabId[]>(getInitialRecentTabs);
-  const visibleActiveTab = TAB_CONFIG[activeTab].getVisible({ featureToggles })
-    ? activeTab
-    : (getFirstVisibleTab(featureToggles) ?? activeTab);
 
   useEffect(() => {
-    const isActiveTabVisible = TAB_CONFIG[activeTab].getVisible({ featureToggles });
-    if (isActiveTabVisible) {
+    if (!activeModule || TAB_CONFIG[activeModule].getVisible({ featureToggles })) {
       return;
     }
-
-    const fallbackTab = getFirstVisibleTab(featureToggles);
-    if (!fallbackTab) {
-      return;
-    }
-
-    setActiveTab(fallbackTab);
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('dpp_active_tab', fallbackTab);
-    }
-  }, [activeTab, featureToggles]);
+    setActiveModule(null);
+  }, [activeModule, featureToggles]);
 
   const handleTabChange = useCallback((tabId: TabId) => {
-    setActiveTab(tabId);
-
-    if (tabId !== 'aiAssistant') {
-      setRecentTabs((previous) => {
-        const next = [tabId, ...previous.filter((recentTab) => recentTab !== tabId)].slice(
-          0,
-          RECENT_TAB_LIMIT
-        );
-        localStorage.setItem(RECENT_TABS_KEY, JSON.stringify(next));
-        return next;
-      });
+    if (tabId === 'aiAssistant') {
+      setActiveModule(null);
+      return;
     }
 
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('dpp_active_tab', tabId);
-    }
+    setActiveModule(tabId);
+
+    setRecentTabs((previous) => {
+      const next = [tabId, ...previous.filter((recentTab) => recentTab !== tabId)].slice(
+        0,
+        RECENT_TAB_LIMIT
+      );
+      localStorage.setItem(RECENT_TABS_KEY, JSON.stringify(next));
+      return next;
+    });
   }, []);
 
   return {
-    activeTab: visibleActiveTab,
+    activeModule,
     handleTabChange,
     recentTabs,
   };

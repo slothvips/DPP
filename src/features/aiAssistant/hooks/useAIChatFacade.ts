@@ -37,8 +37,10 @@ export function useAIChatFacade(): UseAIChatReturn {
   const {
     sessionId,
     sessions,
+    currentRole,
     loadSessions,
     createNewSession: createSession,
+    selectRole,
     switchSession: switchSessionInternal,
     deleteSession: deleteSessionInternal,
   } = useAIChatSessions({
@@ -80,6 +82,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     resetProvider: resetRuntimeProvider,
   } = useAIChatRuntime({
     sessionId,
+    role: currentRole,
     createAssistantPlaceholder,
     onStreamStart: () => setStatus('streaming'),
     onStreamChunk: handleStreamChunk,
@@ -127,6 +130,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     onStatusChange: setStatus,
     onAIConfigChanged: resetRuntimeProvider,
     sessionId,
+    allowedToolNames: currentRole.allowedToolNames,
   });
 
   const { sendMessage, continueConversation, stop, clearMessages, editMessage } = useAIChatActions({
@@ -209,6 +213,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     pendingBuild,
     sessionId,
     sessions,
+    currentRole,
     sessionStatuses,
     currentProvider,
     currentProviderName,
@@ -223,6 +228,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     clearMessages,
     editMessage,
     createNewSession,
+    selectRole,
     switchSession,
     deleteSession,
     resetProvider,

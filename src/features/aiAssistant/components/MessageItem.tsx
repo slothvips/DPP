@@ -22,6 +22,7 @@ import type { ChatMessage } from '../types';
 interface MessageItemProps {
   message: ChatMessage;
   canEdit: boolean;
+  assistantLabel: string;
   onEditMessage: (messageId: string, content: string) => Promise<void>;
 }
 
@@ -130,7 +131,7 @@ function formatToolArguments(argumentsJson: string): string {
  * Uses React.memo with custom comparison for optimal performance.
  */
 export const MessageItem = memo(
-  function MessageItem({ message, canEdit, onEditMessage }: MessageItemProps) {
+  function MessageItem({ message, canEdit, assistantLabel, onEditMessage }: MessageItemProps) {
     const [isEditing, setIsEditing] = useState(false);
     const [draft, setDraft] = useState(message.content);
     const [isSaving, setIsSaving] = useState(false);
@@ -141,7 +142,7 @@ export const MessageItem = memo(
     const isToolResult = message.role === 'tool';
     const contentClassName =
       'min-w-0 w-full max-w-full overflow-hidden prose prose-sm break-words text-foreground dark:prose-invert [overflow-wrap:anywhere] [&_*]:max-w-full [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_h4]:text-foreground [&_h5]:text-foreground [&_h6]:text-foreground [&_p]:text-foreground [&_strong]:text-foreground [&_em]:text-foreground [&_del]:text-muted-foreground [&_li]:text-foreground [&_li::marker]:text-muted-foreground [&_small]:text-muted-foreground [&_code]:break-all [&_code]:whitespace-pre-wrap [&_td]:break-words [&_th]:break-words [&_ul]:min-w-0 [&_ol]:min-w-0';
-    const roleLabel = isUser ? '你' : isToolResult ? message.name || '工具' : 'D仔';
+    const roleLabel = isUser ? '你' : isToolResult ? message.name || '工具' : assistantLabel;
     const RoleIcon = isUser ? UserRound : isToolResult ? Wrench : Bot;
     const reasoning = message.role === 'assistant' ? getReasoningContent(message) : '';
     const toolCalls = message.toolCalls || [];
@@ -356,6 +357,7 @@ export const MessageItem = memo(
       prevProps.message.toolCallId === nextProps.message.toolCallId &&
       JSON.stringify(prevProps.message.toolCalls) === JSON.stringify(nextProps.message.toolCalls) &&
       prevProps.canEdit === nextProps.canEdit &&
+      prevProps.assistantLabel === nextProps.assistantLabel &&
       prevProps.onEditMessage === nextProps.onEditMessage &&
       getReasoningContent(prevProps.message) === getReasoningContent(nextProps.message)
     );

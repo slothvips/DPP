@@ -31,11 +31,18 @@ export class ToolRegistry {
       .map(toOpenAIToolDefinition);
   }
 
-  async execute<T = unknown>(name: string, args: Record<string, unknown>): Promise<T> {
+  async execute<T = unknown>(
+    name: string,
+    args: Record<string, unknown>,
+    allowedToolNames?: readonly string[]
+  ): Promise<T> {
     const trimmedName = name.trim();
     const tool = this.tools.get(trimmedName);
     if (!tool) {
       throw new Error(`Tool ${trimmedName} not found`);
+    }
+    if (allowedToolNames && !allowedToolNames.includes(tool.name)) {
+      throw new Error(`当前角色未启用工具：${tool.name}`);
     }
 
     validateToolArguments(tool.parameters, args);

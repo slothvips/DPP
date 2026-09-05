@@ -95,12 +95,12 @@ export function registerJenkinsTools() {
   // jenkins_list_jobs
   toolRegistry.register({
     name: 'jenkins_list_jobs',
-    description: 'List all Jenkins jobs, supports keyword filtering',
+    description: '列出所有 Jenkins 任务，支持按关键词筛选',
     parameters: createToolParameter(
       {
         keyword: {
           type: 'string',
-          description: 'Keyword to filter jobs by name, fullName, or URL',
+          description: '按任务名称、fullName 或 URL 筛选任务的关键词',
         },
         page: { type: 'integer', minimum: 1, description: '页码，默认 1' },
         pageSize: {
@@ -118,14 +118,14 @@ export function registerJenkinsTools() {
   // jenkins_list_builds
   toolRegistry.register({
     name: 'jenkins_list_builds',
-    description: 'Get build history for a specific Jenkins job',
+    description: '获取指定 Jenkins 任务的构建历史',
     parameters: createToolParameter(
       {
-        jobUrl: { type: 'string', description: 'The job URL' },
+        jobUrl: { type: 'string', description: '任务 URL' },
         limit: {
           type: 'integer',
           minimum: 1,
-          description: 'Maximum number of builds to return (default: 10)',
+          description: '最多返回的构建数量，默认 10',
         },
         offset: { type: 'integer', minimum: 0, description: '跳过的构建数量，默认 0' },
       },
@@ -157,11 +157,10 @@ export function registerJenkinsTools() {
   // jenkins_trigger_build (requires confirmation)
   toolRegistry.register({
     name: 'jenkins_trigger_build',
-    description:
-      'Open the Jenkins build configuration dialog; the build does not start until the user confirms it in the dialog',
+    description: '打开 Jenkins 构建配置对话框；用户在对话框中确认前不会启动构建',
     parameters: createToolParameter(
       {
-        jobUrl: { type: 'string', description: 'The job URL to build' },
+        jobUrl: { type: 'string', description: '要构建的任务 URL' },
       },
       ['jobUrl']
     ),
@@ -172,13 +171,12 @@ export function registerJenkinsTools() {
   // jenkins_sync (requires confirmation)
   toolRegistry.register({
     name: 'jenkins_sync',
-    description: 'Sync Jenkins jobs and builds data',
+    description: '同步 Jenkins 任务和构建数据',
     parameters: createToolParameter(
       {
         envId: {
           type: 'string',
-          description:
-            'Environment ID to sync (optional, uses current environment if not provided)',
+          description: '要同步的环境 ID，可选；不提供时使用当前环境',
         },
       },
       []
@@ -190,10 +188,10 @@ export function registerJenkinsTools() {
   // jenkins_switchEnv
   toolRegistry.register({
     name: 'jenkins_switchEnv',
-    description: 'Switch to a different Jenkins environment',
+    description: '切换到其他 Jenkins 环境',
     parameters: createToolParameter(
       {
-        envId: { type: 'string', description: 'The environment ID to switch to' },
+        envId: { type: 'string', description: '要切换到的环境 ID' },
       },
       ['envId']
     ),

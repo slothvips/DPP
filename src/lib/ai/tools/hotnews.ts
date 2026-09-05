@@ -29,7 +29,7 @@ async function hotnews_get(args: { date?: string; limit?: number }) {
   if (!cached) {
     return {
       date,
-      message: 'No hot news data available. Please open the Hot News tab first to fetch data.',
+      message: '暂无热榜数据，请先打开热榜页面获取数据。',
       sections: [],
     };
   }
@@ -70,10 +70,10 @@ async function sync_trigger() {
     await syncEngine.pull();
     return {
       success: true,
-      message: 'Sync completed successfully',
+      message: '同步成功完成',
     };
   } catch (error) {
-    throw new Error(`Sync failed: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`同步失败：${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -84,12 +84,12 @@ export function registerHotNewsTools() {
   // hotnews_get
   toolRegistry.register({
     name: 'hotnews_get',
-    description: 'Get today hot news list (今日热榜)',
+    description: '获取今日热榜列表',
     parameters: createToolParameter(
       {
         date: {
           type: 'string',
-          description: 'Date in YYYY-MM-DD format (optional, defaults to today)',
+          description: 'YYYY-MM-DD 格式的日期，可选，默认使用今天',
         },
         limit: {
           type: 'integer',
@@ -106,7 +106,7 @@ export function registerHotNewsTools() {
   // sync_trigger (requires confirmation)
   toolRegistry.register({
     name: 'sync_trigger',
-    description: 'Trigger global sync (push and pull)',
+    description: '触发全局同步（推送和拉取）',
     parameters: createToolParameter({}, []),
     handler: sync_trigger as ToolHandler,
     requiresConfirmation: true,

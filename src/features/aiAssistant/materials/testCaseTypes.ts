@@ -1,6 +1,6 @@
 import type { EncryptedData } from '@/lib/crypto/encryption';
 
-export type MaterialType = 'prompt' | 'testCase';
+export type MaterialType = 'prompt' | 'role' | 'testCase';
 
 export type MaterialStatus = 'ready' | 'archived';
 
@@ -33,6 +33,38 @@ export interface PromptMaterialContent {
 
 export interface PromptMaterial extends MaterialRecordBase {
   type: 'prompt';
+}
+
+export type RoleToolPolicy = { mode: 'all' } | { mode: 'allowlist'; toolNames: string[] };
+
+export interface RoleMaterialContent {
+  description?: string;
+  systemPrompt: string;
+  toolPolicy: RoleToolPolicy;
+}
+
+export interface RoleMaterial extends MaterialRecordBase {
+  type: 'role';
+}
+
+export interface RoleMaterialInput {
+  title: string;
+  description?: string;
+  systemPrompt: string;
+  toolPolicy: RoleToolPolicy;
+}
+
+export interface DecryptedRoleMaterial extends RoleMaterial {
+  content: RoleMaterialContent;
+}
+
+export interface AISessionRoleSnapshot {
+  roleId: string;
+  title: string;
+  version: number;
+  description?: string;
+  systemPrompt: string;
+  allowedToolNames: string[];
 }
 
 export interface TestCaseTarget {
@@ -74,7 +106,7 @@ export interface TestCaseMaterial extends MaterialRecordBase {
   type: 'testCase';
 }
 
-export type MaterialRecord = PromptMaterial | TestCaseMaterial;
+export type MaterialRecord = PromptMaterial | RoleMaterial | TestCaseMaterial;
 
 export interface PromptMaterialInput {
   title: string;

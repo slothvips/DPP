@@ -33,7 +33,8 @@ export function prepareToolCalls(toolCalls: ToolCall[]): PreparedToolCall[] {
 
 export function normalizeAndClassifyToolCalls(
   toolCalls: ToolCall[],
-  yoloMode: boolean
+  yoloMode: boolean,
+  allowedToolNames?: readonly string[]
 ): {
   toolCallsToConfirm: PreparedToolCall[];
   toolCallsToExecute: PreparedToolCall[];
@@ -41,12 +42,16 @@ export function normalizeAndClassifyToolCalls(
   const toolCallsToConfirm: PreparedToolCall[] = [];
   const toolCallsToExecute: PreparedToolCall[] = [];
   let confirmationStarted = false;
+  const allowedTools = allowedToolNames ? new Set(allowedToolNames) : null;
 
   for (const preparedToolCall of prepareToolCalls(toolCalls)) {
     const toolName = preparedToolCall.toolCall.function.name.trim();
     const resolvedTool = toolRegistry.get(toolName);
     if (!resolvedTool) {
       throw new Error(`Tool ${toolName} not found`);
+    }
+    if (allowedTools && !allowedTools.has(resolvedTool.name)) {
+      throw new Error(`当前角色未启用工具：${resolvedTool.name}`);
     }
 
     const normalizedToolCall = {
