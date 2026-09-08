@@ -4,24 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DPP AI Assistant</title>
-    <script>
-      // Apply theme immediately before React loads to prevent flash
-      (function () {
-        var storedTheme = localStorage.getItem('theme');
-        var theme =
-          storedTheme === 'system'
-            ? window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light'
-            : storedTheme === 'dark'
-              ? 'dark'
-              : 'light';
-        document.documentElement.dataset.dppTheme = theme;
-        if (theme === 'dark') {
-          document.documentElement.classList.add('dark');
-        }
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
     <style>
       /* 全局隐藏滚动条 / Hide all scrollbars globally */
       ::-webkit-scrollbar {

@@ -20,10 +20,10 @@ D1 负责 cursor、唯一约束、fingerprint 冲突检测、分页拉取和 pen
 
 ## 当前环境
 
-| 环境 | Worker | D1 | 域名 |
-| --- | --- | --- | --- |
-| 生产 | `dpp-sync-worker` | `dpp-sync` | `https://dpp-sync.586726.xyz` |
-| 测试 | `dpp-sync-test` | `dpp-sync-test` | `https://dpp-sync-test.586726.xyz` |
+| 环境 | Worker            | D1              | 域名                               |
+| ---- | ----------------- | --------------- | ---------------------------------- |
+| 生产 | `dpp-sync-worker` | `dpp-sync`      | `https://dpp-sync.586726.xyz`      |
+| 测试 | `dpp-sync-test`   | `dpp-sync-test` | `https://dpp-sync-test.586726.xyz` |
 
 生产和测试必须使用不同的 D1、`SYNC_ACCESS_TOKEN`、`MIGRATION_ADMIN_TOKEN` 和浏览器配置。
 
@@ -348,15 +348,15 @@ D1-only Worker 接受新写入后不能直接回切 Google，因为 Sheet 不包
 
 ## 故障排查
 
-| 现象 | 检查 |
-| --- | --- |
-| `401 Unauthorized` | 目标环境是否设置正确的 `SYNC_ACCESS_TOKEN`，扩展是否使用同一令牌 |
-| `DB is undefined` | `d1_databases` 是否同时配置在顶层和 `env.test` |
-| `no such table: operations` | 是否对对应环境应用了 D1 migration |
-| push 返回 `409` | 相同客户端操作 ID 已存在不同 fingerprint，检查客户端身份和重试数据 |
-| push 返回 `503` | 临时迁移 Worker 的维护锁仍开启 |
-| 旧 cursor 拉不到数据 | 检查历史导入是否保留原 `server_seq`，以及目标最大 cursor |
-| 自定义域名不可达 | 域名是否由当前 Cloudflare zone 托管，`routes` 是否匹配 |
-| 部署到了错误环境 | 显式使用 `--env test` 或 `--env ""` |
+| 现象                        | 检查                                                               |
+| --------------------------- | ------------------------------------------------------------------ |
+| `401 Unauthorized`          | 目标环境是否设置正确的 `SYNC_ACCESS_TOKEN`，扩展是否使用同一令牌   |
+| `DB is undefined`           | `d1_databases` 是否同时配置在顶层和 `env.test`                     |
+| `no such table: operations` | 是否对对应环境应用了 D1 migration                                  |
+| push 返回 `409`             | 相同客户端操作 ID 已存在不同 fingerprint，检查客户端身份和重试数据 |
+| push 返回 `503`             | 临时迁移 Worker 的维护锁仍开启                                     |
+| 旧 cursor 拉不到数据        | 检查历史导入是否保留原 `server_seq`，以及目标最大 cursor           |
+| 自定义域名不可达            | 域名是否由当前 Cloudflare zone 托管，`routes` 是否匹配             |
+| 部署到了错误环境            | 显式使用 `--env test` 或 `--env ""`                                |
 
 不要通过清空 D1、重置客户端 cursor 或删除本地 IndexedDB 来规避同步问题，这些操作可能造成重复应用或数据丢失。

@@ -1,8 +1,8 @@
-// System prompt generator for D仔
+// Default system prompt generator
 import { buildPromptStaticSections } from './promptShared';
 
 /**
- * Generate system prompt for D仔
+ * Generate the default system prompt
  */
 export function generateSystemPrompt(): string {
   return buildPromptStaticSections();

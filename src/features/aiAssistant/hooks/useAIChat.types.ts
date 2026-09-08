@@ -57,8 +57,13 @@ export interface UseAIChatReturn {
   selectRole: (roleId: string) => Promise<void>;
   switchSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
+  duplicateSession: (id: string) => Promise<void>;
+  updateSessionTitle: (id: string, title: string) => Promise<void>;
+  setSessionPinned: (id: string, pinned: boolean) => Promise<void>;
   resetProvider: () => void;
   completeBuild: () => void;
   cancelBuild: () => void;
   summarizeSession: () => Promise<boolean>;
+  shareSession: (sessionId: string, input: { title: string; summary?: string }) => Promise<void>;
+  importConversation: (materialId: string) => Promise<void>;
 }

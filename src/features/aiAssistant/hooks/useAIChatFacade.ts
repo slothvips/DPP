@@ -1,6 +1,20 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ensureAIToolsRegistered } from '@/lib/ai';
-import { clearSessionMessages, truncateSessionFromMessage } from '@/lib/db/ai';
+import type { SessionAction } from '@/lib/ai/sessionActions';
+import {
+  clearSessionMessages,
+  createSessionWithMessages,
+  getMessagesBySession,
+  getSession,
+  truncateSessionFromMessage,
+  updateSessionPinned,
+  updateSessionTitle,
+} from '@/lib/db/ai';
+import {
+  createConversationMaterial,
+  createSessionFromConversation,
+  getConversationMaterial,
+} from '@/lib/db/conversations';
 import { logger } from '@/utils/logger';
 import type { ChatMessage } from '../types';
 import type { UseAIChatReturn } from './useAIChat.types';
@@ -9,17 +23,23 @@ import { useAIChatMessages } from './useAIChatMessages';
 import { toProviderChatMessage, useAIChatPersistence } from './useAIChatPersistence';
 import { useAIChatRuntime } from './useAIChatRuntime';
 import { useAIChatSessionSummary } from './useAIChatSessionSummary';
-import { useAIChatSessions } from './useAIChatSessions';
+import {
+  resolveRoleSnapshot,
+  resolveRoleSnapshotByTitle,
+  useAIChatSessions,
+} from './useAIChatSessions';
 import { useAIChatState } from './useAIChatState';
 import { useAIChatToolFlow } from './useAIChatToolFlow';
 import { useYoloMode } from './useYoloMode';
 
 export function useAIChatFacade(): UseAIChatReturn {
+  const pendingInitialMessageRef = useRef<{ sessionId: string; content: string } | null>(null);
   useEffect(() => {
     ensureAIToolsRegistered();
   }, []);
 
   const { yoloMode, setYoloMode } = useYoloMode();
+  const resetInitialSessionMessageFlag = useCallback(() => undefined, []);
   const {
     messages,
     reasoning,
@@ -30,6 +50,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     handleReasoningChunk,
     handleAssistantMessage,
     loadSessionMessages,
+    clearSessionMessages: clearInMemorySessionMessages,
     getMessagesRef,
     setActiveSession,
   } = useAIChatMessages();
@@ -46,7 +67,7 @@ export function useAIChatFacade(): UseAIChatReturn {
   } = useAIChatSessions({
     onMessagesLoaded: loadSessionMessages,
     onBeforeSessionSwitch: () => undefined,
-    resetFirstMessageFlag: () => undefined,
+    resetFirstMessageFlag: resetInitialSessionMessageFlag,
   });
 
   const {
@@ -57,6 +78,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     isFirstMessageRef,
     resetSessionScopedState,
     resetFirstMessageFlag,
+    markSessionAsStarted,
     isRunning,
     setContinueConversation,
     getContinueConversation,
@@ -108,6 +130,50 @@ export function useAIChatFacade(): UseAIChatReturn {
     (newMessages: ChatMessage[]) => saveToolMessages(newMessages),
     [saveToolMessages]
   );
+  const handleSessionAction = useCallback(
+    async (action: SessionAction) => {
+      if (action.action === 'session_context_cleared') {
+        if (!sessionId) return;
+        await stopRuntime(sessionId);
+        await clearSessionMessages(sessionId);
+        clearInMemorySessionMessages(sessionId);
+        resetRuntimeState();
+        resetFirstMessageFlag();
+        return;
+      }
+
+      const role = action.role_id
+        ? await resolveRoleSnapshot(action.role_id)
+        : action.role_title
+          ? await resolveRoleSnapshotByTitle(action.role_title)
+          : currentRole;
+      if (!role) throw new Error('角色不存在、已删除或名称不唯一');
+      const newSession = await createSessionWithMessages(
+        action.title ?? '新会话',
+        action.opening_message ? [{ role: 'assistant', content: action.opening_message }] : [],
+        role
+      );
+      if (action.initial_user_message) {
+        pendingInitialMessageRef.current = {
+          sessionId: newSession.id,
+          content: action.initial_user_message,
+        };
+      }
+      await loadSessions();
+      await switchSessionInternal(newSession.id);
+      resetFirstMessageFlag();
+    },
+    [
+      clearInMemorySessionMessages,
+      currentRole,
+      loadSessions,
+      resetFirstMessageFlag,
+      resetRuntimeState,
+      sessionId,
+      stopRuntime,
+      switchSessionInternal,
+    ]
+  );
 
   const {
     pendingToolCall,
@@ -131,6 +197,7 @@ export function useAIChatFacade(): UseAIChatReturn {
     onAIConfigChanged: resetRuntimeProvider,
     sessionId,
     allowedToolNames: currentRole.allowedToolNames,
+    onSessionAction: handleSessionAction,
   });
 
   const { sendMessage, continueConversation, stop, clearMessages, editMessage } = useAIChatActions({
@@ -159,10 +226,49 @@ export function useAIChatFacade(): UseAIChatReturn {
 
   setContinueConversation(continueConversation);
 
+  useEffect(() => {
+    const pending = pendingInitialMessageRef.current;
+    if (!pending || pending.sessionId !== sessionId) return;
+    pendingInitialMessageRef.current = null;
+    void sendMessage(pending.content);
+  }, [sendMessage, sessionId]);
+
   const createNewSession = useCallback(async () => {
     await createSession();
     resetFirstMessageFlag();
   }, [createSession, resetFirstMessageFlag]);
+
+  const shareSession = useCallback(
+    async (targetSessionId: string, input: { title: string; summary?: string }) => {
+      const targetSession = await getSession(targetSessionId);
+      if (!targetSession) throw new Error('会话不存在或已删除');
+      if (getSessionStatus(targetSessionId) !== 'idle') {
+        throw new Error('请等待会话完成后再分享');
+      }
+
+      const targetMessages = await getMessagesBySession(targetSessionId);
+      if (targetMessages.length === 0) throw new Error('该会话没有可分享的消息');
+
+      await createConversationMaterial({
+        ...input,
+        messages: targetMessages,
+        role: targetSessionId === sessionId ? currentRole : targetSession.role,
+      });
+    },
+    [currentRole, getSessionStatus, sessionId]
+  );
+
+  const importConversation = useCallback(
+    async (materialId: string) => {
+      const material = await getConversationMaterial(materialId);
+      if (!material) throw new Error('会话物料不存在或已不可用');
+      const session = await createSessionFromConversation(material);
+      await loadSessions();
+      await switchSessionInternal(session.id);
+      markSessionAsStarted(session.id);
+    },
+    [loadSessions, markSessionAsStarted, switchSessionInternal]
+  );
 
   const switchSession = useCallback(
     async (id: string) => {
@@ -193,12 +299,65 @@ export function useAIChatFacade(): UseAIChatReturn {
     ]
   );
 
+  const duplicateSession = useCallback(
+    async (targetSessionId: string) => {
+      const targetSession = await getSession(targetSessionId);
+      if (!targetSession) throw new Error('会话不存在或已删除');
+      if (getSessionStatus(targetSessionId) !== 'idle') {
+        throw new Error('请等待会话完成后再复制');
+      }
+
+      const targetMessages = await getMessagesBySession(targetSessionId);
+      if (targetMessages.length === 0) throw new Error('新会话没有可复制的消息');
+      const session = await createSessionWithMessages(
+        `副本：${targetSession.title}`.slice(0, 30),
+        targetMessages,
+        targetSession.role
+      );
+      await loadSessions();
+      await switchSessionInternal(session.id);
+      markSessionAsStarted(session.id);
+    },
+    [getSessionStatus, loadSessions, markSessionAsStarted, switchSessionInternal]
+  );
+
+  const renameSession = useCallback(
+    async (targetSessionId: string, title: string) => {
+      const targetSession = await getSession(targetSessionId);
+      if (!targetSession) throw new Error('会话不存在或已删除');
+      const targetMessages = await getMessagesBySession(targetSessionId);
+      if (targetMessages.length === 0) {
+        throw new Error('新会话暂不支持修改标题，请先发送消息');
+      }
+      if (getSessionStatus(targetSessionId) !== 'idle') {
+        throw new Error('请等待会话完成后再修改标题');
+      }
+      await updateSessionTitle(targetSessionId, title);
+      await loadSessions();
+    },
+    [getSessionStatus, loadSessions]
+  );
+
+  const setSessionPinned = useCallback(
+    async (targetSessionId: string, pinned: boolean) => {
+      if (!(await getSession(targetSessionId))) throw new Error('会话不存在或已删除');
+      await updateSessionPinned(targetSessionId, pinned);
+      await loadSessions();
+    },
+    [loadSessions]
+  );
+
   const resetProvider = useCallback(() => {
     resetRuntimeProvider();
     logger.info('[AIChat] Provider cache reset');
   }, [resetRuntimeProvider]);
 
-  const summarizeSession = useAIChatSessionSummary({ sessionId, loadSessions, getProvider });
+  const summarizeSession = useAIChatSessionSummary({
+    sessionId,
+    assistantLabel: currentRole.title,
+    loadSessions,
+    getProvider,
+  });
   const sessionStatuses = Object.fromEntries(
     sessions.map((session) => [session.id, getSessionStatus(session.id)])
   );
@@ -231,10 +390,15 @@ export function useAIChatFacade(): UseAIChatReturn {
     selectRole,
     switchSession,
     deleteSession,
+    duplicateSession,
+    updateSessionTitle: renameSession,
+    setSessionPinned,
     resetProvider,
     completeBuild,
     cancelBuild,
     summarizeSession,
+    shareSession,
+    importConversation,
     setYoloMode,
   };
 }

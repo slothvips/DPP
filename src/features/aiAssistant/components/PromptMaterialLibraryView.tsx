@@ -1,26 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import {
-  ArrowLeft,
-  Copy,
-  Eye,
-  FileText,
-  LoaderCircle,
-  Pencil,
-  Plus,
-  Send,
-  Tag,
-  Trash2,
-} from 'lucide-react';
+import { ArrowLeft, Copy, FileText, LoaderCircle, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { TagSelector } from '@/components/ui/tag-selector';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,25 +13,33 @@ import type {
   PromptVariable,
 } from '@/features/aiAssistant/materials/testCaseTypes';
 import {
-  archivePromptMaterial,
   createOrReactivateTag,
   createPromptMaterial,
+  deletePromptMaterial,
   deleteTag,
   extractPromptVariableKeys,
   getAllActiveTags,
   getPromptMaterial,
   listPromptMaterialRecords,
-  renderPromptTemplate,
   updatePromptMaterial,
 } from '@/lib/db';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
+export interface PromptMaterialFeedItem {
+  id: string;
+  updatedAt: number;
+  content: ReactNode;
+}
+
 interface PromptMaterialLibraryViewProps {
   search: string;
   compact?: boolean;
   hideEmpty?: boolean;
-  onUsePrompt: (prompt: { title: string; body: string }) => Promise<void>;
+  hideHeader?: boolean;
+  additionalItems?: PromptMaterialFeedItem[];
+  additionalItemsLoading?: boolean;
+  emptyState?: { title: string; description: string };
   onVisibilityChange?: (visible: boolean) => void;
 }
 
@@ -57,16 +47,18 @@ export function PromptMaterialLibraryView({
   search,
   compact = false,
   hideEmpty = false,
-  onUsePrompt,
+  hideHeader = false,
+  additionalItems = [],
+  additionalItemsLoading = false,
+  emptyState,
   onVisibilityChange,
 }: PromptMaterialLibraryViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [usingMaterial, setUsingMaterial] = useState<DecryptedPromptMaterial | null>(null);
   const [decryptedMaterials, setDecryptedMaterials] = useState<DecryptedPromptMaterial[]>([]);
   const [decryptError, setDecryptError] = useState<string | null>(null);
-  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const materialRecordsQuery = useLiveQuery(() => listPromptMaterialRecords(), []);
   const materialRecords = useMemo(() => materialRecordsQuery ?? [], [materialRecordsQuery]);
   const { confirm } = useConfirmDialog();
@@ -125,69 +117,69 @@ export function PromptMaterialLibraryView({
     ? decryptedMaterials.find((material) => material.id === selectedId)
     : undefined;
   const isLoading =
+    additionalItemsLoading ||
     materialRecordsQuery === undefined ||
     (materialRecords.length > 0 && decryptedMaterials.length === 0 && !decryptError);
   const hasVisibleContent =
     isLoading ||
     decryptError !== null ||
     filteredMaterials.length > 0 ||
+    additionalItems.length > 0 ||
     selectedMaterial !== undefined ||
-    creating ||
-    usingMaterial !== null;
+    creating;
 
   useEffect(() => {
     onVisibilityChange?.(hasVisibleContent);
   }, [hasVisibleContent, onVisibilityChange]);
 
-  const handleArchive = async (material: DecryptedPromptMaterial) => {
+  const handleDelete = async (material: DecryptedPromptMaterial) => {
     const confirmed = await confirm(
-      `确定要归档“${material.title}”吗？\n归档后它不会出现在可用提示词列表中。`,
-      '确认归档提示词',
+      `确定要删除“${material.title}”吗？\n提示词将从团队共享库中移除。`,
+      '确认删除提示词',
       'danger'
     );
     if (!confirmed) return;
 
-    setArchivingId(material.id);
+    setDeletingId(material.id);
     try {
-      await archivePromptMaterial(material.id);
+      await deletePromptMaterial(material.id);
       if (selectedId === material.id) setSelectedId(null);
-      toast('提示词已归档', 'success');
+      toast('提示词已删除', 'success');
     } catch (error) {
-      logger.error('[MaterialLibrary] Failed to archive prompt:', error);
-      toast(error instanceof Error ? error.message : '归档提示词失败', 'error');
+      logger.error('[MaterialLibrary] Failed to delete prompt:', error);
+      toast(error instanceof Error ? error.message : '删除提示词失败', 'error');
     } finally {
-      setArchivingId(null);
+      setDeletingId(null);
     }
   };
 
-  const handleUse = async (material: DecryptedPromptMaterial, body: string) => {
-    try {
-      await onUsePrompt({ title: material.title, body });
-      setUsingMaterial(null);
-    } catch (error) {
-      logger.error('[MaterialLibrary] Failed to use prompt:', error);
-      toast(error instanceof Error ? error.message : '使用提示词失败', 'error');
-    }
-  };
-
-  const listContent = (
-    <div className="space-y-2">
-      {filteredMaterials.map((material) => (
+  const listItems: PromptMaterialFeedItem[] = [
+    ...filteredMaterials.map((material) => ({
+      id: material.id,
+      updatedAt: material.updatedAt,
+      content: (
         <PromptMaterialCard
-          key={material.id}
           material={material}
-          archiving={archivingId === material.id}
+          deleting={deletingId === material.id}
           onOpen={() => {
             setEditingId(null);
             setSelectedId(material.id);
           }}
-          onUse={() => setUsingMaterial(material)}
           onEdit={() => {
             setEditingId(material.id);
             setSelectedId(material.id);
           }}
-          onArchive={() => void handleArchive(material)}
+          onDelete={() => void handleDelete(material)}
         />
+      ),
+    })),
+    ...additionalItems,
+  ].sort((left, right) => right.updatedAt - left.updatedAt);
+
+  const listContent = (
+    <div className="space-y-2">
+      {listItems.map((item) => (
+        <div key={item.id}>{item.content}</div>
       ))}
     </div>
   );
@@ -210,7 +202,6 @@ export function PromptMaterialLibraryView({
         material={selectedMaterial}
         onBack={() => setSelectedId(null)}
         onEdit={() => setEditingId(selectedMaterial.id)}
-        onUse={() => setUsingMaterial(selectedMaterial)}
       />
     )
   ) : creating ? (
@@ -222,7 +213,7 @@ export function PromptMaterialLibraryView({
         <p className="mt-2 text-xs leading-5 text-muted-foreground">{decryptError}</p>
       </div>
     </div>
-  ) : filteredMaterials.length > 0 ? (
+  ) : filteredMaterials.length > 0 || additionalItems.length > 0 ? (
     listContent
   ) : isLoading ? (
     <div className="flex min-h-0 flex-1 items-center justify-center p-6">
@@ -235,10 +226,18 @@ export function PromptMaterialLibraryView({
           <FileText className="h-6 w-6" />
         </div>
         <h3 className="text-sm font-semibold text-foreground">
-          {search.trim() ? '没有匹配的提示词' : '还没有提示词'}
+          {search.trim()
+            ? emptyState
+              ? '没有匹配的物料'
+              : '没有匹配的提示词'
+            : (emptyState?.title ?? '还没有提示词')}
         </h3>
         <p className="mt-2 text-xs leading-5 text-muted-foreground">
-          {search.trim() ? '换一个关键词试试。' : '创建一个可复用的提示词模板。'}
+          {search.trim()
+            ? emptyState
+              ? '没有匹配的物料。'
+              : '换一个关键词试试。'
+            : (emptyState?.description ?? '创建一个可复用的提示词模板。')}
         </p>
         {!search.trim() && (
           <Button
@@ -260,14 +259,8 @@ export function PromptMaterialLibraryView({
   }
 
   return (
-    <div
-      className={
-        compact
-          ? 'rounded-xl border border-border/55 bg-background p-3'
-          : 'min-h-0 flex-1 overflow-y-auto p-4'
-      }
-    >
-      {!selectedMaterial && !editingId && !creating && (
+    <div className={compact ? 'p-4' : 'min-h-0 flex-1 overflow-y-auto p-4'}>
+      {!hideHeader && !selectedMaterial && !editingId && !creating && (
         <div className="mb-3 flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <FileText className="h-4 w-4 shrink-0 text-primary" />
@@ -289,33 +282,36 @@ export function PromptMaterialLibraryView({
         </div>
       )}
       {body}
-      {usingMaterial && (
-        <PromptUseDialog
-          material={usingMaterial}
-          onCancel={() => setUsingMaterial(null)}
-          onUse={(rendered) => void handleUse(usingMaterial, rendered)}
-        />
-      )}
     </div>
   );
 }
 
 function PromptMaterialCard({
   material,
-  archiving,
+  deleting,
   onOpen,
-  onUse,
   onEdit,
-  onArchive,
+  onDelete,
 }: {
   material: DecryptedPromptMaterial;
-  archiving: boolean;
+  deleting: boolean;
   onOpen: () => void;
-  onUse: () => void;
   onEdit: () => void;
-  onArchive: () => void;
+  onDelete: () => void;
 }) {
+  const { toast } = useToast();
   const { content } = material;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content.body);
+      toast('提示词正文已复制', 'success');
+    } catch (error) {
+      logger.warn('[MaterialLibrary] Failed to copy prompt:', error);
+      toast('复制提示词失败', 'error');
+    }
+  };
+
   return (
     <article className="w-full rounded-xl border border-border/60 bg-background p-3 transition-colors hover:border-primary/40">
       <div className="flex items-start justify-between gap-3">
@@ -324,7 +320,12 @@ function PromptMaterialCard({
           onClick={onOpen}
           className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <h3 className="truncate text-sm font-medium text-foreground">{material.title}</h3>
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              提示词
+            </span>
+            <h3 className="truncate text-sm font-medium text-foreground">{material.title}</h3>
+          </div>
           <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
             {content.summary || content.body}
           </p>
@@ -349,15 +350,20 @@ function PromptMaterialCard({
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" onClick={onUse} className="h-8 gap-1.5 rounded-lg text-xs">
-          <Send className="h-3.5 w-3.5" />
-          使用
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleCopy()}
+          className="h-8 gap-1.5 rounded-lg text-xs"
+        >
+          <Copy className="h-3.5 w-3.5" />
+          复制
         </Button>
         <Button
           variant="outline"
           size="sm"
           onClick={onEdit}
-          disabled={archiving}
+          disabled={deleting}
           className="h-8 gap-1.5 rounded-lg text-xs"
         >
           <Pencil className="h-3.5 w-3.5" />
@@ -366,16 +372,16 @@ function PromptMaterialCard({
         <Button
           variant="ghost"
           size="sm"
-          onClick={onArchive}
-          disabled={archiving}
+          onClick={onDelete}
+          disabled={deleting}
           className="h-8 gap-1.5 rounded-lg text-xs text-destructive hover:text-destructive"
         >
-          {archiving ? (
+          {deleting ? (
             <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Trash2 className="h-3.5 w-3.5" />
           )}
-          归档
+          删除
         </Button>
       </div>
     </article>
@@ -386,12 +392,10 @@ function PromptMaterialDetail({
   material,
   onBack,
   onEdit,
-  onUse,
 }: {
   material: DecryptedPromptMaterial;
   onBack: () => void;
   onEdit: () => void;
-  onUse: () => void;
 }) {
   const { toast } = useToast();
   const { content } = material;
@@ -489,10 +493,6 @@ function PromptMaterialDetail({
         >
           <Pencil className="h-3.5 w-3.5" />
           编辑
-        </Button>
-        <Button size="sm" onClick={onUse} className="h-8 gap-1.5 rounded-lg text-xs">
-          <Send className="h-3.5 w-3.5" />
-          使用提示词
         </Button>
       </div>
     </div>
@@ -767,90 +767,6 @@ function PromptTagSelector({
         onDeleteTag={(tagId, tagName) => void handleDelete(tagId, tagName)}
       />
     </div>
-  );
-}
-
-function PromptUseDialog({
-  material,
-  onCancel,
-  onUse,
-}: {
-  material: DecryptedPromptMaterial;
-  onCancel: () => void;
-  onUse: (body: string) => void;
-}) {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [error, setError] = useState<string | null>(null);
-  const { content } = material;
-  const preview = (() => {
-    try {
-      return renderPromptTemplate(content.body, content.variables, values);
-    } catch {
-      return null;
-    }
-  })();
-
-  const handleUse = () => {
-    try {
-      const rendered = renderPromptTemplate(content.body, content.variables, values);
-      onUse(rendered);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : '请补充必填变量');
-    }
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-2xl p-4 sm:max-w-lg">
-        <DialogHeader className="pr-6 text-left">
-          <DialogTitle className="text-sm">使用：{material.title}</DialogTitle>
-          <DialogDescription className="text-xs">填写变量后预览并填入当前会话。</DialogDescription>
-        </DialogHeader>
-
-        {content.variables.length > 0 && (
-          <div className="mt-4 space-y-3">
-            {content.variables.map((variable) => (
-              <EditorField
-                key={variable.key}
-                label={`${variable.label}${variable.required ? '（必填）' : ''}`}
-              >
-                <Input
-                  type={variable.sensitive ? 'password' : 'text'}
-                  value={values[variable.key] ?? ''}
-                  onChange={(event) => {
-                    setError(null);
-                    setValues((current) => ({ ...current, [variable.key]: event.target.value }));
-                  }}
-                  placeholder={variable.defaultValue || variable.description || variable.key}
-                  autoComplete="off"
-                />
-              </EditorField>
-            ))}
-          </div>
-        )}
-
-        <div className="mt-4">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            <Eye className="h-3.5 w-3.5" />
-            预览
-          </div>
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border/60 bg-muted/25 p-3 text-xs leading-5 text-foreground">
-            {preview ?? '请先填写必填变量'}
-          </pre>
-        </div>
-        {error && <p className="mt-3 text-xs text-destructive">{error}</p>}
-
-        <DialogFooter className="mt-4 flex-row justify-end gap-2 border-t border-border/50 pt-3 sm:space-x-0">
-          <Button variant="outline" size="sm" onClick={onCancel} className="h-8 rounded-lg text-xs">
-            取消
-          </Button>
-          <Button size="sm" onClick={handleUse} className="h-8 gap-1.5 rounded-lg text-xs">
-            <Send className="h-3.5 w-3.5" />
-            填入当前会话
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

@@ -19,7 +19,7 @@ export const FEATURE_LABEL_MAP: Record<keyof FeatureTogglesState, string> = {
   blackboard: '黑板',
   jenkins: 'Jenkins',
   recorder: '录制',
-  aiAssistant: 'D仔',
+  aiAssistant: 'AI 助手',
   playground: '游乐园',
   totp: '验证器',
 };

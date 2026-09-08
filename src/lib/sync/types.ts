@@ -50,7 +50,8 @@ export interface SyncProvider {
   push(ops: SyncOperation[], clientId: string): Promise<SyncPushResult>;
   pull(
     cursor?: string | number,
-    clientId?: string
+    clientId?: string,
+    limit?: number
   ): Promise<{ ops: SyncOperation[]; nextCursor: string | number }>;
   getPendingCount?(cursor?: string | number, clientId?: string): Promise<number>;
 }

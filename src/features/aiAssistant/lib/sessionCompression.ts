@@ -12,13 +12,16 @@ function redactConversationText(value: string): string {
     );
 }
 
-export function buildConversationSummaryInput(messages: ChatMessage[]): string {
+export function buildConversationSummaryInput(
+  messages: ChatMessage[],
+  assistantLabel = 'AI 助手'
+): string {
   const entries = messages.map((message) => {
     const roleLabel =
       message.role === 'user'
         ? '用户'
         : message.role === 'assistant'
-          ? 'D仔'
+          ? assistantLabel
           : message.role === 'tool'
             ? `工具${message.name ? `(${message.name})` : ''}`
             : '系统';

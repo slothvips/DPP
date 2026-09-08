@@ -16,6 +16,7 @@ export default defineConfig({
     plugins: [
       UnoCSS(),
       babel({
+        loader: 'jsx',
         babelConfig: {
           presets: ['@babel/preset-typescript'],
           plugins: [['babel-plugin-react-compiler', { target: '19' }]],
@@ -110,6 +111,7 @@ export default defineConfig({
       'tabs',
       'tabGroups',
       'clipboardWrite',
+      'webNavigation',
     ],
     host_permissions: ['<all_urls>'],
     side_panel: {

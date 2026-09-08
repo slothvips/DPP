@@ -1,4 +1,4 @@
-import { Box, Flame, Link, MessageSquare, Shield, Sparkles, Video } from 'lucide-react';
+import { Box, Flame, Link, Shield, Sparkles, StickyNote, Video } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { JenkinsIcon } from '@/components/ui/JenkinsIcon';
 import { TOTP_MIGRATION_SECTIONS, TOTP_MIGRATION_SUMMARY } from '@/features/totp/migrationGuide';
@@ -35,7 +35,7 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
     description: '快速记录碎片信息与待办',
     label: '黑板',
     testid: 'tab-blackboard',
-    icon: <MessageSquare className="h-4 w-4" />,
+    icon: <StickyNote className="h-4 w-4" />,
     usageGuide: {
       summary: '快速记录想法、待办和排查笔记。',
       sections: [
@@ -133,15 +133,15 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
   },
   aiAssistant: {
     description: '协助你处理本地数据与页面任务',
-    label: 'D仔',
+    label: 'AI 助手',
     testid: 'tab-ai-assistant',
     icon: <Sparkles className="h-4 w-4" />,
     usageGuide: {
-      summary: '让 D仔 协助处理数据、页面和常见操作。',
+      summary: '让 AI 助手协助处理数据、页面和常见操作。',
       sections: [
         {
           title: '对话',
-          items: ['描述目标，D仔 给出回答或操作建议。', '用新会话隔离不同任务。'],
+          items: ['描述目标，AI 助手给出回答或操作建议。', '用新会话隔离不同任务。'],
         },
         {
           title: '操作',

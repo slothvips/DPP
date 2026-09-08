@@ -60,6 +60,12 @@ export function useAIChatState(sessionId: string | null) {
     if (firstMessageRef) firstMessageRef.current = true;
   }, [sessionId]);
 
+  const markSessionAsStarted = useCallback((id: string) => {
+    const firstMessageRef = firstMessageRefsRef.current.get(id) ?? { current: false };
+    firstMessageRef.current = false;
+    firstMessageRefsRef.current.set(id, firstMessageRef);
+  }, []);
+
   return {
     status: getSessionState(sessionId).status,
     error: getSessionState(sessionId).error,
@@ -75,6 +81,7 @@ export function useAIChatState(sessionId: string | null) {
     getSessionStatus: (id: string) => getSessionState(id).status,
     resetSessionScopedState,
     resetFirstMessageFlag,
+    markSessionAsStarted,
     isRunning:
       getSessionState(sessionId).status === 'loading' ||
       getSessionState(sessionId).status === 'streaming',

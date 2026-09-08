@@ -25,7 +25,7 @@ export class MultiPageAgent extends PageAgentCore {
     });
     const testStepInstructions =
       config.resultMode === 'test-step'
-        ? '当前是测试步骤模式。完成当前步骤后必须调用 done({ status, actualResult, detail }) 结束任务；不要用普通文字结束。status 只能是 passed、failed 或 blocked，actualResult 必须是基于页面事实的非空文本，detail 可选。只报告当前步骤，不执行后续步骤；断言不符或证据不足时使用 failed，只有前置条件、权限或业务状态确实阻止继续时使用 blocked，不得猜测为 passed。'
+        ? '当前是测试步骤模式。完成当前步骤后必须调用 done({ status, actualResult, detail }) 结束任务；不要用普通文字结束。status 只能是 passed、failed 或 blocked，actualResult 必须是基于页面事实的非空文本，detail 可选。只报告当前步骤，不执行后续步骤；断言不符或证据不足时使用 failed，只有前置条件、权限或业务状态确实阻止继续时使用 blocked，不得猜测为 passed。优先复用当前标签页完成操作；只有需要访问不同域名或必须保留当前页面时才打开新标签页。'
         : undefined;
     super({
       ...config,

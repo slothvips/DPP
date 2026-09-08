@@ -1,14 +1,15 @@
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGlobalSync } from '@/hooks/useGlobalSync';
 import { cn } from '@/utils/cn';
 
 interface GlobalSyncButtonProps {
+  children?: ReactNode;
   orientation?: 'horizontal' | 'vertical';
 }
 
-export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButtonProps) {
+export function GlobalSyncButton({ children, orientation = 'horizontal' }: GlobalSyncButtonProps) {
   const { isSyncing, status, error, pendingCounts, push, pull } = useGlobalSync();
   const [isPushing, setIsPushing] = useState(false);
   const [isPulling, setIsPulling] = useState(false);
@@ -38,8 +39,10 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
   return (
     <div
       className={cn(
-        'flex rounded-xl bg-background/55 p-0.5 ring-1 ring-border/35 dark:bg-card/78 dark:ring-border/55',
-        isVertical ? 'flex-col gap-1' : 'flex-row items-center gap-1'
+        'rounded-xl bg-background/55 p-0.5 ring-1 ring-border/35 dark:bg-card/78 dark:ring-border/55',
+        isVertical
+          ? 'flex flex-col gap-1'
+          : `grid w-full ${children ? 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]' : 'grid-cols-3'} gap-1`
       )}
     >
       <Button
@@ -49,8 +52,8 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
         disabled={isAnyOperating || pendingCounts.push === 0}
         title={`推送 ${pendingCounts.push} 个本地更改`}
         className={cn(
-          'gap-1 rounded-xl px-2',
-          isVertical ? 'h-auto w-full justify-start py-2' : 'h-8'
+          'gap-1 rounded-xl px-2 hover:!translate-y-0 active:!translate-y-0 active:!scale-100',
+          isVertical ? 'h-auto w-full justify-start py-2' : 'h-8 min-w-0 w-full gap-0.5 px-1'
         )}
       >
         <ArrowUp className={cn('h-4 w-4 shrink-0', (isPushing || isSyncing) && 'animate-pulse')} />
@@ -65,8 +68,8 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
         disabled={isAnyOperating || pendingCounts.pull === 0}
         title={`拉取 ${pendingCounts.pull} 个远程更改`}
         className={cn(
-          'gap-1 rounded-xl px-2',
-          isVertical ? 'h-auto w-full justify-start py-2' : 'h-8'
+          'gap-1 rounded-xl px-2 hover:!translate-y-0 active:!translate-y-0 active:!scale-100',
+          isVertical ? 'h-auto w-full justify-start py-2' : 'h-8 min-w-0 w-full gap-0.5 px-1'
         )}
       >
         <ArrowDown
@@ -76,10 +79,13 @@ export function GlobalSyncButton({ orientation = 'horizontal' }: GlobalSyncButto
         {isVertical && <span className="text-xs">拉取</span>}
       </Button>
 
+      {children}
+
       {statusLabel && (
         <span
           className={cn(
             'whitespace-nowrap px-1.5 text-xs',
+            !isVertical && (children ? 'col-span-4' : 'col-span-3'),
             status === 'error' ? 'text-destructive' : 'text-warning'
           )}
           role="status"

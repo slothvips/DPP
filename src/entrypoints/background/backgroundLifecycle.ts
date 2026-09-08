@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import { syncEngine } from '@/db';
+import { parseConversationMaterialDeepLink } from '@/features/aiAssistant/materials/materialDeepLink';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
@@ -14,6 +15,7 @@ import {
 import { PUSH_RETRY_ALARM } from './handlers/syncShared';
 
 export function registerBackgroundLifecycle() {
+  registerMaterialDeepLinkNavigation();
   browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error) => logger.error('Failed to set side panel behavior:', error));
@@ -95,4 +97,53 @@ export function registerBackgroundLifecycle() {
   }
 
   setupOmnibox();
+}
+
+function registerMaterialDeepLinkNavigation() {
+  const redirectedTabs = new Map<number, string>();
+
+  const redirectMaterialLink = (tabId: number, url: string) => {
+    const expectedPreviewUrl = redirectedTabs.get(tabId);
+    if (expectedPreviewUrl) return;
+
+    const materialId = parseConversationMaterialDeepLink(url);
+    if (!materialId) return;
+
+    const previewUrl = browser.runtime.getURL(
+      `/material-preview.html?materialId=${encodeURIComponent(materialId)}`
+    );
+    redirectedTabs.set(tabId, previewUrl);
+    void browser.tabs.update(tabId, { url: previewUrl }).catch((error) => {
+      redirectedTabs.delete(tabId);
+      logger.warn('[MaterialDeepLink] Failed to open material preview:', error);
+    });
+  };
+
+  if (browser.webNavigation) {
+    browser.webNavigation.onBeforeNavigate.addListener((details) => {
+      if (details.frameId !== 0) return;
+      redirectMaterialLink(details.tabId, details.url);
+    });
+  }
+
+  browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    const expectedPreviewUrl = redirectedTabs.get(tabId);
+    if (
+      expectedPreviewUrl &&
+      (changeInfo.url === expectedPreviewUrl || tab.url === expectedPreviewUrl)
+    ) {
+      redirectedTabs.delete(tabId);
+      return;
+    }
+    if (expectedPreviewUrl && typeof changeInfo.url === 'string') {
+      redirectedTabs.delete(tabId);
+    }
+    if (typeof changeInfo.url === 'string') {
+      redirectMaterialLink(tabId, changeInfo.url);
+    }
+  });
+
+  browser.tabs.onRemoved.addListener((tabId) => {
+    redirectedTabs.delete(tabId);
+  });
 }

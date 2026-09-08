@@ -201,7 +201,7 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
       const pushedIds = encryptable.map(({ op }) => op.id);
       return lastCursor !== undefined ? { cursor: lastCursor, pushedIds } : { pushedIds };
     },
-    pull: async (cursor, clientId) => {
+    pull: async (cursor, clientId, limit) => {
       const { endpoint } = await getSyncServerUrl(db);
       const token = await getSyncAccessToken(db);
 
@@ -209,6 +209,9 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
       url.searchParams.append('cursor', String(cursor || 0));
       if (clientId) {
         url.searchParams.append('clientId', clientId);
+      }
+      if (limit !== undefined) {
+        url.searchParams.append('limit', String(limit));
       }
 
       const res = await http(url.toString(), {

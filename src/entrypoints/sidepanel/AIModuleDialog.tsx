@@ -1,4 +1,4 @@
-import { Lightbulb, X } from 'lucide-react';
+import { ArrowLeft, Lightbulb } from 'lucide-react';
 import { lazy, useEffect, useState } from 'react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Button } from '@/components/ui/button';
@@ -73,70 +73,6 @@ export function AIModuleDialog({ activeModule, featureToggles, onClose }: AIModu
         hideCloseButton
         className="inset-0 left-0 top-0 flex h-[100dvh] max-h-none w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 p-0 data-[state=closed]:hidden sm:rounded-none"
       >
-        <DialogHeader className="relative shrink-0 border-b border-border/60 bg-background px-4 py-3 pr-14 text-left shadow-sm sm:px-5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              {moduleConfig.icon}
-            </span>
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <DialogTitle className="truncate text-sm font-semibold">
-                  {moduleConfig.label}
-                </DialogTitle>
-                {activeModule && (
-                  <Dialog open={guideOpen} onOpenChange={setGuideOpen}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground hover:!translate-y-0 active:!translate-y-0 hover:text-foreground"
-                      aria-label={`${moduleConfig.label}使用说明`}
-                      title={`${moduleConfig.label}使用说明`}
-                      onClick={() => setGuideOpen(true)}
-                    >
-                      <Lightbulb className="h-4 w-4" />
-                    </Button>
-                    <DialogContent className="max-h-[82vh] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[425px]">
-                      <DialogHeader>
-                        <DialogTitle>{moduleConfig.label}使用说明</DialogTitle>
-                        <DialogDescription>{moduleConfig.usageGuide.summary}</DialogDescription>
-                      </DialogHeader>
-                      <div className="grid gap-4 py-3">
-                        {moduleConfig.usageGuide.sections.map((section) => (
-                          <section key={section.title} className="grid gap-2">
-                            <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
-                            <ul className="grid gap-1.5 text-sm leading-6 text-muted-foreground">
-                              {section.items.map((item) => (
-                                <li key={item} className="flex gap-2">
-                                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
-                                  <span>{item}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </section>
-                        ))}
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                )}
-              </div>
-              <DialogDescription className="truncate text-xs">
-                {moduleConfig.description}
-              </DialogDescription>
-            </div>
-            <DialogClose asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-4 top-1/2 h-8 w-8 -translate-y-1/2 rounded-lg text-muted-foreground hover:!-translate-y-1/2 active:!-translate-y-1/2 hover:text-foreground"
-                aria-label="关闭模块"
-                title="关闭模块"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogClose>
-          </div>
-        </DialogHeader>
-
         <div className="relative min-h-0 flex-1 overflow-hidden bg-background">
           <KeepAliveTabPanel active={activeModule === 'links'} visible={featureToggles.links}>
             <ErrorBoundary moduleName={TAB_CONFIG.links.label} className="h-full">
@@ -194,6 +130,70 @@ export function AIModuleDialog({ activeModule, featureToggles, onClose }: AIModu
             </ErrorBoundary>
           </LazyTabPanel>
         </div>
+
+        <DialogHeader className="shrink-0 border-t border-border/60 bg-background px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 text-left shadow-[0_-2px_8px_rgba(0,0,0,0.04)] sm:px-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <DialogClose asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0 rounded-lg border border-border/55 bg-muted/35 text-muted-foreground hover:!translate-y-0 active:!translate-y-0 hover:bg-primary/10 hover:text-primary"
+                aria-label="返回助手"
+                title="返回助手"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            </DialogClose>
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              {moduleConfig.icon}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <DialogTitle className="truncate text-sm font-semibold">
+                  {moduleConfig.label}
+                </DialogTitle>
+                {activeModule && (
+                  <Dialog open={guideOpen} onOpenChange={setGuideOpen}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 rounded-lg text-muted-foreground hover:!translate-y-0 active:!translate-y-0 hover:text-foreground"
+                      aria-label={`${moduleConfig.label}使用说明`}
+                      title={`${moduleConfig.label}使用说明`}
+                      onClick={() => setGuideOpen(true)}
+                    >
+                      <Lightbulb className="h-4 w-4" />
+                    </Button>
+                    <DialogContent className="max-h-[82vh] max-w-[calc(100vw-2rem)] overflow-y-auto sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>{moduleConfig.label}使用说明</DialogTitle>
+                        <DialogDescription>{moduleConfig.usageGuide.summary}</DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-3">
+                        {moduleConfig.usageGuide.sections.map((section) => (
+                          <section key={section.title} className="grid gap-2">
+                            <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
+                            <ul className="grid gap-1.5 text-sm leading-6 text-muted-foreground">
+                              {section.items.map((item) => (
+                                <li key={item} className="flex gap-2">
+                                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+                                  <span>{item}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ))}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+              <DialogDescription className="truncate text-xs">
+                {moduleConfig.description}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
       </DialogContent>
     </Dialog>
   );

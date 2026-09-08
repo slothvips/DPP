@@ -234,4 +234,17 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(24).stores({
     recentActions: 'id, type, lastUsedAt',
   });
+
+  // v25: 团队共享角色使用事件，用于统计真正发起过会话的角色使用率。
+  db.version(25).stores({
+    roleUsageEvents: 'id, roleId, sessionId, usedAt, updatedAt',
+  });
+
+  // v26: 团队共享测试项目、项目执行记录，以及子执行的项目归属。
+  db.version(26).stores({
+    testProjects: '&id, title, status, updatedAt, deletedAt',
+    projectRuns: '&id, projectId, sessionId, status, startedAt, updatedAt, deletedAt',
+    testRuns:
+      '&id, testCaseMaterialId, projectRunId, sessionId, status, startedAt, updatedAt, deletedAt',
+  });
 }

@@ -62,7 +62,7 @@ export async function updateTestCaseMaterial(
       current.deletedAt ||
       current.status !== 'ready'
     ) {
-      throw new Error('测试用例不存在或已归档');
+      throw new Error('测试用例不存在或已删除');
     }
     if (current.version !== expectedVersion) {
       throw new Error(`测试用例已更新，请刷新后再保存（当前版本 v${current.version}）`);
@@ -99,15 +99,21 @@ export async function deleteTestCaseMaterial(id: string): Promise<void> {
 export async function importTestCaseMaterials(
   inputs: TestCaseMaterialInput[]
 ): Promise<TestCaseMaterial[]> {
-  if (inputs.length === 0 || inputs.length > MAX_IMPORT_CASES) {
-    throw new Error(`一次必须导入 1-${MAX_IMPORT_CASES} 个测试用例`);
-  }
-
-  const materials = await Promise.all(inputs.map((input) => buildTestCaseMaterial(input)));
+  const materials = await buildTestCaseMaterials(inputs);
   await db.transaction('rw', db.materials, async () => {
     await db.materials.bulkAdd(materials);
   });
   return materials;
+}
+
+export async function buildTestCaseMaterials(
+  inputs: TestCaseMaterialInput[]
+): Promise<TestCaseMaterial[]> {
+  if (inputs.length === 0 || inputs.length > MAX_IMPORT_CASES) {
+    throw new Error(`一次必须导入 1-${MAX_IMPORT_CASES} 个测试用例`);
+  }
+
+  return await Promise.all(inputs.map((input) => buildTestCaseMaterial(input)));
 }
 
 export async function getTestCaseMaterial(

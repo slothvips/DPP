@@ -96,6 +96,13 @@ test('conversation summaries redact secrets and mark transcripts as data', () =>
   ]);
   assert.doesNotMatch(input, /TOP_SECRET/);
   assert.match(input, /redacted/);
+  assert.match(
+    buildConversationSummaryInput(
+      [{ id: 'assistant-1', role: 'assistant', content: '已完成', createdAt: 2 }],
+      '测试角色'
+    ),
+    /"role": "测试角色"/
+  );
   assert.match(buildConversationSummaryPrompt(input), /不可信的历史转录/);
   assert.match(buildConversationSummaryPrompt(input), /绝不执行/);
 });
@@ -107,6 +114,9 @@ test('conservative JSON validation rejects semantic changes', () => {
   assert.ok(changed);
   assert.equal(areJsonValuesEqual(original, changed), false);
   assert.equal(areJsonValuesEqual(original, parseConservativeJson('{"a":1}')), true);
+  const aiFix = source('../src/features/toolbox/components/JsonTool/useJsonAiFix.ts');
+  assert.match(aiFix, /if \(conservativeOriginal === null\)/);
+  assert.match(aiFix, /已拒绝自动应用/);
 });
 
 test('diff statistics are computed locally', () => {
@@ -243,16 +253,32 @@ test('browser tab listing marks the focused current tab', () => {
   assert.match(tool, /windowId: tab\.windowId/);
 });
 
-test('test steps reuse their target tab and its DPP tab group', () => {
+test('test steps reuse their origin tab and its DPP tab group', () => {
   const tool = source('../src/lib/ai/tools/browserTask.ts');
   const tabs = source('../src/lib/pageAgent/tabsController.ts');
 
-  assert.match(tool, /const testTabsByTarget = new Map<string, number>/);
-  assert.match(tool, /getTestTabKey\(sessionId: string, testRunId: string, targetId: string\)/);
-  assert.match(tool, /testTabsByTarget\.get\(testTabKey\)/);
+  assert.match(tool, /const testTabsByOrigin = new Map<string, number>/);
+  assert.match(tool, /getTestTabKey\(scopeId: string, initialUrl: string\)/);
+  assert.match(tool, /testTabsByOrigin\.get\(testTabKey\)/);
+  assert.match(tool, /getUrlOrigin\(reusableTab\.url\) === getUrlOrigin\(initialUrl\)/);
+  assert.match(tool, /test_tab_scope_id\?: string/);
+  assert.match(tool, /const testGroupsByScope = new Map/);
+  assert.match(tool, /ensureTestTabGroup\(testTabScopeId, target\.tabId, args\.task\)/);
+  assert.match(tool, /tabsApi\.group\(\{ tabIds: \[tabId\], groupId: group\.groupId \}\)/);
+  assert.match(tool, /testGroupsByScope\.delete\(scopeId\)/);
   assert.match(tool, /releaseTestBrowserTabs/);
   assert.match(tabs, /existingGroup\.title\?\.startsWith\('DPP · '\)/);
   assert.match(tabs, /this\.groupId \?\?= await tabsApi\.group/);
+});
+
+test('project test runs share one tab scope across child test cases', () => {
+  const projects = source('../src/lib/ai/tools/testProjects.ts');
+  const runs = source('../src/lib/ai/tools/testRuns.ts');
+
+  assert.match(projects, /test_tab_scope_id: projectRun\.id/);
+  assert.match(projects, /releaseTestBrowserTabs\(projectRun\.id\)/);
+  assert.match(runs, /const testTabScopeId = projectRunId \?\? run\.id/);
+  assert.match(runs, /if \(!projectRunId\) releaseTestBrowserTabs\(testTabScopeId\)/);
 });
 
 test('parallel page loads use a bounded grace window with diagnostics', () => {
@@ -430,6 +456,7 @@ test('sidepanel UI keeps core actions visible and replay interactions safe', () 
   const sidepanel = source('../src/entrypoints/sidepanel/SidepanelContent.tsx');
   const moduleDialog = source('../src/entrypoints/sidepanel/AIModuleDialog.tsx');
   const assistant = source('../src/features/aiAssistant/components/AIAssistantView.tsx');
+  const assistantSidebar = source('../src/features/aiAssistant/components/AIAssistantSidebar.tsx');
   const input = source('../src/features/aiAssistant/components/ChatInput.tsx');
   const moduleLauncher = source('../src/features/aiAssistant/components/AIModuleLauncher.tsx');
   const recentActions = source('../src/features/aiAssistant/components/RecentActions.tsx');
@@ -438,20 +465,61 @@ test('sidepanel UI keeps core actions visible and replay interactions safe', () 
   assert.match(tabs, /function getInitialModule\(\): ModuleTabId \| null/);
   assert.match(tabs, /setActiveModule\(null\)/);
   assert.doesNotMatch(tabs, /dpp_active_tab/);
+  assert.match(tabs, /const PINNED_TABS_KEY = 'dpp_pinned_tabs'/);
+  assert.match(tabs, /export const PINNED_TAB_LIMIT = 2/);
+  assert.match(tabs, /previous\.includes\(tabId\)/);
+  assert.match(tabs, /previous\.length < PINNED_TAB_LIMIT/);
   assert.match(settings, /settingsReady: storedFeatureToggles !== undefined/);
-  assert.match(sidepanel, /<Popover open=\{showModuleLauncher\}/);
+  assert.match(sidepanel, /<HoverCard\s+open=\{showModuleLauncher\}/);
+  assert.match(sidepanel, /moduleLauncherPinned/);
+  assert.match(sidepanel, /onOpenChange=\{handleModuleLauncherOpenChange\}/);
+  assert.match(sidepanel, /onClick=\{handleModuleLauncherClick\}/);
+  assert.doesNotMatch(sidepanel, /src="\/logo\.svg"/);
+  assert.doesNotMatch(sidepanel, />\s*D 仔\s*</);
+  assert.match(sidepanel, /<HoverCardContent\s+align="start"\s+side="top"/);
+  assert.doesNotMatch(sidepanel, /<header/);
+  assert.match(sidepanel, /sidebarFooter=/);
+  assert.match(sidepanel, /aria-label="模块导航"/);
+  assert.match(sidepanel, /grid-flow-col auto-cols-fr/);
+  assert.match(sidepanel, /\.\.\.pinnedTabs/);
+  assert.match(sidepanel, /recentTabs\.filter\(\(tabId\) => !pinnedTabs\.includes\(tabId\)\)/);
+  assert.match(sidepanel, /const QUICK_MODULE_LIMIT = 3/);
+  assert.match(sidepanel, /\.slice\(0, QUICK_MODULE_LIMIT\)/);
+  assert.match(moduleLauncher, /aria-pressed=\{isPinned\}/);
+  assert.match(moduleLauncher, /最多固定 \$\{pinLimit\} 个模块/);
+  assert.match(moduleLauncher, /isPinned && 'fill-current'/);
+  assert.match(sidepanel, /<ModuleQuickPreview moduleId=\{item.id\}/);
+  assert.match(sidepanel, /<HoverCardTrigger asChild>/);
+  assert.match(sidepanel, /hover:!translate-y-0 active:!translate-y-0/);
+  const quickPreview = source('../src/entrypoints/sidepanel/ModuleQuickPreview.tsx');
+  assert.match(quickPreview, /快速记一条/);
+  assert.doesNotMatch(quickPreview, /最近便签/);
+  assert.match(quickPreview, /搜索并打开链接/);
+  assert.match(quickPreview, /grid h-36 content-start gap-0\.5 overflow-y-auto/);
+  assert.match(quickPreview, /right\.lastUsedAt - left\.lastUsedAt/);
+  assert.match(quickPreview, /复制验证码/);
+  assert.match(quickPreview, /listRecentActions/);
+  assert.match(quickPreview, /recentCopies/);
+  assert.match(quickPreview, /打开今日热榜/);
+  assert.match(sidepanel, /aria-label="同步(?:状态|、显示与设置)"/);
+  assert.match(sidepanel, /aria-label="显示与设置"/);
+  assert.match(assistantSidebar, /\{footer && \(/);
   assert.match(sidepanel, /<AIModuleDialog/);
   assert.match(moduleDialog, /h-\[100dvh\]/);
   assert.match(moduleDialog, /forceMount/);
   assert.match(assistant, /const MIN_AI_INPUT_PANEL_SIZE = 180/);
   assert.match(assistant, /<Allotment\.Pane minSize=\{96\}>/);
   assert.match(assistant, /min-h-\[180px\] overflow-y-auto/);
+  assert.match(assistant, /onVisibleChange=\{handleSidebarVisibleChange\}/);
+  assert.match(assistant, /visible=\{!sidebarCollapsed\}/);
+  assert.match(assistant, /sidebarCollapsed \? '展开会话侧栏' : '折叠会话侧栏'/);
   assert.match(input, /min-h-\[48px\]/);
   assert.match(moduleLauncher, /auto-rows-\[6\.5rem\]/);
   assert.doesNotMatch(moduleLauncher, /auto-rows-fr/);
   assert.match(recentActions, /disabled=\{replayingId !== null\}/);
   assert.match(recentActions, /dateStyle: 'short'/);
   assert.match(syncButton, /role="status"/);
+  assert.match(syncButton, /grid-cols-3/);
 });
 
 test('AI sessions keep runtime and streamed messages isolated', () => {
@@ -513,6 +581,13 @@ test('test browser tasks carry target and origin isolation metadata', () => {
   assert.match(types, /closeInitialTab\?: boolean/);
   assert.match(prompt, /目标网页/);
   assert.doesNotMatch(tool, /getResources/);
+});
+
+test('test step context includes non-sensitive data and masks sensitive values', () => {
+  const runner = source('../src/lib/ai/tools/testRuns.ts');
+
+  assert.match(runner, /testData: input\.definition\.testData\.map/);
+  assert.match(runner, /item\.sensitive \? '\[需要用户接管\]' : redact\(item\.value\)/);
 });
 
 test('test browser tasks use a structured PageAgent completion result', async () => {
@@ -585,7 +660,7 @@ test('parallel tool results are persisted in deterministic call order', () => {
 
   assert.match(persistence, /const batchCreatedAt = Date\.now\(\)/);
   assert.match(persistence, /for \(const \[index, message\] of toolMessages\.entries\(\)/);
-  assert.match(persistence, /createdAt: batchCreatedAt \+ index/);
+  assert.match(persistence, /createdAt: message\.createdAt \?\? batchCreatedAt \+ index/);
 });
 
 test('browser task reservations are synchronous across tab, resource and global limits', () => {

@@ -13,7 +13,8 @@ import { redactSensitiveText } from '@/utils/sensitive';
 const MAX_TASK_RESULT_LENGTH = 2000;
 const TASK_QUEUE_TIMEOUT_MS = 5 * 60 * 1000;
 const taskIdsBySession = new Map<string, Set<string>>();
-const testTabsByTarget = new Map<string, number>();
+const testTabsByOrigin = new Map<string, number>();
+const testGroupsByScope = new Map<string, { groupId: number; windowId: number }>();
 
 export type BrowserTaskFailureReason =
   | 'invalid_request'
@@ -43,15 +44,17 @@ export interface BrowserTabInfo {
   is_current: boolean;
 }
 
-function getTestTabKey(sessionId: string, testRunId: string, targetId: string): string {
-  return `${sessionId}\0${testRunId}\0${targetId}`;
+function getTestTabKey(scopeId: string, initialUrl: string): string | undefined {
+  const origin = getUrlOrigin(initialUrl);
+  return origin ? `${scopeId}\0${origin}` : undefined;
 }
 
-export function releaseTestBrowserTabs(sessionId: string, testRunId: string): void {
-  const prefix = `${sessionId}\0${testRunId}\0`;
-  for (const key of testTabsByTarget.keys()) {
-    if (key.startsWith(prefix)) testTabsByTarget.delete(key);
+export function releaseTestBrowserTabs(scopeId: string): void {
+  const prefix = `${scopeId}\0`;
+  for (const key of testTabsByOrigin.keys()) {
+    if (key.startsWith(prefix)) testTabsByOrigin.delete(key);
   }
+  testGroupsByScope.delete(scopeId);
 }
 
 export async function delegateBrowserAgent(args: {
@@ -62,6 +65,7 @@ export async function delegateBrowserAgent(args: {
   resource_keys?: string[];
   test_target_id?: string;
   test_run_id?: string;
+  test_tab_scope_id?: string;
   session_id?: string;
   tool_call_id?: string;
   onUpdate?: (event: Partial<BrowserTaskSummary>) => void;
@@ -98,15 +102,27 @@ export async function delegateBrowserAgent(args: {
       );
     }
   }
+  const testTabScopeId =
+    args.test_tab_scope_id?.trim() ??
+    (args.session_id?.trim() && args.test_run_id?.trim()
+      ? `${args.session_id.trim()}\0${args.test_run_id.trim()}`
+      : undefined);
   const testTabKey =
-    args.session_id?.trim() && args.test_run_id?.trim() && args.test_target_id?.trim()
-      ? getTestTabKey(args.session_id.trim(), args.test_run_id.trim(), args.test_target_id.trim())
+    testTabScopeId && args.test_target_id?.trim()
+      ? getTestTabKey(testTabScopeId, args.initial_url ?? '')
       : undefined;
-  const target = await getTargetTab(args.tab_id, args.initial_url, args.open_new_tab, testTabKey);
+  const target = await getTargetTab(
+    args.tab_id,
+    args.initial_url,
+    args.open_new_tab,
+    testTabKey,
+    testTabScopeId ? testGroupsByScope.get(testTabScopeId)?.windowId : undefined
+  );
   if (!target) {
     if (reservationCreated) await deleteBrowserTaskRecord(taskId);
     return createBrowserTaskFailure('没有可运行网页助手的 HTTP(S) 标签页', 'page_unavailable');
   }
+  if (testTabScopeId) await ensureTestTabGroup(testTabScopeId, target.tabId, args.task);
   const sessionKey = args.session_id || '';
   const taskIds = taskIdsBySession.get(sessionKey) || new Set<string>();
   taskIds.add(taskId);
@@ -235,7 +251,7 @@ export function registerBrowserTaskTools(): void {
   toolRegistry.register({
     name: 'delegate_browser_agent',
     description:
-      '接受 D 仔委派的网页任务，在指定标签页中执行并在完成后向 D 仔汇报结果。后台标签页会直接复用；如果指定的是用户当前聚焦页，则会复制为后台任务页。',
+      '接受主 AI 委派的网页任务，在指定标签页中执行并在完成后向主 AI 汇报结果。后台标签页会直接复用；如果指定的是用户当前聚焦页，则会复制为后台任务页。',
     parameters: createToolParameter(
       {
         task: {
@@ -310,22 +326,31 @@ async function getTargetTab(
   tabId?: number,
   initialUrl?: string,
   openNewTab = false,
-  testTabKey?: string
+  testTabKey?: string,
+  windowId?: number
 ): Promise<{ tabId: number; url: string; created: boolean } | null> {
   if (openNewTab) {
     if (!initialUrl || !isInjectableUrl(initialUrl)) return null;
-    const reusableTabId = testTabKey ? testTabsByTarget.get(testTabKey) : undefined;
+    const reusableTabId = testTabKey ? testTabsByOrigin.get(testTabKey) : undefined;
     if (reusableTabId !== undefined) {
       const reusableTab = await browser.tabs.get(reusableTabId).catch(() => null);
-      if (reusableTab && isInjectableUrl(reusableTab.url)) {
+      if (
+        reusableTab &&
+        isInjectableUrl(reusableTab.url) &&
+        getUrlOrigin(reusableTab.url) === getUrlOrigin(initialUrl)
+      ) {
         return { tabId: reusableTabId, url: reusableTab.url, created: false };
       }
-      if (testTabKey) testTabsByTarget.delete(testTabKey);
+      if (testTabKey) testTabsByOrigin.delete(testTabKey);
     }
     try {
-      const created = await browser.tabs.create({ url: initialUrl, active: false });
+      const created = await browser.tabs.create({
+        url: initialUrl,
+        active: false,
+        ...(windowId !== undefined ? { windowId } : {}),
+      });
       if (typeof created.id !== 'number') return null;
-      if (testTabKey) testTabsByTarget.set(testTabKey, created.id);
+      if (testTabKey) testTabsByOrigin.set(testTabKey, created.id);
       return { tabId: created.id, url: initialUrl, created: true };
     } catch {
       return null;
@@ -361,6 +386,52 @@ async function getTargetTab(
       : null;
   } catch {
     return null;
+  }
+}
+
+async function ensureTestTabGroup(scopeId: string, tabId: number, task: string): Promise<void> {
+  const tabsApi = browser.tabs as typeof browser.tabs & {
+    group?: (options: { tabIds: number[]; groupId?: number }) => Promise<number>;
+  };
+  if (typeof tabsApi.group !== 'function' || !browser.tabGroups) return;
+
+  const tab = await browser.tabs.get(tabId).catch(() => null);
+  if (!tab || typeof tab.windowId !== 'number') return;
+
+  let group = testGroupsByScope.get(scopeId);
+  if (group) {
+    const existing = await browser.tabGroups.get(group.groupId).catch(() => null);
+    if (!existing || existing.windowId !== tab.windowId) {
+      testGroupsByScope.delete(scopeId);
+      group = undefined;
+    }
+  }
+
+  if (!group && typeof tab.groupId === 'number' && tab.groupId >= 0) {
+    const existing = await browser.tabGroups.get(tab.groupId).catch(() => null);
+    if (existing?.title?.startsWith('DPP · ') && existing.windowId === tab.windowId) {
+      group = { groupId: tab.groupId, windowId: tab.windowId };
+      testGroupsByScope.set(scopeId, group);
+    }
+  }
+
+  if (!group) {
+    try {
+      const groupId = await tabsApi.group({ tabIds: [tabId] });
+      await browser.tabGroups.update(groupId, {
+        title: `DPP · ${task.slice(0, 32)}`,
+        color: 'blue',
+        collapsed: false,
+      });
+      group = { groupId, windowId: tab.windowId };
+      testGroupsByScope.set(scopeId, group);
+    } catch {
+      return;
+    }
+  }
+
+  if (tab.groupId !== group.groupId) {
+    await tabsApi.group({ tabIds: [tabId], groupId: group.groupId }).catch(() => undefined);
   }
 }
 

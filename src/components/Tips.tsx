@@ -5,7 +5,7 @@ import { cn } from '@/utils/cn';
 const TIPS = [
   { icon: Sparkles, text: '任何搜索支持空格分隔多关键词', color: 'text-primary' },
   { icon: Lightbulb, text: 'Jenkins 支持多环境切换', color: 'text-success' },
-  { icon: Lightbulb, text: 'D仔支持管理链接、Job、便签与页面', color: 'text-success' },
+  { icon: Lightbulb, text: 'AI 助手支持管理链接、Job、便签与页面', color: 'text-success' },
   { icon: Lightbulb, text: '便签支持 Markdown 格式', color: 'text-success' },
   { icon: Sparkles, text: '设置中可管理多个 Jenkins 凭证', color: 'text-primary' },
   { icon: Sparkles, text: '浏览器地址栏输入 [dpp + 空格]，全局快速搜索', color: 'text-primary' },

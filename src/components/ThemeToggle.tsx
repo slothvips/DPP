@@ -21,7 +21,7 @@ export function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon"
-      className="h-8 w-8 shrink-0 rounded-lg border border-border/55 bg-muted/35 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+      className="h-8 w-8 shrink-0 hover:!translate-y-0 active:!translate-y-0 active:!scale-100"
       aria-label={`切换主题，当前为${currentLabel}，点击切换到${nextLabel}`}
       title={`当前：${currentLabel}，点击切换到${nextLabel}`}
       data-testid="theme-toggle"

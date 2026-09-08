@@ -3,7 +3,12 @@ import { createProvider } from '@/lib/ai/provider';
 import type { AIProviderType, ChatMessage } from '@/lib/ai/types';
 import { getAIConfig } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
-import { areJsonValuesEqual, extractJsonFromText, parseConservativeJson } from './jsonUtils';
+import {
+  areJsonValuesEqual,
+  extractJsonFromText,
+  formatJsonText,
+  parseConservativeJson,
+} from './jsonUtils';
 
 interface UseJsonAiFixOptions {
   getValue: () => string;
@@ -71,13 +76,22 @@ export function useJsonAiFix({ getValue, onFixed, onValidationReset }: UseJsonAi
       }
 
       try {
-        const parsed = JSON.parse(fixedJson);
         const conservativeOriginal = parseConservativeJson(value);
-        if (conservativeOriginal !== null && !areJsonValuesEqual(conservativeOriginal, parsed)) {
+        const conservativeFixed = parseConservativeJson(fixedJson);
+        if (conservativeOriginal === null) {
+          setAiError('原始 JSON 无法安全校验字段和值，已拒绝自动应用');
+          return;
+        }
+        if (
+          conservativeFixed === null ||
+          !areJsonValuesEqual(conservativeOriginal, conservativeFixed)
+        ) {
           setAiError('AI 修复改变了原始 JSON 的字段或值，已拒绝应用');
           return;
         }
-        onFixed(JSON.stringify(parsed, null, 2), true);
+        const formatted = formatJsonText(fixedJson);
+        if (formatted === null) throw new Error('AI 返回了空 JSON');
+        onFixed(formatted, true);
       } catch {
         onFixed(fixedJson, false);
       }

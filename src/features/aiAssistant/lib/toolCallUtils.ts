@@ -2,7 +2,16 @@ import type { PreparedToolCall, ToolCall } from '@/features/aiAssistant/hooks/us
 import { normalizeToolArgumentsJson } from '@/lib/ai/providerShared';
 import { toolRegistry } from '@/lib/ai/tools';
 
-const ALWAYS_CONFIRM_TOOL_NAMES = new Set(['ai_config_update', 'dpp_config_update']);
+const ALWAYS_CONFIRM_TOOL_NAMES = new Set([
+  'ai_config_update',
+  'clear_session_context',
+  'create_new_session',
+  'dpp_config_update',
+  'test_execution_prepare',
+  'test_case_import',
+  'test_run_execute',
+  'test_project_execute',
+]);
 
 export function parseToolCallArguments(toolCall: ToolCall): Record<string, unknown> {
   const rawArgs = toolCall.function.arguments.trim();

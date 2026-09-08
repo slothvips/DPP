@@ -1,3 +1,4 @@
+import { backfillRoleUsageEvents } from '@/lib/db/roleUsage';
 import { SyncEngine } from '@/lib/sync/SyncEngine';
 import { ensurePersonalSyncBootstrapped } from '@/lib/sync/personalSyncBootstrap';
 import type { SyncPendingCounts } from '@/lib/sync/types';
@@ -6,6 +7,7 @@ import type { DPPDatabase } from './types';
 
 let syncEngineInstance: SyncEngine | null = null;
 let personalBootstrapStarted = false;
+let roleUsageBackfillStarted = false;
 
 export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null> {
   if (!syncEngineInstance) {
@@ -19,11 +21,20 @@ export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null>
         'blackboard',
         'totpAccounts',
         'materials',
+        'roleUsageEvents',
         'testRuns',
+        'testProjects',
+        'projectRuns',
       ],
       createDefaultSyncProvider(db)
     );
     syncEngineInstance.register();
+    if (!roleUsageBackfillStarted) {
+      roleUsageBackfillStarted = true;
+      void backfillRoleUsageEvents().catch(() => {
+        roleUsageBackfillStarted = false;
+      });
+    }
   }
 
   if (!personalBootstrapStarted && syncEngineInstance) {

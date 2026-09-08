@@ -47,7 +47,13 @@ export function handleGeneralMessage(
     return (async () => {
       try {
         if (browser.sidePanel && typeof browser.sidePanel.open === 'function') {
-          await (browser.sidePanel.open as () => Promise<void>)();
+          const activeTabs = await browser.tabs.query({ active: true, lastFocusedWindow: true });
+          const activeTabId = activeTabs[0]?.id;
+          if (typeof activeTabId === 'number') {
+            await browser.sidePanel.open({ tabId: activeTabId });
+          } else {
+            await (browser.sidePanel.open as () => Promise<void>)();
+          }
         }
         return { success: true };
       } catch (error) {

@@ -1,0 +1,43 @@
+.ai-logo-tilt-left {
+  animation: ai-logo-tilt-left 180ms ease-in-out 1;
+}
+
+.ai-logo-tilt-right {
+  animation: ai-logo-tilt-right 180ms ease-in-out 1;
+}
+
+.ai-logo-spin {
+  animation: ai-logo-spin 600ms ease-in-out 1;
+}
+
+@keyframes ai-logo-tilt-left {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  50% {
+    transform: rotate(-12deg);
+  }
+}
+
+@keyframes ai-logo-tilt-right {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  50% {
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes ai-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,17 +1,25 @@
 // AI Assistant View - Main conversation interface
 import { Allotment } from 'allotment';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useCallback, useEffect, useState } from 'react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { browser } from 'wxt/browser';
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import type { RecentAction } from '@/db';
 import type { TabId } from '@/entrypoints/sidepanel/sidepanelTypes';
+import type { AISession, ChatMessage } from '@/features/aiAssistant/types';
+import { exportChatToMarkdown } from '@/features/aiAssistant/utils/exportChatToMarkdown';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { openLink } from '@/features/links/utils';
 import { getTotpCodeAt } from '@/features/totp/hooks/useTotpCode';
 import { getTotpPinConfig } from '@/features/totp/totpPin';
 import { isTotpPinSessionUnlocked } from '@/features/totp/totpPinSession';
-import { TEST_CASE_IMPORT_PROMPT, buildTestCaseExecutionPrompt } from '@/lib/ai/promptTestCases';
+import {
+  TEST_CASE_GENERATE_PROMPT,
+  TEST_CASE_IMPORT_PROMPT,
+  buildTestProjectExecutionPrompt,
+} from '@/lib/ai/promptTestCases';
 import { YOLO_MODE_KEY } from '@/lib/ai/tools';
 import {
   deleteRecentAction,
@@ -20,23 +28,32 @@ import {
   listRecentActions,
   recordRecentAction,
 } from '@/lib/db';
+import { getMessagesBySession, listSessionIdsWithMessages, listSessions } from '@/lib/db/ai';
 import { setTotpReplayIntent } from '@/lib/recentActionIntent';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { useAIAssistantConfig } from '../hooks/useAIAssistantConfig';
 import { useAIAssistantScroll } from '../hooks/useAIAssistantScroll';
 import { useAIChat } from '../hooks/useAIChat';
+import { AI_CURRENT_SESSION_STORAGE_KEY } from '../hooks/useAIChatSessions.shared';
 import { useAIPlan } from '../hooks/useAIPlan';
 import { useBrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
-import { AIAssistantHeader } from './AIAssistantHeader';
-import type { AIAssistantViewMode } from './AIAssistantHeader';
 import { AIAssistantInputSection } from './AIAssistantInputSection';
 import { AIAssistantMessagesPanel } from './AIAssistantMessagesPanel';
+import { AIAssistantSidebar } from './AIAssistantSidebar';
+import type { AIAssistantViewMode } from './AIAssistantSidebar';
 import { AIMaterialLibraryView } from './AIMaterialLibraryView';
+import { ShareConversationDialog } from './ShareConversationDialog';
 import { ToolConfirmationDialog } from './ToolConfirmationDialog';
 
 const AI_INPUT_PANEL_SIZE_KEY = 'ai-assistant-input-panel-height';
 const DEFAULT_AI_INPUT_PANEL_SIZE = 260;
 const MIN_AI_INPUT_PANEL_SIZE = 180;
+const AI_SIDEBAR_SIZE_KEY = 'ai-assistant-sidebar-width';
+const AI_SIDEBAR_COLLAPSED_KEY = 'ai-assistant-sidebar-collapsed';
+const DEFAULT_AI_SIDEBAR_SIZE = 220;
+const MIN_AI_SIDEBAR_SIZE = 144;
+const MAX_AI_SIDEBAR_SIZE = 320;
 
 function getSavedInputPanelSize(): number {
   const saved = Number(localStorage.getItem(AI_INPUT_PANEL_SIZE_KEY));
@@ -54,6 +71,23 @@ function saveInputPanelSize(sizes: number[]): void {
   }
 }
 
+function getSavedSidebarSize(): number {
+  const saved = Number(localStorage.getItem(AI_SIDEBAR_SIZE_KEY));
+  const preferred = Number.isFinite(saved) && saved > 0 ? saved : DEFAULT_AI_SIDEBAR_SIZE;
+  const available = Math.max(MIN_AI_SIDEBAR_SIZE, window.innerWidth - 184);
+  return Math.min(MAX_AI_SIDEBAR_SIZE, available, Math.max(MIN_AI_SIDEBAR_SIZE, preferred));
+}
+
+function getSavedSidebarCollapsed(): boolean {
+  return localStorage.getItem(AI_SIDEBAR_COLLAPSED_KEY) === 'true';
+}
+
+function saveSidebarSize(sizes: number[]): void {
+  if (sizes.length !== 2 || sizes[0] <= 0) return;
+  const width = Math.min(MAX_AI_SIDEBAR_SIZE, Math.max(MIN_AI_SIDEBAR_SIZE, sizes[0]));
+  localStorage.setItem(AI_SIDEBAR_SIZE_KEY, String(Math.round(width)));
+}
+
 function getLatestUsage(messages: ReturnType<typeof useAIChat>['messages']) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index].usage) {
@@ -64,11 +98,11 @@ function getLatestUsage(messages: ReturnType<typeof useAIChat>['messages']) {
 }
 
 interface AIAssistantViewProps {
-  isActive: boolean;
   onModuleSelect: (tabId: TabId) => void;
+  sidebarFooter?: ReactNode;
 }
 
-export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewProps) {
+export function AIAssistantView({ onModuleSelect, sidebarFooter }: AIAssistantViewProps) {
   const {
     messages,
     status,
@@ -95,23 +129,35 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
     switchSession,
     selectRole,
     deleteSession,
+    duplicateSession,
+    updateSessionTitle,
+    setSessionPinned,
     resetProvider,
     completeBuild,
     cancelBuild,
     summarizeSession,
     setYoloMode,
+    shareSession,
+    importConversation,
   } = useAIChat();
 
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [browserTaskRevision, setBrowserTaskRevision] = useState(0);
   const [invalidatedBrowserTaskIds, setInvalidatedBrowserTaskIds] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<AIAssistantViewMode>('chat');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(getSavedSidebarCollapsed);
+  const [sidebarWidth, setSidebarWidth] = useState(getSavedSidebarSize);
   const [inputDraft, setInputDraft] = useState<{ value: string; key: string } | null>(null);
   const [replayBuildJob, setReplayBuildJob] = useState<{
     jobUrl: string;
     jobName: string;
     envId?: string;
+  } | null>(null);
+  const [shareTarget, setShareTarget] = useState<{
+    session: AISession;
+    messages: ChatMessage[];
   } | null>(null);
 
   const { isConfigMissing, presetPrompt, handleConfigSaved, ensureConfigReady } =
@@ -126,6 +172,8 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
   );
   const plan = useAIPlan(sessionId);
   const recentActions = useLiveQuery(() => listRecentActions(), []) ?? [];
+  const sidebarSessions = useLiveQuery(() => listSessions(), []) ?? sessions;
+  const sessionIdsWithMessages = useLiveQuery(() => listSessionIdsWithMessages(), []) ?? [];
 
   useEffect(() => {
     const handleBrowserTaskStopped = (message: unknown) => {
@@ -143,23 +191,22 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
     return () => browser.runtime.onMessage.removeListener(handleBrowserTaskStopped);
   }, [sessionId, status, stop]);
 
+  useEffect(() => {
+    const handleImportedSession = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+      if (typeof changes[AI_CURRENT_SESSION_STORAGE_KEY]?.newValue === 'string') {
+        setViewMode('chat');
+      }
+    };
+
+    browser.storage.session.onChanged.addListener(handleImportedSession);
+    return () => browser.storage.session.onChanged.removeListener(handleImportedSession);
+  }, []);
+
   const enableYoloAndConfirm = useCallback(async () => {
     setYoloMode(true);
     await browser.storage.session.set({ [YOLO_MODE_KEY]: true });
     await confirmAllToolCalls();
   }, [confirmAllToolCalls, setYoloMode]);
-
-  useEffect(() => {
-    const handleOpenSession = () => {
-      const targetSessionId = sessionStorage.getItem('ai_current_session_id');
-      if (targetSessionId && targetSessionId !== sessionId) {
-        setInputDraft(null);
-        void switchSession(targetSessionId);
-      }
-    };
-    window.addEventListener('dpp:open-ai-session', handleOpenSession);
-    return () => window.removeEventListener('dpp:open-ai-session', handleOpenSession);
-  }, [sessionId, switchSession]);
 
   const handleSend = useCallback(
     async (content: string) => {
@@ -177,11 +224,13 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
     async (id: string) => {
       setInputDraft(null);
       await switchSession(id);
+      setViewMode('chat');
     },
     [switchSession]
   );
 
   const handleCreateSession = useCallback(async () => {
+    setViewMode('chat');
     if (messages.length === 0) return;
 
     setInputDraft(null);
@@ -190,16 +239,93 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
-      setInputDraft(null);
-      await deleteSession(id);
+      const session = sidebarSessions.find((item) => item.id === id);
+      const confirmed = await confirm(
+        `确定要删除会话「${session?.title ?? '未命名会话'}」吗？\n删除后无法恢复。`,
+        '确认删除会话',
+        'danger'
+      );
+      if (!confirmed) return;
+
+      try {
+        setInputDraft(null);
+        await deleteSession(id);
+      } catch (error) {
+        logger.error('[AIChat] Failed to delete session:', error);
+        toast('删除会话失败，请重试', 'error');
+      }
     },
-    [deleteSession]
+    [confirm, deleteSession, sidebarSessions, toast]
+  );
+
+  const handleDuplicateSession = useCallback(
+    async (id: string) => {
+      try {
+        setInputDraft(null);
+        await duplicateSession(id);
+        setViewMode('chat');
+        toast('会话已复制', 'success');
+      } catch (error) {
+        logger.error('[AIChat] Failed to duplicate session:', error);
+        toast(error instanceof Error ? error.message : '复制会话失败，请重试', 'error');
+      }
+    },
+    [duplicateSession, toast]
+  );
+
+  const handleUpdateSessionTitle = useCallback(
+    async (id: string, title: string) => {
+      try {
+        await updateSessionTitle(id, title);
+      } catch (error) {
+        logger.error('[AIChat] Failed to update session title:', error);
+        toast(error instanceof Error ? error.message : '修改会话标题失败，请重试', 'error');
+      }
+    },
+    [toast, updateSessionTitle]
+  );
+
+  const handleSetSessionPinned = useCallback(
+    async (id: string, pinned: boolean) => {
+      try {
+        await setSessionPinned(id, pinned);
+        toast(pinned ? '会话已置顶' : '已取消会话置顶', 'success');
+      } catch (error) {
+        logger.error('[AIChat] Failed to update session pin:', error);
+        toast(error instanceof Error ? error.message : '更新会话置顶状态失败，请重试', 'error');
+      }
+    },
+    [setSessionPinned, toast]
   );
 
   const handleViewModeChange = useCallback((mode: AIAssistantViewMode) => {
     if (mode !== 'chat') setInputDraft(null);
     setViewMode(mode);
   }, []);
+
+  const handleSidebarVisibleChange = (index: number, visible: boolean) => {
+    if (index !== 0) return;
+    setSidebarCollapsed(!visible);
+    if (visible) {
+      localStorage.removeItem(AI_SIDEBAR_COLLAPSED_KEY);
+    } else {
+      localStorage.setItem(AI_SIDEBAR_COLLAPSED_KEY, 'true');
+    }
+  };
+
+  const handleSidebarSizeChange = (sizes: number[]) => {
+    if (sizes.length === 2 && sizes[0] > 0) setSidebarWidth(sizes[0]);
+  };
+
+  const handleExpandSidebar = () => {
+    localStorage.removeItem(AI_SIDEBAR_COLLAPSED_KEY);
+    setSidebarCollapsed(false);
+  };
+
+  const handleCollapseSidebar = () => {
+    localStorage.setItem(AI_SIDEBAR_COLLAPSED_KEY, 'true');
+    setSidebarCollapsed(true);
+  };
 
   const handleImportTestCase = useCallback(async () => {
     try {
@@ -212,27 +338,116 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
     }
   }, [createNewSession, toast]);
 
-  const handleExecuteTestCase = useCallback(
-    async (material: { id: string; title: string }) => {
+  const handleGenerateTestCase = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(TEST_CASE_GENERATE_PROMPT);
+      toast('生成测试用例提示词已复制，请粘贴给你的 Agent', 'success');
+    } catch (error) {
+      logger.error('[AIChat] Failed to copy test case generation prompt:', error);
+      toast(error instanceof Error ? error.message : '复制生成提示词失败，请重试', 'error');
+    }
+  }, [toast]);
+
+  const handleUseConversation = useCallback(
+    async (materialId: string) => {
+      await importConversation(materialId);
+      setViewMode('chat');
+    },
+    [importConversation]
+  );
+
+  const handleExecuteTestProject = useCallback(
+    async (project: { id: string; title: string }) => {
       try {
         await createNewSession();
         setInputDraft({
-          value: buildTestCaseExecutionPrompt(material.title, material.id),
+          value: buildTestProjectExecutionPrompt(project.title, project.id),
           key: crypto.randomUUID(),
         });
         setViewMode('chat');
       } catch (error) {
-        logger.error('[AIChat] Failed to start test case execution:', error);
-        toast('无法创建测试执行会话，请重试', 'error');
+        logger.error('[AIChat] Failed to start test project execution:', error);
+        toast('无法创建项目执行会话，请重试', 'error');
       }
     },
     [createNewSession, toast]
   );
 
-  const handleUsePrompt = useCallback(async ({ body }: { title: string; body: string }) => {
-    setInputDraft({ value: body, key: crypto.randomUUID() });
-    setViewMode('chat');
-  }, []);
+  const handleOpenShareConversation = useCallback(
+    async (session: AISession) => {
+      try {
+        const targetMessages =
+          session.id === sessionId ? messages : await getMessagesBySession(session.id);
+        if (targetMessages.length === 0) {
+          toast('该会话没有可分享的消息', 'error');
+          return;
+        }
+        setShareTarget({ session, messages: targetMessages });
+      } catch (error) {
+        logger.error('[AIChat] Failed to load conversation for sharing:', error);
+        toast('无法读取会话内容，请重试', 'error');
+      }
+    },
+    [messages, sessionId, toast]
+  );
+
+  const handleShareConversation = useCallback(
+    async (input: { title: string; summary?: string }) => {
+      if (!shareTarget) return;
+      try {
+        await shareSession(shareTarget.session.id, input);
+        toast('会话已永久分享到团队物料库', 'success');
+      } catch (error) {
+        logger.error('[AIChat] Failed to share conversation:', error);
+        toast(error instanceof Error ? error.message : '分享会话失败', 'error');
+        throw error;
+      }
+    },
+    [shareSession, shareTarget, toast]
+  );
+
+  const handleExportToClipboard = useCallback(async () => {
+    if (!sessionId || messages.length === 0) return;
+    try {
+      const currentSession = sidebarSessions.find((s) => s.id === sessionId);
+      const markdown = exportChatToMarkdown(
+        messages,
+        currentSession?.title || '会话',
+        currentSession?.role?.title
+      );
+      await navigator.clipboard.writeText(markdown);
+      toast('已复制到剪贴板', 'success');
+    } catch (error) {
+      logger.error('[AIChat] Failed to copy markdown:', error);
+      toast(error instanceof Error ? error.message : '复制失败，请重试', 'error');
+    }
+  }, [sessionId, messages, sidebarSessions, toast]);
+
+  const handleExportToFile = useCallback(async () => {
+    if (!sessionId || messages.length === 0) return;
+    try {
+      const currentSession = sidebarSessions.find((s) => s.id === sessionId);
+      const markdown = exportChatToMarkdown(
+        messages,
+        currentSession?.title || '会话',
+        currentSession?.role?.title
+      );
+      const blob = new Blob([markdown], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      const dateStr = new Date().toISOString().split('T')[0];
+      anchor.href = url;
+      anchor.download = `${currentSession?.title || '会话'}-${dateStr}.md`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+      toast('会话已导出', 'success');
+    } catch (error) {
+      logger.error('[AIChat] Failed to export markdown:', error);
+      toast(error instanceof Error ? error.message : '导出失败，请重试', 'error');
+    }
+  }, [sessionId, messages, sidebarSessions, toast]);
 
   const handleReplayRecentAction = useCallback(
     async (action: RecentAction) => {
@@ -367,79 +582,126 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
   }, [isSummarizing, messages.length, sessionId, status, summarizeSession, switchSession, toast]);
 
   return (
-    <div className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
-      <AIAssistantHeader
-        isActive={isActive}
-        sessions={sessions}
-        currentSessionId={sessionId}
-        sessionStatuses={sessionStatuses}
-        onSelectSession={handleSelectSession}
-        onDeleteSession={handleDeleteSession}
-        onCreateSession={handleCreateSession}
-        viewMode={viewMode}
-        onViewModeChange={handleViewModeChange}
-      />
+    <div className="relative h-full min-h-0 min-w-0 overflow-hidden bg-background">
+      <Allotment
+        separator
+        onChange={handleSidebarSizeChange}
+        onDragEnd={saveSidebarSize}
+        onVisibleChange={handleSidebarVisibleChange}
+      >
+        <Allotment.Pane
+          preferredSize={getSavedSidebarSize()}
+          minSize={MIN_AI_SIDEBAR_SIZE}
+          maxSize={MAX_AI_SIDEBAR_SIZE}
+          snap
+          visible={!sidebarCollapsed}
+        >
+          <AIAssistantSidebar
+            sessions={sidebarSessions}
+            currentSessionId={viewMode === 'chat' ? sessionId : null}
+            sessionStatuses={sessionStatuses}
+            sessionIdsWithMessages={sessionIdsWithMessages}
+            viewMode={viewMode}
+            onViewModeChange={handleViewModeChange}
+            onSelectSession={handleSelectSession}
+            onDeleteSession={handleDeleteSession}
+            onDuplicateSession={handleDuplicateSession}
+            onUpdateSessionTitle={handleUpdateSessionTitle}
+            onSetSessionPinned={handleSetSessionPinned}
+            onCreateSession={handleCreateSession}
+            onShareSession={handleOpenShareConversation}
+            footer={sidebarFooter}
+          />
+        </Allotment.Pane>
+        <Allotment.Pane minSize={180}>
+          <div className="flex h-full min-h-0 min-w-0 flex-col">
+            {viewMode === 'materials' ? (
+              <AIMaterialLibraryView
+                onGenerateTestCase={handleGenerateTestCase}
+                onImportTestCase={handleImportTestCase}
+                onExecuteTestProject={handleExecuteTestProject}
+                onUseConversation={handleUseConversation}
+              />
+            ) : (
+              <Allotment
+                vertical
+                separator
+                onDragEnd={saveInputPanelSize}
+                className="min-h-0 flex-1"
+              >
+                <Allotment.Pane minSize={96}>
+                  <div className="flex h-full min-h-0 min-w-0 flex-col">
+                    <AIAssistantMessagesPanel
+                      messages={messages}
+                      status={status}
+                      error={error}
+                      isConfigMissing={isConfigMissing}
+                      isNearBottom={isNearBottom}
+                      messagesContainerRef={messagesContainerRef}
+                      messagesEndRef={messagesEndRef}
+                      onScroll={handleScroll}
+                      onScrollToBottom={scrollToBottom}
+                      onConfigSaved={handleConfigSaved}
+                      onEditMessage={handleEditMessage}
+                      browserTaskProgress={browserTaskProgress}
+                      plan={plan}
+                      recentActions={recentActions}
+                      onReplayRecentAction={handleReplayRecentAction}
+                      currentRole={currentRole}
+                      onRoleSelect={selectRole}
+                      onExportToClipboard={handleExportToClipboard}
+                      onExportToFile={handleExportToFile}
+                    />
+                  </div>
+                </Allotment.Pane>
+                <Allotment.Pane
+                  preferredSize={getSavedInputPanelSize()}
+                  minSize={MIN_AI_INPUT_PANEL_SIZE}
+                >
+                  <div className="h-full min-h-[180px] overflow-y-auto">
+                    <AIAssistantInputSection
+                      isConfigMissing={isConfigMissing}
+                      currentProvider={currentProvider}
+                      currentProviderName={currentProviderName}
+                      currentModel={currentModel}
+                      isRunning={isRunning}
+                      isConfirming={status === 'confirming'}
+                      presetPrompt={inputDraft?.value || presetPrompt}
+                      presetPromptKey={inputDraft?.key}
+                      usage={getLatestUsage(messages)}
+                      canClear={messages.length > 0}
+                      canSummarize={messages.length > 0 && status === 'idle' && !isSummarizing}
+                      isSummarizing={isSummarizing}
+                      onConfigSaved={handleConfigSaved}
+                      onSend={handleSend}
+                      onFileError={(message) => toast(message, 'error')}
+                      onStop={stop}
+                      onSummarize={handleSummarize}
+                      onClear={handleClearMessages}
+                    />
+                  </div>
+                </Allotment.Pane>
+              </Allotment>
+            )}
+          </div>
+        </Allotment.Pane>
+      </Allotment>
 
-      {viewMode === 'materials' ? (
-        <AIMaterialLibraryView
-          onImportTestCase={handleImportTestCase}
-          onExecuteTestCase={handleExecuteTestCase}
-          onUsePrompt={handleUsePrompt}
-        />
-      ) : (
-        <Allotment vertical separator onDragEnd={saveInputPanelSize} className="min-h-0 flex-1">
-          <Allotment.Pane minSize={96}>
-            <div className="flex h-full min-h-0 min-w-0 flex-col">
-              <AIAssistantMessagesPanel
-                messages={messages}
-                status={status}
-                error={error}
-                isConfigMissing={isConfigMissing}
-                isNearBottom={isNearBottom}
-                messagesContainerRef={messagesContainerRef}
-                messagesEndRef={messagesEndRef}
-                onScroll={handleScroll}
-                onScrollToBottom={scrollToBottom}
-                onConfigSaved={handleConfigSaved}
-                onEditMessage={handleEditMessage}
-                browserTaskProgress={browserTaskProgress}
-                plan={plan}
-                recentActions={recentActions}
-                onReplayRecentAction={handleReplayRecentAction}
-                currentRole={currentRole}
-                onRoleSelect={selectRole}
-              />
-            </div>
-          </Allotment.Pane>
-          <Allotment.Pane
-            preferredSize={getSavedInputPanelSize()}
-            minSize={MIN_AI_INPUT_PANEL_SIZE}
-          >
-            <div className="h-full min-h-[180px] overflow-y-auto">
-              <AIAssistantInputSection
-                isConfigMissing={isConfigMissing}
-                currentProvider={currentProvider}
-                currentProviderName={currentProviderName}
-                currentModel={currentModel}
-                isRunning={isRunning}
-                isConfirming={status === 'confirming'}
-                presetPrompt={inputDraft?.value || presetPrompt}
-                presetPromptKey={inputDraft?.key}
-                usage={getLatestUsage(messages)}
-                canClear={messages.length > 0}
-                canSummarize={messages.length > 0 && status === 'idle' && !isSummarizing}
-                isSummarizing={isSummarizing}
-                onConfigSaved={handleConfigSaved}
-                onSend={handleSend}
-                onFileError={(message) => toast(message, 'error')}
-                onStop={stop}
-                onSummarize={handleSummarize}
-                onClear={handleClearMessages}
-              />
-            </div>
-          </Allotment.Pane>
-        </Allotment>
-      )}
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={sidebarCollapsed ? handleExpandSidebar : handleCollapseSidebar}
+        style={{ left: sidebarCollapsed ? 0 : sidebarWidth }}
+        className="absolute top-1/2 z-30 h-10 w-5 -translate-y-1/2 rounded-l-none rounded-r border-l-0 bg-background/85 px-0 text-muted-foreground shadow-sm hover:!-translate-y-1/2 hover:text-foreground active:!-translate-y-1/2"
+        title={sidebarCollapsed ? '展开会话侧栏' : '折叠会话侧栏'}
+        aria-label={sidebarCollapsed ? '展开会话侧栏' : '折叠会话侧栏'}
+      >
+        {sidebarCollapsed ? (
+          <PanelLeftOpen className="h-3 w-3" />
+        ) : (
+          <PanelLeftClose className="h-3 w-3" />
+        )}
+      </Button>
 
       <ToolConfirmationDialog
         pendingToolCall={pendingToolCall}
@@ -471,6 +733,16 @@ export function AIAssistantView({ isActive, onModuleSelect }: AIAssistantViewPro
           onClose={() => setReplayBuildJob(null)}
         />
       )}
+
+      <ShareConversationDialog
+        open={shareTarget !== null}
+        sessionTitle={shareTarget?.session.title ?? '精彩会话'}
+        messages={shareTarget?.messages ?? []}
+        onOpenChange={(open) => {
+          if (!open) setShareTarget(null);
+        }}
+        onShare={handleShareConversation}
+      />
     </div>
   );
 }

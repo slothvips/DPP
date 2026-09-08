@@ -5,8 +5,8 @@ import type {
 import { createToolParameter, toolRegistry } from '@/lib/ai/tools';
 import type { ToolHandler } from '@/lib/ai/tools';
 import {
-  archivePromptMaterial,
   createPromptMaterial,
+  deletePromptMaterial,
   getPromptMaterial,
   listPromptMaterialRecordsPage,
   updatePromptMaterial,
@@ -55,7 +55,7 @@ export function registerPromptTools(): void {
     handler: (async (args: unknown) => {
       const id = readRequiredText(readRecord(args).id, '提示词 ID');
       const prompt = await getPromptMaterial(id);
-      if (!prompt) throw new Error('提示词不存在或已归档');
+      if (!prompt) throw new Error('提示词不存在或已删除');
       return {
         success: true,
         prompt: {
@@ -122,18 +122,32 @@ export function registerPromptTools(): void {
     requiresConfirmation: true,
   });
 
+  const deletePromptParameters = createToolParameter(
+    { id: { type: 'string', description: '要删除的提示词 ID' } },
+    ['id']
+  );
+  const deletePromptHandler = (async (args: unknown) => {
+    const id = readRequiredText(readRecord(args).id, '提示词 ID');
+    await deletePromptMaterial(id);
+    return { success: true, message: '提示词已删除', prompt: { id } };
+  }) as ToolHandler;
+
+  toolRegistry.register({
+    name: 'prompt_delete',
+    description: '删除一个团队共享提示词，使其不再出现在可用列表中。',
+    parameters: deletePromptParameters,
+    handler: deletePromptHandler,
+    requiresConfirmation: true,
+  });
+
+  // Keep old custom role permissions working without exposing the old name to the model.
   toolRegistry.register({
     name: 'prompt_archive',
-    description: '归档一个团队共享提示词，使其不再出现在可用列表中。',
-    parameters: createToolParameter({ id: { type: 'string', description: '要归档的提示词 ID' } }, [
-      'id',
-    ]),
-    handler: (async (args: unknown) => {
-      const id = readRequiredText(readRecord(args).id, '提示词 ID');
-      await archivePromptMaterial(id);
-      return { success: true, message: '提示词已归档', prompt: { id } };
-    }) as ToolHandler,
+    description: '删除团队共享提示词（兼容旧角色配置）。',
+    parameters: deletePromptParameters,
+    handler: deletePromptHandler,
     requiresConfirmation: true,
+    exposeToModel: false,
   });
 }
 

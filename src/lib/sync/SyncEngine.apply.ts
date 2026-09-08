@@ -1,7 +1,11 @@
 import Dexie from 'dexie';
 import type { Table } from 'dexie';
 import type { IndexableType } from 'dexie';
-import type { TestRun } from '@/features/aiAssistant/materials/testCaseTypes';
+import type {
+  TestProject,
+  TestProjectRun,
+  TestRun,
+} from '@/features/aiAssistant/materials/testCaseTypes';
 import { logger } from '@/utils/logger';
 import {
   deferOperation,
@@ -10,6 +14,8 @@ import {
   resolveConstraintError,
   resolvePayloadKey,
 } from './SyncEngine.shared';
+import { mergeTestProjectRecords } from './testProjectMerge';
+import { mergeTestProjectRunRecords } from './testProjectRunMerge';
 import { mergeTestRunRecords } from './testRunMerge';
 import type { SyncOperation } from './types';
 
@@ -44,7 +50,16 @@ export async function applySyncOperation(
 }
 
 async function applyDeleteOperation(table: Table<unknown, IndexableType>, op: SyncOperation) {
+  if (op.table === 'materials' && isRoleMaterialPayload(op.payload)) {
+    logger.warn(`[Sync] Ignoring role deletion operation for ${op.key}`);
+    return;
+  }
+
   const existing = await table.get(op.key as IndexableType);
+  if (isImmutableConversation(existing)) {
+    logger.warn(`[Sync] Ignoring deletion of immutable conversation material ${op.key}`);
+    return;
+  }
   if (existing) {
     const existingTimestamp = getRecordTimestamp(existing);
     if (existingTimestamp && existingTimestamp > op.timestamp) {
@@ -62,16 +77,43 @@ async function applyDeleteOperation(table: Table<unknown, IndexableType>, op: Sy
   }
 }
 
+function isRoleMaterialPayload(payload: unknown): boolean {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    (payload as { type?: unknown }).type === 'role'
+  );
+}
+
 async function applyCreateOrUpdateOperation(
   table: Table<unknown, IndexableType>,
   op: SyncOperation
 ) {
   const existing = await table.get(op.key as IndexableType);
 
+  if (isImmutableConversation(existing)) {
+    logger.warn(`[Sync] Ignoring update of immutable conversation material ${op.key}`);
+    return;
+  }
+
   const payload = resolvePayloadKey(table, op);
+  if (op.table === 'testProjects' && existing) {
+    const merged = await Dexie.waitFor(
+      mergeTestProjectRecords(existing as TestProject, payload as unknown as TestProject)
+    );
+    await table.put(merged);
+    return;
+  }
   if (op.table === 'testRuns' && existing) {
     const merged = await Dexie.waitFor(
       mergeTestRunRecords(existing as TestRun, payload as unknown as TestRun)
+    );
+    await table.put(merged);
+    return;
+  }
+  if (op.table === 'projectRuns' && existing) {
+    const merged = await Dexie.waitFor(
+      mergeTestProjectRunRecords(existing as TestProjectRun, payload as unknown as TestProjectRun)
     );
     await table.put(merged);
     return;
@@ -96,4 +138,13 @@ async function applyCreateOrUpdateOperation(
       logger.info(`[Sync] Deleting conflicting record in ${op.table} (${indexKeyPath}=${value})`);
     });
   });
+}
+
+function isImmutableConversation(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { type?: unknown; immutable?: unknown }).type === 'conversation' &&
+    (value as { type?: unknown; immutable?: unknown }).immutable === true
+  );
 }

@@ -113,7 +113,10 @@ test('automatic push preserves global sync status coordination', () => {
 
   assert.ok(handler);
   assert.match(handler, /await isGlobalSyncRunning\(\)/);
-  assert.match(handler, /await withGlobalSyncStatus\(\(\) => syncEngine\.push\(\)(?:, 'database-push')?\)/);
+  assert.match(
+    handler,
+    /await withGlobalSyncStatus\(\(\) => syncEngine\.push\(\)(?:, 'database-push')?\)/
+  );
   assert.match(handler, /if \(retry\)[\s\S]*?schedulePushRetry\(\)/);
   assert.match(handler, /isRetryableSyncError\(syncError\)/);
   assert.match(handler, /deferAutoSyncPush\(\)/);

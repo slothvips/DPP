@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ChevronDown, LoaderCircle, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, LoaderCircle, Plus, Search, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,15 +12,24 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
+import { listRoleUsageStats } from '@/lib/db/roleUsage';
+import type { RoleUsageStat } from '@/lib/db/roleUsage';
 import {
-  archiveRoleMaterial,
   createRoleMaterial,
+  deriveRoleMaterial,
   getRoleMaterial,
-  listRoleMaterials,
   updateRoleMaterial,
 } from '@/lib/db/roles';
+import { listRoleMaterials } from '@/lib/db/roles';
 import { logger } from '@/utils/logger';
 import type {
   AISessionRoleSnapshot,
@@ -29,10 +38,13 @@ import type {
 } from '../materials/testCaseTypes';
 import type { AIRoleToolOption } from '../roles/roleRuntime';
 import {
+  BASIC_AI_TOOL_NAMES,
   DEFAULT_AI_ROLE_ID,
   createDefaultRoleSnapshot,
   getAvailableRoleTools,
 } from '../roles/roleRuntime';
+
+type RoleSortOption = 'updatedAt' | 'usageRate';
 
 interface AIRoleSelectorProps {
   currentRole: AISessionRoleSnapshot;
@@ -45,8 +57,23 @@ export function AIRoleSelector({ currentRole, disabled = false, onSelect }: AIRo
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<DecryptedRoleMaterial | null>(null);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<RoleSortOption>('updatedAt');
   const roles = useLiveQuery(() => listRoleMaterials(), []);
+  const usageStats = useLiveQuery(() => listRoleUsageStats(), []);
   const { toast } = useToast();
+
+  const visibleRoles = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return [...(roles ?? [])]
+      .filter((role) => role.title.toLocaleLowerCase().includes(query))
+      .sort((left, right) => {
+        if (sortBy === 'usageRate') {
+          return (usageStats?.[right.id]?.rate ?? 0) - (usageStats?.[left.id]?.rate ?? 0);
+        }
+        return right.updatedAt - left.updatedAt;
+      });
+  }, [roles, search, sortBy, usageStats]);
 
   const selectRole = async (roleId: string) => {
     setSaving(true);
@@ -88,11 +115,36 @@ export function AIRoleSelector({ currentRole, disabled = false, onSelect }: AIRo
               <p className="mt-0.5 text-[11px] text-muted-foreground">角色决定 Prompt 和可用工具</p>
             </div>
           </div>
+          <div className="flex gap-2 px-1">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="搜索角色名称"
+                className="h-8 rounded-md pl-8 text-xs"
+              />
+            </div>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as RoleSortOption)}>
+              <SelectTrigger className="h-8 w-[6.5rem] shrink-0 rounded-md px-2 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="updatedAt" className="text-xs">
+                  最新
+                </SelectItem>
+                <SelectItem value="usageRate" className="text-xs">
+                  使用率
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="mt-1 max-h-64 space-y-1 overflow-y-auto">
             <RoleOption
               title="D 仔"
-              description="处理页面、链接、记录和工程任务。"
+              description="DPP 的默认 AI 助手。"
               toolCount={createDefaultRoleSnapshot().allowedToolNames.length}
+              usage={usageStats?.[DEFAULT_AI_ROLE_ID]}
               selected={currentRole.roleId === DEFAULT_AI_ROLE_ID}
               builtIn
               disabled={saving}
@@ -102,12 +154,12 @@ export function AIRoleSelector({ currentRole, disabled = false, onSelect }: AIRo
               <div className="flex justify-center p-4">
                 <LoaderCircle className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
-            ) : roles.length === 0 ? (
+            ) : visibleRoles.length === 0 ? (
               <p className="px-2 py-3 text-center text-[11px] text-muted-foreground">
-                还没有自定义角色
+                {search.trim() ? '没有匹配的角色' : '还没有自定义角色'}
               </p>
             ) : (
-              roles.map((role) => (
+              visibleRoles.map((role) => (
                 <RoleOption
                   key={role.id}
                   title={role.title}
@@ -117,6 +169,7 @@ export function AIRoleSelector({ currentRole, disabled = false, onSelect }: AIRo
                       ? getAvailableRoleTools().length
                       : role.content.toolPolicy.toolNames.length
                   }
+                  usage={usageStats?.[role.id]}
                   selected={currentRole.roleId === role.id}
                   disabled={saving}
                   onClick={() => void selectRole(role.id)}
@@ -163,6 +216,7 @@ function RoleOption({
   title,
   description,
   toolCount,
+  usage,
   selected,
   builtIn = false,
   disabled = false,
@@ -172,6 +226,7 @@ function RoleOption({
   title: string;
   description: string;
   toolCount: number;
+  usage?: RoleUsageStat;
   selected: boolean;
   builtIn?: boolean;
   disabled?: boolean;
@@ -197,6 +252,11 @@ function RoleOption({
           <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
             {description}
           </span>
+          {usage && (
+            <span className="mt-0.5 block text-[10px] text-muted-foreground/80">
+              使用 {usage.count} 次 · {Math.round(usage.rate * 100)}%
+            </span>
+          )}
         </span>
         <span className="shrink-0 text-[10px] text-muted-foreground">{toolCount} 工具</span>
       </button>
@@ -228,6 +288,15 @@ function RoleEditorDialog({
 }) {
   const { toast } = useToast();
   const tools = useMemo(() => getAvailableRoleTools(), []);
+  const toolGroups = useMemo(() => {
+    const groups = new Map<string, AIRoleToolOption[]>();
+    for (const tool of tools) {
+      const group = groups.get(tool.group);
+      if (group) group.push(tool);
+      else groups.set(tool.group, [tool]);
+    }
+    return [...groups.entries()];
+  }, [tools]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -240,9 +309,11 @@ function RoleEditorDialog({
     setDescription(role?.content.description ?? '');
     setSystemPrompt(role?.content.systemPrompt ?? '');
     setSelectedTools(
-      role?.content.toolPolicy.mode === 'all'
-        ? tools.map(({ name }) => name)
-        : (role?.content.toolPolicy.toolNames ?? [])
+      !role
+        ? tools.filter(({ name }) => BASIC_AI_TOOL_NAMES.includes(name)).map(({ name }) => name)
+        : role.content.toolPolicy.mode === 'all'
+          ? tools.map(({ name }) => name)
+          : role.content.toolPolicy.toolNames
     );
   }, [open, role, tools]);
 
@@ -277,28 +348,39 @@ function RoleEditorDialog({
     }
   };
 
-  const remove = async () => {
-    if (!role) return;
+  const derive = async () => {
+    if (!role || !title.trim()) {
+      toast('角色名称不能为空', 'error');
+      return;
+    }
+
+    setSaving(true);
     try {
-      await archiveRoleMaterial(role.id);
-      onOpenChange(false);
-      toast('角色已归档', 'success');
+      const saved = await deriveRoleMaterial(role, {
+        title,
+        description,
+        systemPrompt,
+        toolPolicy: { mode: 'allowlist', toolNames: selectedTools },
+      });
+      await onSaved(saved.id);
     } catch (error) {
-      logger.error('[AIRoleSelector] Failed to archive role:', error);
-      toast(error instanceof Error ? error.message : '归档角色失败', 'error');
+      logger.error('[AIRoleSelector] Failed to derive role:', error);
+      toast(error instanceof Error ? error.message : '派生角色失败', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(44rem,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(44rem,calc(100vh-2rem))] flex-col overflow-hidden sm:max-w-2xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle>{role ? '编辑角色' : '新建角色'}</DialogTitle>
           <DialogDescription>
             System Prompt 会原样发送给模型，工具权限只影响当前角色。
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-1">
           <div className="grid gap-3 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)]">
             <Input
               value={title}
@@ -325,27 +407,41 @@ function RoleEditorDialog({
                 已选 {selectedTools.length} / {tools.length}
               </span>
             </div>
-            <div className="grid gap-1.5 sm:grid-cols-2">
-              {tools.map((tool) => (
-                <ToolToggle
-                  key={tool.name}
-                  tool={tool}
-                  checked={selectedTools.includes(tool.name)}
-                  onChange={() => toggleTool(tool.name)}
-                />
+            <div className="space-y-3">
+              {toolGroups.map(([group, groupTools]) => (
+                <section key={group}>
+                  <div className="mb-1.5 flex items-center justify-between border-b border-border/50 pb-1.5">
+                    <p className="text-[11px] font-medium text-foreground">{group}</p>
+                    <span className="text-[10px] text-muted-foreground">
+                      {groupTools.filter(({ name }) => selectedTools.includes(name)).length} /{' '}
+                      {groupTools.length}
+                    </span>
+                  </div>
+                  <div className="grid gap-1.5 sm:grid-cols-2">
+                    {groupTools.map((tool) => (
+                      <ToolToggle
+                        key={tool.name}
+                        tool={tool}
+                        checked={selectedTools.includes(tool.name)}
+                        onChange={() => toggleTool(tool.name)}
+                      />
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="shrink-0 border-t border-border/60 pt-4">
           {role && (
             <Button
-              variant="ghost"
-              className="mr-auto text-destructive hover:text-destructive"
-              onClick={() => void remove()}
+              variant="outline"
+              className="mr-auto"
+              onClick={() => void derive()}
+              disabled={saving}
             >
-              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-              归档
+              <Copy className="mr-1.5 h-3.5 w-3.5" />
+              派生新角色
             </Button>
           )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>

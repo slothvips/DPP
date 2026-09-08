@@ -8,6 +8,10 @@ export const PROVIDER_OPTIONS: { value: AIProviderType; label: string }[] = [
   { value: 'custom', label: 'OpenAI 兼容' },
 ];
 
+export function getProviderLabel(provider: AIProviderType): string {
+  return PROVIDER_OPTIONS.find((option) => option.value === provider)?.label ?? provider;
+}
+
 export function toConfigProvider(provider: AIProviderType): AIProviderType {
   const definition = AI_PROVIDER_DEFINITIONS.find((item) => item.id === provider);
   return definition?.protocol === 'openai-compatible' && provider !== 'opencode'

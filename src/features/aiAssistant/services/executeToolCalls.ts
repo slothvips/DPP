@@ -1,6 +1,8 @@
 import type { PendingBuild, PreparedToolCall } from '@/features/aiAssistant/hooks/useAIChat.types';
 import { ensureAIToolsRegistered } from '@/lib/ai';
 import { getPlan } from '@/lib/ai/plan';
+import { isSessionAction } from '@/lib/ai/sessionActions';
+import type { SessionAction } from '@/lib/ai/sessionActions';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import { hasActiveTestRunForSession, stopTestRunForSession } from '@/lib/ai/tools/testRuns';
@@ -28,36 +30,25 @@ function shouldResetAIConfig(resultObj: { action?: string; updatedKeys?: unknown
   );
 }
 
-export async function executePreparedToolCalls(preparedToolCalls: PreparedToolCall[]): Promise<{
+interface ExecutePreparedToolCallsResult {
   toolMessages: ChatMessage[];
   pendingBuild: PendingBuild | null;
-}>;
+  sessionChanged: boolean;
+}
+
+interface ExecutePreparedToolCallsOptions {
+  onAIConfigChanged?: () => void;
+  browserTaskSessionId?: string;
+  sessionId?: string;
+  requiresActivePlan?: boolean;
+  allowedToolNames?: readonly string[];
+  onSessionAction?: (action: SessionAction) => Promise<void> | void;
+}
+
 export async function executePreparedToolCalls(
   preparedToolCalls: PreparedToolCall[],
-  options: {
-    onAIConfigChanged?: () => void;
-    browserTaskSessionId?: string;
-    sessionId?: string;
-    requiresActivePlan?: boolean;
-    allowedToolNames?: readonly string[];
-  }
-): Promise<{
-  toolMessages: ChatMessage[];
-  pendingBuild: PendingBuild | null;
-}>;
-export async function executePreparedToolCalls(
-  preparedToolCalls: PreparedToolCall[],
-  options?: {
-    onAIConfigChanged?: () => void;
-    browserTaskSessionId?: string;
-    sessionId?: string;
-    requiresActivePlan?: boolean;
-    allowedToolNames?: readonly string[];
-  }
-): Promise<{
-  toolMessages: ChatMessage[];
-  pendingBuild: PendingBuild | null;
-}> {
+  options?: ExecutePreparedToolCallsOptions
+): Promise<ExecutePreparedToolCallsResult> {
   ensureAIToolsRegistered();
 
   const availableToolNames = toolRegistry.getAll().map((tool) => tool.name);
@@ -82,11 +73,18 @@ export async function executePreparedToolCalls(
       ) {
         await enforceActivePlan(options.sessionId);
       }
-      const { toolMessage, pendingBuild } = await executePreparedToolCall(
+      const { toolMessage, pendingBuild, sessionAction } = await executePreparedToolCall(
         preparedToolCall,
         options,
         availableToolNames
       );
+      if (sessionAction) {
+        return {
+          toolMessages: [],
+          pendingBuild: null,
+          sessionChanged: true,
+        };
+      }
       if (pendingBuild) {
         return {
           toolMessages,
@@ -94,6 +92,7 @@ export async function executePreparedToolCalls(
             ...pendingBuild,
             remainingToolCalls: preparedToolCalls.slice(index + 1).map((call) => call.toolCall),
           },
+          sessionChanged: false,
         };
       }
       toolMessages.push(toolMessage);
@@ -111,11 +110,11 @@ export async function executePreparedToolCalls(
         );
       }
       toolMessages.push(createToolErrorMessage(preparedToolCall, error));
-      return { toolMessages, pendingBuild: null };
+      return { toolMessages, pendingBuild: null, sessionChanged: false };
     }
   }
 
-  return { toolMessages, pendingBuild: null };
+  return { toolMessages, pendingBuild: null, sessionChanged: false };
 }
 
 async function enforceActivePlan(sessionId: string): Promise<void> {
@@ -127,17 +126,13 @@ async function enforceActivePlan(sessionId: string): Promise<void> {
 
 async function executePreparedToolCall(
   preparedToolCall: PreparedToolCall,
-  options:
-    | {
-        onAIConfigChanged?: () => void;
-        browserTaskSessionId?: string;
-        sessionId?: string;
-        requiresActivePlan?: boolean;
-        allowedToolNames?: readonly string[];
-      }
-    | undefined,
+  options: ExecutePreparedToolCallsOptions | undefined,
   availableToolNames: string[]
-): Promise<{ toolMessage: ChatMessage; pendingBuild: PendingBuild | null }> {
+): Promise<{
+  toolMessage: ChatMessage;
+  pendingBuild: PendingBuild | null;
+  sessionAction: SessionAction | null;
+}> {
   const { toolCall, arguments: args } = preparedToolCall;
   logger.info(`[AIChat] Executing tool: ${toolCall.function.name}`, {
     args: redactSensitiveFields(args),
@@ -167,7 +162,8 @@ async function executePreparedToolCall(
           ? {
               ...args,
               session_id: options.sessionId,
-              ...(toolCall.function.name === 'test_run_execute'
+              ...(toolCall.function.name === 'test_run_execute' ||
+              toolCall.function.name === 'test_project_execute'
                 ? { tool_call_id: toolCall.id }
                 : {}),
             }
@@ -185,6 +181,8 @@ async function executePreparedToolCall(
   };
 
   if (shouldResetAIConfig(resultObj)) options?.onAIConfigChanged?.();
+  const sessionAction = isSessionAction(result) ? result : null;
+  if (sessionAction) await options?.onSessionAction?.(sessionAction);
   if (resultObj.action === 'open_build_dialog' && resultObj.jobUrl && resultObj.jobName) {
     return {
       toolMessage: createToolMessage(toolCall, result),
@@ -195,13 +193,19 @@ async function executePreparedToolCall(
         toolName: toolCall.function.name,
         remainingToolCalls: [],
       },
+      sessionAction: null,
     };
   }
-  return { toolMessage: createToolMessage(toolCall, result), pendingBuild: null };
+  return {
+    toolMessage: createToolMessage(toolCall, result),
+    pendingBuild: null,
+    sessionAction,
+  };
 }
 
 function isTestRunTool(name: string): boolean {
   return (
+    name === 'test_project_execute' ||
     name === 'test_run_execute' ||
     name === 'test_run_start' ||
     name === 'test_run_update_step' ||
@@ -211,7 +215,10 @@ function isTestRunTool(name: string): boolean {
 
 function isTestRunMutation(name: string): boolean {
   return (
-    name === 'test_run_execute' || name === 'test_run_update_step' || name === 'test_run_finish'
+    name === 'test_project_execute' ||
+    name === 'test_run_execute' ||
+    name === 'test_run_update_step' ||
+    name === 'test_run_finish'
   );
 }
 

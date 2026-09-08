@@ -30,6 +30,7 @@ interface UseAIChatMessagesReturn {
     assistantMessage: ChatMessage
   ) => void;
   loadSessionMessages: (sessionId: string, loadedMessages: ChatMessage[]) => void;
+  clearSessionMessages: (sessionId: string) => void;
 }
 
 export function useAIChatMessages(): UseAIChatMessagesReturn {
@@ -184,6 +185,17 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
     [getMessagesRef, syncActiveSession]
   );
 
+  const clearSessionMessages = useCallback(
+    (sessionId: string) => {
+      messagesBySessionRef.current.set(sessionId, []);
+      const ref = getMessagesRef(sessionId);
+      ref.current = [];
+      reasoningBySessionRef.current.delete(sessionId);
+      if (sessionId === activeSessionIdRef.current) syncActiveSession(sessionId);
+    },
+    [getMessagesRef, syncActiveSession]
+  );
+
   return {
     messages,
     reasoning,
@@ -197,5 +209,6 @@ export function useAIChatMessages(): UseAIChatMessagesReturn {
     handleReasoningChunk,
     handleAssistantMessage,
     loadSessionMessages,
+    clearSessionMessages,
   };
 }

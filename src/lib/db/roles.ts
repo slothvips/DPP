@@ -41,7 +41,7 @@ export async function updateRoleMaterial(
   return await db.transaction('rw', db.materials, async () => {
     const current = await db.materials.get(id);
     if (!current || current.type !== 'role' || current.deletedAt || current.status !== 'ready') {
-      throw new Error('角色不存在或已归档');
+      throw new Error('角色不存在或已删除');
     }
     if (current.version !== expectedVersion) {
       throw new Error(`角色已更新，请刷新后再保存（当前版本 v${current.version}）`);
@@ -58,15 +58,28 @@ export async function updateRoleMaterial(
   });
 }
 
-export async function archiveRoleMaterial(id: string): Promise<void> {
-  await db.transaction('rw', db.materials, async () => {
-    const material = await db.materials.get(id);
-    if (!material || material.type !== 'role' || material.deletedAt) {
-      throw new Error('角色不存在或已归档');
-    }
-    const now = Date.now();
-    await db.materials.update(id, { status: 'archived', deletedAt: now, updatedAt: now });
-  });
+export async function deriveRoleMaterial(
+  source: Pick<RoleMaterial, 'id' | 'title' | 'version'>,
+  input: RoleMaterialInput
+): Promise<RoleMaterial> {
+  const normalized = validateRoleMaterialInput(input);
+  const id = crypto.randomUUID();
+  const title =
+    normalized.title === source.title ? createDerivedRoleTitle(source.title, id) : normalized.title;
+  const now = Date.now();
+  const material: RoleMaterial = {
+    id,
+    type: 'role',
+    title,
+    status: 'ready',
+    version: 1,
+    encryptedContent: await encryptMaterialContent(toRoleContent({ ...normalized, title })),
+    createdAt: now,
+    updatedAt: now,
+    derivedFrom: { roleId: source.id, version: source.version },
+  };
+  await db.materials.add(material);
+  return material;
 }
 
 export async function getRoleMaterial(id: string): Promise<DecryptedRoleMaterial | undefined> {
@@ -148,4 +161,9 @@ function requireText(value: unknown, label: string, maxLength: number): string {
 function optionalText(value: unknown, label: string, maxLength: number): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   return requireText(value, label, maxLength);
+}
+
+function createDerivedRoleTitle(sourceTitle: string, id: string): string {
+  const suffix = ` · 派生 · ${id.slice(0, 4).toUpperCase()}`;
+  return `${sourceTitle.slice(0, MAX_TITLE_LENGTH - suffix.length)}${suffix}`;
 }

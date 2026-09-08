@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import type { SessionAction } from '@/lib/ai/sessionActions';
 import { hasActiveTestRunForSession, stopTestRunForSession } from '@/lib/ai/tools/testRuns';
 import type { ChatMessage } from '../types';
 import type { PendingBuild, PendingToolCall, PendingToolCalls } from './useAIChat.types';
@@ -19,6 +20,7 @@ interface UseAIChatToolFlowOptions {
   onAIConfigChanged: () => void;
   sessionId: string | null;
   allowedToolNames: readonly string[];
+  onSessionAction: (action: SessionAction) => Promise<void>;
 }
 
 interface UseAIChatToolFlowReturn {
@@ -45,6 +47,7 @@ export function useAIChatToolFlow({
   onAIConfigChanged,
   sessionId,
   allowedToolNames,
+  onSessionAction,
 }: UseAIChatToolFlowOptions): UseAIChatToolFlowReturn {
   const [, setPendingToolCalls] = useState<PendingToolCalls | null>(null);
   const pendingToolCallsBySessionRef = useRef(new Map<string, PendingToolCalls>());
@@ -92,6 +95,7 @@ export function useAIChatToolFlow({
     browserTaskSessionId: sessionId,
     sessionId,
     allowedToolNames,
+    onSessionAction,
   });
 
   const processAssistantResponse = useCallback(

@@ -17,3 +17,7 @@ export * from './tools/recentActivities';
 export * from './tools/browserTask';
 export * from './tools/testCases';
 export * from './tools/testRuns';
+export * from './tools/dateTime';
+export * from './tools/calculator';
+export * from './tools/unitConversion';
+export * from './tools/developerUtilities';

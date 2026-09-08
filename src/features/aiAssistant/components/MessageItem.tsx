@@ -1,15 +1,4 @@
-import {
-  Bot,
-  Brain,
-  Check,
-  ChevronRight,
-  Copy,
-  Pencil,
-  Save,
-  UserRound,
-  Wrench,
-  X,
-} from 'lucide-react';
+import { Brain, Check, ChevronRight, Copy, Pencil, Save, UserRound, Wrench, X } from 'lucide-react';
 import remarkGfm from 'remark-gfm';
 import { memo, useEffect, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
@@ -143,7 +132,7 @@ export const MessageItem = memo(
     const contentClassName =
       'min-w-0 w-full max-w-full overflow-hidden prose prose-sm break-words text-foreground dark:prose-invert [overflow-wrap:anywhere] [&_*]:max-w-full [&_h1]:text-foreground [&_h2]:text-foreground [&_h3]:text-foreground [&_h4]:text-foreground [&_h5]:text-foreground [&_h6]:text-foreground [&_p]:text-foreground [&_strong]:text-foreground [&_em]:text-foreground [&_del]:text-muted-foreground [&_li]:text-foreground [&_li::marker]:text-muted-foreground [&_small]:text-muted-foreground [&_code]:break-all [&_code]:whitespace-pre-wrap [&_td]:break-words [&_th]:break-words [&_ul]:min-w-0 [&_ol]:min-w-0';
     const roleLabel = isUser ? '你' : isToolResult ? message.name || '工具' : assistantLabel;
-    const RoleIcon = isUser ? UserRound : isToolResult ? Wrench : Bot;
+    const RoleIcon = isUser ? UserRound : Wrench;
     const reasoning = message.role === 'assistant' ? getReasoningContent(message) : '';
     const toolCalls = message.toolCalls || [];
 
@@ -178,15 +167,19 @@ export const MessageItem = memo(
     return (
       <article className="grid grid-cols-[32px_minmax(0,1fr)] gap-3 border-b border-border/45 px-1 py-4 last:border-b-0 sm:grid-cols-[36px_minmax(0,1fr)] sm:gap-4 sm:px-2">
         <div
-          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border sm:h-9 sm:w-9 ${
+          className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9 ${
             isUser
-              ? 'border-primary/35 bg-primary/10 text-primary'
+              ? 'rounded-xl border border-primary/35 bg-primary/10 text-primary'
               : isToolResult
-                ? 'border-border/70 bg-muted/60 text-muted-foreground'
-                : 'border-info/35 bg-info/10 text-info'
+                ? 'rounded-xl border border-border/70 bg-muted/60 text-muted-foreground'
+                : ''
           }`}
         >
-          <RoleIcon className="h-4 w-4" />
+          {isUser || isToolResult ? (
+            <RoleIcon className="h-4 w-4" />
+          ) : (
+            <img src="/logo.svg" alt="" className="h-8 w-8 object-contain sm:h-9 sm:w-9" />
+          )}
         </div>
 
         <div className="min-w-0">

@@ -36,6 +36,7 @@ export interface AISession {
   id: string;
   title: string;
   role?: AISessionRoleSnapshot;
+  pinnedAt?: number;
   createdAt: number;
   updatedAt: number;
 }

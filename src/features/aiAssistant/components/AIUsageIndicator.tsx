@@ -26,7 +26,7 @@ export function AIUsageIndicator({ usage }: AIUsageIndicatorProps) {
 
   return (
     <div
-      className="flex min-w-0 shrink-0 items-center gap-x-3 text-[11px] text-muted-foreground"
+      className="flex min-w-0 shrink-0 items-center gap-x-2 text-[11px] text-muted-foreground"
       title="最近一次模型请求的服务商 usage 数据"
     >
       <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
@@ -51,9 +51,9 @@ export function AIUsageIndicator({ usage }: AIUsageIndicatorProps) {
         )}
       </div>
 
-      <div className="flex min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap">
+      <div className="flex min-w-0 max-w-full items-center gap-1 whitespace-nowrap">
         <Database className="h-3.5 w-3.5" />
-        <span>缓存命中率</span>
+        <span>缓存</span>
         <span className="font-medium tabular-nums text-foreground/80">
           {cacheHitRate === null ? '--' : `${cacheHitRate.toFixed(1)}%`}
         </span>

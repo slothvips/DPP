@@ -1,18 +1,37 @@
-import { ArrowDown, Bot, Sparkles } from 'lucide-react';
-import { Fragment, type RefObject, type UIEventHandler } from 'react';
+import { ArrowDown, ClipboardCopy, Download, FileDown } from 'lucide-react';
+import {
+  type AnimationEvent,
+  Fragment,
+  type RefObject,
+  type UIEventHandler,
+  useRef,
+  useState,
+} from 'react';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useToast } from '@/components/ui/toast';
 import type { AIPlan } from '@/lib/ai/plan';
 import type { OpenAIToolCall } from '@/lib/ai/types';
 import type { AIChatStatus } from '../hooks/useAIChat.types';
 import type { BrowserTaskProgress } from '../hooks/useBrowserTaskProgress';
 import type { AISessionRoleSnapshot } from '../materials/testCaseTypes';
 import type { ChatMessage } from '../types';
+import './AIAssistantMessagesPanel.css';
 import { AIConfigDialog } from './AIConfigDialog';
 import { AIPlanPanel } from './AIPlanPanel';
 import { AIRoleSelector } from './AIRoleSelector';
 import { BrowserTaskProgressPanel } from './BrowserTaskProgressPanel';
 import { MessageItem } from './MessageItem';
 import { RecentActions } from './RecentActions';
+
+const AI_ROLE_FEATURE_UNLOCKED_KEY = 'dpp_ai_role_feature_unlocked';
+const LOGO_TRIPLE_CLICK_INTERVAL = 900;
+
+type LogoAnimation = 'idle' | 'tilt-left' | 'tilt-right' | 'spin';
+
+function getInitialRoleFeatureUnlocked(): boolean {
+  return localStorage.getItem(AI_ROLE_FEATURE_UNLOCKED_KEY) === 'true';
+}
 
 interface AIAssistantMessagesPanelProps {
   messages: ChatMessage[];
@@ -32,6 +51,8 @@ interface AIAssistantMessagesPanelProps {
   onReplayRecentAction: (action: import('@/db').RecentAction) => Promise<void>;
   currentRole: AISessionRoleSnapshot;
   onRoleSelect: (roleId: string) => Promise<void>;
+  onExportToClipboard?: () => Promise<void>;
+  onExportToFile?: () => Promise<void>;
 }
 
 function readBrowserTaskArgument(argumentsJson: string): string | undefined {
@@ -143,8 +164,51 @@ export function AIAssistantMessagesPanel({
   onReplayRecentAction,
   currentRole,
   onRoleSelect,
+  onExportToClipboard,
+  onExportToFile,
 }: AIAssistantMessagesPanelProps) {
+  const { toast } = useToast();
+  const [roleFeatureUnlocked, setRoleFeatureUnlocked] = useState(getInitialRoleFeatureUnlocked);
+  const [logoAnimation, setLogoAnimation] = useState<LogoAnimation>('idle');
+  const logoClickCountRef = useRef(0);
+  const lastLogoClickAtRef = useRef(0);
   const { tasksByMessageId, unanchoredTasks } = placeBrowserTasks(messages, browserTaskProgress);
+
+  function handleLogoClick() {
+    if (logoAnimation === 'spin') return;
+
+    const now = Date.now();
+    const nextClickCount =
+      now - lastLogoClickAtRef.current <= LOGO_TRIPLE_CLICK_INTERVAL
+        ? logoClickCountRef.current + 1
+        : 1;
+    logoClickCountRef.current = nextClickCount;
+    lastLogoClickAtRef.current = now;
+
+    if (nextClickCount === 1) {
+      setLogoAnimation('tilt-left');
+    } else if (nextClickCount === 2) {
+      setLogoAnimation('tilt-right');
+    } else {
+      logoClickCountRef.current = 0;
+      setLogoAnimation('spin');
+    }
+  }
+
+  function handleLogoAnimationEnd(event: AnimationEvent<HTMLImageElement>) {
+    if (event.animationName !== `ai-logo-${logoAnimation}`) return;
+
+    if (logoAnimation !== 'spin') {
+      setLogoAnimation('idle');
+      return;
+    }
+
+    const nextUnlocked = !roleFeatureUnlocked;
+    setRoleFeatureUnlocked(nextUnlocked);
+    localStorage.setItem(AI_ROLE_FEATURE_UNLOCKED_KEY, String(nextUnlocked));
+    setLogoAnimation('idle');
+    toast(nextUnlocked ? '隐藏功能已经开启' : '隐藏功能已经关闭', 'success');
+  }
 
   return (
     <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
@@ -158,13 +222,11 @@ export function AIAssistantMessagesPanel({
           <div className="flex h-full items-center justify-center px-4 py-8">
             <div className="w-full max-w-sm rounded-2xl border border-warning/25 bg-background p-5 shadow-sm">
               <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning/10 text-warning">
-                  <Bot className="h-4 w-4" />
-                </div>
+                <img src="/logo.svg" alt="" className="h-9 w-9 shrink-0 object-contain" />
                 <div>
                   <p className="text-sm font-semibold text-foreground">先连接一个 AI 服务</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    配置完成后即可开始使用 D 仔。
+                    配置完成后即可开始使用 AI 助手。
                   </p>
                 </div>
               </div>
@@ -180,12 +242,26 @@ export function AIAssistantMessagesPanel({
         {!isConfigMissing && messages.length === 0 && (
           <div className="flex min-h-full items-center justify-center px-2 py-8">
             <div className="w-full max-w-xl text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-                <Sparkles className="h-6 w-6" />
-              </div>
+              <button
+                type="button"
+                aria-label="DPP Logo"
+                onClick={handleLogoClick}
+                className="mx-auto block h-16 w-16 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <img
+                  src="/logo.svg"
+                  alt=""
+                  className={`h-16 w-16 object-contain ai-logo-${logoAnimation}`}
+                  onAnimationEnd={handleLogoAnimationEnd}
+                />
+              </button>
               <p className="mt-4 flex flex-wrap items-center justify-center gap-1 text-lg font-semibold tracking-tight text-foreground">
                 <span>你好，我是</span>
-                <AIRoleSelector currentRole={currentRole} onSelect={onRoleSelect} />
+                {roleFeatureUnlocked ? (
+                  <AIRoleSelector currentRole={currentRole} onSelect={onRoleSelect} />
+                ) : (
+                  <span>{currentRole.title}</span>
+                )}
               </p>
               <p className="mx-auto mt-2 max-w-md text-xs leading-6 text-muted-foreground">
                 {currentRole.description || '告诉我你想完成的目标，我会按当前角色协助你。'}
@@ -239,15 +315,54 @@ export function AIAssistantMessagesPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      {!isNearBottom && (
-        <button
-          onClick={onScrollToBottom}
-          className="absolute bottom-4 right-4 rounded-xl border border-border/70 bg-background/95 p-2 text-primary shadow-lg backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/18"
-          title="直达底部"
-        >
-          <ArrowDown className="h-5 w-5" />
-        </button>
-      )}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-2 items-end">
+        {onExportToClipboard && onExportToFile && messages.length > 0 && (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-9 w-9 bg-background/95 text-primary shadow-lg backdrop-blur"
+                title="导出会话"
+                aria-label="导出会话"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" side="top" sideOffset={8} className="w-40 p-1">
+              <div className="flex flex-col gap-1" role="group" aria-label="导出会话">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void onExportToClipboard()}
+                  className="justify-start gap-2"
+                >
+                  <ClipboardCopy className="h-3.5 w-3.5" />
+                  到剪贴板
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void onExportToFile()}
+                  className="justify-start gap-2"
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                  到文件
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+        )}
+        {!isNearBottom && (
+          <button
+            onClick={onScrollToBottom}
+            className="h-10 w-10 rounded-xl border border-border/70 bg-background/95 p-2 text-primary shadow-lg backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/18"
+            title="直达底部"
+          >
+            <ArrowDown className="h-5 w-5" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

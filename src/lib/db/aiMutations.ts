@@ -25,6 +25,36 @@ export async function createSession(
   return session;
 }
 
+export async function createSessionWithMessages(
+  title: string,
+  messages: Array<Omit<NewAIMessage, 'sessionId'> & { sessionId?: string }>,
+  role?: AISessionRoleSnapshot
+): Promise<AISession> {
+  const now = Date.now();
+  const session: AISession = {
+    id: generateAIId(),
+    title,
+    ...(role ? { role } : {}),
+    createdAt: now,
+    updatedAt: now,
+  };
+  const newMessages: AIMessage[] = messages.map((message, index) => ({
+    ...message,
+    id: generateAIId(),
+    sessionId: session.id,
+    createdAt: message.createdAt ?? now + index,
+  }));
+
+  await db.transaction('rw', getAISessionsTable(), getAIMessagesTable(), async () => {
+    await getAISessionsTable().add(session);
+    if (newMessages.length > 0) {
+      await getAIMessagesTable().bulkAdd(newMessages);
+    }
+  });
+
+  return session;
+}
+
 export async function updateSessionRole(id: string, role: AISessionRoleSnapshot): Promise<void> {
   await getAISessionsTable().update(id, { role, updatedAt: Date.now() });
 }
@@ -153,5 +183,11 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
   await getAISessionsTable().update(sessionId, {
     title: title.trim().slice(0, 30) || '新会话',
     updatedAt: Date.now(),
+  });
+}
+
+export async function updateSessionPinned(sessionId: string, pinned: boolean): Promise<void> {
+  await getAISessionsTable().update(sessionId, {
+    pinnedAt: pinned ? Date.now() : undefined,
   });
 }

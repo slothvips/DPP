@@ -209,7 +209,7 @@ const DPP_CONFIG_DEFINITIONS = {
   },
   feature_ai_assistant_enabled: {
     category: 'features',
-    description: '显示 D 仔功能',
+    description: '显示 AI 助手功能',
     type: 'boolean',
     writable: true,
   },
@@ -270,7 +270,7 @@ const DPP_CONFIG_DEFINITIONS = {
   },
   ai_provider_type: {
     category: 'ai',
-    description: '当前 D 仔 AI 服务商',
+    description: '当前 AI 服务商',
     type: 'string',
     enum: AI_PROVIDER_TYPES,
     writable: true,
@@ -399,7 +399,7 @@ function validateValue(key: SettingKey, value: unknown): unknown {
   const definition = getConfigDefinition(key);
 
   if (!definition.writable) {
-    throw new Error(`${key} is runtime-managed and cannot be updated by D仔`);
+    throw new Error(`${key} is runtime-managed and cannot be updated by the AI assistant`);
   }
   if (definition.sensitive) {
     throw new Error(`${key} contains sensitive data and must be changed in the Settings page`);

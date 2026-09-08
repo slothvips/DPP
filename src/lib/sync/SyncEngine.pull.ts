@@ -75,7 +75,7 @@ function groupChunkRecords(records: SyncChunkRecord[]): Map<string, SyncChunkRec
   return groups;
 }
 
-async function decryptAndValidate(
+export async function decryptAndValidate(
   operation: SyncOperation,
   keyring: Awaited<ReturnType<typeof loadSyncKeyring>>
 ): Promise<SyncOperation> {

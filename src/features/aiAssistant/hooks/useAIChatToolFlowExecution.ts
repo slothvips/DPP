@@ -1,3 +1,4 @@
+import type { SessionAction } from '@/lib/ai/sessionActions';
 import { normalizeAndClassifyToolCalls } from '../lib/toolCallUtils';
 import { executePreparedToolCalls } from '../services/executeToolCalls';
 import type { ChatMessage } from '../types';
@@ -21,6 +22,7 @@ interface UseAIChatToolFlowExecutionOptions {
   browserTaskSessionId: string | null;
   sessionId: string | null;
   allowedToolNames: readonly string[];
+  onSessionAction: (action: SessionAction) => Promise<void>;
 }
 
 export function useAIChatToolFlowExecution({
@@ -36,19 +38,28 @@ export function useAIChatToolFlowExecution({
   browserTaskSessionId,
   sessionId,
   allowedToolNames,
+  onSessionAction,
 }: UseAIChatToolFlowExecutionOptions) {
   async function executePreparedCallsAndContinue(
     preparedToolCalls: ReturnType<typeof toPreparedToolCalls>,
     requiresActivePlan: boolean
   ) {
-    const { toolMessages, pendingBuild } = await executePreparedToolCalls(preparedToolCalls, {
-      onAIConfigChanged,
-      browserTaskSessionId: browserTaskSessionId ?? undefined,
-      sessionId: sessionId ?? undefined,
-      allowedToolNames,
-      requiresActivePlan,
-    });
+    const { toolMessages, pendingBuild, sessionChanged } = await executePreparedToolCalls(
+      preparedToolCalls,
+      {
+        onAIConfigChanged,
+        browserTaskSessionId: browserTaskSessionId ?? undefined,
+        sessionId: sessionId ?? undefined,
+        allowedToolNames,
+        onSessionAction,
+        requiresActivePlan,
+      }
+    );
 
+    if (sessionChanged) {
+      onStatusChange('idle');
+      return false;
+    }
     if (isExecutionCancelled()) return false;
 
     appendMessages(toolMessages);
@@ -84,14 +95,22 @@ export function useAIChatToolFlowExecution({
 
     if (toolCallsToExecute.length > 0) {
       onStatusChange('loading');
-      const { toolMessages, pendingBuild } = await executePreparedToolCalls(toolCallsToExecute, {
-        onAIConfigChanged,
-        browserTaskSessionId: browserTaskSessionId ?? undefined,
-        sessionId: sessionId ?? undefined,
-        allowedToolNames,
-        requiresActivePlan,
-      });
+      const { toolMessages, pendingBuild, sessionChanged } = await executePreparedToolCalls(
+        toolCallsToExecute,
+        {
+          onAIConfigChanged,
+          browserTaskSessionId: browserTaskSessionId ?? undefined,
+          sessionId: sessionId ?? undefined,
+          allowedToolNames,
+          onSessionAction,
+          requiresActivePlan,
+        }
+      );
 
+      if (sessionChanged) {
+        onStatusChange('idle');
+        return;
+      }
       if (isExecutionCancelled()) return;
 
       appendMessages(toolMessages);
@@ -124,17 +143,22 @@ export function useAIChatToolFlowExecution({
     onPendingToolCallsChange(null);
     onStatusChange('loading');
 
-    const { toolMessages, pendingBuild } = await executePreparedToolCalls(
+    const { toolMessages, pendingBuild, sessionChanged } = await executePreparedToolCalls(
       [currentPreparedToolCall],
       {
         onAIConfigChanged,
         browserTaskSessionId: browserTaskSessionId ?? undefined,
         sessionId: sessionId ?? undefined,
         allowedToolNames,
+        onSessionAction,
         requiresActivePlan: pendingToolCalls.requiresActivePlan,
       }
     );
 
+    if (sessionChanged) {
+      onStatusChange('idle');
+      return;
+    }
     if (isExecutionCancelled()) return;
 
     appendMessages(toolMessages);

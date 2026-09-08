@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" fill="none">
+  <title>DPP</title>
+  <desc>A full, softly rounded D silhouette with bold white PP lettering, optically spaced for browser toolbars.</desc>
+  <defs>
+    <linearGradient id="wordmark" x1="24" y1="4" x2="104" y2="124" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#426CF0"/>
+      <stop offset="1" stop-color="#7946D8"/>
+    </linearGradient>
+  </defs>
+  <path d="M30 4H62C100 4 124 28 124 64C124 100 100 124 62 124H30C15.641 124 4 112.359 4 98V30C4 15.641 15.641 4 30 4Z" fill="url(#wordmark)"/>
+  <g stroke="#FFFFFF" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M28 88V40H38C56 40 56 66 38 66H28"/>
+    <path d="M72 88V40H82C100 40 100 66 82 66H72"/>
+  </g>
+</svg>

@@ -11,7 +11,10 @@ export const TABLE_DATA_SCOPE: Record<string, DataScope> = {
   linkTags: 'team',
   blackboard: 'team',
   materials: 'team',
+  roleUsageEvents: 'team',
   testRuns: 'team',
+  testProjects: 'team',
+  projectRuns: 'team',
   totpAccounts: 'personal',
 };
 

@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import type {
   DecryptedTestRun,
+  TestCaseDefinition,
   TestReport,
   TestRun,
   TestRunContent,
@@ -26,23 +27,29 @@ export interface TestRunStepUpdate {
 
 export async function startTestRun(
   testCaseMaterialId: string,
-  sessionId?: string
+  sessionId?: string,
+  projectRunId?: string,
+  testCaseSnapshot?: TestCaseDefinition,
+  testCaseVersion?: number
 ): Promise<TestRun> {
   const material = await getTestCaseMaterial(testCaseMaterialId);
-  if (!material || material.status !== 'ready') {
+  if (!material && !testCaseSnapshot) {
     throw new Error('测试用例不存在或已归档');
   }
+  const snapshot = testCaseSnapshot ?? material?.content.definition;
+  if (!snapshot) throw new Error('测试用例快照不存在');
 
   const now = Date.now();
   const report: TestReport = { summary: '', stepResults: [], updatedAt: now };
   const run: TestRun = {
     id: crypto.randomUUID(),
     testCaseMaterialId,
-    testCaseVersion: material.version,
+    testCaseVersion: testCaseVersion ?? material?.version ?? 1,
+    ...(projectRunId ? { projectRunId } : {}),
     ...(sessionId ? { sessionId } : {}),
     status: 'queued',
     encryptedContent: await encryptTestCaseContent({
-      testCaseSnapshot: material.content.definition,
+      testCaseSnapshot: snapshot,
       report,
     } satisfies TestRunContent),
     startedAt: now,

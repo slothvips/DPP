@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { listPromptMaterials, listTestCaseMaterials } from '@/lib/db';
+import { listPromptMaterials, listTestCaseMaterials, listTestProjects } from '@/lib/db';
 import { redactSensitiveText } from '@/utils/sensitive';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
@@ -76,6 +76,16 @@ async function loadSearchCandidates(source: DppSearchSource): Promise<DppSearchC
           updatedAt: item.updatedAt,
         };
       });
+    case 'test_projects':
+      return (await listTestProjects()).map((item) => ({
+        source,
+        id: item.id,
+        title: item.title,
+        text: `${item.content.description || ''}\n${item.content.testCases
+          .map((reference) => reference.testCaseMaterialId)
+          .join('\n')}`,
+        updatedAt: item.updatedAt,
+      }));
     case 'recordings': {
       const recordings: DppSearchCandidate[] = [];
       await db.recordings
@@ -109,7 +119,7 @@ export function registerDppSearchTools(): void {
   toolRegistry.register({
     name: 'dpp_search',
     description:
-      '跨 DPP 的链接、便签、提示词、测试用例、录制元数据和 Jenkins 任务进行只读搜索，返回短摘要和可继续读取的 ID。',
+      '跨 DPP 的链接、便签、提示词、测试用例、测试项目、录制元数据和 Jenkins 任务进行只读搜索，返回短摘要和可继续读取的 ID。',
     parameters: createToolParameter(
       {
         query: {

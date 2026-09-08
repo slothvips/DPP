@@ -24,6 +24,7 @@ type UserAIProvider = Exclude<AIProviderType, 'opencode'>;
 export interface AIProfileSummary extends StoredAIConfig {
   id: string;
   name: string;
+  isActive: boolean;
   updatedAt: number;
 }
 
@@ -200,11 +201,17 @@ async function migrateLegacyProfiles(): Promise<void> {
 
 export async function loadAIProfiles(): Promise<AIProfileSummary[]> {
   await migrateLegacyProfiles();
-  const profiles = await db.aiProfiles.orderBy('updatedAt').reverse().toArray();
+  const [profiles, activeProfileId, activeProviderValue] = await Promise.all([
+    db.aiProfiles.orderBy('updatedAt').reverse().toArray(),
+    readAISetting('ai_active_profile_id'),
+    readAISetting('ai_provider_type'),
+  ]);
+  const activeProvider = normalizeProviderValue(activeProviderValue as unknown);
   return Promise.all(
     profiles.map(async (profile) => ({
       id: profile.id,
       name: profile.name,
+      isActive: activeProvider !== 'opencode' && profile.id === activeProfileId,
       provider: normalizeProviderValue(profile.provider),
       baseUrl: profile.baseUrl,
       model: profile.model,
@@ -340,9 +347,16 @@ export async function duplicateAIProfile(id: string): Promise<string> {
 }
 
 export async function deleteAIProfile(id: string): Promise<void> {
-  const activeId = await readAISetting('ai_active_profile_id');
+  const [activeId, activeProviderValue] = await Promise.all([
+    readAISetting('ai_active_profile_id'),
+    readAISetting('ai_provider_type'),
+  ]);
   await db.aiProfiles.delete(id);
   if (activeId === id) {
+    if (normalizeProviderValue(activeProviderValue as unknown) === 'opencode') {
+      await updateSetting('ai_active_profile_id', '');
+      return;
+    }
     const next = await db.aiProfiles.orderBy('updatedAt').reverse().first();
     if (next) {
       await activateAIProfile(next.id);

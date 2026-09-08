@@ -4,6 +4,8 @@ import type { FeatureToggles, ModuleTabId, TabId } from './sidepanelTypes';
 
 const RECENT_TABS_KEY = 'dpp_recent_tabs';
 const RECENT_TAB_LIMIT = 3;
+const PINNED_TABS_KEY = 'dpp_pinned_tabs';
+export const PINNED_TAB_LIMIT = 2;
 
 function isValidTabId(value: string | null): value is TabId {
   return value !== null && DEFAULT_TAB_ORDER.includes(value as TabId);
@@ -26,6 +28,24 @@ function getInitialRecentTabs(): TabId[] {
   }
 }
 
+function getInitialPinnedTabs(): TabId[] {
+  if (typeof localStorage === 'undefined') return [];
+
+  try {
+    const stored = JSON.parse(localStorage.getItem(PINNED_TABS_KEY) ?? 'null') as unknown;
+    if (!Array.isArray(stored)) return [];
+
+    return stored
+      .filter((tabId): tabId is string => typeof tabId === 'string')
+      .filter((tabId): tabId is TabId => isValidTabId(tabId))
+      .filter((tabId) => tabId !== 'aiAssistant')
+      .filter((tabId, index, tabs) => tabs.indexOf(tabId) === index)
+      .slice(0, PINNED_TAB_LIMIT);
+  } catch {
+    return [];
+  }
+}
+
 function getInitialModule(): ModuleTabId | null {
   const tabParam = new URLSearchParams(window.location.search).get('tab');
   if (isValidTabId(tabParam) && tabParam !== 'aiAssistant') {
@@ -41,6 +61,7 @@ interface UseSidepanelTabsOptions {
 export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
   const [activeModule, setActiveModule] = useState<ModuleTabId | null>(getInitialModule);
   const [recentTabs, setRecentTabs] = useState<TabId[]>(getInitialRecentTabs);
+  const [pinnedTabs, setPinnedTabs] = useState<TabId[]>(getInitialPinnedTabs);
 
   useEffect(() => {
     if (!activeModule || TAB_CONFIG[activeModule].getVisible({ featureToggles })) {
@@ -48,6 +69,15 @@ export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
     }
     setActiveModule(null);
   }, [activeModule, featureToggles]);
+
+  useEffect(() => {
+    setPinnedTabs((previous) => {
+      const next = previous.filter((tabId) => TAB_CONFIG[tabId].getVisible({ featureToggles }));
+      if (next.length === previous.length) return previous;
+      localStorage.setItem(PINNED_TABS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, [featureToggles]);
 
   const handleTabChange = useCallback((tabId: TabId) => {
     if (tabId === 'aiAssistant') {
@@ -67,9 +97,27 @@ export function useSidepanelTabs({ featureToggles }: UseSidepanelTabsOptions) {
     });
   }, []);
 
+  const togglePinnedTab = useCallback((tabId: TabId) => {
+    if (tabId === 'aiAssistant') return;
+
+    setPinnedTabs((previous) => {
+      const next = previous.includes(tabId)
+        ? previous.filter((pinnedTab) => pinnedTab !== tabId)
+        : previous.length < PINNED_TAB_LIMIT
+          ? [...previous, tabId]
+          : previous;
+      if (next === previous) return previous;
+      localStorage.setItem(PINNED_TABS_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   return {
     activeModule,
     handleTabChange,
     recentTabs,
+    pinnedTabs,
+    pinnedTabLimit: PINNED_TAB_LIMIT,
+    togglePinnedTab,
   };
 }

@@ -70,7 +70,7 @@ export const SETTINGS_CATEGORIES: Array<{
   {
     key: 'ai_settings',
     label: 'AI 设置',
-    description: 'D仔服务商、模型配置',
+    description: 'AI 服务商、模型配置',
     keys: [
       'ai_provider_type',
       'ai_active_profile_id',

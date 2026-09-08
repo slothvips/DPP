@@ -148,3 +148,33 @@ test('v24 adds the local recent actions table without changing existing data', a
 
   await db.delete();
 });
+
+test('v26 adds project tables and projectRunId without migrating legacy test cases', async () => {
+  const name = `DPPProjectMigration-${crypto.randomUUID()}`;
+  const oldDb = new Dexie(name);
+  oldDb.version(25).stores({
+    materials: '&id, type, status, updatedAt, deletedAt',
+    testRuns: '&id, testCaseMaterialId, sessionId, status, startedAt, updatedAt, deletedAt',
+  });
+  await oldDb.open();
+  await oldDb.table('testRuns').put({
+    id: 'run-1',
+    testCaseMaterialId: 'case-1',
+    status: 'passed',
+    startedAt: 1,
+    updatedAt: 2,
+  });
+  await oldDb.close();
+
+  const db = new Dexie(name);
+  registerDatabaseSchema(db);
+  await db.open();
+
+  assert.ok(db.tables.some((table) => table.name === 'testProjects'));
+  assert.ok(db.tables.some((table) => table.name === 'projectRuns'));
+  assert.ok(db.table('testRuns').schema.indexes.some((index) => index.name === 'projectRunId'));
+  assert.equal((await db.table('testRuns').get('run-1')).status, 'passed');
+  assert.equal(await db.table('testProjects').count(), 0);
+
+  await db.delete();
+});

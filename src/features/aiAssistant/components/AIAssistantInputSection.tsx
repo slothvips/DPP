@@ -77,7 +77,7 @@ export function AIAssistantInputSection({
       )}
 
       <div className="mb-2 min-w-0 border-b border-border/45 px-1 pb-2 text-[11px] text-muted-foreground">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-[10rem] flex-[1_1_15rem] items-center gap-2">
             <span className="shrink-0 font-medium text-foreground/70">供应商</span>
             <span className="min-w-0 truncate font-medium text-foreground/90">
@@ -105,8 +105,8 @@ export function AIAssistantInputSection({
               </Button>
             </AIConfigDialog>
           </div>
-          <div className="flex min-w-0 shrink-0 items-center gap-2">
-            <span className="shrink-0 font-medium text-foreground/70">当前会话上下文</span>
+          <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+            <span className="shrink-0 font-medium text-foreground/70">上下文</span>
             <AIUsageIndicator usage={usage} />
           </div>
         </div>

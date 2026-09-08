@@ -19,7 +19,8 @@ export function App() {
   }, []);
 
   const { featureToggles, settingsReady, isMinimalMode, showSyncButton } = useSidepanelSettings();
-  const { activeModule, handleTabChange, recentTabs } = useSidepanelTabs({ featureToggles });
+  const { activeModule, handleTabChange, recentTabs, pinnedTabs, pinnedTabLimit, togglePinnedTab } =
+    useSidepanelTabs({ featureToggles });
   useEffect(() => {
     const handleOpenAISession = () => handleTabChange('aiAssistant');
     window.addEventListener('dpp:open-ai-session', handleOpenAISession);
@@ -37,6 +38,9 @@ export function App() {
               onModuleSelect={handleTabChange}
               onBackToAssistant={() => handleTabChange('aiAssistant')}
               recentTabs={recentTabs}
+              pinnedTabs={pinnedTabs}
+              pinnedTabLimit={pinnedTabLimit}
+              onTogglePinnedTab={togglePinnedTab}
               isMinimalMode={isMinimalMode}
               showSyncButton={showSyncButton}
             />

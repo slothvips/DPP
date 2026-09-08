@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import type { ChatMessage as ProviderChatMessage } from '@/lib/ai/types';
-import { updateSessionTitle } from '@/lib/db/ai';
+import { getSession, updateSessionTitle } from '@/lib/db/ai';
 import { logger } from '@/utils/logger';
 import type { ChatMessage } from '../types';
 import type { AIChatStatus } from './useAIChat.types';
@@ -143,10 +143,15 @@ export function useAIChatActions({
           handleChatError('[AIChat] Chat error:', error);
         }
 
-        if (isFirstMessageRef.current) {
+        const userMessages = messagesRef.current.filter((message) => message.role === 'user');
+        if (
+          isFirstMessageRef.current &&
+          userMessages.length > 0 &&
+          (await getSession(sessionId))?.title === '新会话'
+        ) {
           isFirstMessageRef.current = false;
           try {
-            const title = await generateSessionTitle(queued.message.content);
+            const title = await generateSessionTitle(userMessages[0].content);
             await updateSessionTitle(sessionId, title);
             await loadSessions();
           } catch (error) {

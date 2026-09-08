@@ -1,6 +1,7 @@
+import type { OpenAIToolCall, ProviderMessageMetadata, TokenUsage } from '@/lib/ai/types';
 import type { EncryptedData } from '@/lib/crypto/encryption';
 
-export type MaterialType = 'prompt' | 'role' | 'testCase';
+export type MaterialType = 'prompt' | 'role' | 'testCase' | 'conversation';
 
 export type MaterialStatus = 'ready' | 'archived';
 
@@ -45,6 +46,18 @@ export interface RoleMaterialContent {
 
 export interface RoleMaterial extends MaterialRecordBase {
   type: 'role';
+  derivedFrom?: {
+    roleId: string;
+    version: number;
+  };
+}
+
+export interface RoleUsageEvent {
+  id: string;
+  roleId: string;
+  sessionId: string;
+  usedAt: number;
+  updatedAt: number;
 }
 
 export interface RoleMaterialInput {
@@ -106,7 +119,34 @@ export interface TestCaseMaterial extends MaterialRecordBase {
   type: 'testCase';
 }
 
-export type MaterialRecord = PromptMaterial | RoleMaterial | TestCaseMaterial;
+export interface ConversationMaterialMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  name?: string;
+  toolCallId?: string;
+  toolCalls?: OpenAIToolCall[];
+  providerMetadata?: ProviderMessageMetadata;
+  usage?: TokenUsage;
+  createdAt: number;
+}
+
+export interface ConversationMaterialContent {
+  summary?: string;
+  messages: ConversationMaterialMessage[];
+  role?: AISessionRoleSnapshot;
+}
+
+export interface ConversationMaterial extends MaterialRecordBase {
+  type: 'conversation';
+  immutable: true;
+}
+
+export type MaterialRecord =
+  | PromptMaterial
+  | RoleMaterial
+  | TestCaseMaterial
+  | ConversationMaterial;
 
 export interface PromptMaterialInput {
   title: string;
@@ -170,6 +210,7 @@ export interface TestRun {
   id: string;
   testCaseMaterialId: string;
   testCaseVersion: number;
+  projectRunId?: string;
   sessionId?: string;
   status: TestRunStatus;
   currentStepId?: string;
@@ -191,6 +232,63 @@ export interface DecryptedTestCaseMaterial extends TestCaseMaterial {
   content: TestCaseMaterialContent;
 }
 
+export interface DecryptedConversationMaterial extends ConversationMaterial {
+  content: ConversationMaterialContent;
+}
+
 export interface DecryptedTestRun extends TestRun {
   content: TestRunContent;
+}
+
+export interface TestProjectCaseReference {
+  testCaseMaterialId: string;
+  order: number;
+  enabled: boolean;
+}
+
+export interface TestProjectContent {
+  description?: string;
+  testCases: TestProjectCaseReference[];
+}
+
+export interface TestProject extends MaterialRecordBase {
+  baseVersion?: number;
+}
+
+export interface DecryptedTestProject extends TestProject {
+  content: TestProjectContent;
+}
+
+export interface TestProjectRunItem {
+  testCaseMaterialId: string;
+  testCaseVersion?: number;
+  testCaseSnapshot?: TestCaseDefinition;
+  title: string;
+  order: number;
+  testRunId?: string;
+  status: TestRunStatus | 'skipped';
+  error?: string;
+  updatedAt: number;
+}
+
+export interface TestProjectRunContent {
+  projectTitle: string;
+  testCases: TestProjectRunItem[];
+}
+
+export interface TestProjectRun {
+  id: string;
+  projectId: string;
+  projectVersion: number;
+  sessionId?: string;
+  status: TestRunStatus;
+  encryptedContent: EncryptedData;
+  startedAt: number;
+  finishedAt?: number;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export interface DecryptedTestProjectRun extends TestProjectRun {
+  content: TestProjectRunContent;
 }

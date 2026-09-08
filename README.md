@@ -35,10 +35,10 @@ D1 保存自增 cursor、操作 fingerprint 和 `(clientId, operationId)` 唯一
 
 当前环境：
 
-| 环境 | Worker | D1 | 地址 |
-| --- | --- | --- | --- |
-| 生产 | `dpp-sync-worker` | `dpp-sync` | `https://dpp-sync.586726.xyz` |
-| 测试 | `dpp-sync-test` | `dpp-sync-test` | `https://dpp-sync-test.586726.xyz` |
+| 环境 | Worker            | D1              | 地址                               |
+| ---- | ----------------- | --------------- | ---------------------------------- |
+| 生产 | `dpp-sync-worker` | `dpp-sync`      | `https://dpp-sync.586726.xyz`      |
+| 测试 | `dpp-sync-test`   | `dpp-sync-test` | `https://dpp-sync-test.586726.xyz` |
 
 完整部署、迁移、监控和回滚说明见 [Cloudflare Worker + D1 部署指南](./packages/DEPLOY.md)。
 

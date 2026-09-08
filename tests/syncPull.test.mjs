@@ -58,6 +58,20 @@ test('sync pull acknowledges locally known operations before applying remote his
   assert.match(source, /!localOperationIds\.has\(getOriginalOperationId\(operation\)\)/);
 });
 
+test('sync applies newly pulled immutable conversation materials', () => {
+  const source = readFileSync(
+    new URL('../src/lib/sync/SyncEngine.apply.ts', import.meta.url),
+    'utf8'
+  );
+  const applyCreateOrUpdate = source.match(
+    /async function applyCreateOrUpdateOperation[\s\S]*?\n}\n\nfunction isImmutableConversation/
+  )?.[0];
+
+  assert.ok(applyCreateOrUpdate);
+  assert.match(applyCreateOrUpdate, /isImmutableConversation\(existing\)/);
+  assert.doesNotMatch(applyCreateOrUpdate, /isImmutableConversation\(op\.payload\)/);
+});
+
 test('sync push reuses encrypted payloads across retries and requires confirmation', () => {
   const pushSource = readFileSync(
     new URL('../src/lib/sync/SyncEngine.push.ts', import.meta.url),

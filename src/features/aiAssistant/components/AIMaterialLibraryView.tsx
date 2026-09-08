@@ -1,23 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   ArrowLeft,
-  Ban,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  CircleAlert,
   ClipboardCheck,
+  ClipboardCopy,
+  FolderKanban,
   Library,
-  LoaderCircle,
   Pencil,
-  Play,
   Plus,
   Search,
-  Square,
-  Timer,
   Trash2,
-  XCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -26,77 +17,66 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import type {
   DecryptedTestCaseMaterial,
-  DecryptedTestRun,
   MaterialType,
   TestCaseMaterialInput,
   TestCaseStep,
   TestCaseTarget,
   TestCaseTestData,
-  TestRunStatus,
-  TestStepAttemptTrigger,
-  TestStepResult,
 } from '@/features/aiAssistant/materials/testCaseTypes';
 import {
-  deleteTestCaseMaterial,
+  createTestCaseInProject,
+  createTestProject,
   getTestCaseMaterial,
   listTestCaseMaterialRecords,
-  listTestRunsPage,
   updateTestCaseMaterial,
 } from '@/lib/db';
-import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
-import { PromptMaterialLibraryView } from './PromptMaterialLibraryView';
-
-const EMPTY_STATE_COPY = {
-  title: '还没有测试用例',
-  description: '点击“导入测试用例”，让 D 仔从自然语言整理并保存。',
-};
+import { ConversationMaterialLibraryView } from './ConversationMaterialLibraryView';
+import {
+  type PromptMaterialFeedItem,
+  PromptMaterialLibraryView,
+} from './PromptMaterialLibraryView';
+import { TestProjectLibraryView } from './TestProjectLibraryView';
 
 const ALL_EMPTY_STATE_COPY = {
   title: '还没有物料',
   description: '可以先创建提示词，或切换到测试用例分类导入用例。',
 };
 
-const RECENT_RUN_COUNT = 2;
-const RUN_HISTORY_PAGE_SIZE = 10;
-
-type MaterialFilter = 'all' | MaterialType;
+type MaterialFilter = 'all' | MaterialType | 'testProject';
 
 const MATERIAL_FILTERS: Array<{ value: MaterialFilter; label: string }> = [
   { value: 'all', label: '全部' },
   { value: 'prompt', label: '提示词' },
-  { value: 'testCase', label: '测试用例' },
+  { value: 'testProject', label: '测试项目' },
+  { value: 'conversation', label: '会话' },
 ];
 
 interface AIMaterialLibraryViewProps {
+  onGenerateTestCase: () => Promise<void>;
   onImportTestCase: () => Promise<void>;
-  onExecuteTestCase: (material: { id: string; title: string }) => Promise<void>;
-  onUsePrompt: (prompt: { title: string; body: string }) => Promise<void>;
+  onExecuteTestProject: (project: { id: string; title: string }) => Promise<void>;
+  onUseConversation: (materialId: string) => Promise<void>;
 }
 
 export function AIMaterialLibraryView({
+  onGenerateTestCase,
   onImportTestCase,
-  onExecuteTestCase,
-  onUsePrompt,
+  onExecuteTestProject,
+  onUseConversation,
 }: AIMaterialLibraryViewProps) {
   const [search, setSearch] = useState('');
   const [selectedType, setSelectedType] = useState<MaterialFilter>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [creatingProjectId, setCreatingProjectId] = useState<string | null>(null);
   const [decryptedMaterials, setDecryptedMaterials] = useState<DecryptedTestCaseMaterial[]>([]);
-  const [decryptError, setDecryptError] = useState<string | null>(null);
-  const [hasVisiblePromptSection, setHasVisiblePromptSection] = useState(false);
-  const { confirm } = useConfirmDialog();
-  const { toast } = useToast();
   const materialRecordsQuery = useLiveQuery(() => listTestCaseMaterialRecords(), []);
   const materialRecords = useMemo(() => materialRecordsQuery ?? [], [materialRecordsQuery]);
-  const emptyState = selectedType === 'all' ? ALL_EMPTY_STATE_COPY : EMPTY_STATE_COPY;
 
   useEffect(() => {
     let cancelled = false;
-    setDecryptError(null);
-
     const loadContent = async () => {
       try {
         const results = await Promise.all(
@@ -113,17 +93,11 @@ export function AIMaterialLibraryView({
         const materials = results.flatMap((result) => (result.material ? [result.material] : []));
         if (!cancelled) {
           setDecryptedMaterials(materials);
-          setDecryptError(
-            materials.length < materialRecords.length
-              ? '部分测试用例无法读取，请检查团队加密密钥'
-              : null
-          );
         }
       } catch (error) {
         logger.error('[MaterialLibrary] Failed to decrypt test cases:', error);
         if (!cancelled) {
           setDecryptedMaterials([]);
-          setDecryptError('无法读取测试用例内容，请检查团队加密密钥');
         }
       }
     };
@@ -138,70 +112,159 @@ export function AIMaterialLibraryView({
     setSelectedType(type);
     setSelectedId(null);
     setEditingId(null);
+    setCreatingProject(false);
+    setCreatingProjectId(null);
   };
 
-  const handleDelete = async (material: DecryptedTestCaseMaterial) => {
-    const confirmed = await confirm(
-      `确定要删除“${material.title}”吗？\n测试用例将从团队共享库中移除，历史执行记录不会一并删除。`,
-      '确认删除测试用例',
-      'danger'
-    );
-    if (!confirmed) return;
-
-    setDeletingId(material.id);
-    try {
-      await deleteTestCaseMaterial(material.id);
-      if (selectedId === material.id) setSelectedId(null);
-      if (editingId === material.id) setEditingId(null);
-      toast('测试用例已删除', 'success');
-    } catch (error) {
-      logger.error('[MaterialLibrary] Failed to delete test case:', error);
-      toast(error instanceof Error ? error.message : '删除测试用例失败', 'error');
-    } finally {
-      setDeletingId(null);
-    }
+  const handleCreate = () => {
+    setSelectedId(null);
+    setEditingId(null);
+    setCreatingProject(true);
+    setCreatingProjectId(null);
   };
-
-  const filteredMaterials = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
-    return decryptedMaterials.filter((material) => {
-      if (selectedType !== 'all' && material.type !== selectedType) return false;
-      if (!keyword) return true;
-      const searchable = JSON.stringify(material.content).toLowerCase();
-      return material.title.toLowerCase().includes(keyword) || searchable.includes(keyword);
-    });
-  }, [decryptedMaterials, search, selectedType]);
 
   const selectedMaterial = selectedId
     ? decryptedMaterials.find((material) => material.id === selectedId)
     : undefined;
-  const canImportTestCase = selectedType === 'testCase';
-  const selectedFilterLabel =
-    MATERIAL_FILTERS.find((filter) => filter.value === selectedType)?.label ?? '物料';
+  const isAllView = selectedType === 'all';
+
+  const testProjectHeader = (
+    <div className="shrink-0 border-b border-border/60 bg-background px-4 py-3">
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <FolderKanban className="h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <h3 className="truncate text-xs font-semibold text-foreground">测试项目</h3>
+            <p className="truncate text-[11px] text-muted-foreground">按项目管理测试执行与结果</p>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleCreate}
+          className="h-8 shrink-0 gap-1.5 rounded-lg px-2 text-xs"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          手动创建
+        </Button>
+      </div>
+      <div className="relative mt-3">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute bottom-3 left-3 top-3 w-0.5 bg-primary/25 sm:hidden"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-[16.666%] right-[16.666%] top-3 hidden h-0.5 bg-primary/25 sm:block"
+        />
+        <ol className="relative grid gap-3 sm:grid-cols-3 sm:gap-2" aria-label="测试用例流程">
+          <li className="flex min-w-0 items-start gap-3 sm:flex-col sm:items-center">
+            <span className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground ring-4 ring-background">
+              1
+            </span>
+            <div className="min-w-0 sm:flex sm:flex-col sm:items-center">
+              <span className="block truncate text-[11px] font-medium text-primary">
+                生成测试用例
+              </span>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => void onGenerateTestCase()}
+                aria-label="生成测试用例提示词"
+                className="mt-1.5 h-7 w-full max-w-full justify-center gap-1.5 rounded-lg px-2 text-[11px]"
+              >
+                <ClipboardCopy className="h-3.5 w-3.5" />
+                生成测试用例
+              </Button>
+            </div>
+          </li>
+          <li className="flex min-w-0 items-start gap-3 sm:flex-col sm:items-center">
+            <span className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-primary/40 bg-background text-[11px] font-semibold text-primary">
+              2
+            </span>
+            <div className="min-w-0 sm:flex sm:flex-col sm:items-center">
+              <span className="block truncate text-[11px] font-medium text-muted-foreground">
+                导入生成结果
+              </span>
+              <Button
+                size="sm"
+                onClick={() => void onImportTestCase()}
+                aria-label="导入生成的测试用例"
+                className="mt-1.5 h-7 w-full max-w-full justify-center gap-1.5 rounded-lg px-2 text-[11px]"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                导入生成的测试用例
+              </Button>
+            </div>
+          </li>
+          <li className="flex min-w-0 items-start gap-3 text-[11px] text-muted-foreground sm:flex-col sm:items-center">
+            <span className="z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-primary/40 bg-background text-[11px] font-semibold text-primary">
+              3
+            </span>
+            <span className="truncate sm:mt-1.5">执行并查看报告</span>
+          </li>
+        </ol>
+      </div>
+    </div>
+  );
+
+  const testCaseContent = creatingProject ? (
+    <TestProjectCreator
+      embedded={isAllView}
+      onCancel={() => setCreatingProject(false)}
+      onCreated={(projectId) => {
+        setCreatingProject(false);
+        setCreatingProjectId(projectId);
+      }}
+    />
+  ) : creatingProjectId ? (
+    <TestCaseEditor
+      projectId={creatingProjectId}
+      embedded={isAllView}
+      onCancel={() => setCreatingProjectId(null)}
+      onSaved={() => setCreatingProjectId(null)}
+    />
+  ) : selectedMaterial ? (
+    editingId === selectedMaterial.id ? (
+      <TestCaseEditor
+        material={selectedMaterial}
+        embedded={isAllView}
+        onCancel={() => {
+          setEditingId(null);
+          setSelectedId(null);
+        }}
+        onSaved={() => {
+          setEditingId(null);
+          setSelectedId(null);
+        }}
+      />
+    ) : (
+      <TestCaseDetail
+        material={selectedMaterial}
+        embedded={isAllView}
+        onBack={() => setSelectedId(null)}
+        onEdit={() => setEditingId(selectedMaterial.id)}
+      />
+    )
+  ) : null;
+
+  const conversationContent = (
+    <ConversationMaterialLibraryView search={search} onUseConversation={onUseConversation} />
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-muted/10">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border/60 bg-background px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Library className="h-4 w-4" />
             </div>
             <div className="min-w-0">
               <h2 className="truncate text-sm font-semibold text-foreground">物料库</h2>
-              <p className="truncate text-xs text-muted-foreground">D 仔的可复用资产</p>
+              <p className="truncate text-xs text-muted-foreground">沉淀与复用 AI 资产</p>
             </div>
           </div>
-          {canImportTestCase && (
-            <Button
-              size="sm"
-              onClick={() => void onImportTestCase()}
-              className="h-8 shrink-0 gap-1.5 rounded-lg px-2.5 text-xs"
-            >
-              <ClipboardCheck className="h-3.5 w-3.5" />
-              导入测试用例
-            </Button>
-          )}
         </div>
 
         <div className="relative">
@@ -235,283 +298,112 @@ export function AIMaterialLibraryView({
         </div>
       </div>
 
-      {selectedType === 'prompt' ? (
-        <PromptMaterialLibraryView key="prompt-library" search={search} onUsePrompt={onUsePrompt} />
-      ) : (
+      {selectedType === 'testProject' ? (
         <>
-          {selectedType === 'all' && (
-            <PromptMaterialLibraryView
-              key="prompt-library-compact"
+          {testProjectHeader}
+          {creatingProject || creatingProjectId || selectedMaterial ? (
+            testCaseContent
+          ) : (
+            <TestProjectLibraryView
               search={search}
-              compact
-              hideEmpty
-              onUsePrompt={onUsePrompt}
-              onVisibilityChange={setHasVisiblePromptSection}
+              testCases={decryptedMaterials}
+              onExecute={onExecuteTestProject}
+              onCreateTestCase={(projectId) => {
+                setCreatingProjectId(projectId);
+                setSelectedId(null);
+                setEditingId(null);
+              }}
+              onEditTestCase={(id) => {
+                setEditingId(id);
+                setSelectedId(id);
+              }}
             />
           )}
-          {selectedMaterial ? (
-            editingId === selectedMaterial.id ? (
-              <TestCaseEditor
-                material={selectedMaterial}
-                onCancel={() => {
-                  setEditingId(null);
-                  setSelectedId(null);
-                }}
-                onSaved={() => {
-                  setEditingId(null);
-                  setSelectedId(null);
-                }}
-              />
-            ) : (
-              <TestCaseDetail material={selectedMaterial} onBack={() => setSelectedId(null)} />
-            )
-          ) : decryptError ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-              <div className="max-w-sm text-center">
-                <h3 className="text-sm font-semibold text-foreground">测试用例内容不可用</h3>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">{decryptError}</p>
-              </div>
-            </div>
-          ) : filteredMaterials.length > 0 ? (
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              <div className="grid gap-2">
-                {filteredMaterials.map((material) => (
-                  <TestCaseCard
-                    key={material.id}
-                    material={material}
-                    deleting={deletingId === material.id}
-                    onOpen={() => {
-                      setEditingId(null);
-                      setSelectedId(material.id);
-                    }}
-                    onExecute={() => void onExecuteTestCase(material)}
-                    onEdit={() => {
-                      setEditingId(material.id);
-                      setSelectedId(material.id);
-                    }}
-                    onDelete={() => void handleDelete(material)}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : materialRecords.length > 0 && decryptedMaterials.length === 0 ? (
-            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-              <LoaderCircle className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : selectedType === 'all' && hasVisiblePromptSection ? null : (
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-6">
-              <div className="max-w-xs text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-dashed border-primary/25 bg-primary/5 text-primary">
-                  <Library className="h-7 w-7" />
-                </div>
-                <h3 className="text-sm font-semibold text-foreground">
-                  {selectedType === 'all' ? emptyState.title : `${selectedFilterLabel}暂无物料`}
-                </h3>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  {search.trim()
-                    ? selectedType === 'all'
-                      ? '没有匹配的物料。'
-                      : `没有匹配的${selectedFilterLabel}。`
-                    : selectedType === 'all'
-                      ? emptyState.description
-                      : `当前还没有${selectedFilterLabel}物料。`}
-                </p>
-                {!search.trim() && canImportTestCase && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void onImportTestCase()}
-                    className="mt-4 h-8 rounded-lg text-xs"
-                  >
-                    导入测试用例
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
         </>
+      ) : selectedType === 'conversation' ? (
+        conversationContent
+      ) : selectedType === 'prompt' ? (
+        <PromptMaterialLibraryView key="prompt-library" search={search} />
+      ) : isAllView ? (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {creatingProject || creatingProjectId || selectedMaterial ? (
+            testCaseContent
+          ) : (
+            <TestProjectLibraryView
+              search={search}
+              testCases={decryptedMaterials}
+              onExecute={onExecuteTestProject}
+              onCreateTestCase={(projectId) => {
+                setCreatingProjectId(projectId);
+                setSelectedId(null);
+                setEditingId(null);
+              }}
+              onEditTestCase={(id) => {
+                setEditingId(id);
+                setSelectedId(id);
+              }}
+              renderFeed={(projectItems: PromptMaterialFeedItem[]) => (
+                <ConversationMaterialLibraryView
+                  search={search}
+                  onUseConversation={onUseConversation}
+                  renderFeed={(conversationItems, conversationItemsLoading) => (
+                    <PromptMaterialLibraryView
+                      key="prompt-library-mixed"
+                      search={search}
+                      compact
+                      hideHeader
+                      additionalItems={[...projectItems, ...conversationItems]}
+                      additionalItemsLoading={conversationItemsLoading}
+                      emptyState={ALL_EMPTY_STATE_COPY}
+                    />
+                  )}
+                />
+              )}
+            />
+          )}
+        </div>
+      ) : (
+        testCaseContent
       )}
     </div>
   );
 }
 
-function TestCaseCard({
+function TestCaseDetail({
   material,
-  deleting,
-  onOpen,
-  onExecute,
+  embedded = false,
+  onBack,
   onEdit,
-  onDelete,
 }: {
   material: DecryptedTestCaseMaterial;
-  deleting: boolean;
-  onOpen: () => void;
-  onExecute: () => void;
+  embedded?: boolean;
+  onBack: () => void;
   onEdit: () => void;
-  onDelete: () => void;
 }) {
-  const [historyExpanded, setHistoryExpanded] = useState(false);
-  const [historyPage, setHistoryPage] = useState(0);
-  const historyLimit = historyExpanded ? RUN_HISTORY_PAGE_SIZE : RECENT_RUN_COUNT;
-  const historyOffset = historyExpanded ? historyPage * RUN_HISTORY_PAGE_SIZE : 0;
-  const runsPageQuery = useLiveQuery(
-    () => listTestRunsPage(material.id, historyOffset, historyLimit),
-    [material.id, historyOffset, historyLimit]
-  );
-  const runs = runsPageQuery?.runs ?? [];
-  const runCount = runsPageQuery?.total ?? 0;
-  const pageCount = Math.max(1, Math.ceil(runCount / RUN_HISTORY_PAGE_SIZE));
-
-  useEffect(() => {
-    if (historyPage >= pageCount) setHistoryPage(pageCount - 1);
-  }, [historyPage, pageCount]);
-
-  const toggleHistory = () => {
-    setHistoryExpanded((current) => !current);
-    setHistoryPage(0);
-  };
+  const { definition } = material.content;
 
   return (
-    <article className="w-full rounded-xl border border-border/60 bg-background p-3 transition-colors hover:border-primary/40">
-      <div className="flex items-start justify-between gap-3">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <div className={embedded ? 'p-4' : 'min-h-0 flex-1 overflow-y-auto p-4'}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onBack}
+          className="h-8 gap-1.5 rounded-lg px-2 text-xs"
         >
-          <h3 className="truncate text-sm font-medium text-foreground">{material.title}</h3>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-            {material.content.definition.goal}
-          </p>
-        </button>
-        <span className="shrink-0 text-[11px] text-muted-foreground">v{material.version}</span>
-      </div>
-      <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
-        <span>{material.content.definition.targets.length} 个目标网页</span>
-        <span>{material.content.definition.steps.length} 个步骤</span>
-        <span className="ml-auto">{formatDate(material.updatedAt)}</span>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button size="sm" onClick={onExecute} className="h-8 gap-1.5 rounded-lg text-xs">
-          <Play className="h-3.5 w-3.5" />
-          执行
+          <ArrowLeft className="h-3.5 w-3.5" />
+          返回列表
         </Button>
         <Button
           variant="outline"
           size="sm"
           onClick={onEdit}
-          disabled={deleting}
-          className="h-8 gap-1.5 rounded-lg text-xs"
+          className="h-8 gap-1.5 rounded-lg px-2 text-xs"
         >
           <Pencil className="h-3.5 w-3.5" />
           编辑
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onDelete}
-          disabled={deleting}
-          className="h-8 gap-1.5 rounded-lg text-xs text-destructive hover:text-destructive"
-        >
-          {deleting ? (
-            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Trash2 className="h-3.5 w-3.5" />
-          )}
-          删除
-        </Button>
       </div>
-
-      <section className="mt-3 border-t border-border/50 pt-3">
-        <div className="flex min-h-8 items-center justify-between gap-2">
-          <div className="text-xs font-medium text-foreground">
-            {historyExpanded ? '全部执行记录' : '最近执行记录'}
-            {runsPageQuery && (
-              <span className="ml-1.5 font-normal text-muted-foreground">{runCount} 条</span>
-            )}
-          </div>
-          {runCount > RECENT_RUN_COUNT && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleHistory}
-              aria-expanded={historyExpanded}
-              className="h-7 gap-1 px-2 text-[11px] text-muted-foreground"
-            >
-              {historyExpanded ? '收起' : '查看全部'}
-              <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform ${historyExpanded ? 'rotate-180' : ''}`}
-              />
-            </Button>
-          )}
-        </div>
-
-        {runsPageQuery === undefined ? (
-          <LoaderCircle className="my-2 h-4 w-4 animate-spin text-muted-foreground" />
-        ) : runs.length === 0 ? (
-          <p className="py-2 text-xs text-muted-foreground">还没有执行记录。</p>
-        ) : (
-          <div>
-            {runs.map((run) => (
-              <TestRunReport key={run.id} run={run} />
-            ))}
-          </div>
-        )}
-
-        {historyExpanded && pageCount > 1 && (
-          <div className="mt-2 flex items-center justify-end gap-2 border-t border-border/40 pt-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setHistoryPage((current) => Math.max(0, current - 1))}
-              disabled={historyPage === 0}
-              aria-label="上一页执行记录"
-              title="上一页"
-              className="h-7 w-7 rounded-lg"
-            >
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Button>
-            <span className="min-w-16 text-center text-[11px] text-muted-foreground">
-              {historyPage + 1} / {pageCount}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setHistoryPage((current) => Math.min(pageCount - 1, current + 1))}
-              disabled={historyPage >= pageCount - 1}
-              aria-label="下一页执行记录"
-              title="下一页"
-              className="h-7 w-7 rounded-lg"
-            >
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        )}
-      </section>
-    </article>
-  );
-}
-
-function TestCaseDetail({
-  material,
-  onBack,
-}: {
-  material: DecryptedTestCaseMaterial;
-  onBack: () => void;
-}) {
-  const { definition } = material.content;
-
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onBack}
-        className="mb-3 h-8 gap-1.5 rounded-lg px-2 text-xs"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        返回列表
-      </Button>
       <div className="space-y-4">
         <div>
           <div className="flex items-start justify-between gap-3">
@@ -593,35 +485,142 @@ function TestCaseDetail({
   );
 }
 
+function TestProjectCreator({
+  embedded = false,
+  onCancel,
+  onCreated,
+}: {
+  embedded?: boolean;
+  onCancel: () => void;
+  onCreated: (projectId: string) => void;
+}) {
+  const { toast } = useToast();
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const project = await createTestProject({ title, description });
+      toast('测试项目已创建，请继续填写测试用例', 'success');
+      onCreated(project.id);
+    } catch (error) {
+      logger.error('[MaterialLibrary] Failed to create test project:', error);
+      toast(error instanceof Error ? error.message : '创建测试项目失败', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className={embedded ? 'p-4' : 'min-h-0 flex-1 overflow-y-auto p-4'}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onCancel}
+          disabled={saving}
+          className="h-8 gap-1.5 rounded-lg px-2 text-xs"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          返回项目列表
+        </Button>
+        <span className="text-[11px] text-muted-foreground">第一步：创建测试项目</span>
+      </div>
+      <div className="space-y-4">
+        <EditorField label="项目名称">
+          <Input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="例如：电商网站回归测试"
+          />
+        </EditorField>
+        <EditorField label="项目描述">
+          <Textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            placeholder="描述这个项目覆盖的测试范围（可选）"
+          />
+        </EditorField>
+        <div className="flex justify-end gap-2 border-t border-border/50 pt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+            disabled={saving}
+            className="h-8 rounded-lg text-xs"
+          >
+            取消
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="h-8 gap-1.5 rounded-lg text-xs"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {saving ? '创建中...' : '创建项目并继续'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function createEmptyTestCaseInput(): TestCaseMaterialInput {
+  const targetId = 'target-1';
+  return {
+    title: '',
+    sourceText: '',
+    definition: {
+      goal: '',
+      targets: [{ id: targetId, order: 1, url: '' }],
+      preconditions: [],
+      testData: [],
+      steps: [{ id: 'step-1', order: 1, targetId, action: '' }],
+    },
+  };
+}
+
 function TestCaseEditor({
   material,
+  projectId,
+  embedded = false,
   onCancel,
   onSaved,
 }: {
-  material: DecryptedTestCaseMaterial;
+  material?: DecryptedTestCaseMaterial;
+  projectId?: string;
+  embedded?: boolean;
   onCancel: () => void;
   onSaved: () => void;
 }) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [input, setInput] = useState<TestCaseMaterialInput>(() => ({
-    title: material.title,
-    sourceText: material.content.sourceText,
-    definition: {
-      ...material.content.definition,
-      targets: material.content.definition.targets.map((target, index) => ({
-        ...target,
-        order: index + 1,
-      })),
-      preconditions: [...material.content.definition.preconditions],
-      testData: material.content.definition.testData.map((item) => ({ ...item })),
-      steps: material.content.definition.steps.map((step, index) => ({
-        ...step,
-        order: index + 1,
-      })),
-    },
-  }));
+  const [input, setInput] = useState<TestCaseMaterialInput>(() =>
+    material
+      ? {
+          title: material.title,
+          sourceText: material.content.sourceText,
+          definition: {
+            ...material.content.definition,
+            targets: material.content.definition.targets.map((target, index) => ({
+              ...target,
+              order: index + 1,
+            })),
+            preconditions: [...material.content.definition.preconditions],
+            testData: material.content.definition.testData.map((item) => ({ ...item })),
+            steps: material.content.definition.steps.map((step, index) => ({
+              ...step,
+              order: index + 1,
+            })),
+          },
+        }
+      : createEmptyTestCaseInput()
+  );
   const { definition } = input;
+  const isCreating = !material;
 
   const updateDefinition = (updates: Partial<TestCaseMaterialInput['definition']>) => {
     setInput((current) => ({ ...current, definition: { ...current.definition, ...updates } }));
@@ -660,19 +659,29 @@ function TestCaseEditor({
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateTestCaseMaterial(material.id, input, material.version);
-      toast('测试用例已更新', 'success');
+      if (material) {
+        await updateTestCaseMaterial(material.id, input, material.version);
+        toast('测试用例已更新', 'success');
+      } else if (projectId) {
+        await createTestCaseInProject(projectId, input);
+        toast('测试用例已创建并归入项目', 'success');
+      } else {
+        throw new Error('请先创建测试项目');
+      }
       onSaved();
     } catch (error) {
       logger.error('[MaterialLibrary] Failed to update test case:', error);
-      toast(error instanceof Error ? error.message : '更新测试用例失败', 'error');
+      toast(
+        error instanceof Error ? error.message : `${isCreating ? '创建' : '更新'}测试用例失败`,
+        'error'
+      );
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4">
+    <div className={embedded ? 'p-4' : 'min-h-0 flex-1 overflow-y-auto p-4'}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <Button
           variant="ghost"
@@ -683,7 +692,9 @@ function TestCaseEditor({
           <ArrowLeft className="h-3.5 w-3.5" />
           返回列表
         </Button>
-        <span className="text-[11px] text-muted-foreground">保存为 v{material.version + 1}</span>
+        <span className="text-[11px] text-muted-foreground">
+          {isCreating ? '新建测试用例' : `保存为 v${(material?.version ?? 0) + 1}`}
+        </span>
       </div>
       <div className="space-y-4">
         <EditorField label="标题">
@@ -921,7 +932,7 @@ function TestCaseEditor({
             disabled={saving}
             className="h-8 rounded-lg text-xs"
           >
-            {saving ? '保存中...' : '保存测试用例'}
+            {saving ? '保存中...' : isCreating ? '创建测试用例' : '保存测试用例'}
           </Button>
         </div>
       </div>
@@ -963,152 +974,6 @@ function splitLines(value: string): string[] {
     .filter(Boolean);
 }
 
-function TestRunReport({ run }: { run: DecryptedTestRun }) {
-  const [open, setOpen] = useState(false);
-  const definition = run.content.testCaseSnapshot;
-  const resultByStep = new Map(
-    run.content.report.stepResults.map((result) => [result.stepId, result])
-  );
-  const currentStepIds = new Set(
-    run.currentStepIds ?? (run.currentStepId ? [run.currentStepId] : [])
-  );
-  const currentSteps = definition.steps.filter((step) => currentStepIds.has(step.id));
-
-  return (
-    <div className="border-b border-border/45 py-2 last:border-b-0">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-2 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <RunStatus status={run.status} />
-        <span className="min-w-0 flex-1 truncate">{formatDate(run.startedAt)}</span>
-        <span className="text-[11px] text-muted-foreground">v{run.testCaseVersion}</span>
-        <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      {open && (
-        <div className="mt-3 space-y-3 border-t border-border/50 pt-3 text-xs">
-          <div className="grid grid-cols-2 gap-2 text-muted-foreground">
-            <span>开始：{formatDateWithSeconds(run.startedAt)}</span>
-            <span>结束：{run.finishedAt ? formatDateWithSeconds(run.finishedAt) : '进行中'}</span>
-          </div>
-          <div>
-            <span className="font-medium text-foreground">目标网页顺序</span>
-            <p className="mt-1 break-all leading-5 text-muted-foreground">
-              {definition.targets.map((target) => target.url).join(' -> ')}
-            </p>
-          </div>
-          <div>
-            <span className="font-medium text-foreground">当前步骤</span>
-            <p className="mt-1 text-muted-foreground">
-              {currentSteps.length > 0
-                ? currentSteps.map((step) => `${step.order}. ${step.action}`).join('；')
-                : '无'}
-            </p>
-          </div>
-          <div className="space-y-2">
-            <span className="font-medium text-foreground">步骤结果</span>
-            {definition.steps.map((step) => {
-              const result = resultByStep.get(step.id);
-              return <TestStepReport key={step.id} step={step} result={result} />;
-            })}
-          </div>
-          <div>
-            <span className="font-medium text-foreground">总结</span>
-            <p className="mt-1 whitespace-pre-wrap leading-5 text-muted-foreground">
-              {run.content.report.summary || '尚未生成总结。'}
-            </p>
-          </div>
-          {run.content.report.error && (
-            <div>
-              <span className="font-medium text-destructive">失败、阻塞或停止原因</span>
-              <p className="mt-1 whitespace-pre-wrap leading-5 text-destructive/85">
-                {run.content.report.error}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TestStepReport({
-  step,
-  result,
-}: {
-  step: DecryptedTestRun['content']['testCaseSnapshot']['steps'][number];
-  result?: TestStepResult;
-}) {
-  return (
-    <div className="rounded-lg bg-muted/30 px-3 py-2">
-      <div className="flex items-start gap-2">
-        <span className="mt-0.5 shrink-0 text-muted-foreground">{step.order}.</span>
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-foreground">{step.action}</p>
-          <p className="mt-1 leading-5 text-muted-foreground">
-            预期：{step.expectedResult || '未填写'}
-          </p>
-          <p className="mt-1 leading-5 text-muted-foreground">
-            实际：{result?.actualResult || '尚未完成'}
-          </p>
-          {result?.detail && (
-            <p className="mt-1 leading-5 text-muted-foreground">说明：{result.detail}</p>
-          )}
-          {result?.attempts && result.attempts.length > 1 && (
-            <details className="mt-2 text-muted-foreground">
-              <summary className="cursor-pointer">尝试记录（{result.attempts.length} 次）</summary>
-              <div className="mt-1 space-y-1 border-l border-border pl-2">
-                {result.attempts.map((attempt) => (
-                  <p key={`${attempt.attempt}-${attempt.startedAt}`} className="break-words">
-                    第 {attempt.attempt} 次 · {getAttemptTriggerLabel(attempt.trigger)} ·{' '}
-                    {attempt.failureCode || attempt.status}
-                    {attempt.detail ? `：${attempt.detail}` : ''}
-                  </p>
-                ))}
-              </div>
-            </details>
-          )}
-        </div>
-        {result ? (
-          <RunStatus status={result.status} />
-        ) : (
-          <span className="shrink-0 text-[11px] text-muted-foreground">待执行</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RunStatus({ status }: { status: TestRunStatus | TestStepResult['status'] }) {
-  const config = {
-    queued: { label: '排队中', icon: Timer, className: 'text-muted-foreground' },
-    running: { label: '执行中', icon: Timer, className: 'text-info' },
-    passed: { label: '通过', icon: CheckCircle2, className: 'text-success' },
-    failed: { label: '失败', icon: XCircle, className: 'text-destructive' },
-    blocked: { label: '阻塞', icon: Ban, className: 'text-warning' },
-    error: { label: '技术错误', icon: CircleAlert, className: 'text-destructive' },
-    stopped: { label: '已停止', icon: Square, className: 'text-muted-foreground' },
-    skipped: { label: '已跳过', icon: Square, className: 'text-muted-foreground' },
-  }[status];
-  const Icon = config.icon;
-  return (
-    <span className={`flex shrink-0 items-center gap-1 ${config.className}`}>
-      <Icon className="h-3.5 w-3.5" />
-      {config.label}
-    </span>
-  );
-}
-
-function getAttemptTriggerLabel(trigger: TestStepAttemptTrigger): string {
-  if (trigger === 'automatic_retry') return '自动重试';
-  if (trigger === 'manual_retry') return '人工重试';
-  return '首次执行';
-}
-
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
@@ -1124,15 +989,5 @@ function formatDate(timestamp: number): string {
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(timestamp);
-}
-
-function formatDateWithSeconds(timestamp: number): string {
-  return new Intl.DateTimeFormat('zh-CN', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
   }).format(timestamp);
 }

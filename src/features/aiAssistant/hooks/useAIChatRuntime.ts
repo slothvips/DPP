@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { ensureAIToolsRegistered } from '@/lib/ai';
 import { hasAssistantOutput, runAgentTurn } from '@/lib/ai/agentRuntime';
 import { formatPlanContext, getPlan } from '@/lib/ai/plan';
+import { buildRuntimeContext } from '@/lib/ai/runtimeContext';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import { stopTestRunForSession } from '@/lib/ai/tools/testRuns';
@@ -11,6 +12,7 @@ import type {
   ChatMessage as ProviderChatMessage,
 } from '@/lib/ai/types';
 import type { AISessionRoleSnapshot } from '../materials/testCaseTypes';
+import { isDppBuiltInRole } from '../roles/roleRuntime';
 import type { ChatMessage } from '../types';
 import { useAIChatProvider } from './useAIChatProvider';
 import {
@@ -112,14 +114,14 @@ export function useAIChatRuntime({
 
       try {
         const provider = await getProvider();
-        const plan =
-          role.roleId === 'builtin:d-zai'
-            ? await getPlan({ type: 'ai_session', id: targetSessionId })
-            : undefined;
-        const systemPrompt =
-          role.roleId === 'builtin:d-zai'
-            ? `${role.systemPrompt}\n\n${formatPlanContext(plan, 'ai_session')}`
-            : role.systemPrompt;
+        const usesDppRuntime = isDppBuiltInRole(role.roleId);
+        const plan = usesDppRuntime
+          ? await getPlan({ type: 'ai_session', id: targetSessionId })
+          : undefined;
+        const roleSystemPrompt = usesDppRuntime
+          ? `${role.systemPrompt}\n\n${formatPlanContext(plan, 'ai_session')}`
+          : role.systemPrompt;
+        const systemPrompt = `${roleSystemPrompt}\n\n${buildRuntimeContext()}`;
         ensureAIToolsRegistered();
         const allowedTools = new Set(role.allowedToolNames);
         const tools = toolRegistry

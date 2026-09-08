@@ -11,6 +11,22 @@ export function getToolConfirmationContent(
   args: Record<string, unknown>
 ): ToolConfirmationContent {
   switch (toolName) {
+    case 'clear_session_context':
+      return {
+        title: '确认清空会话',
+        description: '此操作将停止当前任务，并删除当前会话的消息、计划和网页任务。',
+        impact: '当前会话将保留，但上下文无法恢复',
+        confirmText: '确认清空',
+        isDestructive: true,
+      };
+    case 'create_new_session':
+      return {
+        title: '确认创建新会话',
+        description: '此操作将保留当前会话，并创建和切换到一个新会话。',
+        impact: `角色: ${args.role_title || args.role_id || '继承当前角色'}；标题: ${args.title || '新会话'}`,
+        confirmText: '创建会话',
+        isDestructive: false,
+      };
     case 'links_delete':
       return {
         title: '确认删除链接',
@@ -64,8 +80,8 @@ export function getToolConfirmationContent(
       };
     case 'ai_config_update':
       return {
-        title: '确认修改 D仔 配置',
-        description: '此操作会修改 D仔 的 AI 服务商、模型或密钥配置。',
+        title: '确认修改 AI 配置',
+        description: '此操作会修改 AI 服务商、模型或密钥配置。',
         impact: `将更新服务商: ${args.provider || '当前服务商'}`,
         confirmText: '确认修改',
         isDestructive: false,
@@ -78,12 +94,47 @@ export function getToolConfirmationContent(
         confirmText: '确认修改',
         isDestructive: false,
       };
+    case 'test_case_import': {
+      const testCases = Array.isArray(args.test_cases) ? args.test_cases : [];
+      return {
+        title: '确认导入测试用例',
+        description: '以下测试用例已完成静态审查；确认后将写入团队共享测试用例库。',
+        impact: `将导入 ${testCases.length} 条测试用例`,
+        confirmText: '确认导入',
+        isDestructive: false,
+      };
+    }
     case 'test_case_update':
       return {
         title: '确认更新测试用例',
         description: '此操作会覆盖团队共享测试用例的当前版本。',
         impact: `将更新测试用例 ID: ${args.id || '未知'}`,
         confirmText: '确认更新',
+        isDestructive: false,
+      };
+    case 'test_case_delete':
+      return {
+        title: '确认删除测试用例',
+        description: '此操作会从团队共享库中移除测试用例，但不会删除历史执行记录，且无法恢复。',
+        impact: `将删除测试用例 ID: ${args.id || '未知'}`,
+        confirmText: '确认删除',
+        isDestructive: true,
+      };
+    case 'test_project_execute':
+      return {
+        title: '确认执行测试项目',
+        description:
+          '将按顺序执行项目中全部已启用测试用例，单条失败、阻塞或技术错误不会中断后续用例。',
+        impact: `将执行测试项目 ID: ${args.project_id || '未知'}`,
+        confirmText: '执行项目',
+        isDestructive: false,
+      };
+    case 'test_run_execute':
+      return {
+        title: '确认执行测试用例',
+        description: '将按步骤顺序操作目标网页，并保存测试报告。',
+        impact: `将执行测试用例 ID: ${args.test_case_id || '未知'}`,
+        confirmText: '执行测试',
         isDestructive: false,
       };
     default:

@@ -1,4 +1,5 @@
-import { AlertTriangle, CheckCircle2, Download, LoaderCircle, Upload } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, History, LoaderCircle, Upload } from 'lucide-react';
+import { browser } from 'wxt/browser';
 import { Button } from '@/components/ui/button';
 import type { RebuildPhase } from './useOptionsImportAndReset';
 
@@ -62,6 +63,23 @@ export function DataManagementSection({
             >
               <AlertTriangle className="w-4 h-4 shrink-0" />
               重建本地数据
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              className="min-w-0 flex-1 gap-2 sm:flex-none"
+              data-testid="button-audit"
+            >
+              <a
+                href={browser.runtime.getURL('/audit.html')}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="打开变更审计"
+                title="变更审计"
+              >
+                <History className="h-4 w-4 shrink-0" />
+                变更审计
+              </a>
             </Button>
           </div>
         </div>

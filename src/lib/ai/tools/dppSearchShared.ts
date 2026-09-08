@@ -3,6 +3,7 @@ export const DPP_SEARCH_SOURCES = [
   'blackboard',
   'prompts',
   'test_cases',
+  'test_projects',
   'recordings',
   'jenkins',
 ] as const;

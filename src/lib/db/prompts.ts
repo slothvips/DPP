@@ -77,11 +77,11 @@ export async function updatePromptMaterial(
   });
 }
 
-export async function archivePromptMaterial(id: string): Promise<void> {
+export async function deletePromptMaterial(id: string): Promise<void> {
   await db.transaction('rw', db.materials, async () => {
     const material = await db.materials.get(id);
     if (!material || material.type !== 'prompt' || material.deletedAt) {
-      throw new Error('提示词不存在或已归档');
+      throw new Error('提示词不存在或已删除');
     }
 
     const now = Date.now();

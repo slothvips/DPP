@@ -9,8 +9,9 @@ import { createToolParameter, toolRegistry } from '@/lib/ai/tools';
 import type { ToolHandler } from '@/lib/ai/tools';
 import type { ToolProperty } from '@/lib/ai/types';
 import {
+  deleteTestCaseMaterial,
   getTestCaseMaterial,
-  importTestCaseMaterials,
+  importTestProject,
   listTestCaseMaterialRecordsPage,
   updateTestCaseMaterial,
 } from '@/lib/db';
@@ -50,9 +51,9 @@ const stepProperty: ToolProperty = {
     order: { type: 'integer', description: '步骤顺序，从 0 或 1 开始连续递增' },
     target_id: { type: 'string', description: '所属目标网页 ID' },
     action: { type: 'string', description: '自然语言操作' },
-    expected_result: { type: 'string', description: '自然语言预期结果，可选' },
+    expected_result: { type: 'string', description: '可根据页面可见事实判断的自然语言预期结果' },
   },
-  required: ['id', 'order', 'target_id', 'action'],
+  required: ['id', 'order', 'target_id', 'action', 'expected_result'],
   additionalProperties: false,
 };
 
@@ -148,9 +149,18 @@ export function registerTestCaseTools(): void {
   toolRegistry.register({
     name: 'test_case_import',
     description:
-      '将一个或多个已完整解析的自然语言测试用例直接保存到团队共享测试用例库，不需要额外确认。',
+      '将一个或多个已经逐条完成静态可执行性审查、没有未解决阻塞项且已向用户展示脱敏草案的测试用例原子保存到测试项目；调用后必须由用户确认。仅在明确提供 existing_project_id 时加入已有项目。',
     parameters: createToolParameter(
       {
+        project_name: {
+          type: 'string',
+          description: '项目名称；不提供时由工具根据本批测试用例生成',
+        },
+        project_description: { type: 'string', description: '项目描述，可选' },
+        existing_project_id: {
+          type: 'string',
+          description: '仅当用户明确要求加入已有项目时提供该项目 ID',
+        },
         test_cases: {
           type: 'array',
           description: '一个或多个结构化测试用例；信息不完整时不要调用此工具',
@@ -176,17 +186,48 @@ export function registerTestCaseTools(): void {
         throw new Error(`test_case_import 一次需要 1-${MAX_IMPORT_CASES} 个测试用例`);
       }
       const inputs = rawCases.map((value) => parseMaterialInput(value));
-      const materials = await importTestCaseMaterials(inputs);
+      const sensitiveValues = inputs.flatMap((input) =>
+        input.definition.testData
+          .filter((item) => item.sensitive && item.value)
+          .map((item) => item.value)
+      );
+      const redactedInputs = inputs.map((input) => ({
+        ...input,
+        title: redactSensitiveText(input.title, sensitiveValues),
+        sourceText: redactSensitiveText(input.sourceText, sensitiveValues),
+        definition: redactDefinition(input.definition, sensitiveValues),
+      }));
+      const projectName = redactSensitiveText(
+        optionalText(record.project_name) ?? createDefaultProjectName(redactedInputs),
+        sensitiveValues
+      );
+      const projectDescription = optionalText(record.project_description);
+      const imported = await importTestProject(
+        {
+          title: projectName,
+          ...(projectDescription
+            ? { description: redactSensitiveText(projectDescription, sensitiveValues) }
+            : {}),
+        },
+        redactedInputs,
+        optionalText(record.existing_project_id)
+      );
       return {
         success: true,
-        message: `已保存 ${materials.length} 条测试用例到团队共享库`,
-        test_cases: materials.map((material) => ({
+        message: `已保存项目“${imported.project.title}”及 ${imported.testCases.length} 条测试用例`,
+        project: {
+          id: imported.project.id,
+          title: imported.project.title,
+          version: imported.project.version,
+        },
+        test_cases: imported.testCases.map((material) => ({
           id: material.id,
           title: material.title,
           version: material.version,
         })),
       };
     }) as ToolHandler,
+    requiresConfirmation: true,
   });
 
   toolRegistry.register({
@@ -233,6 +274,35 @@ export function registerTestCaseTools(): void {
     }) as ToolHandler,
     requiresConfirmation: true,
   });
+
+  toolRegistry.register({
+    name: 'test_case_delete',
+    description:
+      '根据用户明确要求删除一个团队共享测试用例；删除前必须获得用户确认。历史执行记录不会一并删除。',
+    parameters: createToolParameter(
+      { id: { type: 'string', description: '要删除的测试用例 ID' } },
+      ['id']
+    ),
+    handler: (async (args: unknown) => {
+      const id = readRequiredText(readRecord(args).id, '测试用例 ID');
+      const material = await getTestCaseMaterial(id);
+      if (!material) {
+        throw new Error('测试用例不存在或已删除');
+      }
+
+      await deleteTestCaseMaterial(id);
+      return {
+        success: true,
+        message: `已删除测试用例：${material.title}`,
+        test_case: { id: material.id, title: material.title },
+      };
+    }) as ToolHandler,
+    requiresConfirmation: true,
+  });
+}
+
+function createDefaultProjectName(inputs: TestCaseMaterialInput[]): string {
+  return inputs.length === 1 ? inputs[0].title : `${inputs[0].title}等${inputs.length}项`;
 }
 
 function parseMaterialInput(value: unknown): TestCaseMaterialInput {
@@ -325,7 +395,7 @@ function parseStep(value: unknown): TestCaseStep {
     order: readRequiredInteger(record.order, '步骤顺序'),
     targetId: readRequiredText(record.target_id, '步骤目标网页 ID'),
     action: readRequiredText(record.action, '步骤操作'),
-    ...readOptionalField(record.expected_result, '步骤预期结果', 'expectedResult'),
+    expectedResult: readRequiredText(record.expected_result, '步骤预期结果'),
   };
 }
 
@@ -392,6 +462,11 @@ function readRequiredInteger(value: unknown, label: string): number {
     throw new Error(`${label}必须是整数`);
   }
   return value;
+}
+
+function optionalText(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  return readRequiredText(value, '文本参数');
 }
 
 function readOptionalField(value: unknown, label: string, key: string): Record<string, string> {

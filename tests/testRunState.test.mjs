@@ -147,11 +147,11 @@ test('browser step mode captures structured done results and applies phase-aware
 test('error status is persisted, merged, and rendered without rewriting legacy blocked records', () => {
   const database = source('../src/lib/db/testRuns.ts');
   const merge = source('../src/lib/sync/testRunMerge.ts');
-  const view = source('../src/features/aiAssistant/components/AIMaterialLibraryView.tsx');
+  const view = source('../src/features/aiAssistant/components/TestProjectLibraryView.tsx');
 
   assert.match(database, /result\.status === 'blocked' \|\| result\.status === 'error'/);
   assert.match(merge, /result\.status === 'error'/);
-  assert.match(view, /error: \{ label: '技术错误'/);
+  assert.match(view, /error: \['技术错误', CircleAlert, 'text-destructive'\]/);
 });
 
 test('v17 database upgrades to encrypted material and test run tables', async () => {

@@ -219,15 +219,15 @@ async function ai_config_update(args: unknown) {
     updatedProvider: targetProvider,
     config: summarizeConfig(nextConfig),
     message: activateProvider
-      ? `D仔配置已更新并切换到 ${targetProvider}`
-      : `D仔的 ${targetProvider} 配置已更新，当前服务商未切换`,
+      ? `AI 配置已更新并切换到 ${targetProvider}`
+      : `${targetProvider} 的 AI 配置已更新，当前服务商未切换`,
   };
 }
 
 export function registerAIConfigTools() {
   toolRegistry.register({
     name: 'ai_config_get',
-    description: '获取 D 仔当前 AI 配置以及所有服务商配置。API 密钥会被隐藏。',
+    description: '获取当前 AI 配置以及所有服务商配置。API 密钥会被隐藏。',
     parameters: createToolParameter({}, []),
     handler: ai_config_get as ToolHandler,
   });
@@ -235,7 +235,7 @@ export function registerAIConfigTools() {
   toolRegistry.register({
     name: 'ai_config_update',
     description:
-      '更新 D 仔 AI 配置。可以修改服务商、baseUrl、模型、apiKey、清除 apiKey，并选择是否激活该服务商。',
+      '更新 AI 配置。可以修改服务商、baseUrl、模型、apiKey、清除 apiKey，并选择是否激活该服务商。',
     parameters: createToolParameter(
       {
         provider: {
@@ -269,7 +269,7 @@ export function registerAIConfigTools() {
         },
         activateProvider: {
           type: 'boolean',
-          description: '更新后是否将 D 仔切换到目标服务商。默认为 true。',
+          description: '更新后是否将 AI 助手切换到目标服务商。默认为 true。',
         },
         contextWindow: {
           type: 'number',
