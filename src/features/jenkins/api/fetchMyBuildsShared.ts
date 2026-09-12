@@ -1,4 +1,5 @@
 import type { MyBuildItem, OthersBuildItem } from '@/db';
+import { deriveJobNameFromUrl, formatJobName, isUrlLike } from '@/features/jenkins/utils/jobName';
 
 export interface JenkinsBuildApiItem {
   id: string;
@@ -69,15 +70,14 @@ export function resolveBuildOwnership(build: JenkinsBuildApiItem, user: string) 
 
 export function resolveBuildJobName(job: JenkinsJobApiItem, build: JenkinsBuildApiItem): string {
   if (!build.fullDisplayName) {
-    return job.name;
+    return job.name && !isUrlLike(job.name)
+      ? formatJobName(job.name)
+      : deriveJobNameFromUrl(job.url);
   }
 
   const parts = build.fullDisplayName.split(' #');
-  if (parts.length > 1) {
-    return parts.slice(0, -1).join(' #').trim();
-  }
-
-  return build.fullDisplayName;
+  const raw = parts.length > 1 ? parts.slice(0, -1).join(' #').trim() : build.fullDisplayName;
+  return formatJobName(raw);
 }
 
 export function createBuildItem(

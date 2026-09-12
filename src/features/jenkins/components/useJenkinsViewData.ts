@@ -7,7 +7,7 @@ import {
   type TagItem,
   db,
 } from '@/db';
-import { buildJobTree } from '@/features/jenkins/utils';
+import { buildJobTree, deriveJobNameFromUrl } from '@/features/jenkins/utils';
 
 const EMPTY_SETTINGS = {
   currentEnvId: undefined,
@@ -23,7 +23,7 @@ function toMyBuildItem(record: JenkinsBuildRecord, envId: string | undefined): M
   return {
     id: record.id,
     number: record.number,
-    jobName: record.jobName || record.jobUrl,
+    jobName: record.jobName || deriveJobNameFromUrl(record.jobUrl),
     jobUrl: record.jobUrl,
     result: record.result || (record.building ? 'Building' : 'Unknown'),
     timestamp: record.timestamp,

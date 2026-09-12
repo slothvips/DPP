@@ -12,7 +12,12 @@ import {
 import type { JobItem } from '@/db';
 import { JenkinsSectionHeader } from '@/features/jenkins/components/jenkinsUi';
 import { JenkinsService } from '@/features/jenkins/service';
-import { getJobColorClass, getStatusClassName, translateStatus } from '@/features/jenkins/utils';
+import {
+  formatJobName,
+  getJobColorClass,
+  getStatusClassName,
+  translateStatus,
+} from '@/features/jenkins/utils';
 import { logger } from '@/utils/logger';
 
 interface JenkinsJobDetailsDialogProps {
@@ -80,7 +85,10 @@ export function JenkinsJobDetailsDialog({
     };
   }, [job, open, requestId]);
 
-  const displayName = asString(details?.displayName) || asString(details?.fullName) || job?.name;
+  const detailsDisplayName = asString(details?.displayName);
+  const detailsFullName = asString(details?.fullName);
+  const displayName =
+    detailsDisplayName || (detailsFullName ? formatJobName(detailsFullName) : job?.name);
   const description = asString(details?.description);
   const className = asString(details?._class);
   const buildable = details?.buildable;

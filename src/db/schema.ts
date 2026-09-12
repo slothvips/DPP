@@ -277,6 +277,7 @@ export function registerDatabaseSchema(db: Dexie) {
           id: build.id,
           envId: build.env as string,
           jobUrl: build.jobUrl,
+          jobName: build.jobName,
           number: build.number,
           result: build.result,
           lifecycle: build.building ? 'running' : 'completed',
@@ -298,4 +299,55 @@ export function registerDatabaseSchema(db: Dexie) {
     myBuilds: null,
     othersBuilds: null,
   });
+
+  // v29: backfill a human-readable job name for builds migrated before jobName
+  // was carried over, so the run view never falls back to the raw job URL.
+  db.version(29)
+    .stores({})
+    .upgrade(async (tx) => {
+      const table = tx.table('jenkinsBuilds');
+      const rows = await table.toArray();
+      const updates = rows
+        .filter((row) => !row.jobName && typeof row.jobUrl === 'string')
+        .map((row) => table.put({ ...row, jobName: deriveJobName(String(row.jobUrl)) }));
+      await Promise.all(updates);
+    });
+
+  // v30: show a build's job path child-first (job, then its parents).
+  db.version(30)
+    .stores({})
+    .upgrade(async (tx) => {
+      const table = tx.table('jenkinsBuilds');
+      const rows = await table.toArray();
+      const updates = rows
+        .filter((row) => typeof row.jobName === 'string' && /[»/]/.test(row.jobName))
+        .map((row) => table.put({ ...row, jobName: reverseJobPath(String(row.jobName)) }));
+      await Promise.all(updates);
+    });
+}
+
+function reverseJobPath(name: string): string {
+  const trimmed = name.trim();
+  const parts = (trimmed.includes('»') ? trimmed.split('»') : trimmed.split('/'))
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length > 1 ? parts.reverse().join('/') : trimmed;
+}
+
+function deriveJobName(jobUrl: string): string {
+  try {
+    const names = new URL(jobUrl).pathname
+      .split('/')
+      .filter((segment) => segment && segment !== 'job' && segment !== 'view')
+      .map((segment) => {
+        try {
+          return decodeURIComponent(segment);
+        } catch {
+          return segment;
+        }
+      });
+    return names.length > 0 ? names.join('/') : jobUrl;
+  } catch {
+    return jobUrl;
+  }
 }
