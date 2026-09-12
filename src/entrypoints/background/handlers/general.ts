@@ -1,4 +1,5 @@
 import { browser } from 'wxt/browser';
+import { assertJenkinsUrlAllowed, normalizeJenkinsRootUrl } from '@/features/jenkins/api/urlSafety';
 import { syncJenkinsCredentials } from '@/lib/db/jenkins';
 import { getSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
@@ -65,8 +66,15 @@ export function handleGeneralMessage(
 
   if (message.type === 'SAVE_JENKINS_TOKEN') {
     const { token, host, user } = message.payload;
-    const senderOrigin = sender.tab?.url ? extractOrigin(sender.tab.url) : null;
-    if (!senderOrigin || extractOrigin(host) !== senderOrigin) {
+    const senderUrl = sender.tab?.url;
+    const senderOrigin = senderUrl ? extractOrigin(senderUrl) : null;
+    let isAllowedSource = false;
+    try {
+      isAllowedSource = Boolean(senderUrl && assertJenkinsUrlAllowed(senderUrl, host));
+    } catch {
+      isAllowedSource = false;
+    }
+    if (!senderOrigin || !isAllowedSource || extractOrigin(host) !== senderOrigin) {
       return { success: false, error: 'Jenkins Token 来源与保存地址不一致' };
     }
     logger.debug('Received Jenkins token for:', host);
@@ -85,6 +93,7 @@ export function handleGeneralMessage(
 
   if (message.type === 'JENKINS_VALIDATE_CONTENT_ORIGIN') {
     return (async () => {
+      const senderUrl = sender.tab?.url;
       const senderOrigin = sender.tab?.url ? extractOrigin(sender.tab.url) : null;
       if (!senderOrigin) return { success: true, allowed: false };
 
@@ -92,20 +101,38 @@ export function handleGeneralMessage(
         getSetting('jenkins_host'),
         getSetting('jenkins_environments'),
       ]);
-      const configuredOrigins = new Set<string>();
-      const legacyOrigin = typeof legacyHost === 'string' ? extractOrigin(legacyHost) : null;
-      if (legacyOrigin) configuredOrigins.add(legacyOrigin);
+      if (!senderUrl) return { success: true, allowed: false };
+      const configuredRoots: string[] = [];
+      if (typeof legacyHost === 'string') {
+        try {
+          configuredRoots.push(normalizeJenkinsRootUrl(legacyHost));
+        } catch {
+          // Ignore malformed legacy configuration.
+        }
+      }
       if (Array.isArray(environments)) {
         for (const environment of environments) {
           const environmentRecord = environment as { host?: unknown };
-          const origin =
-            typeof environmentRecord.host === 'string'
-              ? extractOrigin(environmentRecord.host)
-              : null;
-          if (origin) configuredOrigins.add(origin);
+          if (typeof environmentRecord.host === 'string') {
+            try {
+              configuredRoots.push(normalizeJenkinsRootUrl(environmentRecord.host));
+            } catch {
+              continue;
+            }
+          }
         }
       }
-      return { success: true, allowed: configuredOrigins.has(senderOrigin) };
+      return {
+        success: true,
+        allowed: configuredRoots.some((root) => {
+          try {
+            assertJenkinsUrlAllowed(senderUrl, root);
+            return true;
+          } catch {
+            return false;
+          }
+        }),
+      };
     })();
   }
 

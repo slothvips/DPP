@@ -225,6 +225,48 @@ const DPP_CONFIG_DEFINITIONS = {
     type: 'boolean',
     writable: true,
   },
+  jenkins_workbench_v2: {
+    category: 'features',
+    description: 'Jenkins 新版工作台',
+    type: 'boolean',
+    writable: true,
+  },
+  jenkins_queue: {
+    category: 'features',
+    description: 'Jenkins 队列能力',
+    type: 'boolean',
+    writable: true,
+  },
+  jenkins_build_lifecycle: {
+    category: 'features',
+    description: 'Jenkins 构建触发、取消和停止',
+    type: 'boolean',
+    writable: true,
+  },
+  jenkins_full_log: {
+    category: 'features',
+    description: 'Jenkins 完整日志',
+    type: 'boolean',
+    writable: true,
+  },
+  jenkins_pipeline_features: {
+    category: 'features',
+    description: 'Jenkins Pipeline 阶段、节点和审批',
+    type: 'boolean',
+    writable: true,
+  },
+  jenkins_artifacts: {
+    category: 'features',
+    description: 'Jenkins 构建产物下载',
+    type: 'boolean',
+    writable: true,
+  },
+  jenkins_ai_actions: {
+    category: 'features',
+    description: 'Jenkins AI 操作',
+    type: 'boolean',
+    writable: true,
+  },
   sync_client_id: {
     category: 'runtime',
     description: 'DPP 同步客户端 ID',
@@ -253,6 +295,12 @@ const DPP_CONFIG_DEFINITIONS = {
   jenkins_jobs_last_refresh_by_env: {
     category: 'runtime',
     description: '按环境记录的 Jenkins 任务上次刷新时间',
+    type: 'json',
+    writable: false,
+  },
+  jenkins_recent_jobs: {
+    category: 'runtime',
+    description: '最近使用的 Jenkins 任务',
     type: 'json',
     writable: false,
   },

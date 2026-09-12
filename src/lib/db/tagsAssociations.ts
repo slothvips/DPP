@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { getJobByUrl } from './jobCatalog';
 
 export async function toggleTagAssociation(args: {
   tagId: string;
@@ -31,10 +32,10 @@ export async function toggleTagAssociation(args: {
     });
   }
 
-  return db.transaction('rw', ['tags', 'jobs', 'jobTags'], async () => {
+  return db.transaction('rw', ['tags', 'jenkinsJobs', 'jobTags'], async () => {
     const [tag, job, existingAssociation] = await Promise.all([
       db.tags.get(args.tagId),
-      db.jobs.get(args.entityId),
+      getJobByUrl(args.entityId),
       db.jobTags.get([args.entityId, args.tagId]),
     ]);
     if (!tag || tag.deletedAt) throw new Error('标签不存在或已被删除');

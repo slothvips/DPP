@@ -15,13 +15,15 @@ import type { BrowserTaskSummary } from '@/lib/browserTask/types';
 import type { AIMessage, AIProfile, AISession } from './typesAI';
 import type {
   HotNewsCache,
-  JobItem,
+  JenkinsBuildOperationRecord,
+  JenkinsBuildRecord,
+  JenkinsJobRecord,
+  JenkinsQueueItemRecord,
+  JenkinsSyncStateRecord,
   JobTagItem,
   LinkItem,
   LinkStatItem,
   LinkTagItem,
-  MyBuildItem,
-  OthersBuildItem,
   TagItem,
 } from './typesDomain';
 import type { RecentAction } from './typesRecentActions';
@@ -66,12 +68,9 @@ export type DPPDatabase = Dexie & {
   links: EntityTable<LinkItem, 'id'>;
   linkTags: EntityTable<LinkTagItem, never>;
   linkStats: EntityTable<LinkStatItem, 'id'>;
-  jobs: EntityTable<JobItem, 'url'>;
   settings: EntityTable<Setting, 'key'>;
   tags: EntityTable<TagItem, 'id'>;
   jobTags: EntityTable<JobTagItem, never>;
-  myBuilds: EntityTable<MyBuildItem, 'id'>;
-  othersBuilds: EntityTable<OthersBuildItem, 'id'>;
   blackboard: EntityTable<BlackboardItem, 'id'>;
   hotNews: EntityTable<HotNewsCache, 'date'>;
   recordings: EntityTable<Recording, 'id'>;
@@ -95,4 +94,9 @@ export type DPPDatabase = Dexie & {
   testProjects: EntityTable<TestProject, 'id'>;
   projectRuns: EntityTable<TestProjectRun, 'id'>;
   recentActions: EntityTable<RecentAction, 'id'>;
+  jenkinsJobs: EntityTable<JenkinsJobRecord, never>;
+  jenkinsBuilds: EntityTable<JenkinsBuildRecord, never>;
+  jenkinsQueueItems: EntityTable<JenkinsQueueItemRecord, never>;
+  jenkinsSyncState: EntityTable<JenkinsSyncStateRecord, 'envId'>;
+  jenkinsBuildOperations: EntityTable<JenkinsBuildOperationRecord, 'id'>;
 };

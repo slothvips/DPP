@@ -59,6 +59,32 @@ export function getToolConfirmationContent(
         confirmText: '打开配置',
         isDestructive: false,
       };
+    case 'jenkins_cancel_queue':
+      return {
+        title: '确认取消排队构建',
+        description: '此操作将取消指定的 Jenkins 排队项，取消后需要重新触发。',
+        impact: `将取消队列项: ${args.queueId || '未知队列'}`,
+        confirmText: '确认取消',
+        isDestructive: true,
+      };
+    case 'jenkins_stop_build':
+      return {
+        title: '确认停止构建',
+        description: '此操作将请求停止正在运行的 Jenkins 构建。',
+        impact: `将停止构建: ${args.buildUrl || '未知构建'}`,
+        confirmText: '确认停止',
+        isDestructive: true,
+      };
+    case 'jenkins_submit_pipeline_input':
+      return {
+        title: '确认提交 Pipeline 审批',
+        description: '此操作将批准或中止一个挂起的 Pipeline 人工审批输入。',
+        impact: `将对输入 ${args.inputId || '未知输入'} 执行 ${
+          args.decision === 'abort' ? '中止' : '批准'
+        }`,
+        confirmText: args.decision === 'abort' ? '确认中止' : '确认批准',
+        isDestructive: args.decision === 'abort',
+      };
     case 'recorder_start':
       return {
         title: '确认开始录制',

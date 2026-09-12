@@ -1,5 +1,6 @@
 import { useToast } from '@/components/ui/toast';
 import type { JenkinsEnvironment, MyBuildItem } from '@/db';
+import type { JenkinsFeatureToggles } from '@/features/jenkins/featureFlags';
 import { JenkinsService } from '@/features/jenkins/service';
 import { syncLegacyJenkinsSettings } from '@/lib/db/jenkins';
 import { updateSetting } from '@/lib/db/settings';
@@ -12,6 +13,7 @@ interface UseJenkinsViewActionsOptions {
   expandedUrls: Set<string>;
   jenkinsHost?: string;
   jenkinsUser?: string;
+  jenkinsFeatureToggles: JenkinsFeatureToggles;
   jenkinsToken?: string;
   shouldCloseOnSuccess: boolean;
   onBuildJobChange: (job: BuildJobState | null) => void;
@@ -24,6 +26,7 @@ export function useJenkinsViewActions({
   expandedUrls,
   jenkinsHost,
   jenkinsUser,
+  jenkinsFeatureToggles,
   jenkinsToken,
   shouldCloseOnSuccess,
   onBuildJobChange,
@@ -34,6 +37,7 @@ export function useJenkinsViewActions({
   const { confirm } = useConfirmDialog();
 
   const handleSync = async () => {
+    if (!jenkinsFeatureToggles.workbench) return;
     if (!jenkinsHost || !jenkinsUser || !jenkinsToken) {
       toast('请先在设置中配置 Jenkins', 'error');
       return;
@@ -79,6 +83,10 @@ export function useJenkinsViewActions({
   };
 
   const handleCancelBuild = async (build: MyBuildItem) => {
+    if (!jenkinsFeatureToggles.buildLifecycle) {
+      toast('构建生命周期能力已关闭', 'error');
+      return;
+    }
     const confirmed = await confirm(
       `确定要取消 "${build.jobName} #${build.number}" 吗？`,
       '确认取消构建',

@@ -3,7 +3,9 @@ import { useToast } from '@/components/ui/toast';
 import type { BuildParameter } from '@/features/jenkins/api/build';
 import { JenkinsService } from '@/features/jenkins/service';
 import { recordRecentAction } from '@/lib/db';
+import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
+import { isSensitiveFieldName } from '@/utils/sensitive';
 
 interface UseBuildDialogOptions {
   jobUrl: string;
@@ -52,6 +54,7 @@ export function useBuildDialog({
   onBuildSuccess,
 }: UseBuildDialogOptions) {
   const { toast } = useToast();
+  const { confirm } = useConfirmDialog();
   const [loading, setLoading] = useState(true);
   const [building, setBuilding] = useState(false);
   const [params, setParams] = useState<BuildParameter[]>([]);
@@ -100,14 +103,26 @@ export function useBuildDialog({
   };
 
   const handleBuild = async () => {
+    const parameterSummary = Object.fromEntries(
+      Object.entries(formValues).map(([key, value]) => [
+        key,
+        isSensitiveFieldName(key) ? '[已隐藏]' : value,
+      ])
+    );
+    const confirmed = await confirm(
+      `环境：${envId || '当前环境'}\nJob：${jobName}\n参数：${JSON.stringify(parameterSummary)}`,
+      '确认触发构建'
+    );
+    if (!confirmed) return;
+
     setBuilding(true);
     try {
-      const buildTriggered = await JenkinsService.triggerBuild({
+      const buildResult = await JenkinsService.triggerBuild({
         jobUrl,
         parameters: formValues,
         envId,
       });
-      if (!buildTriggered) {
+      if (!buildResult.accepted) {
         toast('触发构建失败，请检查网络或权限', 'error');
         return;
       }
@@ -119,7 +134,12 @@ export function useBuildDialog({
         jobUrl,
         envId,
       });
-      toast('构建已触发！', 'success');
+      toast(
+        buildResult.queueId
+          ? `构建已进入队列 (#${buildResult.queueId})`
+          : '构建请求已接受，但暂时无法确认队列状态',
+        'success'
+      );
       onClose();
       onBuildSuccess?.();
     } catch (error) {

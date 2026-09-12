@@ -1,5 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db';
+import {
+  DEFAULT_JENKINS_FEATURE_TOGGLES,
+  resolveJenkinsFeatureToggles,
+} from '@/features/jenkins/featureFlags';
 import { DEFAULT_FEATURE_TOGGLES } from './sidepanelTypes';
 
 export function useSidepanelSettings() {
@@ -26,6 +30,12 @@ export function useSidepanelSettings() {
   });
   const featureToggles = storedFeatureToggles ?? DEFAULT_FEATURE_TOGGLES;
 
+  const storedJenkinsFeatureToggles = useLiveQuery(async () => {
+    const settings = await db.settings.toArray();
+    return resolveJenkinsFeatureToggles(settings);
+  });
+  const jenkinsFeatureToggles = storedJenkinsFeatureToggles ?? DEFAULT_JENKINS_FEATURE_TOGGLES;
+
   const serverUrl = useLiveQuery(async () => {
     const setting = await db.settings.get('custom_server_url');
     return setting?.value as string | undefined;
@@ -35,6 +45,7 @@ export function useSidepanelSettings() {
 
   return {
     featureToggles,
+    jenkinsFeatureToggles,
     settingsReady: storedFeatureToggles !== undefined,
     isMinimalMode,
     showSyncButton: !!serverUrl,

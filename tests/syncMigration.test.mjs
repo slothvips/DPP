@@ -178,3 +178,43 @@ test('v26 adds project tables and projectRunId without migrating legacy test cas
 
   await db.delete();
 });
+
+test('v27/v28 migrate environment-scoped Jenkins records and drop legacy tables', async () => {
+  const name = `DPPJenkinsMigration-${crypto.randomUUID()}`;
+  const oldDb = new Dexie(name);
+  oldDb.version(26).stores({
+    jobs: 'url, name, env',
+    myBuilds: 'id, timestamp, env',
+    othersBuilds: 'id, timestamp, env',
+    jobTags: '[jobUrl+tagId], jobUrl, tagId',
+  });
+  await oldDb.open();
+  await oldDb.table('jobs').bulkPut([
+    { url: 'https://ci.example/job/a', name: 'a', env: 'prod' },
+    { url: 'https://ci.example/job/unknown', name: 'unknown' },
+  ]);
+  await oldDb.table('myBuilds').put({
+    id: 'https://ci.example/job/a/1',
+    number: 1,
+    jobUrl: 'https://ci.example/job/a',
+    timestamp: 1,
+    building: false,
+    env: 'prod',
+  });
+  await oldDb.table('jobTags').put({ jobUrl: 'https://ci.example/job/a', tagId: 'important' });
+  await oldDb.close();
+
+  const db = new Dexie(name);
+  registerDatabaseSchema(db);
+  await db.open();
+
+  assert.equal(await db.table('jenkinsJobs').count(), 1);
+  assert.equal(await db.table('jenkinsBuilds').count(), 1);
+  assert.equal(await db.table('jobTags').count(), 1);
+  assert.equal(
+    db.tables.some((table) => table.name === 'jobs'),
+    false
+  );
+
+  await db.delete();
+});

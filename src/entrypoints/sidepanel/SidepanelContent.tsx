@@ -10,6 +10,7 @@ import {
   type AIModuleItem,
   AIModuleLauncher,
 } from '@/features/aiAssistant/components/AIModuleLauncher';
+import type { JenkinsFeatureToggles } from '@/features/jenkins/featureFlags';
 import { AIModuleDialog } from './AIModuleDialog';
 import { LazyTabPanel } from './LazyTabPanel';
 import { ModuleQuickPreview, hasModuleQuickPreview } from './ModuleQuickPreview';
@@ -26,6 +27,7 @@ const AIAssistantView = React.lazy(() =>
 interface SidepanelContentProps {
   activeModule: ModuleTabId | null;
   featureToggles: FeatureToggles;
+  jenkinsFeatureToggles: JenkinsFeatureToggles;
   onModuleSelect: (tabId: TabId) => void;
   onBackToAssistant: () => void;
   recentTabs: TabId[];
@@ -158,6 +160,7 @@ function ModuleNavigation({
 export function SidepanelContent({
   activeModule,
   featureToggles,
+  jenkinsFeatureToggles,
   onModuleSelect,
   onBackToAssistant,
   recentTabs,
@@ -272,6 +275,7 @@ export function SidepanelContent({
       <AIModuleDialog
         activeModule={activeModule}
         featureToggles={featureToggles}
+        jenkinsFeatureToggles={jenkinsFeatureToggles}
         onClose={onBackToAssistant}
       />
     </main>

@@ -1,55 +1,70 @@
-import { ChevronDown, ChevronRight, History } from 'lucide-react';
+import { History, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { VirtualList } from '@/components/ui/virtual-list';
 import type { MyBuildItem, TagItem } from '@/db';
 import { MyBuildRow } from '@/features/jenkins/components/MyBuildRow';
 import { RefreshCountdown } from '@/features/jenkins/components/RefreshCountdown';
+import {
+  JenkinsBadge,
+  JenkinsEmptyState,
+  JenkinsPanel,
+  JenkinsPanelHeader,
+} from '@/features/jenkins/components/jenkinsUi';
 
 interface JenkinsBuildHistorySectionProps {
   displayedBuilds: MyBuildItem[];
-  expanded: boolean;
+  stale?: boolean;
   jobTagsMap: Map<string, TagItem[]>;
   loading: boolean;
   nextRefreshTime: number | null;
+  onRefresh: () => void;
   onBuild: (build: MyBuildItem) => void;
   onCancel: (build: MyBuildItem) => void;
-  onToggle: () => void;
   onToggleShowOthers: (checked: boolean) => void;
   showOthersBuilds: boolean;
+  canBuild: boolean;
+  canCancel: boolean;
+  fullLogEnabled: boolean;
+  pipelineEnabled: boolean;
+  artifactsEnabled: boolean;
 }
 
 export function JenkinsBuildHistorySection({
   displayedBuilds,
-  expanded,
+  stale = false,
   jobTagsMap,
   loading,
   nextRefreshTime,
+  onRefresh,
   onBuild,
   onCancel,
-  onToggle,
   onToggleShowOthers,
   showOthersBuilds,
+  canBuild,
+  canCancel,
+  fullLogEnabled,
+  pipelineEnabled,
+  artifactsEnabled,
 }: JenkinsBuildHistorySectionProps) {
   const hasBuilds = displayedBuilds.length > 0;
 
   return (
-    <div className="mb-3 rounded-2xl border border-border/60 bg-background/78 p-2">
-      <button
-        type="button"
-        className="group flex w-full cursor-pointer select-none flex-wrap items-center gap-2 rounded-xl border-0 bg-transparent p-2 text-left hover:bg-accent/40"
-        onClick={onToggle}
+    <JenkinsPanel>
+      <JenkinsPanelHeader
+        icon={<History className="h-4 w-4 text-primary" />}
+        title="运行"
+        badge={
+          stale ? (
+            <JenkinsBadge tone="danger" title="远端不可用，显示本地缓存">
+              离线缓存
+            </JenkinsBadge>
+          ) : undefined
+        }
       >
-        <span className="p-0.5 rounded hover:bg-muted text-muted-foreground bg-transparent border-0 flex items-center justify-center">
-          {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </span>
-        <div className="shrink-0 text-primary relative">
-          <History className="w-4 h-4" />
-        </div>
-        <span className="text-sm font-medium">构建历史</span>
         <div
-          className="ml-2 flex shrink-0 items-center gap-1.5 rounded-full bg-muted/60 px-2 py-1"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-muted/60 px-2 py-1"
           role="presentation"
         >
           <Checkbox
@@ -60,44 +75,57 @@ export function JenkinsBuildHistorySection({
           />
           <Label
             htmlFor="show-others-inline"
-            className="text-xs text-muted-foreground cursor-pointer font-normal"
+            className="cursor-pointer text-xs font-normal text-muted-foreground"
           >
             显示他人
           </Label>
         </div>
-        <div className="min-w-0 flex-1" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-muted-foreground hover:text-primary"
+          onClick={onRefresh}
+          disabled={loading}
+          title="刷新构建列表"
+          aria-label="刷新构建列表"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
         {loading ? (
-          <span className="text-xs text-muted-foreground mr-2 animate-pulse">刷新中...</span>
+          <span className="animate-pulse text-xs text-muted-foreground">刷新中...</span>
         ) : (
-          <div className="flex items-center gap-2 mr-2">
+          <div className="flex items-center gap-2">
             {nextRefreshTime && <RefreshCountdown targetTime={nextRefreshTime} />}
-            <span className="rounded-full bg-muted/70 px-1.5 text-xs text-muted-foreground">
-              {displayedBuilds.length}
-            </span>
+            <JenkinsBadge>{displayedBuilds.length}</JenkinsBadge>
           </div>
         )}
-      </button>
-      {expanded && (
-        <div className="pl-6 pr-1">
-          {!hasBuilds ? (
-            <div className="rounded-xl border border-dashed border-success/14 bg-success/4 p-3 text-xs text-muted-foreground">
-              暂无构建记录
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {displayedBuilds.map((build) => (
-                <MyBuildRow
-                  key={build.id}
-                  build={build}
-                  onBuild={() => onBuild(build)}
-                  onCancel={() => onCancel(build)}
-                  tags={jobTagsMap.get(build.jobUrl)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+      </JenkinsPanelHeader>
+      <div className="min-h-0 flex-1 p-2">
+        {!hasBuilds ? (
+          <JenkinsEmptyState>暂无构建记录</JenkinsEmptyState>
+        ) : (
+          <VirtualList
+            items={displayedBuilds}
+            estimateSize={72}
+            overscan={8}
+            containerClassName="h-full min-h-0 pb-1"
+            renderItem={(build) => (
+              <MyBuildRow
+                key={build.id}
+                build={build}
+                onBuild={() => onBuild(build)}
+                onCancel={() => onCancel(build)}
+                canBuild={canBuild}
+                canCancel={canCancel}
+                fullLogEnabled={fullLogEnabled}
+                pipelineEnabled={pipelineEnabled}
+                artifactsEnabled={artifactsEnabled}
+                tags={jobTagsMap.get(build.jobUrl)}
+              />
+            )}
+          />
+        )}
+      </div>
+    </JenkinsPanel>
   );
 }

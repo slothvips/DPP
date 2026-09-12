@@ -11,6 +11,10 @@ const ALWAYS_CONFIRM_TOOL_NAMES = new Set([
   'test_case_import',
   'test_run_execute',
   'test_project_execute',
+  'jenkins_trigger_build',
+  'jenkins_cancel_queue',
+  'jenkins_stop_build',
+  'jenkins_submit_pipeline_input',
 ]);
 
 export function parseToolCallArguments(toolCall: ToolCall): Record<string, unknown> {

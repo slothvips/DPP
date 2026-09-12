@@ -24,9 +24,24 @@ const messageHandlers: Array<{
     match: (type) =>
       type === 'JENKINS_FETCH_JOBS' ||
       type === 'JENKINS_FETCH_MY_BUILDS' ||
+      type === 'JENKINS_FETCH_ACTIVE_BUILDS' ||
+      type === 'JENKINS_FETCH_QUEUE' ||
+      type === 'JENKINS_FETCH_JOB_BUILDS' ||
+      type === 'JENKINS_GET_BUILD_STATUS' ||
       type === 'JENKINS_TRIGGER_BUILD' ||
+      type === 'JENKINS_GET_QUEUE_ITEM' ||
+      type === 'JENKINS_CANCEL_QUEUE_ITEM' ||
       type === 'JENKINS_GET_JOB_DETAILS' ||
-      type === 'JENKINS_CANCEL_BUILD',
+      type === 'JENKINS_GET_BUILD_DETAILS' ||
+      type === 'JENKINS_GET_TEST_DETAILS' ||
+      type === 'JENKINS_DOWNLOAD_ARTIFACT' ||
+      type === 'JENKINS_GET_PIPELINE_STAGES' ||
+      type === 'JENKINS_GET_PIPELINE_STAGE_NODES' ||
+      type === 'JENKINS_GET_PIPELINE_NODE_LOG' ||
+      type === 'JENKINS_SUBMIT_PIPELINE_INPUT' ||
+      type === 'JENKINS_GET_BUILD_LOG' ||
+      type === 'JENKINS_CANCEL_BUILD' ||
+      type === 'JENKINS_STOP_BUILD',
     handler: (message) =>
       handleJenkinsMessage(message as Parameters<typeof handleJenkinsMessage>[0]),
   },
@@ -56,7 +71,7 @@ const messageHandlers: Array<{
       handleRemoteRecordingMessage(message as Parameters<typeof handleRemoteRecordingMessage>[0]),
   },
   {
-    match: (type) => type === 'ZEN_FETCH_JSON' || type === 'JENKINS_API_REQUEST',
+    match: (type) => type === 'ZEN_FETCH_JSON',
     handler: (message, sender) =>
       handleProxyMessage(
         message as Parameters<typeof handleProxyMessage>[0],

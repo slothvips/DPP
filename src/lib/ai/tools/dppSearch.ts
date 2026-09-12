@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import { listPromptMaterials, listTestCaseMaterials, listTestProjects } from '@/lib/db';
+import { getAllScopedJenkinsJobs } from '@/lib/db/jenkins';
 import { redactSensitiveText } from '@/utils/sensitive';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
@@ -103,8 +104,15 @@ async function loadSearchCandidates(source: DppSearchSource): Promise<DppSearchC
         });
       return recordings;
     }
-    case 'jenkins':
-      return (await db.jobs.toArray()).map((item) => ({
+    case 'jenkins': {
+      const uniqueJobs = new Map<
+        string,
+        Awaited<ReturnType<typeof getAllScopedJenkinsJobs>>[number]
+      >();
+      for (const job of await getAllScopedJenkinsJobs()) {
+        if (!uniqueJobs.has(job.url)) uniqueJobs.set(job.url, job);
+      }
+      return [...uniqueJobs.values()].map((item) => ({
         source,
         id: item.url,
         title: item.name,
@@ -112,6 +120,7 @@ async function loadSearchCandidates(source: DppSearchSource): Promise<DppSearchC
         url: item.url,
         updatedAt: item.lastBuildTime || 0,
       }));
+    }
   }
 }
 

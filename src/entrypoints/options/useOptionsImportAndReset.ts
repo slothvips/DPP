@@ -147,6 +147,32 @@ export function useOptionsImportAndReset() {
         (setting) => !['jenkins_host', 'jenkins_user', 'jenkins_token'].includes(setting.key)
       );
 
+      const currentEnvironmentsSetting = await db.settings.get('jenkins_environments');
+      const currentEnvironments: JenkinsEnvironment[] = Array.isArray(
+        currentEnvironmentsSetting?.value
+      )
+        ? (currentEnvironmentsSetting.value as JenkinsEnvironment[])
+        : [];
+      settings = settings.map((setting) => {
+        if (setting.key !== 'jenkins_environments' || !Array.isArray(setting.value)) {
+          return setting;
+        }
+        return {
+          ...setting,
+          value: setting.value.map((candidate) => {
+            if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+              return candidate;
+            }
+            const imported = candidate as Partial<JenkinsEnvironment>;
+            if (typeof imported.token === 'string') return candidate;
+            const current = currentEnvironments.find(
+              (environment) => environment.id === imported.id
+            );
+            return current ? { ...candidate, token: current.token } : { ...candidate, token: '' };
+          }),
+        };
+      });
+
       if (hasAIProfiles) {
         await db.aiProfiles.clear();
       }

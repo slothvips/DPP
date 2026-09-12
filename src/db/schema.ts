@@ -247,4 +247,55 @@ export function registerDatabaseSchema(db: Dexie) {
     testRuns:
       '&id, testCaseMaterialId, projectRunId, sessionId, status, startedAt, updatedAt, deletedAt',
   });
+
+  // v27: Jenkins v2 cache is environment-scoped. Legacy tables remain readable as fallback.
+  db.version(27)
+    .stores({
+      jenkinsJobs: '[envId+url], envId, url, name, lastSeenSyncId',
+      jenkinsBuilds: '[envId+id], envId, id, jobUrl, timestamp, lifecycle, lastSeenSyncId',
+      jenkinsQueueItems: '[envId+queueId], envId, queueId, jobUrl, state, updatedAt',
+      jenkinsSyncState: 'envId, status, lastSuccessAt',
+      jenkinsBuildOperations: 'id, envId, jobUrl, queueId, type, status, updatedAt',
+    })
+    .upgrade(async (tx) => {
+      const jobs = await tx.table('jobs').toArray();
+      const scopedJobs = jobs
+        .filter((job) => typeof job.env === 'string' && job.env.length > 0)
+        .map((job) => ({ ...job, envId: job.env as string }));
+      if (scopedJobs.length > 0) {
+        await tx.table('jenkinsJobs').bulkPut(scopedJobs);
+      }
+
+      const builds = [
+        ...(await tx.table('myBuilds').toArray()),
+        ...(await tx.table('othersBuilds').toArray()),
+      ];
+      const now = Date.now();
+      const scopedBuilds = builds
+        .filter((build) => typeof build.env === 'string' && build.env.length > 0)
+        .map((build) => ({
+          id: build.id,
+          envId: build.env as string,
+          jobUrl: build.jobUrl,
+          number: build.number,
+          result: build.result,
+          lifecycle: build.building ? 'running' : 'completed',
+          building: build.building === true,
+          owner: build.userName,
+          timestamp: build.timestamp,
+          duration: build.duration,
+          lastSeenAt: now,
+        }));
+      if (scopedBuilds.length > 0) {
+        await tx.table('jenkinsBuilds').bulkPut(scopedBuilds);
+      }
+    });
+
+  // v28: retire the legacy URL-keyed Jenkins tables. Data now lives in the
+  // environment-scoped jenkinsJobs/jenkinsBuilds tables (backfilled by v27).
+  db.version(28).stores({
+    jobs: null,
+    myBuilds: null,
+    othersBuilds: null,
+  });
 }

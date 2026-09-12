@@ -11,6 +11,7 @@ import type { TabId } from '@/entrypoints/sidepanel/sidepanelTypes';
 import type { AISession, ChatMessage } from '@/features/aiAssistant/types';
 import { exportChatToMarkdown } from '@/features/aiAssistant/utils/exportChatToMarkdown';
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
+import { isJenkinsFeatureEnabled } from '@/features/jenkins/featureFlags';
 import { openLink } from '@/features/links/utils';
 import { getTotpCodeAt } from '@/features/totp/hooks/useTotpCode';
 import { getTotpPinConfig } from '@/features/totp/totpPin';
@@ -23,6 +24,7 @@ import {
 import { YOLO_MODE_KEY } from '@/lib/ai/tools';
 import {
   deleteRecentAction,
+  getJob,
   getLink,
   getTotpAccount,
   listRecentActions,
@@ -469,10 +471,20 @@ export function AIAssistantView({ onModuleSelect, sidebarFooter }: AIAssistantVi
         }
 
         if (action.type === 'jenkins_build') {
+          if (!(await isJenkinsFeatureEnabled('buildLifecycle'))) {
+            toast('Jenkins 构建生命周期能力已关闭', 'error');
+            return;
+          }
+          const job = await getJob({ jobUrl: action.jobUrl || action.targetId });
+          if (!job || (action.envId && job.env !== action.envId)) {
+            await deleteRecentAction(action.type, action.targetId);
+            toast('Jenkins Job 已不存在或已不属于原环境', 'error');
+            return;
+          }
           setReplayBuildJob({
-            jobUrl: action.jobUrl || action.targetId,
-            jobName: action.label,
-            envId: action.envId,
+            jobUrl: job.url,
+            jobName: job.name,
+            envId: job.env,
           });
           return;
         }

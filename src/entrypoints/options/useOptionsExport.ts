@@ -64,10 +64,24 @@ export function useOptionsExport({
         }
         filteredSettings.push(syncKey);
       }
-      const sensitiveKeys = filteredSettings
+      const sensitiveKeys: string[] = filteredSettings
         .map((setting) => setting.key as SettingKey)
         .filter((key) => SENSITIVE_EXPORT_SETTING_KEYS.has(key));
       if (aiProfiles.length > 0) sensitiveKeys.push('ai_api_key');
+
+      const exportSettings = filteredSettings.map((setting) => {
+        if (setting.key !== 'jenkins_environments' || !Array.isArray(setting.value)) {
+          return setting;
+        }
+        return {
+          ...setting,
+          value: setting.value.map((environment) => {
+            return Object.fromEntries(
+              Object.entries(environment).filter(([key]) => key !== 'token')
+            );
+          }),
+        };
+      });
 
       if (sensitiveKeys.length > 0) {
         const confirmed = await confirm(
@@ -84,7 +98,7 @@ export function useOptionsExport({
         version: '1.3',
         exportDate: new Date().toISOString(),
         data: {
-          settings: filteredSettings,
+          settings: exportSettings,
           ...(includeAIProfiles ? { aiProfiles } : {}),
         },
       };

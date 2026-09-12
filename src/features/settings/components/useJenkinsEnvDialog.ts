@@ -89,6 +89,12 @@ export function useJenkinsEnvDialog({
       return;
     }
 
+    const confirmed = await confirm(
+      `环境：${formData.name?.trim()}\n地址：${formData.host?.trim()}`,
+      initialData ? '确认修改 Jenkins 环境' : '确认添加 Jenkins 环境'
+    );
+    if (!confirmed) return;
+
     try {
       const newEnv: JenkinsEnvironment = {
         id: initialData?.id || crypto.randomUUID(),

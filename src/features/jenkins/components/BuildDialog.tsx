@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -29,9 +29,18 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onBuildSuccess?: () => void;
+  enabled?: boolean;
 }
 
-export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSuccess }: Props) {
+export function BuildDialog({
+  jobUrl,
+  jobName,
+  envId,
+  isOpen,
+  onClose,
+  onBuildSuccess,
+  enabled = true,
+}: Props) {
   const { building, formValues, handleBuild, loading, params, updateFormValue } = useBuildDialog({
     jobUrl,
     jobName,
@@ -57,7 +66,7 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
 
         {loading ? (
           <div className="flex justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            <LoaderCircle className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
         ) : params.length === 0 ? (
           <div className="py-4 text-center text-muted-foreground">
@@ -127,10 +136,10 @@ export function BuildDialog({ jobUrl, jobName, envId, isOpen, onClose, onBuildSu
           </Button>
           <Button
             onClick={handleBuild}
-            disabled={building || loading}
+            disabled={!enabled || building || loading}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {building && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {building && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
             开始构建
           </Button>
         </DialogFooter>

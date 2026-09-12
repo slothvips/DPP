@@ -1,5 +1,11 @@
 import { type JobItem } from '@/db';
-import { saveJobs, updateJenkinsRefreshTime } from '@/lib/db/jenkins';
+import { recordJenkinsCache } from '@/features/jenkins/metrics';
+import {
+  pruneJenkinsJobs,
+  saveJobs,
+  trackJenkinsSync,
+  updateJenkinsRefreshTime,
+} from '@/lib/db/jenkins';
 import { logger } from '@/utils/logger';
 import { createJenkinsClient } from './client';
 
@@ -32,11 +38,21 @@ export async function fetchAllJobs(
   token: string,
   envId: string
 ): Promise<number> {
+  return trackJenkinsSync(envId, () => fetchAllJobsInternal(baseUrl, user, token, envId));
+}
+
+async function fetchAllJobsInternal(
+  baseUrl: string,
+  user: string,
+  token: string,
+  envId: string
+): Promise<number> {
   const client = createJenkinsClient({ baseUrl, user, token });
   const jobs: JobItem[] = [];
   const MAX_DEPTH = 10; // Maximum folder depth to prevent infinite recursion
   const MAX_NODES = 5000;
   const processedUrls = new Set<string>();
+  let complete = true;
 
   const tree =
     'jobs[name,url,color,fullName,_class,lastBuild[number,url,result,timestamp,building,actions[causes[userId,userName]]]]';
@@ -45,6 +61,7 @@ export async function fetchAllJobs(
     // Depth limit check
     if (depth >= MAX_DEPTH) {
       logger.warn(`[Jenkins] Max depth ${MAX_DEPTH} reached at ${url}. Skipping deeper traversal.`);
+      complete = false;
       return;
     }
 
@@ -58,6 +75,7 @@ export async function fetchAllJobs(
     }
     if (processedUrls.size >= MAX_NODES) {
       logger.warn(`[Jenkins] Max node count ${MAX_NODES} reached. Stopping traversal.`);
+      complete = false;
       return;
     }
     processedUrls.add(normalizedUrl);
@@ -129,6 +147,10 @@ export async function fetchAllJobs(
   await traverse(client.rootUrl);
 
   await saveJobs(jobs);
+  if (complete && jobs.length > 0) {
+    await pruneJenkinsJobs(envId, new Set(jobs.map((job) => job.url)));
+  }
+  recordJenkinsCache('jobs', jobs.length);
   await updateJenkinsRefreshTime('jenkins_jobs_last_refresh_by_env', envId);
 
   return jobs.length;

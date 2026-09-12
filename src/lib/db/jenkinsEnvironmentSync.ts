@@ -14,9 +14,15 @@ export async function resolveJenkinsConfig(targetEnvId?: string): Promise<Resolv
     getLegacyJenkinsCredentials(),
   ]);
 
-  const targetEnv =
-    (targetEnvId ? environments.find((env) => env.id === targetEnvId) : undefined) ??
-    (currentEnvId ? environments.find((env) => env.id === currentEnvId) : undefined);
+  const targetEnv = targetEnvId
+    ? environments.find((env) => env.id === targetEnvId)
+    : currentEnvId
+      ? environments.find((env) => env.id === currentEnvId)
+      : undefined;
+
+  if (targetEnvId && !targetEnv) {
+    return { credentials: null, environments, currentEnvId };
+  }
 
   if (targetEnv) {
     return {

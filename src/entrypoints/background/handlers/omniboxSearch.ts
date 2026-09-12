@@ -1,6 +1,7 @@
 import { logger } from '@/utils/logger';
 import {
   type OmniboxSuggestion,
+  buildJenkinsJobContent,
   escapeOmniboxXml,
   loadOmniboxSearchData,
   parseOmniboxTerms,
@@ -37,7 +38,7 @@ export async function searchOmnibox(text: string): Promise<OmniboxSuggestion[]> 
     const matchedJobs = jobs.filter((job) => {
       const name = (job.name || '').toLowerCase();
       const url = (job.url || '').toLowerCase();
-      const envName = (job.env ? envMap.get(job.env) : '')?.toLowerCase() || '';
+      const envName = (envMap.get(job.envId || job.env || '') || '').toLowerCase();
       const tags = jobTagsMap.get(job.url) || [];
       const tagNames = tags.map((tag) => tag.name.toLowerCase());
 
@@ -71,7 +72,8 @@ export async function searchOmnibox(text: string): Promise<OmniboxSuggestion[]> 
     });
 
     const jobSuggestions: OmniboxSuggestion[] = matchedJobs.map((job) => {
-      const envName = job.env ? envMap.get(job.env) : undefined;
+      const envId = job.envId || job.env || '';
+      const envName = envId ? envMap.get(envId) : undefined;
       const title = escapeOmniboxXml(job.name || '无名称');
       const jobUrl = escapeOmniboxXml(job.url || '');
       const envStr = envName ? ` <dim>@${escapeOmniboxXml(envName)}</dim>` : '';
@@ -82,7 +84,7 @@ export async function searchOmnibox(text: string): Promise<OmniboxSuggestion[]> 
           : '';
 
       return {
-        content: job.url,
+        content: buildJenkinsJobContent(envId, job.url),
         description: `<dim>[构建]</dim> ${title} <dim>- ${jobUrl}</dim>${envStr}${tagsStr}`,
       };
     });

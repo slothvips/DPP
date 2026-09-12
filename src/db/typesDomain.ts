@@ -80,6 +80,111 @@ export interface MyBuildItem {
 
 export type OthersBuildItem = MyBuildItem;
 
+export interface JenkinsJobRecord extends JobItem {
+  envId: string;
+  lastSeenSyncId?: string;
+}
+
+export type JenkinsBuildLifecycle = 'queued' | 'running' | 'paused' | 'completed' | 'unknown';
+
+export interface JenkinsBuildRecord {
+  id: string;
+  envId: string;
+  jobUrl: string;
+  jobName?: string;
+  number: number;
+  result?: string;
+  lifecycle: JenkinsBuildLifecycle;
+  building: boolean;
+  owner?: string;
+  timestamp: number;
+  duration?: number;
+  lastSeenAt: number;
+  lastSeenSyncId?: string;
+}
+
+export interface JenkinsQueueItemRecord {
+  envId: string;
+  queueId: string;
+  jobUrl: string;
+  state: 'queued' | 'blocked' | 'cancelled' | 'executable' | 'expired' | 'unknown';
+  why?: string;
+  buildId?: string;
+  createdAt: number;
+  updatedAt: number;
+  lastSeenSyncId?: string;
+}
+
+export interface JenkinsMetricSnapshot {
+  requests: { total: number; failed: number; byCode: Record<string, number> };
+  cache: { jobs: number; builds: number };
+  queue: { polls: number; cancellations: number };
+  logs: { chunks: number; bytes: number };
+  updatedAt: number;
+}
+
+export type JenkinsCapabilityStatus = 'available' | 'unknown' | 'permission' | 'error';
+
+export interface JenkinsCapabilityCheck {
+  status: JenkinsCapabilityStatus;
+  checkedAt: number;
+  reason?: string;
+}
+
+export interface JenkinsCapabilitySnapshot {
+  checkedAt: number;
+  version?: string;
+  user?: { id?: string; fullName?: string };
+  read?: JenkinsCapabilityCheck;
+  queue?: JenkinsCapabilityCheck;
+  crumb?: JenkinsCapabilityCheck;
+  testReport?: JenkinsCapabilityCheck;
+  artifacts?: JenkinsCapabilityCheck;
+  parameters?: JenkinsCapabilityCheck;
+  pipelineRest?: JenkinsCapabilityCheck;
+  permissions?: {
+    read: JenkinsCapabilityCheck;
+    discover: JenkinsCapabilityCheck;
+    build: JenkinsCapabilityCheck;
+    cancel: JenkinsCapabilityCheck;
+  };
+}
+
+export interface JenkinsQueueState {
+  lastPollAt: number;
+  state: string;
+  expired: boolean;
+  timeouts: number;
+  reason?: string;
+}
+
+export interface JenkinsSyncStateRecord {
+  envId: string;
+  status: 'idle' | 'syncing' | 'success' | 'partial' | 'offline' | 'error';
+  lastAttemptAt?: number;
+  lastSuccessAt?: number;
+  syncId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  metrics?: JenkinsMetricSnapshot;
+  queueState?: JenkinsQueueState;
+  capabilities?: JenkinsCapabilitySnapshot;
+}
+
+export interface JenkinsBuildOperationRecord {
+  id: string;
+  envId: string;
+  jobUrl: string;
+  type: 'trigger' | 'cancel_queue' | 'stop_build' | 'rerun';
+  status: 'pending' | 'accepted' | 'unknown' | 'completed' | 'failed';
+  parameterSummary?: Record<string, string>;
+  queueId?: string;
+  buildId?: string;
+  createdAt: number;
+  updatedAt: number;
+  errorCode?: string;
+}
+
 export interface LinkStatItem {
   id: string;
   usageCount: number;

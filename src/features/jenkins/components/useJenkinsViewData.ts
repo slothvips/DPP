@@ -1,6 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo } from 'react';
-import { type JenkinsEnvironment, db } from '@/db';
+import {
+  type JenkinsBuildRecord,
+  type JenkinsEnvironment,
+  type MyBuildItem,
+  type TagItem,
+  db,
+} from '@/db';
 import { buildJobTree } from '@/features/jenkins/utils';
 
 const EMPTY_SETTINGS = {
@@ -13,7 +19,22 @@ const EMPTY_SETTINGS = {
   showOthersBuilds: boolean;
 };
 
-export function useJenkinsViewData(filter: string) {
+function toMyBuildItem(record: JenkinsBuildRecord, envId: string | undefined): MyBuildItem {
+  return {
+    id: record.id,
+    number: record.number,
+    jobName: record.jobName || record.jobUrl,
+    jobUrl: record.jobUrl,
+    result: record.result || (record.building ? 'Building' : 'Unknown'),
+    timestamp: record.timestamp,
+    duration: record.duration,
+    building: record.building,
+    userName: record.owner,
+    env: envId ?? record.envId,
+  };
+}
+
+export function useJenkinsViewData(active = true, remoteBuilds: MyBuildItem[] | null = null) {
   const settings = useLiveQuery(
     async () => {
       const [currentEnvSetting, environmentsSetting, showOthersBuildsSetting] = await Promise.all([
@@ -35,80 +56,85 @@ export function useJenkinsViewData(filter: string) {
   const { currentEnvId, environments, showOthersBuilds } = settings;
   const currentEnv = environments.find((environment) => environment.id === currentEnvId);
 
-  const { jobs, jobTags, tags, myBuilds, othersBuilds } = useLiveQuery(
+  const { jobs, jobTags, tags, fallbackBuilds } = useLiveQuery(
     async () => {
-      if (!currentEnvId) {
-        return { jobs: [], jobTags: [], tags: [], myBuilds: [], othersBuilds: [] };
+      if (!currentEnvId || !active) {
+        return { jobs: [], jobTags: [], tags: [], fallbackBuilds: [] };
       }
 
-      const [allJobs, allJobTags, allTags, allMyBuilds, allOthersBuilds] = await Promise.all([
-        db.jobs.where('env').equals(currentEnvId).toArray(),
+      const [scopedJobs, allJobTags, allTags, scopedBuilds] = await Promise.all([
+        db.jenkinsJobs.where('envId').equals(currentEnvId).toArray(),
         db.jobTags.filter((jobTag) => !jobTag.deletedAt).toArray(),
         db.tags.filter((tag) => !tag.deletedAt).toArray(),
-        db.myBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp'),
-        db.othersBuilds.where('env').equals(currentEnvId).reverse().sortBy('timestamp'),
+        db.jenkinsBuilds.where('envId').equals(currentEnvId).toArray(),
       ]);
 
       return {
-        jobs: allJobs.sort((a, b) => a.name.localeCompare(b.name)),
+        jobs: scopedJobs.sort((a, b) => a.name.localeCompare(b.name)),
         jobTags: allJobTags,
         tags: allTags,
-        myBuilds: allMyBuilds,
-        othersBuilds: allOthersBuilds,
+        fallbackBuilds: scopedBuilds,
       };
     },
-    [currentEnvId],
-    { jobs: [], jobTags: [], tags: [], myBuilds: [], othersBuilds: [] }
+    [currentEnvId, active],
+    { jobs: [], jobTags: [], tags: [], fallbackBuilds: [] }
   );
 
+  const builds = useMemo<MyBuildItem[]>(() => {
+    if (Array.isArray(remoteBuilds)) return remoteBuilds;
+    if (!Array.isArray(fallbackBuilds)) return [];
+    return fallbackBuilds.map((record) => toMyBuildItem(record, currentEnvId));
+  }, [remoteBuilds, fallbackBuilds, currentEnvId]);
+
+  const currentUserName = currentEnv?.user;
+  const myBuilds = useMemo(() => {
+    const mine = currentUserName
+      ? builds.filter((build) => build.userName === currentUserName)
+      : builds;
+    return [...mine].sort((a, b) => b.timestamp - a.timestamp);
+  }, [builds, currentUserName]);
+
+  const othersBuilds = useMemo(() => {
+    if (!currentUserName) return [];
+    return builds
+      .filter((build) => build.userName !== currentUserName)
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [builds, currentUserName]);
+
   const displayedBuilds = useMemo(() => {
-    const builds = showOthersBuilds ? [...myBuilds, ...othersBuilds] : [...myBuilds];
-    return builds.sort((a, b) => b.timestamp - a.timestamp);
+    if (showOthersBuilds) {
+      return [...myBuilds, ...othersBuilds].sort((a, b) => b.timestamp - a.timestamp);
+    }
+    return myBuilds;
   }, [myBuilds, othersBuilds, showOthersBuilds]);
 
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag.id, tag])), [tags]);
 
   const jobTagsMap = useMemo(() => {
-    const map = new Map<string, typeof tags>();
+    const map = new Map<string, TagItem[]>();
     for (const jobTag of jobTags) {
       const tag = tagsById.get(jobTag.tagId);
       if (!tag) continue;
-      map.set(jobTag.jobUrl, [...(map.get(jobTag.jobUrl) || []), tag]);
+      const existing = map.get(jobTag.jobUrl);
+      if (existing) {
+        existing.push(tag);
+      } else {
+        map.set(jobTag.jobUrl, [tag]);
+      }
     }
     return map;
   }, [jobTags, tagsById]);
 
-  const filteredJobs = useMemo(() => {
-    if (jobs.length === 0 || !filter) return jobs;
-
-    const keywords = filter.toLowerCase().split(' ').filter(Boolean);
-    if (keywords.length === 0) return jobs;
-
-    return jobs.filter((job) => {
-      const name = job.name.toLowerCase();
-      const fullName = (job.fullName || job.name).toLowerCase();
-      const jobTagNames = (jobTagsMap.get(job.url) || []).map((tag) => tag.name.toLowerCase());
-
-      return keywords.every(
-        (keyword) =>
-          name.includes(keyword) ||
-          fullName.includes(keyword) ||
-          jobTagNames.some((tagName) => tagName?.includes(keyword))
-      );
-    });
-  }, [filter, jobTagsMap, jobs]);
-
   const jobTree = useMemo(() => {
-    if (filter || jobs.length === 0) return [];
+    if (jobs.length === 0) return [];
     return buildJobTree(jobs);
-  }, [filter, jobs]);
+  }, [jobs]);
 
   return {
     currentEnv,
     currentEnvId,
     displayedBuilds,
     environments,
-    filteredJobs,
     jobTagsMap,
     jobTree,
     jobs,

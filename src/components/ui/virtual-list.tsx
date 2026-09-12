@@ -1,6 +1,11 @@
-import { type ReactNode, useCallback, useMemo, useRef } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { useVirtualizer } from '@tanstack/react-virtual';
+
+export interface VirtualListHandle {
+  scrollToIndex: (index: number) => void;
+  scrollToBottom: () => void;
+}
 
 export interface VirtualListProps<T> {
   items: T[];
@@ -9,6 +14,11 @@ export interface VirtualListProps<T> {
   overscan?: number;
   containerClassName?: string;
   itemClassName?: string;
+  /** Measure rendered rows instead of assuming a fixed height. */
+  dynamicSize?: boolean;
+  handleRef?: { current: VirtualListHandle | null };
+  /** Called when the scroll position enters or leaves the bottom. */
+  onScroll?: (atBottom: boolean) => void;
 }
 
 export function VirtualList<T>({
@@ -18,6 +28,9 @@ export function VirtualList<T>({
   overscan = 5,
   containerClassName,
   itemClassName,
+  dynamicSize = false,
+  handleRef,
+  onScroll,
 }: VirtualListProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -35,8 +48,31 @@ export function VirtualList<T>({
     )
   );
 
+  useEffect(() => {
+    if (!handleRef) return;
+    handleRef.current = {
+      scrollToIndex: (index) => virtualizer.scrollToIndex(index),
+      scrollToBottom: () =>
+        virtualizer.scrollToIndex(Math.max(0, items.length - 1), { align: 'end' }),
+    };
+    return () => {
+      handleRef.current = null;
+    };
+  }, [handleRef, items.length, virtualizer]);
+
   return (
-    <div ref={parentRef} className={cn('h-full min-h-0 overflow-auto', containerClassName)}>
+    <div
+      ref={parentRef}
+      onScroll={
+        onScroll
+          ? (event) => {
+              const el = event.currentTarget;
+              onScroll(el.scrollTop + el.clientHeight >= el.scrollHeight - 24);
+            }
+          : undefined
+      }
+      className={cn('h-full min-h-0 overflow-auto', containerClassName)}
+    >
       <div
         className="relative w-full"
         style={{
@@ -46,6 +82,8 @@ export function VirtualList<T>({
         {virtualizer.getVirtualItems().map((virtualRow) => (
           <div
             key={virtualRow.key}
+            data-index={virtualRow.index}
+            ref={dynamicSize ? virtualizer.measureElement : undefined}
             className={cn('absolute left-0 top-0 w-full', itemClassName)}
             style={{
               transform: `translateY(${virtualRow.start}px)`,

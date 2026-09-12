@@ -29,8 +29,12 @@ export interface JenkinsJobsResponse {
   jobs?: JenkinsJobApiItem[];
 }
 
-export const JENKINS_MY_BUILDS_TREE =
-  'jobs[name,url,_class,builds[number,url,result,timestamp,duration,building,fullDisplayName,id,actions[causes[userId,userName]]]{0,20}]';
+export const DEFAULT_BUILDS_PER_JOB = 20;
+
+export function buildMyBuildsTree(maxBuildsPerJob: number): string {
+  const limit = Math.min(Math.max(1, Math.floor(maxBuildsPerJob)), 100);
+  return `jobs[name,url,_class,builds[number,url,result,timestamp,duration,building,fullDisplayName,id,actions[causes[userId,userName]]]{0,${limit}}]`;
+}
 
 export function resolveBuildOwnership(build: JenkinsBuildApiItem, user: string) {
   let isMyBuild = false;

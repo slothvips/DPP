@@ -1,6 +1,7 @@
-import type { JobItem } from '@/db';
+import type { JenkinsJobRecord, JobItem } from '@/db';
 import { db } from '@/db';
 import { normalizePage } from './pagination';
+import { getSetting } from './settings';
 
 export async function listJobs(args: {
   keyword?: string;
@@ -25,8 +26,13 @@ export async function listJobs(args: {
 }> {
   const { page, pageSize, offset } = normalizePage(args, 20, 100);
   const keyword = args.keyword?.toLowerCase();
-  const matches = db.jobs
-    .toCollection()
+  const envId = await getSetting('jenkins_current_env');
+  if (!envId) {
+    return { total: 0, page, pageSize, hasMore: false, jobs: [] };
+  }
+  const matches = db.jenkinsJobs
+    .where('envId')
+    .equals(envId)
     .filter(
       (job) =>
         !keyword ||
@@ -56,63 +62,19 @@ export async function listJobs(args: {
   };
 }
 
-export async function getAllJobs(): Promise<JobItem[]> {
-  return db.jobs.toArray();
+export async function getAllScopedJenkinsJobs(): Promise<JenkinsJobRecord[]> {
+  return db.jenkinsJobs.toArray();
 }
 
-export async function getJob(args: { jobUrl: string }): Promise<JobItem | undefined> {
-  return db.jobs.get(args.jobUrl);
-}
-
-export async function listBuilds(args: {
+export async function getJob(args: {
   jobUrl: string;
-  limit?: number;
-  offset?: number;
-}): Promise<{
-  job: { name: string; url: string; lastStatus?: string };
-  builds: Array<{
-    id: string;
-    number: number;
-    result?: string;
-    timestamp: number;
-    duration: number;
-    building: boolean;
-    userName?: string;
-  }>;
-  total: number;
-}> {
-  const job = await db.jobs.get(args.jobUrl);
-  if (!job) {
-    throw new Error(`Job not found: ${args.jobUrl}`);
-  }
-
-  const limit = Math.min(Math.max(1, args.limit ?? 20), 100);
-  const offset = Math.max(0, args.offset ?? 0);
-  const matches = db.myBuilds.toCollection().filter((build) => build.jobUrl === args.jobUrl);
-  const total = await matches.count();
-  const builds = await db.myBuilds
-    .orderBy('timestamp')
-    .reverse()
-    .filter((build) => build.jobUrl === args.jobUrl)
-    .offset(offset)
-    .limit(limit)
-    .toArray();
-
-  return {
-    job: {
-      name: job.name,
-      url: job.url,
-      lastStatus: job.lastStatus,
-    },
-    builds: builds.map((build) => ({
-      id: build.id,
-      number: build.number,
-      result: build.result,
-      timestamp: build.timestamp,
-      duration: build.duration || 0,
-      building: build.building,
-      userName: build.userName,
-    })),
-    total,
-  };
+  envId?: string;
+}): Promise<JobItem | undefined> {
+  const envId = args.envId ?? (await getSetting('jenkins_current_env'));
+  if (!envId) return undefined;
+  return db.jenkinsJobs
+    .where('envId')
+    .equals(envId)
+    .filter((job) => job.url === args.jobUrl)
+    .first();
 }

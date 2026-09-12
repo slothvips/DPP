@@ -1,0 +1,80 @@
+jenkins:
+  systemMessage: "DPP local test Jenkins"
+  numExecutors: 2
+  mode: NORMAL
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "admin"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: true
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+
+jobs:
+  - script: |
+      folder('demo') {
+        displayName('Demo')
+      }
+
+      pipelineJob('demo/dpp-pipeline') {
+        description('DPP 测试用 Pipeline：参数、阶段、测试报告、产物')
+        parameters {
+          stringParam('GREETING', 'hello-from-dpp', '问候语')
+        }
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+                parameters {
+                  string(name: 'GREETING', defaultValue: 'hello-from-dpp', description: '问候语')
+                }
+                stages {
+                  stage('Prepare') {
+                    steps { echo "Greeting: " + params.GREETING }
+                  }
+                  stage('Test') {
+                    steps {
+                      writeFile file: 'result.xml', text: '<testsuite tests="1"><testcase name="demo" classname="demo"/></testsuite>'
+                      junit 'result.xml'
+                    }
+                  }
+                  stage('Artifact') {
+                    steps {
+                      writeFile file: 'artifact.txt', text: 'built by dpp'
+                      archiveArtifacts artifacts: 'artifact.txt'
+                    }
+                  }
+                }
+              }
+            ''')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-failing') {
+        description('必定失败，用于测试失败状态')
+        definition {
+          cps {
+            script('pipeline { agent any; stages { stage("Boom") { steps { error "intentional failure" } } } }')
+            sandbox(true)
+          }
+        }
+      }
+
+      freeStyleJob('demo/dpp-freestyle') {
+        description('DPP 测试用 Freestyle Job')
+        steps {
+          shell('echo freestyle from dpp')
+        }
+      }

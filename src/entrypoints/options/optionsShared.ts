@@ -47,6 +47,13 @@ export const SETTINGS_CATEGORIES: Array<{
       'feature_ai_assistant_enabled',
       'feature_playground_enabled',
       'feature_totp_enabled',
+      'jenkins_workbench_v2',
+      'jenkins_queue',
+      'jenkins_build_lifecycle',
+      'jenkins_full_log',
+      'jenkins_pipeline_features',
+      'jenkins_artifacts',
+      'jenkins_ai_actions',
     ],
   },
   {
@@ -177,6 +184,13 @@ const BOOLEAN_SETTING_KEYS = new Set<SettingKey>([
   'feature_ai_assistant_enabled',
   'feature_playground_enabled',
   'feature_totp_enabled',
+  'jenkins_workbench_v2',
+  'jenkins_queue',
+  'jenkins_build_lifecycle',
+  'jenkins_full_log',
+  'jenkins_pipeline_features',
+  'jenkins_artifacts',
+  'jenkins_ai_actions',
   'show_others_builds',
   'auto_sync_enabled',
   'ai_opencode_vision_enabled',
@@ -248,7 +262,7 @@ function isJenkinsEnvironments(value: unknown): boolean {
         typeof environment.name === 'string' &&
         typeof environment.host === 'string' &&
         typeof environment.user === 'string' &&
-        typeof environment.token === 'string' &&
+        (typeof environment.token === 'string' || environment.token === undefined) &&
         typeof environment.order === 'number' &&
         Number.isFinite(environment.order)
       );

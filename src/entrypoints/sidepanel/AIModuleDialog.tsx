@@ -13,6 +13,7 @@ import {
 import { BlackboardView } from '@/features/blackboard/components/BlackboardView';
 import { HotNewsView } from '@/features/hotNews/components/HotNewsView';
 import { JenkinsView } from '@/features/jenkins/components/JenkinsView';
+import type { JenkinsFeatureToggles } from '@/features/jenkins/featureFlags';
 import { LinksView } from '@/features/links/components/LinksView';
 import { KeepAliveTabPanel } from './KeepAliveTabPanel';
 import { LazyTabPanel } from './LazyTabPanel';
@@ -38,6 +39,7 @@ const TotpView = lazy(() =>
 interface AIModuleDialogProps {
   activeModule: ModuleTabId | null;
   featureToggles: FeatureToggles;
+  jenkinsFeatureToggles: JenkinsFeatureToggles;
   onClose: () => void;
 }
 
@@ -52,7 +54,12 @@ function ModuleLoadingFallback() {
   );
 }
 
-export function AIModuleDialog({ activeModule, featureToggles, onClose }: AIModuleDialogProps) {
+export function AIModuleDialog({
+  activeModule,
+  featureToggles,
+  jenkinsFeatureToggles,
+  onClose,
+}: AIModuleDialogProps) {
   const [guideOpen, setGuideOpen] = useState(false);
   const moduleConfig = activeModule ? TAB_CONFIG[activeModule] : TAB_CONFIG.aiAssistant;
   const isOpen = activeModule !== null && moduleConfig.getVisible({ featureToggles });
@@ -81,7 +88,10 @@ export function AIModuleDialog({ activeModule, featureToggles, onClose }: AIModu
           </KeepAliveTabPanel>
           <KeepAliveTabPanel active={activeModule === 'jenkins'} visible={featureToggles.jenkins}>
             <ErrorBoundary moduleName={TAB_CONFIG.jenkins.label} className="h-full">
-              <JenkinsView />
+              <JenkinsView
+                jenkinsFeatureToggles={jenkinsFeatureToggles}
+                active={activeModule === 'jenkins'}
+              />
             </ErrorBoundary>
           </KeepAliveTabPanel>
           <LazyTabPanel

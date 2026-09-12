@@ -1,4 +1,4 @@
-import { getAllJobs } from '@/lib/db/jenkins';
+import { getAllScopedJenkinsJobs } from '@/lib/db/jenkins';
 import { getAllActiveLinkTags, getAllActiveLinks } from '@/lib/db/links';
 import { getSetting } from '@/lib/db/settings';
 import { getAllActiveTags, getAllJobTags } from '@/lib/db/tags';
@@ -16,9 +16,27 @@ interface OmniboxTagRef {
 export interface OmniboxSearchData {
   envMap: Map<string, string>;
   jobTagsMap: Map<string, OmniboxTagRef[]>;
-  jobs: Awaited<ReturnType<typeof getAllJobs>>;
+  jobs: Awaited<ReturnType<typeof getAllScopedJenkinsJobs>>;
   linkTagsMap: Map<string, OmniboxTagRef[]>;
   links: Awaited<ReturnType<typeof getAllActiveLinks>>;
+}
+
+const JENKINS_JOB_SCHEME = 'dpp-jenkins-job';
+
+export function buildJenkinsJobContent(envId: string, jobUrl: string): string {
+  return `${JENKINS_JOB_SCHEME}:?envId=${encodeURIComponent(envId)}&url=${encodeURIComponent(jobUrl)}`;
+}
+
+export function parseJenkinsJobContent(value: string): { envId: string; jobUrl: string } | null {
+  if (!value.startsWith(`${JENKINS_JOB_SCHEME}:?`)) return null;
+  try {
+    const params = new URLSearchParams(value.slice(`${JENKINS_JOB_SCHEME}:?`.length));
+    const envId = params.get('envId');
+    const jobUrl = params.get('url');
+    return envId && jobUrl ? { envId, jobUrl } : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function loadOmniboxSearchData(): Promise<OmniboxSearchData> {
@@ -27,7 +45,7 @@ export async function loadOmniboxSearchData(): Promise<OmniboxSearchData> {
     getAllActiveLinkTags(),
     getAllJobTags(),
     getAllActiveTags(),
-    getAllJobs(),
+    getAllScopedJenkinsJobs(),
     getSetting('jenkins_environments').then((envs) => envs || []),
   ]);
 

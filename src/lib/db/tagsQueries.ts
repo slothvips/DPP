@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import type { JobTagItem, TagItem, TagWithCounts } from '@/db/types';
+import { getJobsByUrls } from './jobCatalog';
 import { type PageArgs, normalizePage } from './pagination';
 
 export interface TagAssociation {
@@ -126,7 +127,7 @@ export async function getTagAssociations(tagId: string): Promise<TagAssociation[
   ]);
   const [links, jobs] = await Promise.all([
     db.links.bulkGet(linkTags.map((linkTag) => linkTag.linkId)),
-    db.jobs.bulkGet(jobTags.map((jobTag) => jobTag.jobUrl)),
+    getJobsByUrls(jobTags.map((jobTag) => jobTag.jobUrl)),
   ]);
 
   return [

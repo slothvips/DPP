@@ -33,7 +33,7 @@ export function JenkinsToolbar({
   showEnvManager = true,
 }: JenkinsToolbarProps) {
   return (
-    <div className="rounded-2xl border border-border/55 bg-success/6 p-2.5">
+    <div className="rounded-2xl border border-border/60 bg-background/80 p-2">
       <div className="flex flex-wrap items-center gap-2">
         {environments.length > 0 && (
           <Select value={currentEnvId} onValueChange={onEnvChange}>
@@ -70,7 +70,7 @@ export function JenkinsToolbar({
               onClick={onSync}
               disabled={loading}
               size="sm"
-              className="h-9 shrink-0 gap-1.5 rounded-xl bg-success px-3 text-xs text-success-foreground shadow-sm"
+              className="h-9 shrink-0 gap-1.5 rounded-xl px-3 text-xs"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
               {loading ? '采集中' : '采集'}

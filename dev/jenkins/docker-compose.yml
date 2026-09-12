@@ -1,0 +1,17 @@
+services:
+  jenkins:
+    build: .
+    image: dpp-jenkins:local
+    container_name: dpp-jenkins
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - ./casc.yaml:/usr/share/jenkins/ref/casc.yaml:ro
+    environment:
+      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:

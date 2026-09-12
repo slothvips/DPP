@@ -1,9 +1,17 @@
 import { type MyBuildItem, type OthersBuildItem } from '@/db';
-import { saveBuilds, updateJenkinsRefreshTime } from '@/lib/db/jenkins';
+import { recordJenkinsCache } from '@/features/jenkins/metrics';
+import {
+  MAX_OTHERS_BUILDS_PER_ENV,
+  pruneJenkinsBuilds,
+  saveBuilds,
+  trackJenkinsSync,
+  updateJenkinsRefreshTime,
+} from '@/lib/db/jenkins';
 import { createJenkinsClient } from './client';
 import {
-  JENKINS_MY_BUILDS_TREE,
+  DEFAULT_BUILDS_PER_JOB,
   type JenkinsJobApiItem,
+  buildMyBuildsTree,
   createBuildItem,
   finalizeBuilds,
   resolveBuildOwnership,
@@ -14,15 +22,28 @@ export async function fetchMyBuilds(
   baseUrl: string,
   user: string,
   token: string,
-  envId: string
-): Promise<number> {
+  envId: string,
+  maxBuildsPerJob = DEFAULT_BUILDS_PER_JOB
+): Promise<MyBuildItem[]> {
+  return trackJenkinsSync(envId, () =>
+    fetchMyBuildsInternal(baseUrl, user, token, envId, maxBuildsPerJob)
+  );
+}
+
+async function fetchMyBuildsInternal(
+  baseUrl: string,
+  user: string,
+  token: string,
+  envId: string,
+  maxBuildsPerJob: number
+): Promise<MyBuildItem[]> {
   const client = createJenkinsClient({ baseUrl, user, token });
   const allMyBuilds: MyBuildItem[] = [];
   const allOthersBuilds: OthersBuildItem[] = [];
 
   await traverseJenkinsJobs({
     client,
-    tree: JENKINS_MY_BUILDS_TREE,
+    tree: buildMyBuildsTree(maxBuildsPerJob),
     onJob: async (job: JenkinsJobApiItem) => {
       if (!job.builds?.length) {
         return;
@@ -43,10 +64,12 @@ export async function fetchMyBuilds(
 
   const uniqueMyBuilds = finalizeBuilds(allMyBuilds);
   const uniqueOthersBuilds = finalizeBuilds(allOthersBuilds);
-  const recentOthersBuilds = uniqueOthersBuilds.slice(0, 50);
+  const recentOthersBuilds = uniqueOthersBuilds.slice(0, MAX_OTHERS_BUILDS_PER_ENV);
 
   await saveBuilds(envId, uniqueMyBuilds, recentOthersBuilds);
+  await pruneJenkinsBuilds(envId);
+  recordJenkinsCache('builds', uniqueMyBuilds.length + recentOthersBuilds.length);
   await updateJenkinsRefreshTime('jenkins_builds_last_refresh_by_env', envId);
 
-  return uniqueMyBuilds.length;
+  return finalizeBuilds([...uniqueMyBuilds, ...recentOthersBuilds]);
 }

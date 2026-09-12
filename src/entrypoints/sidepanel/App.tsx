@@ -18,7 +18,8 @@ export function App() {
     return () => port.disconnect();
   }, []);
 
-  const { featureToggles, settingsReady, isMinimalMode, showSyncButton } = useSidepanelSettings();
+  const { featureToggles, jenkinsFeatureToggles, settingsReady, isMinimalMode, showSyncButton } =
+    useSidepanelSettings();
   const { activeModule, handleTabChange, recentTabs, pinnedTabs, pinnedTabLimit, togglePinnedTab } =
     useSidepanelTabs({ featureToggles });
   useEffect(() => {
@@ -35,6 +36,7 @@ export function App() {
             <SidepanelContent
               activeModule={activeModule}
               featureToggles={featureToggles}
+              jenkinsFeatureToggles={jenkinsFeatureToggles}
               onModuleSelect={handleTabChange}
               onBackToAssistant={() => handleTabChange('aiAssistant')}
               recentTabs={recentTabs}
