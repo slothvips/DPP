@@ -212,13 +212,11 @@
 
 需要修改：
 
-- `src/lib/ai/tools/dppSearchShared.ts`
-- `src/lib/ai/tools/dppSearch.ts`
 - `src/lib/sync/auditHistoryModel.ts`
 - `src/features/audit/auditHistory.ts`
 - `src/entrypoints/audit/main.tsx`
 
-增加项目搜索源 `test_projects`，并让审计历史支持项目和项目执行表、项目加密内容解密及中文显示名称。
+`dpp_search` 已移除。审计历史需支持项目和项目执行表、项目加密内容解密及中文显示名称。
 
 将项目表加入同步表后，确认 `clearAllSyncData` 能正确清理；验证全量本地清理不会遗留项目数据。
 
