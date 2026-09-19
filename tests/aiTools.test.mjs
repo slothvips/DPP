@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { createSearchSnippet, searchDppCandidates } from '../src/lib/ai/tools/dppSearchShared.ts';
 import { createToolParameter, validateToolArguments } from '../src/lib/ai/toolsShared.ts';
 import { redactSensitiveText } from '../src/utils/sensitive.ts';
 
@@ -93,7 +92,7 @@ test('role editor groups tools by their registered category', () => {
   assert.match(selector, /groups\.set\(tool\.group/);
   assert.match(selector, /toolGroups\.map\(\(\[group, groupTools\]\)/);
   assert.match(selector, /groupTools\.map\(\(tool\)/);
-  assert.match(runtime, /\['delegate_', 'list_browser_', 'page_'\], label: '浏览器'/);
+  assert.match(runtime, /\['delegate_', 'list_browser_'\], label: '浏览器'/);
   assert.match(runtime, /\['links_'\], label: '链接'/);
   assert.match(runtime, /\['tags_'\], label: '标签'/);
   assert.match(runtime, /\['blackboard_'\], label: '黑板'/);
@@ -138,33 +137,6 @@ test('shared test case updates require confirmation and plans derive status from
   assert.match(plan, /status: getPlanStatus\(steps\)/);
 });
 
-test('DPP search requires every query term and returns a bounded contextual snippet', () => {
-  const matches = searchDppCandidates(
-    [
-      {
-        source: 'links',
-        id: '1',
-        title: 'Production Jenkins',
-        text: 'deployment console',
-        updatedAt: 1,
-      },
-      { source: 'links', id: '2', title: 'Jenkins', text: 'local development', updatedAt: 2 },
-    ],
-    'jenkins deployment'
-  );
-  assert.deepEqual(
-    matches.map((item) => item.id),
-    ['1']
-  );
-  const snippet = createSearchSnippet(
-    `${'before '.repeat(50)}deployment${' after'.repeat(50)}`,
-    'deployment',
-    80
-  );
-  assert.ok(snippet.includes('deployment'));
-  assert.ok(snippet.length <= 86);
-});
-
 test('AI diagnostics redact common credentials from free text', () => {
   assert.equal(
     redactSensitiveText('Authorization: Bearer abc.def'),
@@ -176,19 +148,16 @@ test('AI diagnostics redact common credentials from free text', () => {
   );
 });
 
-test('diagnostic and search tools are registered with page reads confirmed', () => {
+test('diagnostic tools are registered with confirmations where required', () => {
   const registration = source('../src/lib/ai/toolsRegistration.ts');
   const recorder = source('../src/lib/ai/tools/recorderRegistration.ts');
   const jenkins = source('../src/lib/ai/tools/jenkins.ts');
   const testRuns = source('../src/lib/ai/tools/testRuns.ts');
-  const browserTask = source('../src/lib/ai/tools/browserTask.ts');
   const session = source('../src/lib/ai/tools/session.ts');
-  assert.match(registration, /registerDppSearchTools\(\)/);
   assert.match(recorder, /name: 'recorder_inspect'/);
   assert.match(jenkins, /name: 'jenkins_get_build_details'/);
   assert.match(testRuns, /name: 'test_run_report'/);
   assert.match(registration, /registerTestProjectTools\(\)/);
-  assert.match(browserTask, /name: 'page_read'[\s\S]*requiresConfirmation: true/);
   assert.match(session, /name: 'clear_session_context'/);
   assert.match(registration, /registerSessionTools\(\)/);
 });
@@ -214,14 +183,6 @@ test('session actions are generic and test execution starts in an isolated sessi
   assert.match(facade, /clearInMemorySessionMessages\(sessionId\)/);
   assert.match(facade, /pendingInitialMessageRef\.current/);
   assert.match(facade, /void sendMessage\(pending\.content\)/);
-});
-
-test('DPP search exposes test projects as a searchable source', () => {
-  const shared = source('../src/lib/ai/tools/dppSearchShared.ts');
-  const search = source('../src/lib/ai/tools/dppSearch.ts');
-  assert.match(shared, /'test_projects'/);
-  assert.match(search, /case 'test_projects'/);
-  assert.match(search, /listTestProjects\(\)/);
 });
 
 test('basic local tools are registered, grouped, and selected for new roles', () => {

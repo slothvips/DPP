@@ -10,6 +10,7 @@ export * from './recorder';
 export * from './jenkins';
 export * from './ai';
 export * from './settings';
+export * from './persistSetting';
 export * from './remoteActivityLog';
 export * from './hotnews';
 export * from './totp';

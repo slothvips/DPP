@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { trackLinks } from '@/lib/analytics';
 import type { DeleteLinkArgs } from './linksMutationsShared';
 import { getLinkTagsTable } from './linksShared';
 
@@ -25,6 +26,8 @@ export async function deleteLink(
 
     await db.linkStats.delete(args.id);
   });
+
+  trackLinks('linkDeleted');
 
   return {
     success: true,

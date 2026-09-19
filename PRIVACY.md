@@ -1,7 +1,7 @@
 # DPP 隐私政策 / Privacy Policy
 
-**最后更新日期 / Last updated:** 2026年9月3日 / September 3, 2026  
-**生效日期 / Effective date:** 2026年9月3日 / September 3, 2026
+**最后更新日期 / Last updated:** 2026年9月19日 / September 19, 2026  
+**生效日期 / Effective date:** 2026年9月19日 / September 19, 2026
 
 本政策适用于 DPP 浏览器扩展（以下简称“DPP”或“本扩展”）。DPP 是一个本地优先的开发和团队工作工具。本政策说明 DPP 收集、使用、存储和共享哪些数据，以及您如何控制这些数据。
 
@@ -41,7 +41,11 @@ DPP 由开源项目维护者运营。隐私问题、数据请求或安全问题�
 
 ### 2.3 自动产生的技术数据
 
-DPP 可能在本地保存任务时间、同步游标、操作记录、错误信息和近期操作记录，用于恢复任务、执行同步、排查故障和显示最近使用内容。DPP 不运行广告、画像或第三方分析服务，也不建立跨网站的浏览历史档案。
+DPP 可能在本地保存任务时间、同步游标、操作记录、错误信息和近期操作记录，用于恢复任务、执行同步、排查故障和显示最近使用内容。
+
+DPP 还会收集**第一方匿名使用统计**，用于了解各功能模块的使用情况以改进产品。统计内容仅限：功能模块标识、操作类型（如"触发构建""发送消息"）、使用次数与停留时长、扩展版本、粗粒度浏览器类型，以及一个本地随机生成、无法关联个人身份的匿名实例标识。统计不包含网页 URL、页面标题、对话内容、链接内容、凭据、录制内容或任何您输入的数据。您在设置页"清空所有数据"或卸载扩展后，匿名实例标识会重新生成。
+
+DPP 不运行广告、画像或第三方分析服务，也不建立跨网站的浏览历史档案。
 
 ## 3. 数据用途 / How we use data
 
@@ -52,7 +56,8 @@ DPP 仅为以下目的处理数据：
 3. 在您开启同步后，在您的设备之间同步指定数据；
 4. 在您主动发起 AI 请求时，将必要的对话上下文和任务上下文发送给您选择的 AI 服务并显示结果；
 5. 在您主动使用 Jenkins 功能时，向您配置的 Jenkins 服务器发起请求；
-6. 处理您主动提交的支持请求，并维护扩展安全和稳定性。
+6. 基于匿名使用统计了解各功能模块的使用频率与稳定性，以改进产品；
+7. 处理您主动提交的支持请求，并维护扩展安全和稳定性。
 
 DPP 不会将数据用于广告、出售、信用评估、个性化营销或与用户功能无关的画像。DPP 不会为了收集数据而追踪您的浏览活动。
 
@@ -79,6 +84,10 @@ DPP 不会将数据用于广告、出售、信用评估、个性化营销或与�
 ### 4.4 公开信息服务
 
 使用技术资讯或更新日志功能时，DPP 可能从公开的 Hacker News、GitHub Trending、GitHub 仓库或相关公开地址读取内容。这些请求不包含您的链接、对话、凭据或录制内容。
+
+### 4.5 匿名使用统计服务器
+
+DPP 会将 2.3 节所述的匿名使用统计（功能模块标识、操作类型、次数与时长、扩展版本、浏览器类型、匿名实例标识）发送到**您配置的同步服务器**上的统计接口（与 `custom_server_url` 同一主机，路径为 `/api/stats/events`）。未配置同步服务器时不会上报。该端点不接收网页 URL、页面标题、对话内容、凭据、录制内容或任何您输入的数据。匿名实例标识为随机生成的 UUID，与您的同步身份、账户或设备信息无关联。
 
 除上述情况外，DPP 不向第三方出售或提供您的个人数据。法律要求、保护安全以及处理您主动提交的支持请求除外；在法律允许的范围内，我们会尽量通知您。
 
@@ -117,13 +126,13 @@ DPP 不在开发者自有服务器上建立用户账户，也不维护用于广�
 
 ## 8. Cookie、追踪和儿童隐私 / Cookies, tracking, and children
 
-DPP 不使用 Cookie、广告标识符、第三方分析 SDK 或跨网站追踪技术。DPP 不面向 13 岁以下儿童，也不会明知收集 13 岁以下儿童的个人信息。
+DPP 不使用 Cookie、广告标识符、第三方分析 SDK 或跨网站追踪技术。DPP 收集的第一方匿名使用统计仅用于产品改进（见 2.3 节），不构成跨网站追踪或用户画像。DPP 不面向 13 岁以下儿童，也不会明知收集 13 岁以下儿童的个人信息。
 
 ## 9. 权限说明 / Browser permissions
 
 - `storage`：保存设置、链接、任务和其他用户数据；
 - `sidePanel`：提供侧边栏工作界面；
-- `alarms`：执行用户启用的定时同步或资讯更新；
+- `alarms`：执行用户启用的定时同步、资讯更新，以及匿名使用统计的定时批量上报；
 - `scripting`、`tabs`、`tabGroups`：在用户主动使用网页助手、录制或标签页相关功能时读取和操作相关标签页；
 - `clipboardWrite`：执行用户主动发起的复制操作；
 - `<all_urls>`：让用户在任意网站上使用网页助手、录制、网络/控制台查看及相关页面功能。
@@ -152,4 +161,4 @@ When you use an AI feature, the relevant prompts, conversation context, page con
 
 When optional sync is enabled, selected sync data is encrypted on your device with AES-GCM before being sent to the sync server you configured. The server may see technical metadata such as timestamps, client identifiers, operation types, table names, and encrypted payloads, but it cannot decrypt the payload without your key. You are responsible for the sync server and its retention. DPP does not operate a default sync server.
 
-DPP does not sell personal data, use it for advertising, run third-party analytics, or track browsing history for unrelated purposes. Local data remains until you delete it, clear extension data, or uninstall the extension. Exported files and data held by AI, Jenkins, public-information, or sync services are governed by the relevant device administrator or service operator. Contact `18512857416@163.com` or https://github.com/slothvips/DPP/issues for privacy questions or data requests.
+DPP does not sell personal data, use it for advertising, run third-party analytics, or track browsing history for unrelated purposes. DPP does collect first-party anonymous usage statistics (feature module identifiers, action types, counts and durations, extension version, browser type, and a random anonymous instance identifier) to improve the product; these statistics never include page URLs, titles, conversation content, credentials, recordings, or anything you type, and the instance identifier is a random UUID that cannot be linked to your identity. Local data remains until you delete it, clear extension data, or uninstall the extension. Exported files and data held by AI, Jenkins, public-information, or sync services are governed by the relevant device administrator or service operator. Contact `18512857416@163.com` or https://github.com/slothvips/DPP/issues for privacy questions or data requests.

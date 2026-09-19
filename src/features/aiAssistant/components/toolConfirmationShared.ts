@@ -6,6 +6,10 @@ export interface ToolConfirmationContent {
   isDestructive: boolean;
 }
 
+function truncateConfirmationValue(value: string, maxLength = 120): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}…` : value;
+}
+
 export function getToolConfirmationContent(
   toolName: string,
   args: Record<string, unknown>
@@ -104,22 +108,36 @@ export function getToolConfirmationContent(
         confirmText: '委派任务',
         isDestructive: false,
       };
-    case 'ai_config_update':
+    case 'ai_config_update': {
+      const changes: string[] = [];
+      if (args.provider) changes.push(`服务商: ${String(args.provider)}`);
+      if (args.baseUrl) changes.push(`baseUrl: ${String(args.baseUrl)}`);
+      if (args.model) changes.push(`模型: ${String(args.model)}`);
+      if (typeof args.apiKey === 'string' && args.apiKey) changes.push('API Key: 将更新');
+      if (args.activateProvider === false) changes.push('不激活该服务商');
       return {
         title: '确认修改 AI 配置',
-        description: '此操作会修改 AI 服务商、模型或密钥配置。',
-        impact: `将更新服务商: ${args.provider || '当前服务商'}`,
+        description:
+          '此操作会修改 AI 服务商、模型或密钥配置。请核对 baseUrl 是否为预期的服务商地址。',
+        impact: changes.length > 0 ? `将更新：${changes.join('；')}` : '将更新服务商: 当前服务商',
         confirmText: '确认修改',
         isDestructive: false,
       };
-    case 'dpp_config_update':
+    }
+    case 'dpp_config_update': {
+      const updates = (args.updates as Record<string, unknown>) || {};
+      const entries = Object.entries(updates).map(
+        ([key, value]) =>
+          `${key} = ${truncateConfirmationValue(typeof value === 'string' ? value : JSON.stringify(value))}`
+      );
       return {
         title: '确认修改 DPP 配置',
         description: '此操作会修改 DPP 本地设置，可能影响功能显示、同步、Jenkins 或通知行为。',
-        impact: `将更新配置: ${Object.keys((args.updates as Record<string, unknown>) || {}).join(', ') || '未知配置'}`,
+        impact: entries.length > 0 ? `将更新配置：${entries.join('；')}` : '将更新配置: 未知配置',
         confirmText: '确认修改',
         isDestructive: false,
       };
+    }
     case 'test_case_import': {
       const testCases = Array.isArray(args.test_cases) ? args.test_cases : [];
       return {

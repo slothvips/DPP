@@ -33,12 +33,12 @@ Dexie operations
 
 D1 保存自增 cursor、操作 fingerprint 和 `(clientId, operationId)` 唯一约束。大密文使用 `__sync_chunk__` 记录分片，重组和解密始终在客户端完成。
 
-当前环境：
+建议环境命名：
 
-| 环境 | Worker            | D1              | 地址                               |
-| ---- | ----------------- | --------------- | ---------------------------------- |
-| 生产 | `dpp-sync-worker` | `dpp-sync`      | `https://dpp-sync.586726.xyz`      |
-| 测试 | `dpp-sync-test`   | `dpp-sync-test` | `https://dpp-sync-test.586726.xyz` |
+| 环境 | Worker            | D1              | 地址                                      |
+| ---- | ----------------- | --------------- | ----------------------------------------- |
+| 生产 | `dpp-sync-worker` | `dpp-sync`      | Wrangler 输出的 `workers.dev` 或自定义域名 |
+| 测试 | `dpp-sync-test`   | `dpp-sync-test` | Wrangler 输出的 `workers.dev` 或自定义域名 |
 
 完整部署、迁移、监控和回滚说明见 [Cloudflare Worker + D1 部署指南](./packages/DEPLOY.md)。
 

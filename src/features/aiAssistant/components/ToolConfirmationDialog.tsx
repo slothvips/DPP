@@ -72,10 +72,18 @@ export function ToolConfirmationDialog({
           {hasMultiple && pendingToolCalls ? (
             pendingToolCalls.toolCalls.map((toolCall, index) => {
               const batchContent = batchContents?.[index];
+              const batchArgs = redactSensitiveFields(
+                pendingToolCalls.argumentsList[index] || {}
+              ) as Record<string, unknown>;
               return (
                 <div key={toolCall.id} className="mb-3 rounded border bg-muted/50 p-2 last:mb-0">
                   <div className="text-sm font-medium">{batchContent?.title}</div>
                   <div className="mt-1 text-xs text-muted-foreground">{batchContent?.impact}</div>
+                  {Object.keys(batchArgs).length > 0 && (
+                    <pre className="mt-1 whitespace-pre-wrap break-all rounded bg-muted p-1.5 font-mono text-xs text-muted-foreground">
+                      {JSON.stringify(batchArgs, null, 2)}
+                    </pre>
+                  )}
                 </div>
               );
             })

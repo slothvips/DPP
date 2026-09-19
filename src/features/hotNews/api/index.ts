@@ -1,2 +1,2 @@
 export { getAvailableDates } from './hotNewsDates';
-export { fetchNews, fetchTodayNews } from './hotNewsFetch';
+export { fetchNews, fetchTodayNews, reportHotNewsArticleOpened } from './hotNewsFetch';

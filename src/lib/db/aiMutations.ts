@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import type { AIMessage, AISession } from '@/db/types';
 import type { AISessionRoleSnapshot } from '@/features/aiAssistant/materials/testCaseTypes';
+import { trackAiAssistant } from '@/lib/analytics';
 import {
   type NewAIMessage,
   generateAIId,
@@ -22,6 +23,7 @@ export async function createSession(
   };
 
   await getAISessionsTable().add(session);
+  trackAiAssistant('sessionCreated');
   return session;
 }
 
@@ -52,6 +54,7 @@ export async function createSessionWithMessages(
     }
   });
 
+  trackAiAssistant('sessionCreated');
   return session;
 }
 

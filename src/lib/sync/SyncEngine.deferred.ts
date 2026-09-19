@@ -1,5 +1,6 @@
 import type Dexie from 'dexie';
 import type { DeferredOp, SyncChunkRecord } from '@/db/typesSync';
+import { trackSync } from '@/lib/analytics';
 import { addRemoteActivities } from '@/lib/db/remoteActivityLog';
 import { logger } from '@/utils/logger';
 import type { SyncTransaction } from './SyncEngine.shared';
@@ -27,6 +28,9 @@ export async function migrateDeferredChunks(db: Dexie): Promise<void> {
     const merged = mergeChunkRecords(existing, incoming);
     for (const conflict of merged.conflicts) {
       logger.error(`[Sync] Conflicting deferred chunk ignored: ${conflict.id}`);
+    }
+    if (merged.conflicts.length > 0) {
+      trackSync('conflictResolved', { meta: { strategy: 'chunk' } });
     }
 
     await db.transaction('rw', [db.table('deferred_ops'), db.table('syncChunks')], async () => {

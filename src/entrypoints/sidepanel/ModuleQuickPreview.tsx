@@ -7,11 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/toast';
 import { db } from '@/db';
-import { fetchNews, getAvailableDates } from '@/features/hotNews/api';
+import { fetchNews, getAvailableDates, reportHotNewsArticleOpened } from '@/features/hotNews/api';
 import { useLinks } from '@/features/links/hooks/useLinks';
+import { openLink } from '@/features/links/utils';
 import { getTotpCodeAt, useTotpTicker } from '@/features/totp/hooks/useTotpCode';
 import { getTotpPinConfig } from '@/features/totp/totpPin';
 import { isTotpPinSessionUnlocked } from '@/features/totp/totpPinSession';
+import { copyTotpCode, reportTotpCodesRevealed } from '@/features/totp/utils/copyTotpCode';
 import { addBlackboard } from '@/lib/db';
 import { listRecentActions, recordRecentAction } from '@/lib/db/recentActions';
 import { logger } from '@/utils/logger';
@@ -101,7 +103,7 @@ function BlackboardQuickPreview() {
 }
 
 function LinksQuickPreview() {
-  const { links, recordVisit } = useLinks();
+  const { links } = useLinks();
   const [query, setQuery] = useState('');
   const { toast } = useToast();
   const filteredLinks = useMemo(() => {
@@ -123,6 +125,20 @@ function LinksQuickPreview() {
     } catch (error) {
       logger.warn('Failed to copy quick link:', error);
       toast('复制失败', 'error');
+    }
+  }
+
+  async function handleOpen(link: { id: string; url: string; name: string }) {
+    try {
+      // openLink 内部统一校验 URL、记录访问并埋点 linkOpened
+      await openLink(link.url);
+      await recordRecentAction({
+        type: 'link_visit',
+        targetId: link.id,
+        label: link.name,
+      });
+    } catch (error) {
+      logger.warn('Failed to open quick link:', error);
     }
   }
 
@@ -152,17 +168,9 @@ function LinksQuickPreview() {
                 rel="noreferrer"
                 className="min-w-0 flex-1 truncate text-xs text-foreground hover:text-primary"
                 title={link.url}
-                onClick={async () => {
-                  try {
-                    await recordVisit(link.id);
-                    await recordRecentAction({
-                      type: 'link_visit',
-                      targetId: link.id,
-                      label: link.name,
-                    });
-                  } catch (error) {
-                    logger.warn('Failed to record quick link visit:', error);
-                  }
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleOpen(link);
                 }}
               >
                 {link.name}
@@ -199,6 +207,13 @@ function TotpQuickPreview() {
     pinConfig === undefined || (pinConfig.enabled === true && !isTotpPinSessionUnlocked());
   const nowMs = useTotpTicker(accounts.length > 0 && !locked);
   const { toast } = useToast();
+  // 明文验证码首次渲染时上报一次 codeRevealed，避免父组件重渲染重复计数
+  const revealedTrackedRef = useRef(false);
+  useEffect(() => {
+    if (revealedTrackedRef.current || locked || accounts.length === 0) return;
+    revealedTrackedRef.current = true;
+    reportTotpCodesRevealed();
+  }, [locked, accounts.length]);
   const orderedAccounts = useMemo(() => {
     const recentCopies = new Map(
       (recentActions ?? [])
@@ -219,8 +234,7 @@ function TotpQuickPreview() {
       return;
     }
     try {
-      await navigator.clipboard.writeText(code);
-      await recordRecentAction({ type: 'totp_copy', targetId: account.id, label: account.label });
+      await copyTotpCode(account, nowMs);
       toast('验证码已复制', 'success');
     } catch (error) {
       logger.warn('Failed to copy quick TOTP code:', error);
@@ -281,7 +295,7 @@ function HotNewsQuickPreview() {
     setLoading(true);
     setError(null);
     try {
-      await fetchNews(date);
+      await fetchNews(date, { trigger: 'preview' });
       toast('热榜已刷新', 'success');
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : '热榜刷新失败';
@@ -314,6 +328,7 @@ function HotNewsQuickPreview() {
               target="_blank"
               rel="noreferrer"
               className="flex min-w-0 items-start gap-1.5 rounded-md px-1 py-1 text-xs text-foreground hover:bg-background hover:text-primary"
+              onClick={() => reportHotNewsArticleOpened('quickPreview')}
             >
               <span className="shrink-0 text-muted-foreground">{index + 1}.</span>
               <span className="line-clamp-2 min-w-0">{item.title}</span>

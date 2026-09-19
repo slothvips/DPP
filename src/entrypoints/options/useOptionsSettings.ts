@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { useToast } from '@/components/ui/toast';
 import { db } from '@/db';
-import { updateSetting } from '@/lib/db/settings';
+import { persistSetting, persistSettings } from '@/lib/db/persistSetting';
 import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 import {
@@ -94,12 +94,12 @@ export function useOptionsSettings() {
     try {
       settingsSaveInFlightRef.current = true;
       setSettingsSaving(true);
-      await db.transaction('rw', db.settings, async () => {
-        await updateSetting('custom_server_url', customConfig.serverUrl);
-        await updateSetting('sync_access_token', accessToken);
-        await updateSetting('auto_sync_enabled', autoSync.enabled);
-        await updateSetting('auto_sync_interval', autoSync.interval);
-      });
+      await persistSettings([
+        { key: 'custom_server_url', value: customConfig.serverUrl },
+        { key: 'sync_access_token', value: accessToken },
+        { key: 'auto_sync_enabled', value: autoSync.enabled },
+        { key: 'auto_sync_interval', value: autoSync.interval },
+      ]);
       await browser.runtime
         .sendMessage({ type: 'AUTO_SYNC_SETTINGS_CHANGED' })
         .catch((error) => logger.error('Failed to send settings change:', error));
@@ -120,7 +120,7 @@ export function useOptionsSettings() {
     try {
       featureToggleSaveInFlightRef.current = true;
       setFeatureToggleSaving(true);
-      await updateSetting(FEATURE_KEY_MAP[feature], enabled);
+      await persistSetting(FEATURE_KEY_MAP[feature], enabled);
       setFeatureToggles((previous) => ({ ...previous, [feature]: enabled }));
       toast(`${FEATURE_LABEL_MAP[feature]}功能已${enabled ? '启用' : '禁用'}`, 'success');
     } catch (error) {

@@ -11,6 +11,7 @@ import type {
   ModelProvider,
   ChatMessage as ProviderChatMessage,
 } from '@/lib/ai/types';
+import { trackAiAssistant } from '@/lib/analytics';
 import type { AISessionRoleSnapshot } from '../materials/testCaseTypes';
 import { isDppBuiltInRole } from '../roles/roleRuntime';
 import type { ChatMessage } from '../types';
@@ -179,6 +180,11 @@ export function useAIChatRuntime({
         if (runtime.runId !== runId) return null;
         onAssistantMessage(targetSessionId, assistantMessageId, assistantMessage);
         if (hasAssistantOutput(assistantMessage)) await onPersistAssistantMessage(assistantMessage);
+        trackAiAssistant('messageSent', {
+          meta: {
+            hasTools: Boolean(assistantMessage.toolCalls && assistantMessage.toolCalls.length > 0),
+          },
+        });
         return assistantMessage;
       } finally {
         if (runtime.runId === runId) {

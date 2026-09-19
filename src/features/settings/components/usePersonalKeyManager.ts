@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { syncEngine } from '@/db';
-import { exportKey } from '@/lib/crypto/encryption';
+import { exportKey, importKey } from '@/lib/crypto/encryption';
 import {
   clearPersonalKey,
   generateAndStorePersonalKey,
-  importAndStorePersonalKey,
   loadPersonalKey,
+  storePersonalKey,
 } from '@/lib/crypto/personalKey';
 import {
   type PersonalKeyFinalizeStep,
   finalizePersonalSyncAfterKeyReady,
   resetPersonalSyncBootstrapFlag,
 } from '@/lib/sync/personalSyncBootstrap';
+import { isSameAsStoredKeyForRole } from '@/lib/sync/syncKeys';
 import { hasConfiguredSyncServer } from '@/lib/sync/syncServerConfig';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
@@ -173,7 +174,13 @@ export function usePersonalKeyManager() {
       clearDoneDismissTimer();
       activeStepRef.current = 'saving';
       setSetupProgress({ phase: 'saving' });
-      await importAndStorePersonalKey(importInput);
+      const key = await importKey(importInput);
+      if (await isSameAsStoredKeyForRole(key, 'team')) {
+        setSetupProgress(null);
+        toast('该私钥与团队同步密钥相同，请使用不同的密钥', 'error');
+        return;
+      }
+      await storePersonalKey(key);
       setImportInput('');
       await checkKey();
       await runPostKeySync();
@@ -212,7 +219,13 @@ export function usePersonalKeyManager() {
       clearDoneDismissTimer();
       activeStepRef.current = 'saving';
       setSetupProgress({ phase: 'saving' });
-      await importAndStorePersonalKey(replaceInput);
+      const key = await importKey(replaceInput);
+      if (await isSameAsStoredKeyForRole(key, 'team')) {
+        setSetupProgress(null);
+        toast('该私钥与团队同步密钥相同，请使用不同的密钥', 'error');
+        return;
+      }
+      await storePersonalKey(key);
       setReplaceInput('');
       setIsReplaceOpen(false);
       setShowKey(false);

@@ -1,4 +1,5 @@
 import type { MyBuildItem } from '@/db';
+import { trackJenkins } from '@/lib/analytics';
 import type { JenkinsQueueItem } from './api/queue';
 import type {
   JenkinsArtifactDownload,
@@ -72,10 +73,14 @@ export const JenkinsService = {
   },
 
   async triggerBuild(payload: TriggerBuildMessage['payload']): Promise<JenkinsTriggerResult> {
-    return send<JenkinsTriggerResult>({
+    const result = await send<JenkinsTriggerResult>({
       type: 'JENKINS_TRIGGER_BUILD',
       payload: { ...payload, operationId: payload.operationId || crypto.randomUUID() },
     });
+    if (result.accepted) {
+      trackJenkins('jobTriggered');
+    }
+    return result;
   },
 
   async getQueueItem(queueId: string, envId?: string): Promise<JenkinsQueueItem> {
@@ -86,17 +91,25 @@ export const JenkinsService = {
   },
 
   async cancelQueueItem(queueId: string, envId?: string): Promise<boolean> {
-    return send<boolean>({
+    const result = await send<boolean>({
       type: 'JENKINS_CANCEL_QUEUE_ITEM',
       payload: { queueId, envId },
     });
+    if (result === true) {
+      trackJenkins('jobCancelled', { meta: { kind: 'queue' } });
+    }
+    return result;
   },
 
   async stopBuild(buildUrl: string, envId?: string): Promise<boolean> {
-    return send<boolean>({
+    const result = await send<boolean>({
       type: 'JENKINS_STOP_BUILD',
       payload: { buildUrl, envId },
     });
+    if (result === true) {
+      trackJenkins('jobCancelled', { meta: { kind: 'stop' } });
+    }
+    return result;
   },
 
   async getJobDetails(jobUrl: string, envId?: string): Promise<unknown> {
@@ -122,10 +135,12 @@ export const JenkinsService = {
     envId?: string,
     consoleTailLines?: number
   ): Promise<JenkinsBuildDetailsResult> {
-    return send<JenkinsBuildDetailsResult>({
+    const result = await send<JenkinsBuildDetailsResult>({
       type: 'JENKINS_GET_BUILD_DETAILS',
       payload: { buildUrl, envId, consoleTailLines },
     });
+    trackJenkins('buildViewed');
+    return result;
   },
 
   async getTestDetails(buildUrl: string, envId?: string): Promise<JenkinsTestDetailsResult> {
@@ -188,9 +203,13 @@ export const JenkinsService = {
   },
 
   async cancelBuild(jobUrl: string, buildNumber: number, envId?: string): Promise<boolean> {
-    return send<boolean>({
+    const result = await send<boolean>({
       type: 'JENKINS_CANCEL_BUILD',
       payload: { jobUrl, buildNumber, envId },
     });
+    if (result === true) {
+      trackJenkins('jobCancelled', { meta: { kind: 'build' } });
+    }
+    return result;
   },
 };

@@ -6,6 +6,7 @@ import type {
   TestProjectRun,
   TestRun,
 } from '@/features/aiAssistant/materials/testCaseTypes';
+import { trackSync } from '@/lib/analytics';
 import { logger } from '@/utils/logger';
 import {
   deferOperation,
@@ -67,6 +68,7 @@ async function applyDeleteOperation(table: Table<unknown, IndexableType>, op: Sy
         `[Sync] Skipping stale delete for ${op.table}[${op.key}]: ` +
           `local timestamp (${existingTimestamp}) > remote timestamp (${op.timestamp})`
       );
+      trackSync('conflictResolved', { meta: { strategy: 'lww' } });
       return;
     }
   }
@@ -102,6 +104,7 @@ async function applyCreateOrUpdateOperation(
       mergeTestProjectRecords(existing as TestProject, payload as unknown as TestProject)
     );
     await table.put(merged);
+    trackSync('conflictResolved', { meta: { strategy: 'merge' } });
     return;
   }
   if (op.table === 'testRuns' && existing) {
@@ -109,6 +112,7 @@ async function applyCreateOrUpdateOperation(
       mergeTestRunRecords(existing as TestRun, payload as unknown as TestRun)
     );
     await table.put(merged);
+    trackSync('conflictResolved', { meta: { strategy: 'merge' } });
     return;
   }
   if (op.table === 'projectRuns' && existing) {
@@ -116,6 +120,7 @@ async function applyCreateOrUpdateOperation(
       mergeTestProjectRunRecords(existing as TestProjectRun, payload as unknown as TestProjectRun)
     );
     await table.put(merged);
+    trackSync('conflictResolved', { meta: { strategy: 'merge' } });
     return;
   }
 
@@ -129,6 +134,7 @@ async function applyCreateOrUpdateOperation(
           `Remote ${op.type} operation skipped to preserve local data. ` +
           `Consider reconciling manually if local data is stale.`
       );
+      trackSync('conflictResolved', { meta: { strategy: 'lww' } });
       return;
     }
   }
@@ -136,6 +142,7 @@ async function applyCreateOrUpdateOperation(
   await putWithConstraintRecovery(table, op, payload, async (resolvedPayload) => {
     await resolveConstraintError(table, op, resolvedPayload, (indexKeyPath, value) => {
       logger.info(`[Sync] Deleting conflicting record in ${op.table} (${indexKeyPath}=${value})`);
+      trackSync('conflictResolved', { meta: { strategy: 'constraint' } });
     });
   });
 }

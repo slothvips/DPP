@@ -2,15 +2,16 @@ name = "dpp-sync-worker"
 main = "src/migration.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 [[kv_namespaces]]
 binding = "KV"
-id = "cc525887234547eb8e5fc647d69bdb7e"
+id = "<YOUR_PRODUCTION_KV_ID>"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "dpp-sync"
-database_id = "3c0aaf5e-c0cf-43d9-a725-e869ad62162d"
+database_id = "<YOUR_PRODUCTION_D1_ID>"
 migrations_dir = "migrations"
 
 [durable_objects]
@@ -22,10 +23,11 @@ bindings = [
 tag = "v1"
 new_sqlite_classes = ["SyncPushCoordinator"]
 
-[[routes]]
-pattern = "dpp-sync.586726.xyz"
-zone_name = "586726.xyz"
-custom_domain = true
+# 自定义域名按 packages/DEPLOY.md 在部署时填写，未配置时使用 workers.dev
+# [[routes]]
+# pattern = "sync.example.com"
+# zone_name = "example.com"
+# custom_domain = true
 
 [env.test]
 name = "dpp-sync-test"
@@ -33,12 +35,12 @@ workers_dev = true
 
 [[env.test.kv_namespaces]]
 binding = "KV"
-id = "de4e572068d44786b454ebc9feb836ae"
+id = "<YOUR_TEST_KV_ID>"
 
 [[env.test.d1_databases]]
 binding = "DB"
 database_name = "dpp-sync-test"
-database_id = "5bbc552b-24eb-459a-b8ce-460582a24273"
+database_id = "<YOUR_TEST_D1_ID>"
 migrations_dir = "migrations"
 
 [env.test.durable_objects]
@@ -50,7 +52,7 @@ bindings = [
 tag = "v1"
 new_sqlite_classes = ["SyncPushCoordinator"]
 
-[[env.test.routes]]
-pattern = "dpp-sync-test.586726.xyz"
-zone_name = "586726.xyz"
-custom_domain = true
+# [[env.test.routes]]
+# pattern = "sync-test.example.com"
+# zone_name = "example.com"
+# custom_domain = true

@@ -1,8 +1,8 @@
 import { browser } from 'wxt/browser';
-import { db } from '@/db';
-import type { JenkinsEnvironment, SettingKey, SettingValue } from '@/db/types';
+import type { JenkinsEnvironment, SettingKey } from '@/db/types';
 import { AI_PROVIDER_TYPES } from '@/lib/ai/providerIds';
 import { AI_PROVIDER_DEFINITIONS } from '@/lib/ai/providerRegistry';
+import { persistSettings } from '@/lib/db/persistSetting';
 import { getSetting } from '@/lib/db/settings';
 import { logger } from '@/utils/logger';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
@@ -657,14 +657,8 @@ async function dpp_config_update(args: unknown) {
   );
   const updatedKeys = validatedEntries.map(([key]) => key);
 
-  await db.transaction('rw', db.settings, async () => {
-    await db.settings.bulkPut(
-      validatedEntries.map(([key, value]) => ({
-        key,
-        value: value as SettingValue<SettingKey>,
-      }))
-    );
-  });
+  await persistSettings(validatedEntries.map(([key, value]) => ({ key, value })));
+
   await notifyAutoSyncSettingsChanged(updatedKeys);
 
   return {

@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { trackLinks } from '@/lib/analytics';
 import type { AddLinkArgs, BulkAddLinksArgs } from './linksMutationsShared';
 import { getLinkTagsTable, isValidLinkUrl, resolveTagNamesToIds } from './linksShared';
 
@@ -32,6 +33,8 @@ export async function addLink(
       });
     }
   });
+
+  trackLinks('linkCreated');
 
   return {
     success: true,
@@ -82,6 +85,8 @@ export async function bulkAddLinks(
       }
     }
   });
+
+  trackLinks('linkCreated', { value: results.length });
 
   return {
     success: true,

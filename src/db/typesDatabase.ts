@@ -11,6 +11,7 @@ import type { BlackboardItem } from '@/features/blackboard/types';
 import type { Recording } from '@/features/recorder/types';
 import type { TotpAccountItem } from '@/features/totp/types';
 import type { AIPlan, AIPlanOwnerType } from '@/lib/ai/plan';
+import type { AnalyticsEvent } from '@/lib/analytics/types';
 import type { BrowserTaskSummary } from '@/lib/browserTask/types';
 import type { AIMessage, AIProfile, AISession } from './typesAI';
 import type {
@@ -64,6 +65,11 @@ export interface AIPlanRecord {
   updatedAt: number;
 }
 
+export interface AnalyticsEventRecord extends AnalyticsEvent {
+  id?: number;
+  ts: number;
+}
+
 export type DPPDatabase = Dexie & {
   links: EntityTable<LinkItem, 'id'>;
   linkTags: EntityTable<LinkTagItem, never>;
@@ -99,4 +105,5 @@ export type DPPDatabase = Dexie & {
   jenkinsQueueItems: EntityTable<JenkinsQueueItemRecord, never>;
   jenkinsSyncState: EntityTable<JenkinsSyncStateRecord, 'envId'>;
   jenkinsBuildOperations: EntityTable<JenkinsBuildOperationRecord, 'id'>;
+  analyticsEvents: EntityTable<AnalyticsEventRecord, 'id'>;
 };

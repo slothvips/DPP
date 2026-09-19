@@ -101,8 +101,9 @@ export function TagSelector({
                         e.stopPropagation();
                         onDeleteTag(tag.id, tag.name);
                       }}
-                      className="ml-2 p-0.5 text-muted-foreground hover:text-destructive opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                      className="ml-2 p-0.5 text-muted-foreground hover:text-destructive opacity-0 group-hover/tag:opacity-100 group-focus-within/tag:opacity-100 focus-visible:opacity-100 transition-opacity"
                       title="删除标签"
+                      aria-label={`删除标签 ${tag.name}`}
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>

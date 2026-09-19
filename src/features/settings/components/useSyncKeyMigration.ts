@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { getSyncEngine } from '@/db';
 import { exportKey, generateSyncKey, importKey, verifyKey } from '@/lib/crypto/encryption';
+import { isSameAsStoredKeyForRole } from '@/lib/sync/syncKeys';
 import { logger } from '@/utils/logger';
 
 interface UseSyncKeyMigrationOptions {
@@ -42,7 +43,12 @@ export function useSyncKeyMigration({ checkKey, onKeyChange, toast }: UseSyncKey
       if (!engine) {
         throw new Error('同步引擎初始化失败');
       }
-      await engine.migrateTeamKey(migrationMode, await importKey(normalized));
+      const key = await importKey(normalized);
+      if (await isSameAsStoredKeyForRole(key, 'personal')) {
+        toast('该密钥与个人私钥相同，请使用不同的密钥', 'error');
+        return;
+      }
+      await engine.migrateTeamKey(migrationMode, key);
 
       await checkKey();
       setIsChangeDialogOpen(false);

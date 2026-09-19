@@ -5,6 +5,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { BROWSER_TASK_HOST_PORT_NAME } from '@/lib/browserTask/types';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import { SidepanelContent } from './SidepanelContent';
+import { useAnalyticsHeartbeat } from './useAnalyticsHeartbeat';
 import { useSidepanelAutoPull } from './useSidepanelAutoPull';
 import { useSidepanelSettings } from './useSidepanelSettings';
 import { useSidepanelTabs } from './useSidepanelTabs';
@@ -22,6 +23,7 @@ export function App() {
     useSidepanelSettings();
   const { activeModule, handleTabChange, recentTabs, pinnedTabs, pinnedTabLimit, togglePinnedTab } =
     useSidepanelTabs({ featureToggles });
+  useAnalyticsHeartbeat(activeModule);
   useEffect(() => {
     const handleOpenAISession = () => handleTabChange('aiAssistant');
     window.addEventListener('dpp:open-ai-session', handleOpenAISession);

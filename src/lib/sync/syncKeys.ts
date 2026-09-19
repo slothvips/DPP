@@ -92,6 +92,23 @@ export function resolveKeyRoleForKeyHash(
 }
 
 /**
+ * 校验候选密钥是否与另一角色的已存密钥相同。
+ * 两钥相同会使 keyHash 仲裁固定偏向 personal（resolveKeyRoleForKeyHash），
+ * 导致全部团队 op 滞留 pending-decrypt、团队同步静默停摆。
+ */
+export async function isSameAsStoredKeyForRole(
+  key: CryptoKey,
+  role: SyncKeyRole
+): Promise<boolean> {
+  const otherKey = role === 'personal' ? await loadPersonalKey() : await loadKey();
+  if (!otherKey) {
+    return false;
+  }
+  const [hash, otherHash] = await Promise.all([getKeyHash(key), getKeyHash(otherKey)]);
+  return hash === otherHash;
+}
+
+/**
  * 解密后校验：个人 scope 必须用个人钥，团队 scope 必须用团队钥。
  * local 或不匹配 → false（调用方应 skip）。
  */

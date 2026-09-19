@@ -1,5 +1,6 @@
 import { db } from '@/db';
 import type { Recording } from '@/features/recorder/types';
+import { trackRecorder } from '@/lib/analytics';
 import type { ExportRecordingResult, ImportRecordingResult } from './recorderShared';
 
 function buildRecordingExportFilename(title: string, createdAt: number): string {
@@ -64,7 +65,10 @@ export async function importRecordingFromJson(args: {
   }
 }
 
-export async function exportRecordingAsJson(args: { id: string }): Promise<ExportRecordingResult> {
+export async function exportRecordingAsJson(args: {
+  id: string;
+  via: 'ui' | 'ai';
+}): Promise<ExportRecordingResult> {
   try {
     const { id } = args;
     const recording = await db.recordings.get(id);
@@ -72,6 +76,8 @@ export async function exportRecordingAsJson(args: { id: string }): Promise<Expor
     if (!recording) {
       return { success: false, data: null, filename: '', message: 'Recording not found' };
     }
+
+    trackRecorder('exportFinished', { meta: { via: args.via } });
 
     return {
       success: true,

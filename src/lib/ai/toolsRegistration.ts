@@ -5,7 +5,6 @@ import { registerCalculatorTools } from './tools/calculator';
 import { registerDateTimeTools } from './tools/dateTime';
 import { registerDeveloperUtilityTools } from './tools/developerUtilities';
 import { registerDPPConfigTools } from './tools/dppConfig';
-import { registerDppSearchTools } from './tools/dppSearch';
 import { registerJenkinsTools } from './tools/jenkins';
 import { registerLinksTools } from './tools/links';
 import { registerPlanTools } from './tools/plan';
@@ -32,7 +31,6 @@ export function ensureAIToolsRegistered(): void {
   registerUnitConversionTools();
   registerDeveloperUtilityTools();
   registerDPPConfigTools();
-  registerDppSearchTools();
   registerLinksTools();
   registerTagsTools();
   registerJenkinsTools();

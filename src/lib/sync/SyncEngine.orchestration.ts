@@ -1,5 +1,6 @@
 import type Dexie from 'dexie';
 import { browser } from 'wxt/browser';
+import { trackSync } from '@/lib/analytics';
 import { logger } from '@/utils/logger';
 import { registerSyncHooks } from './SyncEngine.hooks';
 import { saveSyncOperationForRecovery } from './SyncEngine.recovery';
@@ -123,6 +124,7 @@ export async function runSyncCommand<T>({
     const result = await execute();
 
     setStatus('idle');
+    trackSync(action === 'push' ? 'pushFinished' : 'pullFinished', { meta: { ok: true } });
     if (!shouldEmitComplete(result)) {
       return;
     }
@@ -137,6 +139,7 @@ export async function runSyncCommand<T>({
     );
     setStatus('error', errorMessage);
     emit('sync-error', { type: action, error: errorMessage });
+    trackSync(action === 'push' ? 'pushFinished' : 'pullFinished', { meta: { ok: false } });
     throw error;
   } finally {
     setSyncLock(false);

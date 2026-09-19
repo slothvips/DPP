@@ -84,5 +84,5 @@ export async function recorder_import(args: { events: unknown[]; title?: string 
 }
 
 export async function recorder_export(args: { id: string }) {
-  return exportRecordingAsJson({ id: args.id });
+  return exportRecordingAsJson({ id: args.id, via: 'ai' });
 }

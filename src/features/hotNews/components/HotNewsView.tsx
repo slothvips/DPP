@@ -59,7 +59,7 @@ export function HotNewsView() {
             variant="ghost"
             size="icon"
             className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-warning/10 hover:text-warning"
-            onClick={loadNews}
+            onClick={() => void loadNews({ trigger: 'manual' })}
             disabled={loading}
           >
             <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />

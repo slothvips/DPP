@@ -70,7 +70,7 @@ src/
 ├── features/            # Domain modules (aiAssistant/, jenkins/, links/, recorder/...)
 │   └── <feature>/      # Structure varies: api/, components/, hooks/, messages.ts, service.ts, utils/
 ├── db/                  # Dexie schema (schema.ts) + Sync logic
-├── lib/                 # Core utilities (ai/, crypto/, db/, http.ts, sync/)
+├── lib/                 # Core utilities (ai/, analytics/, crypto/, db/, http.ts, sync/)
 └── utils/               # Helpers (cn.ts, logger.ts, modal.ts, validation.ts)
 ```
 

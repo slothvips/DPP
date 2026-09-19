@@ -324,6 +324,12 @@ export function registerDatabaseSchema(db: Dexie) {
         .map((row) => table.put({ ...row, jobName: reverseJobPath(String(row.jobName)) }));
       await Promise.all(updates);
     });
+
+  // v31: 匿名使用统计事件的本地持久化队列。
+  // 仅新增表，不触碰任何现有表结构；失败事件留存于此等待批量上报。
+  db.version(31).stores({
+    analyticsEvents: '++id, ts',
+  });
 }
 
 function reverseJobPath(name: string): string {

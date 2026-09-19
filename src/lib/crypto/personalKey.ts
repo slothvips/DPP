@@ -27,12 +27,6 @@ export async function generateAndStorePersonalKey(): Promise<CryptoKey> {
   return key;
 }
 
-export async function importAndStorePersonalKey(base64Key: string): Promise<CryptoKey> {
-  const key = await importKey(base64Key.trim());
-  await storePersonalKey(key);
-  return key;
-}
-
 /** 是否已配置个人私钥 */
 export async function hasPersonalKey(): Promise<boolean> {
   const base64Key = await getSetting(PERSONAL_ENCRYPTION_KEY_SETTING);

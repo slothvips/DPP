@@ -52,7 +52,7 @@ export function useRecordings() {
   };
 
   const exportRecording = async (recording: RecordingMeta) => {
-    const result = await exportRecordingAsJson({ id: recording.id });
+    const result = await exportRecordingAsJson({ id: recording.id, via: 'ui' });
     if (!result.success || !result.data) {
       throw new Error(result.message);
     }

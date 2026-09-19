@@ -4,6 +4,7 @@ import {
   isValidTotpSecret,
   normalizeTotpSecret,
 } from '@/features/totp/totpCrypto';
+import { trackTotp } from '@/lib/analytics';
 import { isSoftDeleted } from '@/lib/db/softDelete';
 import { VALIDATION_LIMITS, validateLength } from '@/utils/validation';
 import { clearTotpLocalOrder, getTotpLocalOrder, saveTotpLocalOrder } from './totpLocalOrder';
@@ -94,6 +95,7 @@ export async function addTotpAccount(args: AddTotpAccountArgs): Promise<AddTotpA
     updatedAt: now,
   });
   await appendToLocalOrder(id);
+  trackTotp('accountAdded');
 
   return {
     success: true,
@@ -122,7 +124,7 @@ export async function addTotpAccounts(argsList: AddTotpAccountArgs[]): Promise<s
 
   if (prepared.length === 0) return [];
 
-  return db.transaction('rw', [db.totpAccounts, db.totpLocalOrder], async () => {
+  const ids = await db.transaction('rw', [db.totpAccounts, db.totpLocalOrder], async () => {
     const existing = (await db.totpAccounts.toArray()).filter((item) => !isSoftDeleted(item));
     let sortOrder = existing.reduce((max, item) => {
       const value = typeof item.sortOrder === 'number' ? item.sortOrder : item.createdAt;
@@ -150,6 +152,8 @@ export async function addTotpAccounts(argsList: AddTotpAccountArgs[]): Promise<s
     }
     return prepared.map((item) => item.id);
   });
+  trackTotp('accountAdded', { value: ids.length });
+  return ids;
 }
 
 /** 本地排序存在时，把新账户追加到末尾，保持"新增出现在列表末尾" */

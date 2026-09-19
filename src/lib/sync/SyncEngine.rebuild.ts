@@ -1,4 +1,5 @@
 import type Dexie from 'dexie';
+import { isSoftDeleted } from '@/lib/db/softDelete';
 import { logger } from '@/utils/logger';
 import { processDeferredOperationsForKnownTables } from './SyncEngine.deferred';
 import { generateUUID } from './SyncEngine.shared';
@@ -26,40 +27,53 @@ export async function regenerateSyncOperations({
   try {
     setSyncLock(true);
 
-    await db.table('operations').clear();
+    const clientId = await ensureClientId();
+    const operationsTable = db.table('operations');
+    const entityTables = tables
+      .filter((tableName) => db.tables.some((table) => table.name === tableName))
+      .map((tableName) => db.table(tableName));
 
-    for (const tableName of tables) {
-      const table = db.table(tableName);
-      const items = await table.toArray();
-      const primKeyPath = table.schema.primKey.keyPath;
+    // clear 与重建必须在同一事务内,避免中间崩溃丢失全部未同步 op
+    await db.transaction('rw', [operationsTable, ...entityTables], async () => {
+      await operationsTable.clear();
 
-      const operations: SyncOperation[] = [];
+      for (const table of entityTables) {
+        const items = await table.toArray();
+        const primKeyPath = table.schema.primKey.keyPath;
 
-      for (const item of items) {
-        let key: unknown;
-        if (typeof primKeyPath === 'string') {
-          key = item[primKeyPath as keyof typeof item];
-        } else if (Array.isArray(primKeyPath)) {
-          key = primKeyPath.map((path) => item[path as keyof typeof item]);
+        const operations: SyncOperation[] = [];
+
+        for (const item of items) {
+          let key: unknown;
+          if (typeof primKeyPath === 'string') {
+            key = item[primKeyPath as keyof typeof item];
+          } else if (Array.isArray(primKeyPath)) {
+            key = primKeyPath.map((path) => item[path as keyof typeof item]);
+          }
+
+          // 墓碑必须生成 delete op 并沿用实体原始时间戳,否则以 Date.now()
+          // 重打时间戳的 create 会在 LWW 下覆盖其他设备上较晚重建的数据
+          const record = item as { deletedAt?: number | null; updatedAt?: number };
+          const deleted = isSoftDeleted(record);
+
+          operations.push({
+            id: generateUUID(),
+            clientId,
+            table: table.name,
+            type: deleted ? 'delete' : 'create',
+            key,
+            payload: item,
+            timestamp: record.deletedAt ?? record.updatedAt ?? Date.now(),
+            synced: 0,
+          });
         }
 
-        operations.push({
-          id: generateUUID(),
-          clientId: await ensureClientId(),
-          table: tableName,
-          type: 'create',
-          key,
-          payload: item,
-          timestamp: Date.now(),
-          synced: 0,
-        });
+        if (operations.length > 0) {
+          await operationsTable.bulkAdd(operations);
+          logger.info(`[Sync] Regenerated ${operations.length} operations for table ${table.name}`);
+        }
       }
-
-      if (operations.length > 0) {
-        await db.table('operations').bulkAdd(operations);
-        logger.info(`[Sync] Regenerated ${operations.length} operations for table ${tableName}`);
-      }
-    }
+    });
 
     logger.info('[Sync] Operations regeneration complete.');
   } catch (error) {

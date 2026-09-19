@@ -12,7 +12,7 @@ interface LinkListItemProps {
   link: LinkWithStats;
   onDelete: (link: LinkItem) => void | Promise<void>;
   onEdit: (link: LinkWithStats) => void;
-  onRecordVisit: (id: string) => void | Promise<void>;
+  onRecordVisit: (id: string, url: string) => void | Promise<void>;
   onTogglePin: (id: string) => void | Promise<void>;
 }
 
@@ -41,7 +41,7 @@ export function LinkListItem({
             target="_blank"
             rel="noreferrer"
             className={cn('block min-w-0 flex-1 group/link')}
-            onSingleClick={() => onRecordVisit(link.id)}
+            onSingleClick={() => onRecordVisit(link.id, link.url)}
           >
             <div className="truncate py-0.5 text-sm font-semibold leading-normal text-foreground transition-colors group-hover/link:text-primary">
               {link.name}
@@ -106,7 +106,7 @@ export function LinkListItem({
           target="_blank"
           rel="noreferrer"
           className={cn('block group/link')}
-          onSingleClick={() => onRecordVisit(link.id)}
+          onSingleClick={() => onRecordVisit(link.id, link.url)}
         >
           <div
             className={cn(

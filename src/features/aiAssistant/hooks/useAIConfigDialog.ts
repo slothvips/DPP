@@ -4,6 +4,7 @@ import { checkOpenCodeModels } from '@/lib/ai/openCodeProviderModels';
 import { DEFAULT_CONFIGS, createProvider } from '@/lib/ai/provider';
 import { DEFAULT_AI_PROVIDER } from '@/lib/ai/providerIds';
 import type { AIProviderType, Model } from '@/lib/ai/types';
+import { trackAiAssistant } from '@/lib/analytics';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { toConfigProvider } from '../components/aiConfigDialogShared';
@@ -131,6 +132,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
 
   useEffect(() => {
     if (!open) return;
+    trackAiAssistant('dialogOpened');
     setView('list');
     void loadOverview();
   }, [loadOverview, open]);
@@ -222,6 +224,7 @@ export function useAIConfigDialog(open: boolean, onSaved?: () => void) {
         await loadOverview();
         onSaved?.();
         toast('已切换当前 AI 服务', 'success');
+        trackAiAssistant('modelChanged');
       } catch (err) {
         logger.error('[AIConfig] Failed to activate config:', err);
         toast('切换失败，请稍后重试', 'error');

@@ -1,3 +1,4 @@
+import { trackBlackboard } from '@/lib/analytics';
 import {
   type AddBlackboardArgs,
   type AddBlackboardResult,
@@ -22,6 +23,8 @@ export async function addBlackboard(args: AddBlackboardArgs): Promise<AddBlackbo
     locked: false,
   });
 
+  trackBlackboard('noteCreated');
+
   return {
     success: true,
     id,
@@ -41,6 +44,9 @@ export async function updateBlackboard(
     updatedAt: Date.now(),
   });
 
+  const field = args.content !== undefined ? 'content' : args.pinned !== undefined ? 'pin' : 'lock';
+  trackBlackboard('noteUpdated', { meta: { field } });
+
   return {
     success: true,
     message: 'Blackboard item updated successfully',
@@ -57,6 +63,8 @@ export async function deleteBlackboard(
     deletedAt: now,
     updatedAt: now,
   });
+
+  trackBlackboard('noteDeleted');
 
   return {
     success: true,
@@ -75,6 +83,8 @@ export async function toggleBlackboardPin(
     updatedAt: Date.now(),
   });
 
+  trackBlackboard('noteUpdated', { meta: { field: 'pin' } });
+
   return {
     success: true,
     message: newPinnedStatus ? '便签已置顶' : '便签已取消置顶',
@@ -91,6 +101,8 @@ export async function toggleBlackboardLock(
     locked: newLockedStatus,
     updatedAt: Date.now(),
   });
+
+  trackBlackboard('noteUpdated', { meta: { field: 'lock' } });
 
   return {
     success: true,

@@ -12,13 +12,14 @@ import {
   type SortOption,
   useSortedFilteredLinks,
 } from '@/features/links/hooks/useSortedFilteredLinks';
+import { openLink } from '@/features/links/utils';
 import { recordRecentAction } from '@/lib/db/recentActions';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 
 export function LinksView() {
-  const { links, recordVisit, togglePin, addLink, updateLink, deleteLink } = useLinks();
+  const { links, togglePin, addLink, updateLink, deleteLink } = useLinks();
   const allTags = useLiveQuery(() => db.tags.filter((t) => !t.deletedAt).toArray()) || [];
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('createdAt');
@@ -60,9 +61,10 @@ export function LinksView() {
 
   const filteredAndSortedLinks = useSortedFilteredLinks(links, search, sortBy);
 
-  const handleLinkClick = async (id: string) => {
+  const handleLinkClick = async (id: string, url: string) => {
     try {
-      await recordVisit(id);
+      // openLink 内部统一校验 URL、记录访问并埋点 linkOpened
+      await openLink(url);
       const link = links?.find((item) => item.id === id);
       if (link) {
         await recordRecentAction({

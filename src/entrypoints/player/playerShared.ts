@@ -1,4 +1,5 @@
 import { db } from '@/db';
+import { trackRecorder } from '@/lib/analytics';
 import { extractConsoleLogs, extractNetworkRequests } from '@/lib/rrweb-plugins';
 import { logger } from '@/utils/logger';
 import { unpack } from '@rrweb/packer';
@@ -16,6 +17,17 @@ export interface LoadedPlayerData {
   networkRequestCount: number;
   consoleLogCount: number;
 }
+
+export type ReplaySource = 'list' | 'remote' | 'external';
+
+export function getReplaySource(search: string): ReplaySource {
+  const params = new URLSearchParams(search);
+  if (params.get('id')) return 'list';
+  if (params.get('cache')) return 'remote';
+  return 'external';
+}
+
+let lastReplayOpenedKey: string | null = null;
 
 export function getSavedPanelSize(): number {
   const saved = localStorage.getItem('player-side-panel-width');
@@ -130,6 +142,11 @@ export async function loadPlayerDataFromLocation(search: string): Promise<Loaded
   }
 
   const events = normalizeEvents(loaded.events);
+
+  if (lastReplayOpenedKey !== search) {
+    lastReplayOpenedKey = search;
+    trackRecorder('replayOpened', { meta: { source: getReplaySource(search) } });
+  }
 
   return {
     title: loaded.title,

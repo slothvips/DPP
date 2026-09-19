@@ -231,10 +231,10 @@ Wrangler 部署是原子替换。如果最终 D1-only Worker 部署失败，临�
 
 使用两个独立数据库：
 
-| 环境 | Worker            | D1 建议名称     | 域名                       |
-| ---- | ----------------- | --------------- | -------------------------- |
-| 生产 | `dpp-sync-worker` | `dpp-sync`      | `dpp-sync.586726.xyz`      |
-| 测试 | `dpp-sync-test`   | `dpp-sync-test` | `dpp-sync-test.586726.xyz` |
+| 环境 | Worker            | D1 建议名称     | 域名（部署时填写）       |
+| ---- | ----------------- | --------------- | ------------------------ |
+| 生产 | `dpp-sync-worker` | `dpp-sync`      | `sync.example.com`       |
+| 测试 | `dpp-sync-test`   | `dpp-sync-test` | `sync-test.example.com`  |
 
 `DB` 是 Wrangler 非继承 binding，必须在顶层和 `env.test` 中分别配置。
 

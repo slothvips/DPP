@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { createProvider } from '@/lib/ai/provider';
 import type { AIProviderType, ChatMessage } from '@/lib/ai/types';
 import { getAIConfig } from '@/lib/db/settings';
+import { logger } from '@/utils/logger';
 import {
   buildDiffSummaryPrompt,
   calculateDiffStats,
@@ -98,9 +99,13 @@ export function useDiffAiSummary(
       return;
     }
 
-    navigator.clipboard.writeText(aiSummary);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(aiSummary)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error) => logger.error('Failed to copy diff summary:', error));
   }, [aiSummary]);
 
   return {

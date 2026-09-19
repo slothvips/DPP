@@ -47,7 +47,10 @@ export function RecordingsView() {
     if (!confirmed) return;
 
     try {
-      await clearRecordings();
+      const result = await clearRecordings();
+      if (!result.success) {
+        toast(result.message || '清空录制失败', 'error');
+      }
     } catch (error) {
       logger.error('Failed to clear recordings:', error);
       toast('清空录制失败', 'error');
@@ -59,7 +62,10 @@ export function RecordingsView() {
     if (!confirmed) return;
 
     try {
-      await deleteRecording(id);
+      const result = await deleteRecording(id);
+      if (!result.success) {
+        toast(result.message || '删除录制失败', 'error');
+      }
     } catch (error) {
       logger.error('Failed to delete recording:', error);
       toast('删除录制失败', 'error');

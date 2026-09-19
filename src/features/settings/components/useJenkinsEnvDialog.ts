@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import type { JenkinsEnvironment } from '@/db';
+import { trackJenkins } from '@/lib/analytics';
 import { syncLegacyJenkinsSettings } from '@/lib/db/jenkins';
 import { updateSetting } from '@/lib/db/settings';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
@@ -125,6 +126,9 @@ export function useJenkinsEnvDialog({
       }
 
       toast(initialData ? '环境已更新' : '环境已添加', 'success');
+      if (!initialData) {
+        trackJenkins('serverAdded');
+      }
       onOpenChange(false);
     } catch (error) {
       logger.error(error);
@@ -150,9 +154,11 @@ export function useJenkinsEnvDialog({
         name: prev.name || detected.name,
       }));
       toast(`已连接为 ${detected.user}. 令牌已生成。`, 'success');
+      trackJenkins('serverTested', { meta: { ok: true } });
     } catch (error) {
       logger.error(error);
       toast(`自动检测失败: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      trackJenkins('serverTested', { meta: { ok: false } });
     } finally {
       setIsDetecting(false);
     }

@@ -26,6 +26,10 @@ export async function loadMonaco(): Promise<typeof Monaco> {
       setupMonacoWorker();
       return monaco;
     })();
+    // 加载失败时重置缓存,允许后续重试(否则扩展热更新后 chunk 404 会永久不可用)
+    monacoPromise.catch(() => {
+      monacoPromise = null;
+    });
   }
   return monacoPromise;
 }

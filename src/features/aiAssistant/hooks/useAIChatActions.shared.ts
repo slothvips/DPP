@@ -1,3 +1,4 @@
+import { trackAiAssistant } from '@/lib/analytics';
 import { logger } from '@/utils/logger';
 import type { ChatMessage } from '../types';
 import type { AIChatStatus } from './useAIChat.types';
@@ -40,4 +41,5 @@ export function handleAIChatActionError(options: {
   logger.error(label, error);
   setError(error instanceof Error ? error.message : 'Unknown error');
   setStatus('error');
+  trackAiAssistant('messageFailed');
 }

@@ -16,6 +16,7 @@ export const TABLE_DATA_SCOPE: Record<string, DataScope> = {
   testProjects: 'team',
   projectRuns: 'team',
   totpAccounts: 'personal',
+  analyticsEvents: 'local',
 };
 
 /** 当前纳入个人密钥同步的表 */

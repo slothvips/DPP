@@ -6,8 +6,10 @@ import { DEFAULT_CONFIGS } from '@/lib/ai/provider';
 import { AI_PROVIDER_TYPES, DEFAULT_AI_PROVIDER, isAIProviderType } from '@/lib/ai/providerIds';
 import { isOpenAICompatibleProvider } from '@/lib/ai/providerRegistry';
 import type { AIProviderType } from '@/lib/ai/types';
+import { trackAiAssistant } from '@/lib/analytics';
 import { encryptData, generateSyncKey, loadKey, storeKey } from '@/lib/crypto/encryption';
-import { updateSetting } from '@/lib/db/settings';
+import { deleteSetting, updateSetting } from '@/lib/db/settings';
+import { logger } from '@/utils/logger';
 
 export interface StoredAIConfig {
   provider: AIProviderType;
@@ -30,6 +32,10 @@ export interface AIProfileSummary extends StoredAIConfig {
 
 function createProfileId(): string {
   return `ai_profile_${crypto.randomUUID()}`;
+}
+
+function reportAIConfigSaved(): void {
+  trackAiAssistant('configSaved');
 }
 
 function isOpenCodeProvider(provider: AIProviderType): provider is 'opencode' {
@@ -295,6 +301,7 @@ export async function createAIProfile(
     await updateSetting('ai_active_profile_id', id);
     await updateSetting('ai_provider_type', config.provider);
   }
+  reportAIConfigSaved();
   return id;
 }
 
@@ -316,6 +323,7 @@ export async function updateAIProfile(
     apiKey: await encryptApiKey(config.apiKey),
     updatedAt: Date.now(),
   });
+  reportAIConfigSaved();
 }
 
 export async function activateAIProfile(id: string): Promise<void> {
@@ -382,6 +390,7 @@ async function saveLegacyProviderConfig(config: StoredAIConfig, activate: boolea
     updates.push(updateSetting('ai_provider_type', config.provider));
   }
   await Promise.all(updates);
+  reportAIConfigSaved();
 }
 
 export async function saveProviderConfig(
@@ -418,4 +427,42 @@ export async function saveProviderConfig(
 export async function isAIConfigConfigured(): Promise<boolean> {
   const config = await loadAIConfig();
   return Boolean(config.baseUrl || config.model || config.apiKey);
+}
+
+const UNSCOPED_LEGACY_KEYS = ['ai_base_url', 'ai_model', 'ai_api_key'] as const;
+
+/**
+ * 旧版（无 provider 前缀）ai_base_url/ai_model/ai_api_key 一次性迁移。
+ *
+ * 历史上这三个键在 loadAIProviderConfig 中优先于激活 profile，导致新配置
+ * 不生效、旧凭据长期残留，部分残留场景还会把新 profile 密钥发往旧 baseUrl。
+ * 这里按旧优先级（legacy 覆盖当前生效配置）合并持久化一次，然后删除旧键。
+ */
+export async function migrateUnscopedLegacyAISettings(): Promise<void> {
+  const [baseUrlSetting, modelSetting, apiKeySetting] = await Promise.all(
+    UNSCOPED_LEGACY_KEYS.map((key) => db.settings.get(key))
+  );
+  if (baseUrlSetting === undefined && modelSetting === undefined && apiKeySetting === undefined) {
+    return;
+  }
+
+  const current = await loadAIConfig();
+  const legacyBaseUrl = baseUrlSetting?.value;
+  const legacyModel = modelSetting?.value;
+  const legacyApiKey = apiKeySetting?.value;
+  const merged: StoredAIConfig = {
+    provider: current.provider,
+    displayName: current.displayName,
+    baseUrl: typeof legacyBaseUrl === 'string' && legacyBaseUrl ? legacyBaseUrl : current.baseUrl,
+    model: typeof legacyModel === 'string' && legacyModel ? legacyModel : current.model,
+    contextWindow: current.contextWindow,
+    visionEnabled: current.visionEnabled,
+    apiKey: legacyApiKey
+      ? await resolveAIApiKey(legacyApiKey as string | StoredEncryptedValue, '[AIConfig]')
+      : current.apiKey,
+  };
+
+  await saveProviderConfig(merged, { activateProvider: merged.provider !== 'opencode' });
+  await Promise.all(UNSCOPED_LEGACY_KEYS.map((key) => deleteSetting(key)));
+  logger.info('[AIConfig] Migrated and removed unscoped legacy AI settings');
 }

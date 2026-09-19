@@ -9,6 +9,7 @@ import {
   flushDeferredAutoSyncPush,
   handleSyncMessage,
   recoverInterruptedBrowserTask,
+  setupAnalyticsFlush,
   setupAutoSync,
   setupOmnibox,
 } from './handlers';
@@ -16,6 +17,7 @@ import { PUSH_RETRY_ALARM } from './handlers/syncShared';
 
 export function registerBackgroundLifecycle() {
   registerMaterialDeepLinkNavigation();
+  setupAnalyticsFlush();
   browser.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error) => logger.error('Failed to set side panel behavior:', error));

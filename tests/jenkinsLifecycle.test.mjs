@@ -349,14 +349,12 @@ test('Jenkins job catalog is env-scoped and the legacy jobs table is write-retir
   const catalog = source('src/lib/db/jobCatalog.ts');
   const tags = source('src/lib/db/tagsQueries.ts');
   const associations = source('src/lib/db/tagsAssociations.ts');
-  const search = source('src/lib/ai/tools/dppSearch.ts');
 
   assert.doesNotMatch(mutations, /db\.jobs\.bulkPut/);
   assert.match(mutations, /db\.jenkinsJobs\.bulkPut/);
   assert.match(catalog, /db\.jenkinsJobs\.where\('url'\)/);
   assert.match(tags, /getJobsByUrls/);
   assert.match(associations, /getJobByUrl/);
-  assert.match(search, /getAllScopedJenkinsJobs/);
 });
 
 test('Jenkins workbench reads env-scoped tables and shares one request path', () => {

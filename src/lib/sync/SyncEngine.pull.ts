@@ -1,5 +1,6 @@
 import type Dexie from 'dexie';
 import type { DeferredOp, SyncApplyQueueRecord, SyncMetadata } from '@/db/typesSync';
+import { trackSync } from '@/lib/analytics';
 import {
   type SyncChunkRecord,
   isSyncChunkOperation,
@@ -387,6 +388,9 @@ async function recoverHistoricalChunks({
     for (const conflict of merged.conflicts) {
       logger.error(`[Sync] Conflicting historical chunk ignored: ${conflict.id}`);
     }
+    if (merged.conflicts.length > 0) {
+      trackSync('conflictResolved', { meta: { strategy: 'chunk' } });
+    }
 
     await db.transaction('rw', [db.table('syncChunks'), db.table('syncMetadata')], async () => {
       const existingIds = new Set(existing.map((record) => record.id));
@@ -520,6 +524,9 @@ export async function runPullFlow({
     const mergedChunks = mergeChunkRecords(existingChunks, incomingChunks);
     for (const conflict of mergedChunks.conflicts) {
       logger.error(`[Sync] Conflicting chunk ignored: ${conflict.id}`);
+    }
+    if (mergedChunks.conflicts.length > 0) {
+      trackSync('conflictResolved', { meta: { strategy: 'chunk' } });
     }
 
     const completeChunks = await getCompleteChunkOperations(

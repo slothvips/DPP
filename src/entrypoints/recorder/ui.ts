@@ -24,18 +24,36 @@ export function createRecorderFloatingUI(onStop: () => void) {
     const style = document.createElement('style');
     style.textContent = `
       .container {
-        background: white;
+        --dpp-rec-bg: #ffffff;
+        --dpp-rec-fg: #374151;
+        --dpp-rec-border: #e5e7eb;
+        --dpp-rec-stop-bg: #fee2e2;
+        --dpp-rec-stop-fg: #b91c1c;
+        --dpp-rec-stop-border: #fecaca;
+        --dpp-rec-stop-hover-bg: #fecaca;
+        background: var(--dpp-rec-bg);
         padding: 10px 14px;
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         display: flex;
         align-items: center;
         gap: 10px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--dpp-rec-border);
         font-size: 14px;
-        color: #374151;
+        color: var(--dpp-rec-fg);
         cursor: move;
         user-select: none;
+      }
+      @media (prefers-color-scheme: dark) {
+        .container {
+          --dpp-rec-bg: #1f2937;
+          --dpp-rec-fg: #e5e7eb;
+          --dpp-rec-border: #374151;
+          --dpp-rec-stop-bg: #7f1d1d;
+          --dpp-rec-stop-fg: #fecaca;
+          --dpp-rec-stop-border: #991b1b;
+          --dpp-rec-stop-hover-bg: #991b1b;
+        }
       }
       .indicator {
         display: flex;
@@ -55,9 +73,9 @@ export function createRecorderFloatingUI(onStop: () => void) {
         font-weight: 500;
       }
       .stop-btn {
-        background: #fee2e2;
-        color: #b91c1c;
-        border: 1px solid #fecaca;
+        background: var(--dpp-rec-stop-bg);
+        color: var(--dpp-rec-stop-fg);
+        border: 1px solid var(--dpp-rec-stop-border);
         padding: 4px 10px;
         border-radius: 4px;
         cursor: pointer;
@@ -66,7 +84,7 @@ export function createRecorderFloatingUI(onStop: () => void) {
         transition: background 0.2s;
       }
       .stop-btn:hover {
-        background: #fecaca;
+        background: var(--dpp-rec-stop-hover-bg);
       }
       @keyframes pulse {
         0% { opacity: 1; }

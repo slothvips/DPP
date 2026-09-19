@@ -1,4 +1,5 @@
 import React from 'react';
+import { trackError } from '@/lib/analytics';
 import { cn } from '@/utils/cn';
 import { logger } from '@/utils/logger';
 
@@ -32,6 +33,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     const scope = this.props.moduleName ? `[${this.props.moduleName}] ` : '';
     logger.error(`${scope}Uncaught error:`, error, errorInfo);
+    trackError('unexpectedError', { meta: { isolated: Boolean(this.props.moduleName) } });
   }
 
   private handleRetry = () => {

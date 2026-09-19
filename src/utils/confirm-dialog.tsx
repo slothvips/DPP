@@ -1,4 +1,4 @@
-import { type ReactNode, createContext, useCallback, useContext, useState } from 'react';
+import { type ReactNode, createContext, useCallback, useContext, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,7 +14,6 @@ interface ConfirmDialogState {
   title: string;
   message: string;
   variant?: 'default' | 'danger';
-  onConfirm: ((confirmed: boolean) => void) | null;
 }
 
 interface ConfirmDialogContextValue {
@@ -41,8 +40,8 @@ export function ConfirmDialogProvider({ children }: ConfirmDialogProviderProps) 
     title: '确认',
     message: '',
     variant: 'default',
-    onConfirm: null,
   });
+  const resolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
   const confirm = useCallback(
     (
@@ -50,28 +49,24 @@ export function ConfirmDialogProvider({ children }: ConfirmDialogProviderProps) 
       title: string = '确认',
       variant: 'default' | 'danger' = 'default'
     ): Promise<boolean> => {
+      // 前一次未应答的确认按"取消"结算,避免调用方 Promise 永久悬挂
+      resolverRef.current?.(false);
       return new Promise((resolve) => {
-        setState({
-          open: true,
-          title,
-          message,
-          variant,
-          onConfirm: resolve,
-        });
+        resolverRef.current = resolve;
+        setState({ open: true, title, message, variant });
       });
     },
     []
   );
 
-  const handleConfirm = () => {
-    state.onConfirm?.(true);
-    setState((prev) => ({ ...prev, open: false, onConfirm: null }));
+  const settle = (confirmed: boolean) => {
+    resolverRef.current?.(confirmed);
+    resolverRef.current = null;
+    setState((prev) => ({ ...prev, open: false }));
   };
 
-  const handleCancel = () => {
-    state.onConfirm?.(false);
-    setState((prev) => ({ ...prev, open: false, onConfirm: null }));
-  };
+  const handleConfirm = () => settle(true);
+  const handleCancel = () => settle(false);
 
   return (
     <ConfirmDialogContext.Provider value={{ confirm }}>

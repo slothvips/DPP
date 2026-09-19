@@ -93,9 +93,11 @@ export async function clearAllSyncData({
     setSyncLock(true);
     setStatus('idle');
 
-    const entityTables = preservePersonal
-      ? tables.filter((tableName) => getTableDataScope(tableName) !== 'personal')
-      : tables;
+    const entityTables = tables.filter((tableName) => {
+      const scope = getTableDataScope(tableName);
+      if (scope === 'local') return false;
+      return !preservePersonal || scope !== 'personal';
+    });
     const tablesToClear = [
       'syncMetadata',
       'operations',

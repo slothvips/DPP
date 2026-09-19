@@ -1,5 +1,11 @@
 const MODAL_STYLES = `
   .dpp-modal-overlay {
+    --dpp-modal-bg: #ffffff;
+    --dpp-modal-title-fg: #333333;
+    --dpp-modal-message-fg: #666666;
+    --dpp-modal-cancel-bg: #e0e0e0;
+    --dpp-modal-cancel-fg: #333333;
+    --dpp-modal-cancel-hover-bg: #d0d0d0;
     position: fixed;
     top: 0;
     left: 0;
@@ -12,8 +18,18 @@ const MODAL_STYLES = `
     z-index: 999999;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
+  @media (prefers-color-scheme: dark) {
+    .dpp-modal-overlay {
+      --dpp-modal-bg: #1f2937;
+      --dpp-modal-title-fg: #f9fafb;
+      --dpp-modal-message-fg: #9ca3af;
+      --dpp-modal-cancel-bg: #374151;
+      --dpp-modal-cancel-fg: #f3f4f6;
+      --dpp-modal-cancel-hover-bg: #4b5563;
+    }
+  }
   .dpp-modal-content {
-    background: white;
+    background: var(--dpp-modal-bg);
     border-radius: 8px;
     padding: 20px;
     max-width: 400px;
@@ -24,11 +40,11 @@ const MODAL_STYLES = `
     font-size: 18px;
     font-weight: 600;
     margin-bottom: 12px;
-    color: #333;
+    color: var(--dpp-modal-title-fg);
   }
   .dpp-modal-message {
     font-size: 14px;
-    color: #666;
+    color: var(--dpp-modal-message-fg);
     margin-bottom: 20px;
     line-height: 1.5;
   }
@@ -46,11 +62,11 @@ const MODAL_STYLES = `
     transition: background 0.2s;
   }
   .dpp-modal-btn-cancel {
-    background: #e0e0e0;
-    color: #333;
+    background: var(--dpp-modal-cancel-bg);
+    color: var(--dpp-modal-cancel-fg);
   }
   .dpp-modal-btn-cancel:hover {
-    background: #d0d0d0;
+    background: var(--dpp-modal-cancel-hover-bg);
   }
   .dpp-modal-btn-confirm {
     background: #0066cc;

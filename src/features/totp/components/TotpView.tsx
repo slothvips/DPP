@@ -3,14 +3,15 @@ import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { getTotpAccount, recordRecentAction } from '@/lib/db';
+import { getTotpAccount } from '@/lib/db';
 import { clearTotpReplayIntent, getTotpReplayIntent } from '@/lib/recentActionIntent';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { useTotpAccounts } from '../hooks/useTotpAccounts';
-import { getTotpCodeAt, useTotpTicker } from '../hooks/useTotpCode';
+import { useTotpTicker } from '../hooks/useTotpCode';
 import { useTotpPinLock } from '../hooks/useTotpPinLock';
 import type { TotpAccountFormData, TotpAccountItem } from '../types';
+import { copyTotpCode, reportTotpCodesRevealed } from '../utils/copyTotpCode';
 import { TotpAccountDialog } from './TotpAccountDialog';
 import { TotpAccountListItem } from './TotpAccountListItem';
 import { TotpExportDialog } from './TotpExportDialog';
@@ -95,15 +96,8 @@ export function TotpView({ isActive = true }: TotpViewProps) {
           toast('验证器账户已不存在', 'error');
           return;
         }
-        const { code } = getTotpCodeAt(account, Date.now());
-        if (code === '------') throw new Error('无法生成验证码');
-        await navigator.clipboard.writeText(code);
+        await copyTotpCode(account, Date.now());
         clearTotpReplayIntent();
-        await recordRecentAction({
-          type: 'totp_copy',
-          targetId: account.id,
-          label: account.label,
-        });
         toast('验证码已复制', 'success');
       } catch (error) {
         logger.error('Failed to replay TOTP copy:', error);
@@ -286,7 +280,10 @@ export function TotpView({ isActive = true }: TotpViewProps) {
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0"
-          onClick={() => setShowCodes((value) => !value)}
+          onClick={() => {
+            setShowCodes((value) => !value);
+            if (!showCodes) reportTotpCodesRevealed();
+          }}
           title={showCodes ? '隐藏验证码' : '显示验证码'}
           data-testid="totp-toggle-codes-button"
         >

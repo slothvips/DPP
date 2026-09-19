@@ -3,6 +3,7 @@ import { useToast } from '@/components/ui/toast';
 import { db } from '@/db';
 import type { SettingKey } from '@/db/types';
 import { AI_PROVIDER_DEFINITIONS } from '@/lib/ai/providerRegistry';
+import { trackSettings } from '@/lib/analytics';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { EXCLUDED_SETTINGS, SETTINGS_CATEGORIES, isStoredEncryptedValue } from './optionsShared';
@@ -123,6 +124,7 @@ export function useOptionsExport({
 
       setShowExportDialog(false);
       toast('配置导出成功！', 'success');
+      trackSettings('dataExported');
     } catch (error) {
       logger.error('Export error:', error);
       toast('导出失败，请查看控制台', 'error');

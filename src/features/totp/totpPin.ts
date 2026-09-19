@@ -1,3 +1,4 @@
+import { db } from '@/db';
 import { deleteSetting, getSetting, updateSetting } from '@/lib/db/settings';
 
 export const TOTP_PIN_MIN_LENGTH = 4;
@@ -114,12 +115,14 @@ export async function setTotpPin(pin: string, autoLockMinutes?: number): Promise
   const lockMinutes =
     typeof autoLockMinutes === 'number' ? autoLockMinutes : DEFAULT_TOTP_PIN_AUTO_LOCK_MINUTES;
 
-  await Promise.all([
-    updateSetting('totp_pin_hash', hash),
-    updateSetting('totp_pin_salt', bytesToBase64(salt)),
-    updateSetting('totp_pin_iterations', iterations),
-    updateSetting('totp_pin_auto_lock_minutes', lockMinutes),
-  ]);
+  await db.transaction('rw', db.settings, async () => {
+    await Promise.all([
+      updateSetting('totp_pin_hash', hash),
+      updateSetting('totp_pin_salt', bytesToBase64(salt)),
+      updateSetting('totp_pin_iterations', iterations),
+      updateSetting('totp_pin_auto_lock_minutes', lockMinutes),
+    ]);
+  });
 }
 
 export async function updateTotpPinAutoLockMinutes(minutes: number): Promise<void> {
@@ -127,10 +130,12 @@ export async function updateTotpPinAutoLockMinutes(minutes: number): Promise<voi
 }
 
 export async function clearTotpPin(): Promise<void> {
-  await Promise.all([
-    deleteSetting('totp_pin_hash'),
-    deleteSetting('totp_pin_salt'),
-    deleteSetting('totp_pin_iterations'),
-    deleteSetting('totp_pin_auto_lock_minutes'),
-  ]);
+  await db.transaction('rw', db.settings, async () => {
+    await Promise.all([
+      deleteSetting('totp_pin_hash'),
+      deleteSetting('totp_pin_salt'),
+      deleteSetting('totp_pin_iterations'),
+      deleteSetting('totp_pin_auto_lock_minutes'),
+    ]);
+  });
 }

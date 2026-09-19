@@ -1,5 +1,6 @@
 import { browser } from 'wxt/browser';
 import type { RecordingState } from '@/features/recorder/types';
+import { trackRecorder } from '@/lib/analytics';
 import {
   addRecording,
   countRecordings,
@@ -35,6 +36,7 @@ export async function handleRecorderStart(tabId: number) {
   setRecordingState(tabId, { isRecording: true, startTime: Date.now(), tabId });
   try {
     await browser.tabs.sendMessage(tabId, { type: 'RECORDER_INJECT' });
+    trackRecorder('recordingStarted');
     return { success: true };
   } catch (error) {
     logger.warn(`Failed to inject recorder on tab ${tabId}:`, error);
@@ -112,6 +114,7 @@ export async function handleRecorderComplete(
   };
 
   await addRecording(recording);
+  trackRecorder('recordingStopped');
 
   const savedMessage: RecordingSavedMessage = {
     type: 'RECORDER_SAVED',

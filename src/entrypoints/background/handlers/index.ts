@@ -18,6 +18,8 @@ export type { RemoteRecordingMessage } from './remoteRecording';
 export { handleProxyMessage } from './proxy';
 export type { ProxyMessage } from './proxy';
 
+export { ANALYTICS_FLUSH_ALARM, setupAnalyticsFlush } from './analyticsFlush';
+
 export {
   handleBrowserTaskMessage,
   stopActiveBrowserTask,

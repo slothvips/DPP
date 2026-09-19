@@ -20,6 +20,17 @@ export function showRecordingPicker(
     existing.remove();
   }
 
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const palette = {
+    modalBg: isDark ? '#1f2937' : 'white',
+    titleColor: isDark ? '#f9fafb' : '',
+    itemBorder: isDark ? '#374151' : '#e5e7eb',
+    itemHover: isDark ? '#374151' : '#f3f4f6',
+    metaColor: isDark ? '#9ca3af' : '#6b7280',
+    closeBg: isDark ? '#374151' : '#e5e7eb',
+    closeColor: isDark ? '#f3f4f6' : '',
+  };
+
   const overlay = doc.createElement('div');
   overlay.id = 'dpp-recording-picker';
   applyStyles(overlay, {
@@ -37,7 +48,7 @@ export function showRecordingPicker(
 
   const modal = doc.createElement('div');
   applyStyles(modal, {
-    background: 'white',
+    background: palette.modalBg,
     borderRadius: '12px',
     padding: '20px',
     maxWidth: '500px',
@@ -52,6 +63,7 @@ export function showRecordingPicker(
     margin: '0 0 16px 0',
     fontSize: '18px',
     fontWeight: '600',
+    color: palette.titleColor,
   });
   modal.appendChild(title);
 
@@ -59,15 +71,18 @@ export function showRecordingPicker(
     const item = doc.createElement('div');
     applyStyles(item, {
       padding: '12px',
-      border: '1px solid #e5e7eb',
+      border: `1px solid ${palette.itemBorder}`,
       borderRadius: '8px',
       marginBottom: '8px',
       cursor: 'pointer',
       transition: 'background 0.2s',
     });
+    if (isDark) {
+      item.style.color = '#f3f4f6';
+    }
 
     item.onmouseenter = () => {
-      item.style.background = '#f3f4f6';
+      item.style.background = palette.itemHover;
     };
     item.onmouseleave = () => {
       item.style.background = '';
@@ -79,7 +94,7 @@ export function showRecordingPicker(
 
     const recordingMeta = doc.createElement('div');
     recordingMeta.textContent = `${new Date(recording.createdAt).toLocaleString()} · ${Math.round(recording.duration / 1000)}秒`;
-    applyStyles(recordingMeta, { fontSize: '12px', color: '#6b7280' });
+    applyStyles(recordingMeta, { fontSize: '12px', color: palette.metaColor });
 
     item.appendChild(recordingTitle);
     item.appendChild(recordingMeta);
@@ -138,7 +153,8 @@ export function showRecordingPicker(
   applyStyles(closeButton, {
     marginTop: '12px',
     padding: '8px 16px',
-    background: '#e5e7eb',
+    background: palette.closeBg,
+    color: palette.closeColor,
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',

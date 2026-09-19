@@ -9,6 +9,7 @@ import {
   loadKey,
   storeKey,
 } from '@/lib/crypto/encryption';
+import { isSameAsStoredKeyForRole } from '@/lib/sync/syncKeys';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
 import { useSyncKeyMigration } from './useSyncKeyMigration';
@@ -88,6 +89,10 @@ export function useSyncKeyManager({
       setIsImporting(true);
       const normalized = importInput.trim();
       const key = await importKey(normalized);
+      if (await isSameAsStoredKeyForRole(key, 'personal')) {
+        toast('该密钥与个人私钥相同，请使用不同的密钥', 'error');
+        return;
+      }
       await storeKey(key);
       await checkKey();
       toast('同步密钥已导入', 'success');

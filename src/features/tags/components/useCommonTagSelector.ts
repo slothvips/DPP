@@ -60,9 +60,13 @@ export function useCommonTagSelector({
       return;
     }
 
-    await deleteTag({ id: tagToDelete.id });
-    setTagToDelete(null);
-    toast('标签已删除', 'success');
+    try {
+      await deleteTag({ id: tagToDelete.id });
+      setTagToDelete(null);
+      toast('标签已删除', 'success');
+    } catch (error) {
+      toast(error instanceof Error ? error.message : '删除标签失败', 'error');
+    }
   };
 
   const handleCreateTag = async (tagName: string) => {

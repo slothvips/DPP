@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { db } from '@/db';
 import { fetchNews, getAvailableDates } from '@/features/hotNews/api';
 import type { DailyNews } from '@/features/hotNews/types';
+import { trackHotnews } from '@/lib/analytics';
 import { logger } from '@/utils/logger';
 
 const EXPANDED_STORAGE_KEY = 'dpp_hotnews_expanded';
@@ -51,21 +52,24 @@ export function useHotNewsView() {
     }
   }, []);
 
-  const loadNews = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await fetchNews(date);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load news');
-    } finally {
-      setLoading(false);
-    }
-  }, [date]);
+  const loadNews = useCallback(
+    async (options?: { trigger?: 'manual' | 'retry' | 'auto' }) => {
+      setLoading(true);
+      setError(null);
+      try {
+        await fetchNews(date, options);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load news');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [date]
+  );
 
   useEffect(() => {
     if (!cachedNews) {
-      void loadNews();
+      void loadNews({ trigger: 'auto' });
     }
   }, [cachedNews, loadNews]);
 
@@ -84,6 +88,7 @@ export function useHotNewsView() {
   const handleDateChange = (value: string) => {
     setDate(value);
     setExpandedSections(new Set());
+    trackHotnews('filterChanged');
   };
 
   return {

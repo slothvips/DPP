@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { trackPlayground } from '@/lib/analytics';
 import {
   type EmbeddedToolId,
   TOOLBOX_PAGE_MAP,
@@ -15,6 +16,7 @@ export function useToolboxView() {
   };
 
   const handleSelectTool = (tool: ToolboxTool) => {
+    trackPlayground('toolOpened', { meta: { tool: tool.id } });
     if (isExternalTool(tool)) {
       void chrome.tabs.create({ url: tool.url });
       return;

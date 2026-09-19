@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import type { BuildParameter } from '@/features/jenkins/api/build';
 import { JenkinsService } from '@/features/jenkins/service';
+import { trackJenkins } from '@/lib/analytics';
 import { recordRecentAction } from '@/lib/db';
 import { useConfirmDialog } from '@/utils/confirm-dialog';
 import { logger } from '@/utils/logger';
@@ -77,6 +78,9 @@ export function useBuildDialog({
         const definitions = extractBuildParameters(details);
         setParams(definitions);
         setFormValues(buildDefaultFormValues(definitions));
+        if (definitions.length > 0) {
+          trackJenkins('paramFormOpened');
+        }
       } catch (error) {
         if (!cancelled) {
           logger.error(error);

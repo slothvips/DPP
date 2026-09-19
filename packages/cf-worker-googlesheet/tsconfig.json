@@ -15,6 +15,9 @@
     "src/lib/d1.ts",
     "src/lib/idempotency.ts",
     "src/lib/pushCoordinator.ts",
+    "src/lib/stats.ts",
+    "src/lib/statsCatalog.ts",
+    "src/lib/statsDashboard.ts",
     "worker-configuration.d.ts"
   ]
 }

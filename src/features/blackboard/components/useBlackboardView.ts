@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import Masonry from 'masonry-layout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { db } from '@/db';
+import { trackBlackboard } from '@/lib/analytics';
 import { addBlackboard, deleteBlackboard, updateBlackboard } from '@/lib/db';
 import { SYSTEM_NOTES } from './tips';
 
@@ -24,6 +25,10 @@ export function useBlackboardView() {
     const result = await db.blackboard.filter((item) => !item.deletedAt).sortBy('createdAt');
     return result.reverse();
   });
+
+  useEffect(() => {
+    trackBlackboard('boardOpened');
+  }, []);
 
   const sortedItems = useMemo(
     () =>

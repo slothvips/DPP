@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { logger } from '@/utils/logger';
 import { formatJsonText, minifyJsonText } from './jsonUtils';
 import { useJsonAiFix } from './useJsonAiFix';
 import { useJsonEditor } from './useJsonEditor';
@@ -44,14 +45,20 @@ export function useJsonView() {
       return;
     }
 
-    navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error) => logger.error('Failed to copy JSON:', error));
   }, [getValue]);
 
   const handleCopyError = useCallback(() => {
     if (error) {
-      navigator.clipboard.writeText(error);
+      navigator.clipboard
+        .writeText(error)
+        .catch((err) => logger.error('Failed to copy JSON error:', err));
     }
   }, [error]);
 

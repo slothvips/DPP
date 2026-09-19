@@ -179,7 +179,7 @@ export async function deleteTag(args: {
       throw new Error('标签仍有关联项目，请先取消所有关联');
     }
 
-    await db.tags.update(args.id, { deletedAt: now });
+    await db.tags.update(args.id, { deletedAt: now, updatedAt: now });
   });
 
   return {

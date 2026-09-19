@@ -6,6 +6,7 @@ import type { SessionAction } from '@/lib/ai/sessionActions';
 import { toolRegistry } from '@/lib/ai/tools';
 import { stopActiveBrowserTask } from '@/lib/ai/tools/browserTask';
 import { hasActiveTestRunForSession, stopTestRunForSession } from '@/lib/ai/tools/testRuns';
+import { trackAiAssistant } from '@/lib/analytics';
 import { logger } from '@/utils/logger';
 import { redactSensitiveFields } from '@/utils/sensitive';
 import type { ChatMessage } from '../types';
@@ -138,6 +139,7 @@ async function executePreparedToolCall(
     args: redactSensitiveFields(args),
     availableTools: availableToolNames,
   });
+  trackAiAssistant('toolCall', { meta: { tool: toolCall.function.name } });
   const toolArgs =
     toolCall.function.name === 'delegate_browser_agent' && options?.browserTaskSessionId
       ? {

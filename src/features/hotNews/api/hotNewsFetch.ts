@@ -1,5 +1,6 @@
 import { HOT_NEWS } from '@/config/constants';
 import type { DailyNews } from '@/features/hotNews/types';
+import { trackHotnews } from '@/lib/analytics';
 import { cleanupOldHotNews, getHotNews, saveHotNews } from '@/lib/db/hotnews';
 import { http } from '@/lib/http';
 import { logger } from '@/utils/logger';
@@ -11,7 +12,14 @@ async function cleanupOldNews() {
   await cleanupOldHotNews(validDates);
 }
 
-export async function fetchNews(date: string): Promise<DailyNews | null> {
+interface FetchNewsOptions {
+  trigger?: 'manual' | 'retry' | 'empty' | 'auto' | 'preview';
+}
+
+export async function fetchNews(
+  date: string,
+  options: FetchNewsOptions = {}
+): Promise<DailyNews | null> {
   try {
     const cached = await getHotNews({ date });
     if (cached?.data) {
@@ -46,6 +54,10 @@ export async function fetchNews(date: string): Promise<DailyNews | null> {
       logger.debug('Cache write failed:', error);
     }
 
+    if (options.trigger) {
+      trackHotnews('feedRefreshed', { meta: { trigger: options.trigger } });
+    }
+
     return data;
   } catch (error) {
     if (error instanceof Error && error.message.includes('超时')) {
@@ -58,4 +70,9 @@ export async function fetchNews(date: string): Promise<DailyNews | null> {
 
 export async function fetchTodayNews(): Promise<DailyNews | null> {
   return fetchNews(getBeijingDate(0));
+}
+
+/** 打开热榜条目的埋点入口：热榜页与快捷预览都走这里。 */
+export function reportHotNewsArticleOpened(source: string): void {
+  trackHotnews('articleOpened', { meta: { source } });
 }

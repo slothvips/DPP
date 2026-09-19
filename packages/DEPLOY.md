@@ -18,12 +18,12 @@ DPP 同步服务只支持 Cloudflare Worker + D1。浏览器端先加密数据�
 
 D1 负责 cursor、唯一约束、fingerprint 冲突检测、分页拉取和 pending 统计。Durable Object 不保存业务数据，只避免并发 push 在“查询后写入”之间竞争。
 
-## 当前环境
+## 建议环境命名
 
-| 环境 | Worker            | D1              | 域名                               |
-| ---- | ----------------- | --------------- | ---------------------------------- |
-| 生产 | `dpp-sync-worker` | `dpp-sync`      | `https://dpp-sync.586726.xyz`      |
-| 测试 | `dpp-sync-test`   | `dpp-sync-test` | `https://dpp-sync-test.586726.xyz` |
+| 环境 | Worker            | D1              | 域名（部署时填写）              |
+| ---- | ----------------- | --------------- | ------------------------------- |
+| 生产 | `dpp-sync-worker` | `dpp-sync`      | `https://sync.example.com`      |
+| 测试 | `dpp-sync-test`   | `dpp-sync-test` | `https://sync-test.example.com` |
 
 生产和测试必须使用不同的 D1、`SYNC_ACCESS_TOKEN`、`MIGRATION_ADMIN_TOKEN` 和浏览器配置。
 
@@ -47,7 +47,7 @@ pnpm --filter dpp-worker exec wrangler whoami
 
 ## 新账号首次部署
 
-当前 `wrangler.toml` 中的数据库 UUID 属于现有 Cloudflare 账号。部署到其他账号时必须创建自己的数据库并替换 UUID。
+`wrangler.toml` 中的 `database_id` 是占位符。部署前必须创建自己的 D1，并把返回的 UUID 填入配置。
 
 ### 1. 创建生产和测试 D1
 
@@ -65,7 +65,7 @@ pnpm --filter dpp-worker exec wrangler d1 create dpp-sync-test
 
 ### 2. 配置域名
 
-修改 `wrangler.toml` 中的两个 `routes`：
+`wrangler.toml` 默认注释掉 `routes`，使用 Wrangler 输出的 `workers.dev` 地址。若使用自定义域名，取消注释并改成你的 zone：
 
 ```toml
 [[routes]]
@@ -78,8 +78,6 @@ pattern = "sync-test.example.com"
 zone_name = "example.com"
 custom_domain = true
 ```
-
-不使用自定义域名时删除 `routes`，并使用 Wrangler 输出的 `workers.dev` 地址。
 
 ### 3. 应用 D1 migration
 
@@ -107,6 +105,15 @@ pnpm --filter dpp-worker exec wrangler secret put SYNC_ACCESS_TOKEN
 ```
 
 Wrangler 会交互式读取 Secret。不要把令牌放在命令参数、配置文件或 shell 历史中。
+
+统计看板使用**独立的**管理令牌（`STATS_ADMIN_TOKEN`），与同步令牌互不相同：团队成员持有同步令牌也无法查看统计，仅管理员知晓。未配置时统计聚合接口返回 500：
+
+```bash
+pnpm --filter dpp-worker exec wrangler secret put STATS_ADMIN_TOKEN --env test
+pnpm --filter dpp-worker exec wrangler secret put STATS_ADMIN_TOKEN
+```
+
+管理员查看统计：浏览器打开内部路径 `https://<worker 域名>/internal/usage-insights-7c4a9f`（路径常量在 `packages/cf-worker-googlesheet/src/index.ts`），页面内输入 `STATS_ADMIN_TOKEN`。
 
 ### 5. 生成 binding 类型并检查
 
@@ -205,7 +212,7 @@ pnpm release
 ```bash
 read -s SYNC_ACCESS_TOKEN
 export SYNC_ACCESS_TOKEN
-export SYNC_WORKER_URL='https://dpp-sync-test.586726.xyz'
+export SYNC_WORKER_URL='https://sync-test.example.com'
 ```
 
 检查：

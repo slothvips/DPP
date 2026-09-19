@@ -3,6 +3,7 @@ import { useToast } from '@/components/ui/toast';
 import { db, getSyncEngine } from '@/db';
 import type { AIProfile, JenkinsEnvironment, StoredEncryptedValue } from '@/db/types';
 import { isAIProviderType } from '@/lib/ai/providerIds';
+import { trackSettings } from '@/lib/analytics';
 import { decryptData, encryptData, exportKey, importKey, loadKey } from '@/lib/crypto/encryption';
 import { loadPersonalKey } from '@/lib/crypto/personalKey';
 import { clearAllLocalData } from '@/lib/db/clearAllLocalData';
@@ -367,6 +368,7 @@ export function useOptionsImportAndReset() {
       await clearAllLocalData();
       await db.open();
       toast('数据已清空', 'info');
+      trackSettings('dataCleared');
       setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       logger.error('Failed to clear all local data:', error);

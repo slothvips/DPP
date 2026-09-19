@@ -1,4 +1,5 @@
-import { getLinkByUrl, recordLinkVisit } from '@/lib/db';
+import { trackLinks } from '@/lib/analytics';
+import { getLinkByUrl, recordLinkVisit, recordRecentAction } from '@/lib/db';
 import { logger } from '@/utils/logger';
 
 /**
@@ -49,11 +50,44 @@ export function validateUrl(url: string): string | null {
   }
 }
 
+/** 链接打开的埋点入口。openLink 与原生中键/组合键点击都走这里。 */
+export function reportLinkOpened(): void {
+  trackLinks('linkOpened');
+}
+
+/**
+ * 原生中键/组合键打开：不拦截浏览器导航，只补访问次数、最近使用和埋点。
+ */
+export function reportNativeLinkOpen(url: string | undefined): void {
+  void recordNativeLinkOpen(url);
+}
+
+async function recordNativeLinkOpen(url: string | undefined): Promise<void> {
+  reportLinkOpened();
+  if (!url) return;
+
+  try {
+    const validatedUrl = validateUrl(url);
+    if (!validatedUrl) return;
+
+    const link = await getLinkByUrl(validatedUrl);
+    if (!link) return;
+
+    await recordLinkVisit({ id: link.id });
+    await recordRecentAction({
+      type: 'link_visit',
+      targetId: link.id,
+      label: link.name,
+    });
+  } catch (err) {
+    logger.error('Failed to record native link open:', err);
+  }
+}
+
 export async function openLink(url: string) {
   const validatedUrl = validateUrl(url);
   if (!validatedUrl) return;
 
-  // Record usage
   try {
     const link = await getLinkByUrl(validatedUrl);
 
@@ -64,7 +98,8 @@ export async function openLink(url: string) {
     logger.error('Failed to record link usage:', err);
   }
 
-  // Open link
+  reportLinkOpened();
+
   if (typeof browser !== 'undefined' && browser.tabs) {
     await browser.tabs.create({ url: validatedUrl });
   } else {

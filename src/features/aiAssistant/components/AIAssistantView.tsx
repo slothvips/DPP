@@ -13,9 +13,9 @@ import { exportChatToMarkdown } from '@/features/aiAssistant/utils/exportChatToM
 import { BuildDialog } from '@/features/jenkins/components/BuildDialog';
 import { isJenkinsFeatureEnabled } from '@/features/jenkins/featureFlags';
 import { openLink } from '@/features/links/utils';
-import { getTotpCodeAt } from '@/features/totp/hooks/useTotpCode';
 import { getTotpPinConfig } from '@/features/totp/totpPin';
 import { isTotpPinSessionUnlocked } from '@/features/totp/totpPinSession';
+import { copyTotpCode } from '@/features/totp/utils/copyTotpCode';
 import {
   TEST_CASE_GENERATE_PROMPT,
   TEST_CASE_IMPORT_PROMPT,
@@ -503,14 +503,7 @@ export function AIAssistantView({ onModuleSelect, sidebarFooter }: AIAssistantVi
           return;
         }
 
-        const { code } = getTotpCodeAt(account, Date.now());
-        if (code === '------') throw new Error('无法生成验证码');
-        await navigator.clipboard.writeText(code);
-        await recordRecentAction({
-          type: 'totp_copy',
-          targetId: account.id,
-          label: account.label,
-        });
+        await copyTotpCode(account, Date.now());
         toast('验证码已复制', 'success');
       } catch (error) {
         logger.error('[AIChat] Failed to replay recent action:', error);

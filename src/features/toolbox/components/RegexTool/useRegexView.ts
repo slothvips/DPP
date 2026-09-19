@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { logger } from '@/utils/logger';
 import type { HighlightPart, MatchResult, RegexFlagKey, RegexFlags } from './regexShared';
 
 const PRESET_MAX_EXEC_TIME = 1000;
@@ -118,9 +119,13 @@ export function useRegexView() {
   }, [matches, regex, testString]);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(matches.map((match) => match.match).join('\n'));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard
+      .writeText(matches.map((match) => match.match).join('\n'))
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error) => logger.error('Failed to copy regex matches:', error));
   }, [matches]);
 
   const applyPreset = (pattern: string, flag?: RegexFlagKey) => {

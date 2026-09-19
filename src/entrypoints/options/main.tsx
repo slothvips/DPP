@@ -1,9 +1,10 @@
 import 'virtual:uno.css';
-import React from 'react';
+import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/toast';
 import { useTheme } from '@/hooks/useTheme';
+import { trackSettings } from '@/lib/analytics';
 import { ConfirmDialogProvider } from '@/utils/confirm-dialog';
 import '@unocss/reset/tailwind.css';
 import { DangerZoneSection } from './DangerZoneSection';
@@ -17,6 +18,10 @@ import { useOptionsPage } from './useOptionsPage';
 
 function OptionsApp() {
   useTheme();
+
+  useEffect(() => {
+    trackSettings('pageOpened');
+  }, []);
 
   const {
     accessToken,

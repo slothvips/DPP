@@ -1,5 +1,6 @@
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { reportHotNewsArticleOpened } from '@/features/hotNews/api';
 import type { DailyNews, NewsSection } from '@/features/hotNews/types';
 import { cn } from '@/utils/cn';
 
@@ -8,7 +9,7 @@ interface HotNewsContentProps {
   expandedSections: Set<string>;
   loading: boolean;
   news?: DailyNews;
-  onRetry: () => void;
+  onRetry: (options?: { trigger?: 'retry' }) => void;
   onToggleSection: (source: string) => void;
 }
 
@@ -42,7 +43,12 @@ export function HotNewsContent({
         <div className="w-full max-w-sm rounded-2xl border border-dashed border-warning/16 bg-warning/4 p-6 text-center">
           <p className="text-sm font-semibold text-foreground">加载热榜失败</p>
           <p className="mt-2 text-xs leading-6 text-muted-foreground">{error}</p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => onRetry({ trigger: 'retry' })}
+          >
             <RefreshCw className="mr-2 h-4 w-4" />
             重试
           </Button>
@@ -59,7 +65,12 @@ export function HotNewsContent({
           <p className="mt-2 text-xs leading-6 text-muted-foreground">
             暂时没有内容，稍后再来刷新。
           </p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={onRetry}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => onRetry({ trigger: 'retry' })}
+          >
             <RefreshCw className="mr-2 h-4 w-4" />
             刷新
           </Button>
@@ -115,6 +126,7 @@ function SectionCard({ section, expanded, onToggle }: SectionCardProps) {
                 href={item.url}
                 target="_blank"
                 rel="noreferrer"
+                onClick={() => reportHotNewsArticleOpened(section.source)}
                 className="group block rounded-xl px-3 py-2.5 transition-colors hover:bg-warning/4"
               >
                 <div className="flex items-start gap-2.5">
