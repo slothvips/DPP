@@ -1,153 +1,67 @@
-# DPP (WXT + React) Agent Guidelines
+# DPP Agent Guidelines
 
-AI agents working on this codebase MUST follow these guidelines strictly.
+Browser extension (WXT + React 19 + TypeScript strict) with a Cloudflare Worker sync backend. **Live product with real users** — never break existing data or sync behavior. Package manager is **pnpm only** (monorepo, workspace = root + `packages/*`).
 
-## Project Overview
-
-| Stack       | Technology                               |
-| ----------- | ---------------------------------------- |
-| Framework   | WXT (Web Extension Tools) + React 19     |
-| Language    | TypeScript (Strict)                      |
-| Styling     | UnoCSS + Shadcn theme variables          |
-| State/DB    | Dexie.js (IndexedDB) + dexie-react-hooks |
-| Sync        | Custom SyncEngine + E2E Encryption       |
-| Recording   | rrweb (Session Replay)                   |
-| Pkg Manager | **pnpm** (NEVER use npm/yarn)            |
-
-## Critical Rules
-
-- **No `any`**: Use `unknown` or specific types. ESLint errors on `any`.
-- **No Suppressions**: Never use `@ts-ignore` or `@ts-expect-error`. Fix the underlying issue.
-- **Unused Vars**: Prefix unused variables with `_` (e.g., `_req`) to satisfy linter.
-- **No Relative Parent Imports**: Always use `@/` alias (e.g., `@/components/...`) instead of `../../`.
-- **Strict Equality**: Always use `===` and `!==`.
-- **Functional Components**: Use `function Name() {}` syntax, not arrow functions.
-- **Async Safety**: Always `await` promises or explicitly void them. No floating promises.
-- **Error Handling**: Use `try-catch` with `logger.error` and `toast` for user feedback.
-- **React Compiler**: Uses babel-plugin-react-compiler. Avoid unstable hook deps, memoize expensive computations.
-- **Production Safety**: Live product with users. Dexie schema changes require migration logic.
-
-## Commands
-
-Run from project root. NEVER `cd` into subdirectories.
+## Commands (always from repo root)
 
 ```bash
-# Development
-pnpm dev              # Chrome dev server
-pnpm dev:firefox      # Firefox dev server
-
-# Production
-pnpm build            # Production build → .output/
-pnpm build:firefox    # Firefox production build
-pnpm zip              # Create Chrome zip distribution
-pnpm zip:firefox      # Create Firefox zip distribution
-
-# Quality Control (Run Before Committing)
-pnpm compile          # Type check (tsc --noEmit) - MUST PASS
-pnpm lint             # ESLint check
-pnpm lint:fix         # Auto-fix lint issues
-pnpm format           # Prettier format
+pnpm dev / pnpm dev:firefox      # dev servers (port 3001, strictPort)
+pnpm build / pnpm zip             # Chrome; :firefox variants → .output/
+pnpm compile                      # tsc --noEmit (root only — excludes packages/)
+pnpm test                         # Node test runner over tests/*.test.mjs
+pnpm lint / pnpm lint:fix / pnpm format
+pnpm icons:generate               # regenerate icons from public/logo.svg (sharp)
+pnpm release                      # zip + deploy prod worker; pnpm release:test for test env
 ```
 
-## Production Considerations
+Run a single test: `node --experimental-strip-types --test tests/<name>.test.mjs` (needs Node ≥ 22; tests import `src/**/*.ts` source directly).
 
-This is a live product with existing users:
+## Layout & wiring (non-obvious parts)
 
-- **Backward Compatibility**: Avoid breaking changes to APIs, data schemas, or features.
-- **Database Migrations**: Dexie schema changes in `src/db/schema.ts` MUST include migration logic.
-- **Data Loss Prevention**: Consider how changes affect existing user data.
-- **Feature Flags**: Use flags for risky changes to allow gradual rollout.
+- **Sidepanel-first extension**: `wxt.config.ts` deletes `action.default_popup` so the toolbar click opens the side panel. App shell: `src/entrypoints/sidepanel/App.tsx`. Never implement popup-first UI.
+- **Background**: service worker entry is `src/entrypoints/background.ts`, but new background-backed features must register handlers in `src/entrypoints/background/handlers/` (wired via `backgroundMessageRouter.ts`) — don't stuff logic into `background.ts`.
+- **Data access**: all business reads/writes go through helpers in `src/lib/db/*`. Don't operate on Dexie tables directly from UI/feature code (sync hooks depend on this).
+- **Sync engine**: `src/lib/sync/` — SyncEngine split across `SyncEngine.*.ts`; per-table scope in `dataScope.ts`; encryption in `crypto-helpers.ts`/`chunks.ts`.
+- **DB**: schema + versions + migrations in `src/db/index.ts`; entity types in `src/db/types*.ts`.
+- **`src/vendor/rrweb/`**: vendored dependency, ESLint-ignored. Don't edit or "clean up".
+- **`packages/cf-worker-googlesheet/`**: sync Worker (pnpm name `dpp-worker`; directory name is historical). Has its own tsconfig — root `pnpm compile` does NOT cover it.
+- `docs/` holds Chinese design/plan docs; worker deploy guide is `packages/DEPLOY.md`.
 
-## Directory Structure
+## Sync & data invariants (easy to break, costly to fix)
 
-```
-src/
-├── entrypoints/         # WXT entry points (manifest inputs)
-│   ├── background.ts    # Service worker (messaging hub)
-│   ├── popup/           # Popup UI
-│   └── *.content.ts     # Content scripts
-├── components/ui/       # Shadcn-like primitives (Button, Input, Toast...)
-├── features/            # Domain modules (aiAssistant/, jenkins/, links/, recorder/...)
-│   └── <feature>/      # Structure varies: api/, components/, hooks/, messages.ts, service.ts, utils/
-├── db/                  # Dexie schema (schema.ts) + Sync logic
-├── lib/                 # Core utilities (ai/, analytics/, crypto/, db/, http.ts, sync/)
-└── utils/               # Helpers (cn.ts, logger.ts, modal.ts, validation.ts)
-```
+- Conflict strategy is **LWW using local client timestamps** (`updatedAt`/operation timestamp) — never switch to server time.
+- Sync hooks are Dexie lifecycle hooks; bypassing `src/lib/db/*` helpers silently breaks sync.
+- Sync-originated writes must keep `tx.source === 'sync'` (set in `SyncEngine.hooks.ts`) — clearing it creates feedback loops.
+- Synced entities are **soft-deleted** (`deletedAt`, see `src/lib/db/softDelete.ts`); never hard-delete synced rows.
+- Table sync scope (team key / personal key / local-only) is defined in `src/lib/sync/dataScope.ts` — check it before adding tables/fields. `totpAccounts` is personal-key-only and must never fall back to the team key.
+- Dexie schema changes require a version bump + migration in `src/db/index.ts`, and coupled updates in `src/db/types*.ts`, `src/lib/db/*`, and (if synced) `src/lib/sync/*`.
+- Data-mutating AI tools must require user confirmation if the existing flow doesn't already handle it.
 
-## Code Style
+## Worker (dpp-worker)
 
-### Imports & Naming
+- Flow: browser AES-GCM encrypts → `POST /api/sync/push` → Durable Object serializes pushes → D1 append-only op log. Pull/pending via cursor APIs. Worker only ever sees ciphertext (+`__sync_chunk__` shards).
+- D1 migrations live in `packages/cf-worker-googlesheet/migrations/`. Verify with `pnpm --filter dpp-worker exec tsc --noEmit` and `wrangler deploy --dry-run` (see `packages/DEPLOY.md`).
 
-- **Absolute Imports:** Always use `@/` alias (configured in tsconfig.json).
-- **Naming Conventions:**
-  - Components: `PascalCase.tsx`, `export function ComponentName`
-  - Utils: `camelCase.ts`
-  - Constants: `UPPER_SNAKE_CASE`
+## Code conventions
 
-### React Components
+- Imports use the `@/` alias; no parent-relative imports (`../../`).
+- No `any` (ESLint error); no `@ts-ignore`/`@ts-expect-error`; strict equality only.
+- Unused vars must be prefixed `_` (e.g. `_req`) to satisfy the linter.
+- React components as `function Name() {}`; reuse `src/components/ui/*` primitives; merge classes with `cn()`; reactive DB reads via `useLiveQuery`.
+- Wrap async ops in try/catch; log with `logger` (`@/utils/logger`), user feedback via `useToast()`.
+- No floating promises — `await` or explicit `void`.
+- Keep `data-testid` attributes stable.
+- Dark mode: never apply opacity modifiers to `muted-foreground` (breaks contrast); use base theme tokens.
+- Repo convention: user-facing docs, plans, and code comments are written in **Chinese** (full conventions in `CLAUDE.md`).
 
-- Use `function Component() {}` syntax.
-- Define Props interface. Pass `className` to root via `cn()`.
-- Use `useLiveQuery` from `dexie-react-hooks` for reactive DB queries.
-- Reuse UI primitives from `src/components/ui`.
-- Use `useToast()` for user notifications.
+## Gotchas
 
-```tsx
-export function Badge({ variant = 'default', className, ...props }: BadgeProps) {
-  return (
-    <div
-      className={cn('rounded px-2', variant === 'success' && 'bg-success', className)}
-      {...props}
-    />
-  );
-}
-```
+- Root `tsconfig.json` extends `.wxt/tsconfig.json`, generated by `wxt prepare` (postinstall). If `pnpm compile` fails on a missing `.wxt`, re-run `pnpm install`.
+- Don't use Rollup `manualChunks`: WXT's background uses `inlineDynamicImports` and is incompatible. Large libs (Monaco) are split via `React.lazy`.
+- Moving/renaming recorder or PageAgent assets requires updating `web_accessible_resources` in `wxt.config.ts`.
+- Recorder/PageAgent changes span content scripts + background handlers + `wxt.config.ts` — treat them as one cross-context chain.
+- Pre-commit (simple-git-hooks): lint-staged runs `eslint --fix` + `prettier --write` on staged files.
 
-### Error Handling
+## Verification before finishing a task
 
-Always wrap async operations in try-catch. Use `logger` for logging and `toast` for user feedback.
-
-```tsx
-async function fetchData() {
-  try {
-    return await api.getData();
-  } catch (err) {
-    logger.error('Failed to fetch data', err);
-    toast({ title: 'Error', description: 'Failed to fetch data' });
-    throw err;
-  }
-}
-```
-
-### Patterns
-
-- **API Clients:** Factory pattern `createClient(credentials)`.
-- **Sync:** Use `SyncEngine` class. Sensitive data MUST be encrypted before sync.
-- **Styling:** UnoCSS utilities with Shadcn theme colors.
-- **Logging:** Use `logger.info/warn/error` from `@/utils/logger`.
-- **Classes:** Use `cn()` from `@/utils/cn` for conditional class merging.
-
-## Available Utilities
-
-| Utility        | Location                | Purpose                |
-| -------------- | ----------------------- | ---------------------- |
-| `logger`       | `@/utils/logger`        | Debug/info/warn/error  |
-| `cn`           | `@/utils/cn`            | Merge Tailwind classes |
-| `useToast`     | `@/components/ui/toast` | User notifications     |
-| `useLiveQuery` | `dexie-react-hooks`     | Reactive DB queries    |
-
-## Data & Synchronization
-
-- **Dexie:** Schema defined in `src/db/schema.ts`, registered in `src/db/index.ts`. Handle versions carefully.
-- **SyncEngine:** Handles data replication with E2EE via Web Crypto API.
-- **Sensitive data** MUST be encrypted before storing or syncing.
-
-## Pre-commit Hooks
-
-Uses `simple-git-hooks` with `lint-staged`. ESLint auto-fixes and Prettier formats are applied to staged `.ts`/`.tsx` files.
-
-Run `pnpm lint:fix` and `pnpm format` before committing.
-
-## Verification
-
-Before completing any task: `pnpm compile` (MUST PASS), `pnpm lint:fix`, `pnpm build`.
+`pnpm compile` (must pass) → `pnpm lint:fix` → `pnpm test` when behavior changes → `pnpm build`.
