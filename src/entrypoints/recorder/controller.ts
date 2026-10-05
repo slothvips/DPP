@@ -1,7 +1,7 @@
 import { logger } from '@/utils/logger';
 import { record } from '@/vendor/rrweb/rrweb.js';
 import { pack } from '@rrweb/packer';
-import type { eventWithTime } from '@rrweb/types';
+import { createRecordingCaptureBuffer, pushRecordingEvent } from './captureBudget';
 import { createRecorderInterceptors } from './interceptors';
 import { createRecorderFloatingUI } from './ui';
 
@@ -19,14 +19,14 @@ type RuntimeMessage = {
 
 export function createRecorderContentController() {
   let stopFn: (() => void) | undefined | null = null;
-  let events: eventWithTime[] = [];
+  let capture = createRecordingCaptureBuffer();
   let startTime = 0;
 
   const floatingUI = createRecorderFloatingUI(() => {
     stopRecording();
   });
   const interceptors = createRecorderInterceptors((event) => {
-    events.push(event);
+    pushRecordingEvent(capture, event);
   });
 
   function init() {
@@ -39,7 +39,7 @@ export function createRecorderContentController() {
         }
 
         startTime = state.startTime || Date.now();
-        events = [];
+        capture = createRecordingCaptureBuffer();
         startRecording(true);
       });
 
@@ -61,7 +61,7 @@ export function createRecorderContentController() {
   function startRecording(isResume = false) {
     if (stopFn) return;
 
-    events = [];
+    capture = createRecordingCaptureBuffer();
     if (!isResume) {
       startTime = Date.now();
     }
@@ -74,7 +74,7 @@ export function createRecorderContentController() {
     stopFn = record({
       packFn: pack,
       emit(event) {
-        events.push(event);
+        pushRecordingEvent(capture, event);
       },
       checkoutEveryNms: 5000,
       blockClass: 'rr-block',
@@ -94,20 +94,20 @@ export function createRecorderContentController() {
     interceptors.removeAll();
 
     const duration = Date.now() - startTime;
-    logger.debug('Stopped rrweb recording', { duration, events: events.length });
+    logger.debug('Stopped rrweb recording', { duration, events: capture.events.length });
 
     const faviconEl = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
     const favicon = faviconEl?.href;
 
     void browser.runtime.sendMessage({
       type: 'RECORDER_COMPLETE',
-      events,
+      events: capture.events,
       url: window.location.href,
       favicon,
       duration,
     });
 
-    events = [];
+    capture = createRecordingCaptureBuffer();
   }
 
   return { init };

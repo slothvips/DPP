@@ -1,8 +1,9 @@
+import { redactCapturedText, redactHeaders, sanitizeNetworkCapture } from '@/utils/captureSanitize';
 import { NETWORK_EVENT_NAME, type NetworkRequestData, getNetworkChannelToken } from './types';
 
 export function processHeaders(headers: Record<string, string>): Record<string, string> {
   try {
-    return { ...headers };
+    return redactHeaders(headers);
   } catch {
     return {};
   }
@@ -41,7 +42,7 @@ export function parseXHRHeaders(headerString: string): Record<string, string> {
 
 function serializeDocument(body: Document): string {
   try {
-    return new XMLSerializer().serializeToString(body);
+    return redactCapturedText(new XMLSerializer().serializeToString(body)).text;
   } catch {
     return '[Document]';
   }
@@ -50,9 +51,9 @@ function serializeDocument(body: Document): string {
 export function serializeBody(body: BodyInit | Document | null | undefined): string | undefined {
   try {
     if (!body) return undefined;
-    if (typeof body === 'string') return body;
+    if (typeof body === 'string') return redactCapturedText(body).text;
     if (body instanceof Document) return serializeDocument(body);
-    if (body instanceof URLSearchParams) return body.toString();
+    if (body instanceof URLSearchParams) return redactCapturedText(body.toString()).text;
     if (body instanceof FormData) {
       const parts: string[] = [];
       body.forEach((value, key) => {
@@ -62,7 +63,7 @@ export function serializeBody(body: BodyInit | Document | null | undefined): str
           parts.push(`${key}=[File: ${value.name}]`);
         }
       });
-      return parts.join('&');
+      return redactCapturedText(parts.join('&')).text;
     }
     if (body instanceof Blob) {
       return `[Blob: ${body.size} bytes, type: ${body.type || 'unknown'}]`;
@@ -82,7 +83,7 @@ export function emitNetworkEvent(data: NetworkRequestData) {
   try {
     window.dispatchEvent(
       new CustomEvent(NETWORK_EVENT_NAME, {
-        detail: { channelToken: getNetworkChannelToken(), payload: data },
+        detail: { channelToken: getNetworkChannelToken(), payload: sanitizeNetworkCapture(data) },
       })
     );
   } catch {

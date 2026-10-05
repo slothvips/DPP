@@ -1,3 +1,4 @@
+import { redactCapturedText, truncateCapturedText } from '@/utils/captureSanitize';
 import type { NetworkRequestData } from './types';
 
 export interface XhrNetworkData {
@@ -56,13 +57,15 @@ export function createXhrTerminalEvent(
 export function resolveXhrResponseBody(xhr: XMLHttpRequest, contentType: string): string {
   try {
     if (xhr.responseType === '' || xhr.responseType === 'text') {
-      return xhr.responseText;
+      return redactCapturedText(truncateCapturedText(xhr.responseText).text).text;
     }
     if (xhr.responseType === 'json') {
-      return JSON.stringify(xhr.response, null, 2);
+      return redactCapturedText(truncateCapturedText(JSON.stringify(xhr.response)).text).text;
     }
     if (xhr.responseType === 'document' && xhr.responseXML) {
-      return new XMLSerializer().serializeToString(xhr.responseXML);
+      return redactCapturedText(
+        truncateCapturedText(new XMLSerializer().serializeToString(xhr.responseXML)).text
+      ).text;
     }
     if (xhr.responseType === 'blob' && xhr.response instanceof Blob) {
       return `[Blob: ${xhr.response.size} bytes, type: ${contentType}]`;

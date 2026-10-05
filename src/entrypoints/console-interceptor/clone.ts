@@ -1,12 +1,32 @@
-import { NO_SPECIAL_CLONE, tryCloneSpecialObject } from './cloneSpecial';
+import { NO_SPECIAL_CLONE, tryCloneSpecialObject } from './cloneSpecial.ts';
+
+export const MAX_CLONE_DEPTH = 8;
+export const MAX_CLONE_NODES = 200;
+export const MAX_CLONE_STRING_LENGTH = 2_000;
+
+const CLONE_TRUNCATED_MARK = '...[truncated]';
+
+interface CloneBudget {
+  nodes: number;
+}
 
 export function deepClone(
   value: unknown,
   path: string = '$',
   seen: Map<object, string> = new Map()
 ): unknown {
+  return cloneWithBudget(value, path, seen, 0, { nodes: 0 });
+}
+
+function cloneWithBudget(
+  value: unknown,
+  path: string,
+  seen: Map<object, string>,
+  depth: number,
+  budget: CloneBudget
+): unknown {
   try {
-    return deepCloneUnsafe(value, path, seen);
+    return deepCloneUnsafe(value, path, seen, depth, budget);
   } catch (error) {
     return {
       __error__: true,
@@ -16,13 +36,41 @@ export function deepClone(
   }
 }
 
-function deepCloneUnsafe(value: unknown, path: string, seen: Map<object, string>): unknown {
+function truncatedClone(reason: 'depth-limit' | 'node-limit'): {
+  __truncated__: true;
+  reason: string;
+} {
+  return { __truncated__: true, reason };
+}
+
+function limitString(value: string): string {
+  if (value.length <= MAX_CLONE_STRING_LENGTH) return value;
+  const keep = Math.max(0, MAX_CLONE_STRING_LENGTH - CLONE_TRUNCATED_MARK.length);
+  return `${value.slice(0, keep)}${CLONE_TRUNCATED_MARK}`;
+}
+
+function deepCloneUnsafe(
+  value: unknown,
+  path: string,
+  seen: Map<object, string>,
+  depth: number,
+  budget: CloneBudget
+): unknown {
+  if (depth > MAX_CLONE_DEPTH) return truncatedClone('depth-limit');
+
+  budget.nodes += 1;
+  if (budget.nodes > MAX_CLONE_NODES) return truncatedClone('node-limit');
+
   if (value === null) return null;
   if (value === undefined) return { __type__: 'undefined' };
 
   const type = typeof value;
 
-  if (type === 'string' || type === 'boolean') {
+  if (type === 'string') {
+    return limitString(value as string);
+  }
+
+  if (type === 'boolean') {
     return value;
   }
 
@@ -49,7 +97,7 @@ function deepCloneUnsafe(value: unknown, path: string, seen: Map<object, string>
       return {
         __type__: 'function',
         name: fn.name || 'anonymous',
-        source: fn.toString().slice(0, 500),
+        source: limitString(fn.toString()),
       };
     } catch {
       return { __type__: 'function', name: 'anonymous' };
@@ -61,7 +109,7 @@ function deepCloneUnsafe(value: unknown, path: string, seen: Map<object, string>
   }
 
   if (type !== 'object') {
-    return { __type__: 'unknown', value: String(value) };
+    return { __type__: 'unknown', value: limitString(String(value)) };
   }
 
   const objectValue = value as object;
@@ -70,13 +118,16 @@ function deepCloneUnsafe(value: unknown, path: string, seen: Map<object, string>
   }
   seen.set(objectValue, path);
 
-  const specialClone = tryCloneSpecialObject(objectValue, path, seen, deepClone);
+  const cloneChild = (child: unknown, childPath: string, childSeen: Map<object, string>) =>
+    cloneWithBudget(child, childPath, childSeen, depth + 1, budget);
+
+  const specialClone = tryCloneSpecialObject(objectValue, path, seen, cloneChild);
   if (specialClone !== NO_SPECIAL_CLONE) {
     return specialClone;
   }
 
   if (Array.isArray(objectValue)) {
-    return objectValue.map((item, index) => deepClone(item, `${path}[${index}]`, seen));
+    return objectValue.map((item, index) => cloneChild(item, `${path}[${index}]`, seen));
   }
 
   try {
@@ -90,7 +141,7 @@ function deepCloneUnsafe(value: unknown, path: string, seen: Map<object, string>
         if (typeof descriptor.get === 'function') {
           result[key] = { __getter__: true };
         } else if ('value' in descriptor) {
-          result[key] = deepClone(descriptor.value, `${path}.${key}`, seen);
+          result[key] = cloneChild(descriptor.value, `${path}.${key}`, seen);
         }
       } catch (error) {
         result[key] = {

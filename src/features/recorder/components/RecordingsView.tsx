@@ -83,6 +83,7 @@ export function RecordingsView() {
 
   async function handleExport(recording: RecordingMeta) {
     try {
+      toast('录像可能包含页面内容', 'info');
       await exportRecording(recording);
     } catch (error) {
       logger.error('Failed to export recording:', error);
@@ -102,6 +103,7 @@ export function RecordingsView() {
         />
         <div className="min-w-[160px] flex-1">
           <RecorderControl />
+          <p className="mt-1 px-1 text-[11px] text-muted-foreground">录像可能包含页面内容</p>
         </div>
         <Button
           variant="ghost"

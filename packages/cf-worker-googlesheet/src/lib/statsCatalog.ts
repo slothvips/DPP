@@ -253,6 +253,11 @@ export const STATS_CATALOG: Record<string, StatsModuleCatalogEntry> = {
         label: '冲突已处理',
         description: '同步冲突按策略落地。meta.strategy 为 lww / merge / chunk / constraint。',
       },
+      clock_skew_detected: {
+        label: '时钟偏移',
+        description:
+          '本地时钟比服务端慢超过 5 分钟，LWW 可能误判。meta.skewMinutes 为本机落后的分钟数。',
+      },
     },
   },
   error: {

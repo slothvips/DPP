@@ -9,7 +9,7 @@ export function tryCloneSpecialObject(
   clone: DeepCloneFn
 ): unknown {
   try {
-    if (objectValue instanceof Element) {
+    if (typeof Element !== 'undefined' && objectValue instanceof Element) {
       const result: Record<string, unknown> = {
         __type__: 'Element',
         tagName: objectValue.tagName,
@@ -141,10 +141,13 @@ export function tryCloneSpecialObject(
 
   try {
     if (objectValue instanceof ArrayBuffer) {
+      const bytes = new Uint8Array(objectValue);
+      const previewLength = Math.min(bytes.length, 256);
       return {
         __type__: 'ArrayBuffer',
         byteLength: objectValue.byteLength,
-        data: Array.from(new Uint8Array(objectValue)),
+        data: Array.from(bytes.subarray(0, previewLength)),
+        ...(bytes.length > previewLength ? { __truncated__: true } : {}),
       };
     }
   } catch {
@@ -159,12 +162,19 @@ export function tryCloneSpecialObject(
         byteOffset: number;
         byteLength: number;
       };
+      const source = objectValue as unknown as ArrayLike<number>;
+      const previewLength = Math.min(source.length, 256);
+      const data: number[] = [];
+      for (let index = 0; index < previewLength; index += 1) {
+        data.push(source[index]);
+      }
       return {
         __type__: typedArray.constructor.name,
         length: typedArray.length,
         byteOffset: typedArray.byteOffset,
         byteLength: typedArray.byteLength,
-        data: Array.from(objectValue as unknown as ArrayLike<number>),
+        data,
+        ...(source.length > previewLength ? { __truncated__: true } : {}),
       };
     }
   } catch {

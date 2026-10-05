@@ -1,4 +1,5 @@
 import type Dexie from 'dexie';
+import { pruneSyncedOperations } from './SyncEngine.gc';
 import type { SyncOperation, SyncProvider } from './types';
 
 interface PushFlowOptions {
@@ -57,6 +58,9 @@ export async function runPushFlow({
       totalPushed += pushedOps.length;
     }
   }
+
+  // 推送成功后顺带清理保留期外的已同步记录，控制 operations 表长期体积
+  await pruneSyncedOperations(db);
 
   return totalPushed;
 }

@@ -1,3 +1,4 @@
+import { readResponseTextLimited, redactCapturedText } from '@/utils/captureSanitize';
 import { appendStreamChunk, createStreamAccumulator, shouldEmitStreamUpdate } from './streamShared';
 import { type NetworkRequestData, STREAMING_CONTENT_TYPES } from './types';
 import { emitNetworkEvent } from './utils';
@@ -13,7 +14,8 @@ export async function safeReadResponseBody(
   try {
     const clonedResponse = response.clone();
     if (contentType.includes('application/json') || contentType.includes('text/')) {
-      return await clonedResponse.text();
+      const limited = await readResponseTextLimited(clonedResponse);
+      return redactCapturedText(limited.text).text;
     }
     if (
       contentType.includes('image/') ||
@@ -55,6 +57,11 @@ export async function streamResponseBody(
       const chunkText = decoder.decode(value, { stream: true });
       appendStreamChunk(stream, chunkText, value.byteLength);
 
+      if (stream.truncated) {
+        await reader.cancel().catch(() => undefined);
+        break;
+      }
+
       if (shouldEmitStreamUpdate(stream)) {
         emitNetworkEvent({
           ...networkData,
@@ -64,6 +71,7 @@ export async function streamResponseBody(
           receivedBytes: stream.receivedBytes,
           totalBytes,
           responseBody: stream.body,
+          truncated: stream.truncated || undefined,
         });
       }
     }

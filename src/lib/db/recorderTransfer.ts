@@ -1,6 +1,7 @@
 import { db } from '@/db';
 import type { Recording } from '@/features/recorder/types';
 import { trackRecorder } from '@/lib/analytics';
+import { redactRecordingEventsForExport } from './recorderExportRedaction';
 import type { ExportRecordingResult, ImportRecordingResult } from './recorderShared';
 
 function buildRecordingExportFilename(title: string, createdAt: number): string {
@@ -81,7 +82,7 @@ export async function exportRecordingAsJson(args: {
 
     return {
       success: true,
-      data: recording.events,
+      data: redactRecordingEventsForExport(recording.events),
       filename: buildRecordingExportFilename(recording.title, recording.createdAt),
       message: 'Recording exported successfully',
     };

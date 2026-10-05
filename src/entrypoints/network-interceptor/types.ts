@@ -59,6 +59,8 @@ export interface NetworkRequestData {
   streamChunks?: StreamChunk[];
   receivedBytes?: number;
   totalBytes?: number;
+  /** 采集时因体积上限被截断 */
+  truncated?: boolean;
 }
 
 export interface NetworkRuntimeWindow extends Window {

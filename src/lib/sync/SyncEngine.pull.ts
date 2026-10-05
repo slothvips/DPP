@@ -143,6 +143,41 @@ function firstChunkId(records: SyncChunkRecord[]): string {
   return records[0]?.operationId ?? 'unknown';
 }
 
+/** 本机时钟慢于服务端超过该值时告警。历史操作的 serverTimestamp 只会更早，不能用来判断时钟偏快。 */
+const CLOCK_SKEW_WARN_MS = 5 * 60 * 1000;
+const CLOCK_SKEW_WARN_THROTTLE_MS = 60 * 60 * 1000;
+let lastClockSkewWarnAt = 0;
+
+/** 本机时钟落后服务端的毫秒数；没有“未来”的 serverTimestamp 时为 0。 */
+export function localClockLagMs(operations: readonly SyncOperation[], now: number): number {
+  let lag = 0;
+  for (const operation of operations) {
+    const serverTimestamp = operation.serverTimestamp;
+    if (typeof serverTimestamp !== 'number' || !Number.isFinite(serverTimestamp)) continue;
+    const ahead = serverTimestamp - now;
+    if (ahead > lag) lag = ahead;
+  }
+  return lag;
+}
+
+function warnOnClockSkew(operations: SyncOperation[]): void {
+  const now = Date.now();
+  const lag = localClockLagMs(operations, now);
+  if (lag < CLOCK_SKEW_WARN_MS) {
+    return;
+  }
+  if (now - lastClockSkewWarnAt < CLOCK_SKEW_WARN_THROTTLE_MS) {
+    return;
+  }
+  lastClockSkewWarnAt = now;
+  const skewMinutes = Math.round(lag / 60000);
+  logger.warn(
+    `[Sync] Local clock is behind the server by ${skewMinutes} minutes; ` +
+      'LWW conflict resolution may misorder writes. Please check the device clock.'
+  );
+  trackSync('clockSkewDetected', { meta: { skewMinutes } });
+}
+
 async function processPendingDecryptionOperations(
   db: Dexie,
   keyring: Awaited<ReturnType<typeof loadSyncKeyring>>
@@ -152,6 +187,7 @@ async function processPendingDecryptionOperations(
     .where('table')
     .equals(PENDING_DECRYPT_TABLE)
     .sortBy('timestamp')) as DeferredOp[];
+
   const recovered: Array<{ entry: DeferredOp; operation: SyncOperation }> = [];
 
   for (const entry of entries) {
@@ -496,6 +532,7 @@ export async function runPullFlow({
     const cursor = state.lastServerCursor;
     const { ops, nextCursor } = await withRetry(() => provider.pull(cursor, clientId), 'Pull');
     validateCursorTransition(cursor, nextCursor);
+    warnOnClockSkew(ops);
     if (ops.length === 0) {
       await db.table('syncMetadata').put({
         ...state,

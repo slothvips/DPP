@@ -85,6 +85,7 @@ export const SYNC_EVENTS = {
   pushFinished: 'push_finished',
   pullFinished: 'pull_finished',
   conflictResolved: 'conflict_resolved',
+  clockSkewDetected: 'clock_skew_detected',
 } as const;
 
 export const ERROR_EVENTS = {

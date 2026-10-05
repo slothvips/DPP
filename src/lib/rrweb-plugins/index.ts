@@ -2,8 +2,7 @@
  * rrweb 插件导出
  */
 
-export const NETWORK_PLUGIN_NAME = 'rrweb/network@1';
-export const CONSOLE_PLUGIN_NAME = 'rrweb/console@1';
+export { CONSOLE_PLUGIN_NAME, NETWORK_PLUGIN_NAME } from './names.ts';
 
 /**
  * 网络请求阶段
@@ -62,6 +61,8 @@ export interface NetworkRequest {
   receivedBytes?: number;
   /** 总字节数（如果已知） */
   totalBytes?: number;
+  /** 采集时因脱敏截断或体积上限被截断 */
+  truncated?: boolean;
 }
 
 export interface NetworkPluginEvent {

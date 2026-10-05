@@ -72,6 +72,12 @@ export function createRecorderFloatingUI(onStop: () => void) {
         font-variant-numeric: tabular-nums;
         font-weight: 500;
       }
+      .note {
+        font-size: 11px;
+        line-height: 1.3;
+        max-width: 9em;
+        pointer-events: none;
+      }
       .stop-btn {
         background: var(--dpp-rec-stop-bg);
         color: var(--dpp-rec-stop-fg);
@@ -95,6 +101,7 @@ export function createRecorderFloatingUI(onStop: () => void) {
 
     const container = document.createElement('div');
     container.className = 'container';
+    container.title = '录像可能包含页面内容';
 
     let isDragging = false;
     let currentX = 0;
@@ -150,8 +157,13 @@ export function createRecorderFloatingUI(onStop: () => void) {
     timer.className = 'timer';
     timer.textContent = '00:00';
 
+    const note = document.createElement('span');
+    note.className = 'note';
+    note.textContent = '录像可能包含页面内容';
+
     indicator.appendChild(dot);
     indicator.appendChild(timer);
+    indicator.appendChild(note);
 
     const stopButton = document.createElement('button');
     stopButton.className = 'stop-btn';

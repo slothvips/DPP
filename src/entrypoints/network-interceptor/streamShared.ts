@@ -1,4 +1,5 @@
-import { MAX_STREAM_CHUNKS, STREAM_THROTTLE_MS, type StreamChunk } from './types';
+import { redactCapturedText, truncateCapturedText } from '../../utils/captureSanitize.ts';
+import { MAX_STREAM_CHUNKS, STREAM_THROTTLE_MS, type StreamChunk } from './types.ts';
 
 export interface StreamAccumulator {
   body: string;
@@ -7,6 +8,7 @@ export interface StreamAccumulator {
   lastEmitTime: number;
   receivedBytes: number;
   separator: string;
+  truncated: boolean;
 }
 
 export function createStreamAccumulator(separator: string = ''): StreamAccumulator {
@@ -17,6 +19,7 @@ export function createStreamAccumulator(separator: string = ''): StreamAccumulat
     lastEmitTime: 0,
     receivedBytes: 0,
     separator,
+    truncated: false,
   };
 }
 
@@ -29,7 +32,16 @@ export function appendStreamChunk(state: StreamAccumulator, data: string, size: 
   };
 
   state.receivedBytes += size;
-  state.body += state.body && state.separator ? `${state.separator}${data}` : data;
+  if (state.truncated) {
+    return;
+  }
+
+  const redacted = truncateCapturedText(redactCapturedText(data).text);
+  chunk.data = redacted.text;
+  const separator = state.body && state.separator ? state.separator : '';
+  const limited = truncateCapturedText(`${state.body}${separator}${redacted.text}`);
+  state.body = limited.text;
+  state.truncated = redacted.truncated || limited.truncated;
   state.chunks.push(chunk);
 
   if (state.chunks.length > MAX_STREAM_CHUNKS) {

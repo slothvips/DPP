@@ -49,6 +49,38 @@ async function tokensMatch(provided: string, expected: string): Promise<boolean>
   return crypto.subtle.timingSafeEqual(providedHash, expectedHash);
 }
 
+/**
+ * 同步接口的兜底限流：固定窗口，按 token 哈希 + 路径分桶。
+ * 内存级（per-isolate），防误配客户端/脚本高频打爆 D1 读配额；
+ * 不是安全边界，token 本身仍是主要凭据。
+ */
+const SYNC_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const SYNC_RATE_LIMIT_MAX_REQUESTS = 180;
+
+const syncRateBuckets = new Map<string, { windowStart: number; count: number }>();
+
+async function syncRateLimitExceeded(providedToken: string, pathname: string): Promise<boolean> {
+  const key = new TextEncoder().encode(`${providedToken}:${pathname}`);
+  const digest = await crypto.subtle.digest('SHA-256', key);
+  const bucketKey = Array.from(new Uint8Array(digest).slice(0, 16))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+  const now = Date.now();
+  const bucket = syncRateBuckets.get(bucketKey);
+  if (!bucket || now - bucket.windowStart >= SYNC_RATE_LIMIT_WINDOW_MS) {
+    syncRateBuckets.set(bucketKey, { windowStart: now, count: 1 });
+    // 简单防膨胀：窗口过期即清，桶数量受活跃客户端数限制
+    for (const [mapKey, value] of syncRateBuckets) {
+      if (now - value.windowStart >= SYNC_RATE_LIMIT_WINDOW_MS) {
+        syncRateBuckets.delete(mapKey);
+      }
+    }
+    return false;
+  }
+  bucket.count += 1;
+  return bucket.count > SYNC_RATE_LIMIT_MAX_REQUESTS;
+}
+
 function errorResponse(error: unknown): Response {
   const normalized = error instanceof Error ? error : new Error(String(error));
   const validation =
@@ -183,6 +215,9 @@ export default {
     const provided = request.headers.get('X-Access-Token') ?? '';
     if (!env.SYNC_ACCESS_TOKEN || !(await tokensMatch(provided, env.SYNC_ACCESS_TOKEN))) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (await syncRateLimitExceeded(provided, url.pathname)) {
+      return Response.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
     try {
       return await handleRequest(request, env);

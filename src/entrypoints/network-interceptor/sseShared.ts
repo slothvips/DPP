@@ -19,10 +19,11 @@ export function createSseRuntimeState(url: string): SseRuntimeState {
 
 export function createSseSnapshot(
   state: SseRuntimeState
-): Pick<NetworkRequestData, 'streamChunks' | 'receivedBytes' | 'responseBody'> {
+): Pick<NetworkRequestData, 'streamChunks' | 'receivedBytes' | 'responseBody' | 'truncated'> {
   return {
     streamChunks: [...state.stream.chunks],
     receivedBytes: state.stream.receivedBytes,
     responseBody: state.stream.body,
+    truncated: state.stream.truncated || undefined,
   };
 }

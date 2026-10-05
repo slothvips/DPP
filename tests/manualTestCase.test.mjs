@@ -8,13 +8,15 @@ function source(path) {
 
 test('manual test case creation starts with a project and persists the case in it', () => {
   const library = source('../src/features/aiAssistant/components/AIMaterialLibraryView.tsx');
+  const creator = source('../src/features/aiAssistant/components/TestProjectCreator.tsx');
+  const editor = source('../src/features/aiAssistant/components/TestCaseEditor.tsx');
   const projectLibrary = source(
     '../src/features/aiAssistant/components/TestProjectLibraryView.tsx'
   );
   const projects = source('../src/lib/db/testProjects.ts');
 
-  assert.match(library, /createTestProject/);
-  assert.match(library, /createTestCaseInProject/);
+  assert.match(creator, /createTestProject/);
+  assert.match(editor, /createTestCaseInProject/);
   assert.match(library, /const \[creatingProject, setCreatingProject\] = useState\(false\)/);
   assert.match(
     library,
@@ -22,9 +24,9 @@ test('manual test case creation starts with a project and persists the case in i
   );
   assert.match(library, /onClick=\{handleCreate\}/);
   assert.match(library, /手动创建/);
-  assert.match(library, /material\?: DecryptedTestCaseMaterial/);
-  assert.match(library, /await createTestCaseInProject\(projectId, input\)/);
-  assert.match(library, /测试用例已创建并归入项目/);
+  assert.match(editor, /material\?: DecryptedTestCaseMaterial/);
+  assert.match(editor, /await createTestCaseInProject\(projectId, input\)/);
+  assert.match(editor, /测试用例已创建并归入项目/);
   assert.match(library, /onCreateTestCase=\{\(projectId\) =>/);
   assert.match(projectLibrary, /onCreateTestCase: \(projectId: string\) => void/);
   assert.match(projectLibrary, /onClick=\{\(\) => onCreateTestCase\(project\.id\)\}/);
