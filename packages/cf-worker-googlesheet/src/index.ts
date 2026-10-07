@@ -1,5 +1,6 @@
 import { D1SyncStore, SyncConflictError, SyncValidationError } from './lib/d1';
 import type { SyncOperation } from './lib/d1';
+import { handleNotifyRequest } from './lib/notify';
 import { SyncPushCoordinator } from './lib/pushCoordinator';
 import { RequestTooLargeError, parsePushRequest } from './lib/requestValidation';
 import {
@@ -129,6 +130,9 @@ async function handleRequest(request: Request, env: WorkerEnv): Promise<Response
     const clientId = url.searchParams.get('clientId') || undefined;
     return Response.json({ count: await new D1SyncStore(env.DB).countPending(cursor, clientId) });
   }
+
+  const notifyResponse = await handleNotifyRequest(request, env.DB);
+  if (notifyResponse) return notifyResponse;
 
   return Response.json({ error: 'Not found' }, { status: 404 });
 }

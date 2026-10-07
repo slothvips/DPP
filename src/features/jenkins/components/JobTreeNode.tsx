@@ -33,7 +33,7 @@ export function JobTreeNode({
   return (
     <div
       data-job-index={index}
-      className="group flex items-start gap-2 rounded p-1.5 hover:bg-accent/50"
+      className="group flex min-w-0 items-start gap-2 rounded p-1.5 hover:bg-accent/50"
       style={{ paddingLeft: `${depth * 1.5 + 0.5}rem` }}
     >
       {isFolder ? (
@@ -54,65 +54,68 @@ export function JobTreeNode({
         {isFolder ? null : <Terminal className="w-4 h-4" />}
       </div>
 
-      <button
-        type="button"
-        data-job-row
-        className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 text-foreground cursor-pointer"
-        onClick={() => onDetails(job)}
-        title={job.url}
-        tabIndex={0}
-      >
-        <span className="text-sm font-medium break-words align-middle mr-2 leading-relaxed">
-          {job.name}
-        </span>
-        {activity && (
-          <span
-            className={`mr-2 inline-block align-middle rounded border px-1 text-[10px] whitespace-nowrap ${
-              activity === 'building'
-                ? 'border-primary/40 bg-primary/10 text-primary'
-                : 'border-border bg-muted text-muted-foreground'
-            }`}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            data-job-row
+            className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden border-0 bg-transparent p-0 text-left text-foreground cursor-pointer"
+            onClick={() => onDetails(job)}
+            title={job.url}
+            tabIndex={0}
           >
-            {activity === 'building' ? '构建中' : '排队中'}
-          </span>
-        )}
-        {!isFolder && job.lastStatus && job.lastStatus !== 'Unknown' && (
-          <span
-            className={`inline-block align-middle text-[10px] px-1 rounded border whitespace-nowrap mr-2 ${getStatusClassName(
-              job.lastStatus
-            )}`}
-          >
-            {translateStatus(job.lastStatus)}
-          </span>
-        )}
-      </button>
+            <span className="min-w-0 truncate text-sm font-medium leading-relaxed" title={job.name}>
+              {job.name}
+            </span>
+            {activity && (
+              <span
+                className={`shrink-0 rounded border px-1 text-[10px] whitespace-nowrap ${
+                  activity === 'building'
+                    ? 'border-primary/40 bg-primary/10 text-primary'
+                    : 'border-border bg-muted text-muted-foreground'
+                }`}
+              >
+                {activity === 'building' ? '构建中' : '排队中'}
+              </span>
+            )}
+            {!isFolder && job.lastStatus && job.lastStatus !== 'Unknown' && (
+              <span
+                className={`shrink-0 whitespace-nowrap rounded border px-1 text-[10px] ${getStatusClassName(
+                  job.lastStatus
+                )}`}
+              >
+                {translateStatus(job.lastStatus)}
+              </span>
+            )}
+          </button>
 
-      <div className="min-w-0 shrink align-middle">
-        <JobTagSelector jobUrl={job.url} availableTags={availableTags} />
+          {!isFolder && onBuild && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-success opacity-70 transition-opacity hover:opacity-100 dark:text-success"
+              onClick={() => onBuild(job)}
+              title="构建"
+            >
+              <Play className="w-3 h-3" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-muted-foreground opacity-70 transition-opacity hover:text-primary hover:opacity-100"
+            onClick={() => {
+              void browser.tabs.create({ url: job.url });
+            }}
+            title="在 Jenkins 打开"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </Button>
+        </div>
+        <div className="mt-1">
+          <JobTagSelector jobUrl={job.url} availableTags={availableTags} />
+        </div>
       </div>
-
-      {!isFolder && onBuild && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="mt-0.5 h-6 w-6 shrink-0 text-success opacity-70 transition-opacity hover:opacity-100 dark:text-success"
-          onClick={() => onBuild(job)}
-          title="构建"
-        >
-          <Play className="w-3 h-3" />
-        </Button>
-      )}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="mt-0.5 h-6 w-6 shrink-0 text-muted-foreground opacity-70 transition-opacity hover:text-primary hover:opacity-100"
-        onClick={() => {
-          void browser.tabs.create({ url: job.url });
-        }}
-        title="在 Jenkins 打开"
-      >
-        <ExternalLink className="w-3 h-3" />
-      </Button>
     </div>
   );
 }

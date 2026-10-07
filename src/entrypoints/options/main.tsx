@@ -13,6 +13,7 @@ import { ExportSettingsDialog } from './ExportSettingsDialog';
 import { FeatureTogglesSection } from './FeatureTogglesSection';
 import { FooterLinks } from './FooterLinks';
 import { ImportSettingsDialog } from './ImportSettingsDialog';
+import { NotifySettingsSection } from './NotifySettingsSection';
 import { SyncSettingsSection } from './SyncSettingsSection';
 import { useOptionsPage } from './useOptionsPage';
 
@@ -89,6 +90,8 @@ function OptionsApp() {
             onCustomConfigChange={setCustomConfig}
             onSave={saveDataSourceConfig}
           />
+
+          <NotifySettingsSection />
 
           <DataManagementSection
             onExport={() => setShowExportDialog(true)}

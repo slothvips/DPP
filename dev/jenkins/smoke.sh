@@ -31,7 +31,18 @@ CV="$(printf '%s' "$CRUMB_JSON" | py "['crumb']")"
 
 echo "== 任务发现 =="
 eq "根目录存在 demo 文件夹" "$(curl -s -u "$U:$T" "$J/api/json?tree=jobs%5Bname%5D" | py "['jobs'][0]['name']")" "demo"
-eq "demo 下预置 3 个任务" "$(curl -s -u "$U:$T" "$J/job/demo/api/json?tree=jobs%5Bname%5D" | py "['jobs']" | python3 -c 'import sys,ast;print(len(ast.literal_eval(sys.stdin.read())))')" "3"
+DEMO_JOBS="$(curl -s -u "$U:$T" "$J/job/demo/api/json?tree=jobs%5Bname%5D")"
+eq "demo 下预置 13 个任务" "$(printf '%s' "$DEMO_JOBS" | py "['jobs']" | python3 -c 'import sys,ast;print(len(ast.literal_eval(sys.stdin.read())))')" "13"
+MISSING="$(printf '%s' "$DEMO_JOBS" | python3 -c '
+import json,sys
+need={"nested","empty","dpp-pipeline","dpp-failing","dpp-freestyle","dpp-unstable","dpp-aborted","dpp-params","dpp-input","dpp-slow","dpp-parallel","dpp-disabled","dpp-unbuilt"}
+have={item["name"] for item in json.load(sys.stdin)["jobs"]}
+print(",".join(sorted(need-have)))
+')"
+[ -z "$MISSING" ] && ok "预置任务齐全" || bad "缺少任务 ($MISSING)"
+eq "空文件夹没有子任务" "$(curl -s -u "$U:$T" "$J/job/demo/job/empty/api/json?tree=jobs%5Bname%5D" | py "['jobs']" | python3 -c 'import sys,ast;print(len(ast.literal_eval(sys.stdin.read())))')" "0"
+eq "嵌套任务存在" "$(curl -s -u "$U:$T" "$J/job/demo/job/nested/job/dpp-leaf/api/json?tree=name" | py "['name']")" "dpp-leaf"
+eq "禁用任务不可构建" "$(curl -s -u "$U:$T" "$J/job/demo/job/dpp-disabled/api/json?tree=buildable" | py "['buildable']")" "False"
 
 P_BASE="$J/job/demo/job/dpp-pipeline"
 
@@ -79,6 +90,35 @@ for _ in $(seq 1 30); do
   sleep 2
 done
 eq "失败任务结果为 FAILURE" "$(printf '%s' "$FRESP" | py "['result']")" "FAILURE"
+
+wait_result() {
+  local label="$1" base="$2" num="$3" want="$4" resp="" building=""
+  for _ in $(seq 1 60); do
+    resp="$(curl -s -u "$U:$T" "$base/$num/api/json?tree=result,building" || true)"
+    building="$(printf '%s' "$resp" | py "['building']")"
+    if [ "$building" = "False" ]; then break; fi
+    sleep 2
+  done
+  eq "$label" "$(printf '%s' "$resp" | py "['result']")" "$want"
+}
+
+trigger_build() {
+  local base="$1" path="$2"
+  local next
+  next="$(curl -s -u "$U:$T" "$base/api/json?tree=nextBuildNumber" | py "['nextBuildNumber']")"
+  curl -s -o /dev/null -b "$CJ" -u "$U:$T" -H "$CF: $CV" -X POST "$base/$path"
+  wait_result "$3" "$base" "$next" "$4"
+}
+
+echo "== 其余结果与参数 =="
+trigger_build "$J/job/demo/job/dpp-unstable" "build" "不稳定任务结果为 UNSTABLE" "UNSTABLE"
+eq "不稳定任务失败用例数" "$(curl -s -u "$U:$T" "$J/job/demo/job/dpp-unstable/lastBuild/testReport/api/json?tree=failCount,skipCount" | py "['failCount']")" "1"
+trigger_build "$J/job/demo/job/dpp-aborted" "build" "中止任务结果为 ABORTED" "ABORTED"
+trigger_build "$J/job/demo/job/dpp-parallel" "build" "并行任务结果为 SUCCESS" "SUCCESS"
+trigger_build "$J/job/demo/job/dpp-params" "buildWithParameters" "参数任务结果为 SUCCESS" "SUCCESS"
+eq "参数任务日志不包含令牌值" "$(curl -s -u "$U:$T" "$J/job/demo/job/dpp-params/lastBuild/consoleText" | python3 -c 'import sys; text=sys.stdin.read(); print("no" if "fixture-token" not in text and "TOKEN length=" in text else "yes")')" "no"
+trigger_build "$J/job/demo/job/dpp-slow" "buildWithParameters" "慢任务默认结果为 SUCCESS" "SUCCESS"
+trigger_build "$J/job/demo/job/nested/job/dpp-leaf" "build" "嵌套任务结果为 SUCCESS" "SUCCESS"
 
 echo
 echo "通过 ${PASS} 项，失败 ${FAIL} 项"

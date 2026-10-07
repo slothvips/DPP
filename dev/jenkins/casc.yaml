@@ -25,6 +25,16 @@ jobs:
         displayName('Demo')
       }
 
+      folder('demo/nested') {
+        displayName('Nested')
+        description('多一层文件夹，用来测目录遍历')
+      }
+
+      folder('demo/empty') {
+        displayName('Empty')
+        description('空文件夹')
+      }
+
       pipelineJob('demo/dpp-pipeline') {
         description('DPP 测试用 Pipeline：参数、阶段、测试报告、产物')
         parameters {
@@ -76,5 +86,196 @@ jobs:
         description('DPP 测试用 Freestyle Job')
         steps {
           shell('echo freestyle from dpp')
+        }
+      }
+
+      // 下面的任务只在 Jenkins 工作区里 echo / 写文件，不访问仓库或外网。
+      pipelineJob('demo/nested/dpp-leaf') {
+        description('嵌套目录下的任务，只打印一行')
+        definition {
+          cps {
+            script('pipeline { agent any; stages { stage("Leaf") { steps { echo "nested local job" } } } }')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-unstable') {
+        description('测试有通过、失败、跳过，结果为 UNSTABLE。产物留在本次构建里')
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+                stages {
+                  stage('Test') {
+                    steps {
+                      writeFile file: 'result.xml', text: '<testsuite name="local" tests="3" failures="1" skipped="1"><testcase name="passes" classname="local.Suite"/><testcase name="fails" classname="local.Suite"><failure message="intentional">local assertion</failure></testcase><testcase name="skipped" classname="local.Suite"><skipped message="not run"/></testcase></testsuite>'
+                      junit 'result.xml'
+                    }
+                  }
+                  stage('Artifact') {
+                    steps {
+                      writeFile file: 'summary.txt', text: 'unstable fixture'
+                      writeFile file: 'note.txt', text: 'local only'
+                      archiveArtifacts artifacts: 'summary.txt,note.txt'
+                      script { currentBuild.description = 'local unstable fixture' }
+                    }
+                  }
+                }
+              }
+            ''')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-aborted') {
+        description('构建结果固定为 ABORTED')
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+                stages {
+                  stage('Abort') {
+                    steps {
+                      catchError(buildResult: 'ABORTED', stageResult: 'ABORTED') {
+                        error 'intentional abort'
+                      }
+                    }
+                  }
+                }
+              }
+            ''')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-params') {
+        description('字符串、布尔、选项、敏感字段。日志只打印 TOKEN 的长度')
+        parameters {
+          stringParam('NOTE', 'local-only', '备注，只写进日志')
+          booleanParam('DRY_RUN', true, '勾选时只打印')
+          choiceParam('MODE', ['echo', 'skip'], '只影响日志文字')
+          stringParam('TOKEN', 'fixture-token', '假令牌，用来看确认框是否打码')
+        }
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+                stages {
+                  stage('Show') {
+                    steps {
+                      echo "NOTE=" + params.NOTE
+                      echo "DRY_RUN=" + params.DRY_RUN
+                      echo "MODE=" + params.MODE
+                      echo "TOKEN length=" + (params.TOKEN ?: "").length()
+                    }
+                  }
+                }
+              }
+            ''')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-input') {
+        description('触发后停在审批，不占执行器。没有输入参数，测完请批准或停止。冒烟脚本不会触发它')
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent none
+                stages {
+                  stage('Approve') {
+                    steps {
+                      input message: '这是本地测试审批，不会访问外部。', id: 'approve', ok: '继续'
+                    }
+                  }
+                  stage('Done') {
+                    agent any
+                    steps { echo 'approved locally' }
+                  }
+                }
+              }
+            ''')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-slow') {
+        description('默认等 1 秒。把 SECONDS 调到 30 可测试构建中和取消，最长 120 秒')
+        parameters {
+          stringParam('SECONDS', '1', '等待秒数，1 到 120')
+        }
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+                stages {
+                  stage('Wait') {
+                    steps {
+                      script {
+                        def seconds = (params.SECONDS ?: '1') as int
+                        if (seconds < 0) seconds = 0
+                        if (seconds > 120) seconds = 120
+                        sleep seconds
+                      }
+                    }
+                  }
+                }
+              }
+            ''')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-parallel') {
+        description('两个并行阶段，只打印')
+        definition {
+          cps {
+            script('''
+              pipeline {
+                agent any
+                stages {
+                  stage('Parallel') {
+                    parallel {
+                      stage('Left') { steps { echo 'left' } }
+                      stage('Right') { steps { echo 'right' } }
+                    }
+                  }
+                }
+              }
+            ''')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-disabled') {
+        disabled(true)
+        description('已禁用，不能构建')
+        definition {
+          cps {
+            script('pipeline { agent any; stages { stage("Nope") { steps { echo "should not run" } } } }')
+            sandbox(true)
+          }
+        }
+      }
+
+      pipelineJob('demo/dpp-unbuilt') {
+        description('故意不预跑。用来看未构建状态。冒烟脚本不会触发它')
+        definition {
+          cps {
+            script('pipeline { agent any; stages { stage("Idle") { steps { echo "unbuilt fixture" } } } }')
+            sandbox(true)
+          }
         }
       }

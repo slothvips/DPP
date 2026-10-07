@@ -215,3 +215,26 @@ export interface HotNewsCache {
   data: DailyNews;
   updatedAt: number;
 }
+
+export type NotifyTargetKind = 'user' | 'group';
+
+/** 固定一行，id 永远是 default。清空 Token 写空字符串，不删行。 */
+export interface NotifyConfigRecord {
+  id: string;
+  botToken: string;
+  /** 通道试发正文。空字符串表示用默认试发句。功能模块不读这个字段。 */
+  messageTemplate?: string;
+  /** Jenkins 构建通知模板。空字符串表示用 Jenkins 自己的默认格式。 */
+  jenkinsBuildTemplate?: string;
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export interface NotifyTargetRecord {
+  id: string;
+  kind: NotifyTargetKind;
+  label: string;
+  chatId: string;
+  updatedAt: number;
+  deletedAt?: number;
+}

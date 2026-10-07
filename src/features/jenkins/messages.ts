@@ -170,6 +170,7 @@ export interface JenkinsPipelineStage {
   startTimeMillis?: number;
   durationMillis?: number;
   pauseDurationMillis?: number;
+  error?: string;
 }
 
 export interface GetPipelineStagesMessage extends JenkinsMessageBase {

@@ -1,6 +1,11 @@
 import { browser } from 'wxt/browser';
 import { syncEngine } from '@/db';
 import { parseConversationMaterialDeepLink } from '@/features/aiAssistant/materials/materialDeepLink';
+import {
+  JENKINS_BUILD_NOTIFY_ALARM,
+  ensureJenkinsBuildNotifyAlarm,
+  runJenkinsBuildNotifyScan,
+} from '@/features/jenkins/buildNotifyScan';
 import { getSetting, updateSetting } from '@/lib/db/settings';
 import { performGlobalSync } from '@/lib/globalSync';
 import { logger } from '@/utils/logger';
@@ -23,6 +28,7 @@ export function registerBackgroundLifecycle() {
     .catch((error) => logger.error('Failed to set side panel behavior:', error));
 
   void setupAutoSync();
+  void ensureJenkinsBuildNotifyAlarm();
   void syncEngine
     .recoverAfterUpgrade()
     .then(async () => {
@@ -39,6 +45,10 @@ export function registerBackgroundLifecycle() {
       try {
         if (alarm.name === PUSH_RETRY_ALARM) {
           await handleSyncMessage({ type: 'AUTO_SYNC_TRIGGER_PUSH', retry: true });
+          return;
+        }
+        if (alarm.name === JENKINS_BUILD_NOTIFY_ALARM) {
+          await runJenkinsBuildNotifyScan();
           return;
         }
         if (alarm.name !== 'auto-sync-alarm') {

@@ -2,7 +2,8 @@
 import { getJenkinsDiagnostics } from '@/features/jenkins/diagnostics';
 import { requireJenkinsFeature } from '@/features/jenkins/featureFlags';
 import { JenkinsService } from '@/features/jenkins/service';
-import { getJob, listJobs, switchJenkinsEnv, syncJenkins } from '@/lib/db/jenkins';
+import { listJobs, switchJenkinsEnv, syncJenkins } from '@/lib/db/jenkins';
+import { getJobByUrl } from '@/lib/db/jobCatalog';
 import { createToolParameter, toolRegistry } from '../tools';
 import type { ToolHandler } from '../tools';
 
@@ -54,19 +55,17 @@ async function jenkins_trigger_build(args: {
   parameters?: Record<string, string>;
 }) {
   await requireJenkinsFeature('aiActions');
-  // Verify job exists
-  const job = await getJob(args);
+  const job = await getJobByUrl(args.jobUrl);
   if (!job) {
     throw new Error(`Job not found: ${args.jobUrl}`);
   }
 
-  // Return build info for UI to open BuildDialog
-  // The actual build will be triggered by BuildDialog
   return {
     success: true,
     action: 'open_build_dialog',
-    jobUrl: args.jobUrl,
+    jobUrl: job.url,
     jobName: job.fullName || job.name,
+    envId: job.env,
     message: `请在弹出的构建对话框中配置参数并确认构建 ${job.fullName || job.name}`,
   };
 }

@@ -330,6 +330,12 @@ export function registerDatabaseSchema(db: Dexie) {
   db.version(31).stores({
     analyticsEvents: '++id, ts',
   });
+
+  // v32: 团队同步的 Telegram Token 和接收对象。游标不进 Dexie。
+  db.version(32).stores({
+    notifyConfig: 'id',
+    notifyTargets: 'id, deletedAt, updatedAt',
+  });
 }
 
 function reverseJobPath(name: string): string {

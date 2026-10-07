@@ -13,6 +13,7 @@
   "include": [
     "src/index.ts",
     "src/lib/d1.ts",
+    "src/lib/notify.ts",
     "src/lib/idempotency.ts",
     "src/lib/pushCoordinator.ts",
     "src/lib/stats.ts",

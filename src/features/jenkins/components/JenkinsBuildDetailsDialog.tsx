@@ -3,6 +3,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  CircleAlert,
   Download,
   FileText,
   GitCommit,
@@ -27,6 +28,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
 import { VirtualList } from '@/components/ui/virtual-list';
 import type { MyBuildItem } from '@/db';
+import { extractBuildFailure } from '@/features/jenkins/buildNotifyCore';
 import { JenkinsSectionHeader } from '@/features/jenkins/components/jenkinsUi';
 import type {
   JenkinsBuildDetailsResult,
@@ -157,6 +159,11 @@ export function JenkinsBuildDetailsDialog({
 
   const testStatus = details?.test_report_status;
   const report = details?.test_report;
+  const failureText = useMemo(() => {
+    const result = details?.build.result;
+    if (result !== 'FAILURE' && result !== 'UNSTABLE') return '';
+    return extractBuildFailure(details?.console_tail?.lines ?? '');
+  }, [details]);
 
   async function loadTestDetails() {
     setTestDetailsLoading(true);
@@ -313,6 +320,18 @@ export function JenkinsBuildDetailsDialog({
           )}
           {details && (
             <div className="space-y-4">
+              {failureText && (
+                <section aria-labelledby="jenkins-build-failure">
+                  <JenkinsSectionHeader
+                    id="jenkins-build-failure"
+                    icon={<CircleAlert className="h-4 w-4 text-destructive" />}
+                    title="错误信息"
+                  />
+                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-2 font-mono text-xs text-destructive">
+                    {failureText}
+                  </pre>
+                </section>
+              )}
               <section aria-labelledby="jenkins-pipeline-stages">
                 <JenkinsSectionHeader
                   id="jenkins-pipeline-stages"
@@ -355,6 +374,9 @@ export function JenkinsBuildDetailsDialog({
                                   : ''}
                               </span>
                             </button>
+                            {stage.error && (
+                              <p className="ml-7 break-words text-destructive">{stage.error}</p>
+                            )}
                             {stage.id && expandedStageId === stage.id && (
                               <div className="ml-7 mt-1 space-y-1.5 border-l border-border pl-3">
                                 {stageNodesLoading && (

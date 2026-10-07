@@ -179,6 +179,7 @@ async function executePreparedToolCall(
     action?: string;
     jobUrl?: string;
     jobName?: string;
+    envId?: string;
     updatedKeys?: unknown;
   };
 
@@ -191,6 +192,7 @@ async function executePreparedToolCall(
       pendingBuild: {
         jobUrl: resultObj.jobUrl,
         jobName: resultObj.jobName,
+        envId: resultObj.envId,
         toolCallId: toolCall.id,
         toolName: toolCall.function.name,
         remainingToolCalls: [],

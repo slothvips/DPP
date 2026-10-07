@@ -106,9 +106,11 @@ export function JenkinsBuildHistorySection({
         ) : (
           <VirtualList
             items={displayedBuilds}
-            estimateSize={72}
+            estimateSize={88}
             overscan={8}
+            dynamicSize
             containerClassName="h-full min-h-0 pb-1"
+            itemClassName="pb-2"
             renderItem={(build) => (
               <MyBuildRow
                 key={build.id}

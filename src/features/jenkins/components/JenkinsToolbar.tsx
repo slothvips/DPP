@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { JenkinsEnvironment } from '@/db';
+import { JenkinsBuildNotifyDialog } from '@/features/jenkins/components/JenkinsBuildNotifyDialog';
 import { JenkinsEnvManager } from '@/features/settings/components/JenkinsEnvManager';
 
 interface JenkinsToolbarProps {
@@ -78,6 +79,7 @@ export function JenkinsToolbar({
           </>
         )}
         {showEnvManager && <JenkinsEnvManager />}
+        <JenkinsBuildNotifyDialog />
       </div>
     </div>
   );

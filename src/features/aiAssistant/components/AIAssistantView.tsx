@@ -475,16 +475,20 @@ export function AIAssistantView({ onModuleSelect, sidebarFooter }: AIAssistantVi
             toast('Jenkins 构建生命周期能力已关闭', 'error');
             return;
           }
-          const job = await getJob({ jobUrl: action.jobUrl || action.targetId });
-          if (!job || (action.envId && job.env !== action.envId)) {
+          // 沿用这次构建记录的环境，不跟当前 Jenkins 环境走
+          const job = await getJob({
+            jobUrl: action.jobUrl || action.targetId,
+            envId: action.envId,
+          });
+          if (!job) {
             await deleteRecentAction(action.type, action.targetId);
-            toast('Jenkins Job 已不存在或已不属于原环境', 'error');
+            toast('Jenkins Job 已不存在', 'error');
             return;
           }
           setReplayBuildJob({
             jobUrl: job.url,
             jobName: job.name,
-            envId: job.env,
+            envId: action.envId || job.env,
           });
           return;
         }
@@ -721,6 +725,7 @@ export function AIAssistantView({ onModuleSelect, sidebarFooter }: AIAssistantVi
         <BuildDialog
           jobUrl={pendingBuild.jobUrl}
           jobName={pendingBuild.jobName}
+          envId={pendingBuild.envId}
           isOpen={true}
           onClose={() => {
             setTimeout(() => cancelBuild(), 0);

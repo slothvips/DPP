@@ -31,7 +31,7 @@ workers_dev = true
 [[env.test.d1_databases]]
 binding = "DB"
 database_name = "dpp-sync-test"
-database_id = "<YOUR_TEST_D1_ID>"
+database_id = "5bbc552b-24eb-459a-b8ce-460582a24273"
 migrations_dir = "migrations"
 
 [env.test.durable_objects]

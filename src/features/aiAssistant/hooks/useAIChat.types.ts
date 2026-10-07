@@ -23,6 +23,7 @@ export interface PendingToolCalls {
 export interface PendingBuild {
   jobUrl: string;
   jobName: string;
+  envId?: string;
   toolCallId: string;
   toolName: string;
   remainingToolCalls: ToolCall[];

@@ -1,6 +1,8 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { ExternalLink, LoaderCircle, Play, Shield } from 'lucide-react';
 import { useState } from 'react';
-import type { RecentAction } from '@/db';
+import type { JenkinsEnvironment, RecentAction } from '@/db';
+import { getSetting } from '@/lib/db/settings';
 
 interface RecentActionsProps {
   actions: RecentAction[];
@@ -19,8 +21,14 @@ function getActionVerb(type: RecentAction['type']): string {
   return '复制验证码';
 }
 
+function jenkinsEnvName(envId: string | undefined, environments: JenkinsEnvironment[]): string {
+  if (!envId) return '';
+  return environments.find((env) => env.id === envId)?.name.trim() ?? '';
+}
+
 export function RecentActions({ actions, onReplay }: RecentActionsProps) {
   const [replayingId, setReplayingId] = useState<string | null>(null);
+  const environments = useLiveQuery(() => getSetting('jenkins_environments'), []) ?? [];
 
   if (actions.length === 0) return null;
 
@@ -41,39 +49,47 @@ export function RecentActions({ actions, onReplay }: RecentActionsProps) {
         <span className="text-[10px] text-muted-foreground/70">点击即可再次执行</span>
       </div>
       <div className="overflow-hidden rounded-xl border border-border/60 bg-background/75">
-        {actions.map((action) => (
-          <button
-            key={action.id}
-            type="button"
-            className="group flex w-full min-w-0 items-center gap-2.5 border-b border-border/50 px-3 py-2.5 text-left last:border-b-0 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
-            disabled={replayingId !== null}
-            aria-busy={replayingId === action.id}
-            onClick={() => void handleReplay(action)}
-            title={`再次${getActionVerb(action.type)}`}
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-primary group-hover:bg-primary group-hover:text-primary-foreground">
-              {replayingId === action.id ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                getActionIcon(action.type)
-              )}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-foreground">
-                {getActionVerb(action.type)}
+        {actions.map((action) => {
+          const envName =
+            action.type === 'jenkins_build' ? jenkinsEnvName(action.envId, environments) : '';
+          const verb = getActionVerb(action.type);
+          return (
+            <button
+              key={action.id}
+              type="button"
+              className="group flex w-full min-w-0 items-center gap-2.5 border-b border-border/50 px-3 py-2.5 text-left last:border-b-0 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:cursor-wait disabled:opacity-60"
+              disabled={replayingId !== null}
+              aria-busy={replayingId === action.id}
+              onClick={() => void handleReplay(action)}
+              title={envName ? `再次${verb}（${envName}）` : `再次${verb}`}
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted/70 text-primary group-hover:bg-primary group-hover:text-primary-foreground">
+                {replayingId === action.id ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  getActionIcon(action.type)
+                )}
               </span>
-              <span className="block truncate text-[11px] text-muted-foreground">
-                {action.label}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-medium text-foreground">
+                  {verb}
+                  {envName ? (
+                    <span className="font-normal text-muted-foreground"> · {envName}</span>
+                  ) : null}
+                </span>
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {action.label}
+                </span>
               </span>
-            </span>
-            <span className="shrink-0 text-[10px] text-muted-foreground/60">
-              {new Date(action.lastUsedAt).toLocaleString([], {
-                dateStyle: 'short',
-                timeStyle: 'short',
-              })}
-            </span>
-          </button>
-        ))}
+              <span className="shrink-0 text-[10px] text-muted-foreground/60">
+                {new Date(action.lastUsedAt).toLocaleString([], {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </section>
   );

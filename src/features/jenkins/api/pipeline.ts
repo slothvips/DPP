@@ -19,6 +19,7 @@ interface JenkinsWorkflowStage {
   startTimeMillis?: number;
   durationMillis?: number;
   pauseDurationMillis?: number;
+  error?: { message?: string };
 }
 
 interface JenkinsWorkflowNode extends JenkinsWorkflowStage {
@@ -158,6 +159,9 @@ export async function getPipelineStages(
         startTimeMillis: stage.startTimeMillis,
         durationMillis: stage.durationMillis,
         pauseDurationMillis: stage.pauseDurationMillis,
+        error: stage.error?.message
+          ? redactSensitiveText(stage.error.message).slice(0, 1_000)
+          : undefined,
       }));
     let pendingInputs: JenkinsPipelineInput[] = [];
     let pendingInputError: string | undefined;

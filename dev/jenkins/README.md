@@ -13,7 +13,8 @@ docker compose -f dev/jenkins/docker-compose.yml up -d --build
 
 # 查看日志 / 等待就绪
 docker compose -f dev/jenkins/docker-compose.yml logs -f
-curl -s -o /dev/null -w '%{http_code}\n' -u admin:admin http://localhost:8080/api/json   # 期望 200
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:admin http://localhost:8080/api/json   # 实例 A，期望 200
+curl -s -o /dev/null -w '%{http_code}\n' -u admin:admin http://localhost:8081/api/json   # 实例 B，期望 200
 
 # 停止（保留数据）
 docker compose -f dev/jenkins/docker-compose.yml down
@@ -29,15 +30,20 @@ docker compose -f dev/jenkins/docker-compose.yml down -v
 
 | 项 | 值 |
 | --- | --- |
-| 地址 | `http://localhost:8080` |
-| 用户名 | `admin` |
-| 密码 / Token | `admin` |
-| CSRF | 已开启（匿名请求返回 403，属预期） |
+| 项 | 实例 A | 实例 B |
+| --- | --- | --- |
+| 地址 | `http://localhost:8080` | `http://localhost:8081` |
+| 用户名 | `admin` | `admin` |
+| 密码 / Token | `admin` | `admin` |
+| 首页标识 | DPP local test Jenkins | DPP local test Jenkins B |
+| CSRF | 已开启（匿名请求返回 403，属预期） | 同左 |
 
-在扩展里配置环境（设置 → Jenkins 环境）时填写：
+两套任务相同，只是 origin 不同，用来测多 Jenkins 环境。实例 B 启动时把根地址改成 `http://localhost:8081/`。
+
+在扩展里配置环境（设置 → Jenkins 环境）时各加一条：
 
 ```
-host  = http://localhost:8080
+host  = http://localhost:8080   # 或 http://localhost:8081
 user  = admin
 token = admin
 ```
@@ -52,12 +58,25 @@ token = admin
 
 `casc.yaml` 用 JCasC + Job DSL 预置了：
 
+这些任务只在容器里的工作区打印或写文件，不访问仓库和外网。
+
 | 任务 | URL | 类型 | 用途 / 预期 |
 | --- | --- | --- | --- |
 | `demo` | `/job/demo/` | Folder | 验证 folder 遍历 |
+| `demo/nested` | `/job/demo/job/nested/` | Folder | 多一层目录 |
+| `demo/nested/dpp-leaf` | `/job/demo/job/nested/job/dpp-leaf/` | Pipeline | 嵌套任务，结果 `SUCCESS` |
+| `demo/empty` | `/job/demo/job/empty/` | Folder | 空文件夹 |
 | `demo/dpp-pipeline` | `/job/demo/job/dpp-pipeline/` | Pipeline（声明式） | 参数 `GREETING`；3 阶段 `Prepare/Test/Artifact`；产出 `artifact.txt`；1 个通过测试；触发必须用 `buildWithParameters` |
 | `demo/dpp-failing` | `/job/demo/job/dpp-failing/` | Pipeline | 构建结果固定 `FAILURE` |
 | `demo/dpp-freestyle` | `/job/demo/job/dpp-freestyle/` | FreeStyle | 无参构建，结果 `SUCCESS` |
+| `demo/dpp-unstable` | `/job/demo/job/dpp-unstable/` | Pipeline | 通过 / 失败 / 跳过各 1 个测试，结果 `UNSTABLE`，产物 `summary.txt`、`note.txt` |
+| `demo/dpp-aborted` | `/job/demo/job/dpp-aborted/` | Pipeline | 构建结果固定 `ABORTED` |
+| `demo/dpp-params` | `/job/demo/job/dpp-params/` | Pipeline | 字符串、布尔、选项、`TOKEN`（确认框打码，日志只打长度） |
+| `demo/dpp-input` | `/job/demo/job/dpp-input/` | Pipeline | 停在无参数审批 `approve`，不占执行器。冒烟不触发 |
+| `demo/dpp-slow` | `/job/demo/job/dpp-slow/` | Pipeline | 参数 `SECONDS`，默认 1，最长 120。调到 30 可测构建中和取消 |
+| `demo/dpp-parallel` | `/job/demo/job/dpp-parallel/` | Pipeline | 两个并行阶段 |
+| `demo/dpp-disabled` | `/job/demo/job/dpp-disabled/` | Pipeline | 已禁用，`buildable=false` |
+| `demo/dpp-unbuilt` | `/job/demo/job/dpp-unbuilt/` | Pipeline | 不预跑，用来看未构建。冒烟不触发 |
 
 构建号：存量环境可能有历史构建，触发前先查 `nextBuildNumber`，或直接用 `lastBuild`。
 
@@ -88,15 +107,17 @@ token = admin
 
 ## 5. 冒烟检查
 
-`dev/jenkins/smoke.sh` 会对上面的关键链路做一次端到端验证（14 项）：
+`dev/jenkins/smoke.sh` 会对上面的关键链路做一次端到端验证：
 
 ```bash
 bash dev/jenkins/smoke.sh
 # 覆盖目标：JENKINS_URL=... JENKINS_USER=... JENKINS_TOKEN=... bash dev/jenkins/smoke.sh
 ```
 
-覆盖：鉴权、匿名拦截、CSRF、folder 遍历、参数化触发 + 队列地址、构建结果、
-`wfapi/describe` 阶段、产物下载、测试报告、渐进日志分页头、失败任务结果。
+覆盖：鉴权、匿名拦截、CSRF、folder 遍历、空文件夹、禁用任务、参数化触发 + 队列地址、
+构建结果（成功 / 失败 / 不稳定 / 中止）、`wfapi/describe` 阶段、产物下载、测试报告、
+渐进日志分页头、并行阶段、参数任务（日志不含假令牌）、默认 1 秒的慢任务、嵌套任务。
+`dpp-input` 和 `dpp-unbuilt` 只检查存在，不会被触发。
 
 > 该脚本会新建构建记录，属于预期副作用；要干净环境就 `down -v` 重置。
 
@@ -117,7 +138,7 @@ Jenkins 相关：
 ## 7. 推荐测试流程（Agent）
 
 1. `docker compose ... up -d`，轮询 `GET /api/json` 到 `200`。
-2. `bash dev/jenkins/smoke.sh`，确认环境本身健康（应 14/14）。
+2. `bash dev/jenkins/smoke.sh`，确认环境本身健康（应全部通过）。
 3. 针对改动点直接用 curl 打对应接口，最小复现，例如：
    ```bash
    J=http://localhost:8080
@@ -145,7 +166,7 @@ Jenkins 相关：
 
 ```
 dev/jenkins/
-├── docker-compose.yml   # 服务、端口 8080/50000、数据卷
+├── docker-compose.yml   # 两套服务：A 8080/50000，B 8081/50001
 ├── Dockerfile           # jenkins/jenkins:lts-jdk17 + 预装插件
 ├── casc.yaml            # JCasC：安全、CSRF、预置任务
 ├── smoke.sh             # 端到端冒烟检查

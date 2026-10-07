@@ -43,25 +43,30 @@ export function MyBuildRow({
           />
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-sm font-medium truncate text-foreground" title={build.jobName}>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+              title={build.jobName}
+            >
               {build.jobName}
             </span>
-            <span className="text-xs text-muted-foreground font-mono">#{build.number}</span>
-            {tags && tags.length > 0 && (
-              <div className="flex items-center gap-1">
-                {tags.map((tag) => (
-                  <Tag key={tag.id} name={tag.name} color={tag.color} size="sm" />
-                ))}
-              </div>
-            )}
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+              #{build.number}
+            </span>
             {build.userName && (
-              <span className="rounded-full bg-muted/70 px-1.5 py-0.5 text-xs text-muted-foreground">
+              <span className="shrink-0 rounded-full bg-muted/70 px-1.5 py-0.5 text-xs text-muted-foreground">
                 {build.userName}
               </span>
             )}
           </div>
+          {tags && tags.length > 0 && (
+            <div className="flex min-w-0 flex-wrap gap-1">
+              {tags.map((tag) => (
+                <Tag key={tag.id} name={tag.name} color={tag.color} size="sm" />
+              ))}
+            </div>
+          )}
 
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <span className={`px-1 rounded border ${getStatusClassName(build.result)}`}>

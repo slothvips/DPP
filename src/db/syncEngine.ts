@@ -19,6 +19,8 @@ export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null>
         'links',
         'linkTags',
         'blackboard',
+        'notifyConfig',
+        'notifyTargets',
         'totpAccounts',
         'materials',
         'roleUsageEvents',

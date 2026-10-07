@@ -45,7 +45,7 @@ export function TagSelector({
 
   return (
     <div
-      className="flex flex-wrap gap-1 items-center"
+      className="flex w-full min-w-0 flex-wrap items-center gap-1"
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >

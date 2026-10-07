@@ -341,10 +341,10 @@ function PromptMaterialCard({
           {content.tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+              className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md bg-muted/60 px-1.5 py-0.5 text-[10px] text-muted-foreground"
             >
-              <Tag className="h-3 w-3" />
-              {tag}
+              <Tag className="h-3 w-3 shrink-0" />
+              <span className="truncate">{tag}</span>
             </span>
           ))}
         </div>

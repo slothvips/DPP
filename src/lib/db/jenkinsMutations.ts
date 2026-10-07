@@ -92,20 +92,6 @@ export async function createJenkinsBuildOperation(args: {
   if (existing) {
     throw new Error('该构建操作已提交，请先确认其队列状态');
   }
-  const duplicate = await db.jenkinsBuildOperations
-    .where('envId')
-    .equals(args.envId)
-    .filter(
-      (operation) =>
-        operation.jobUrl === args.jobUrl &&
-        ['pending', 'accepted', 'unknown'].includes(operation.status) &&
-        operation.createdAt > Date.now() - 5 * 60_000 &&
-        JSON.stringify(operation.parameterSummary || {}) === JSON.stringify(parameterSummary)
-    )
-    .first();
-  if (duplicate) {
-    throw new Error('该 Job 存在尚未确认结果的构建操作，请先查询队列后再提交');
-  }
   const now = Date.now();
   await db.jenkinsBuildOperations.put({
     id: args.id,

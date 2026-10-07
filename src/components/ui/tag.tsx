@@ -31,7 +31,7 @@ export function Tag({ name, color, size = 'md', className, onClick }: TagProps) 
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded font-medium border bg-muted/80 text-foreground border-border max-w-[120px] group/tag relative transition-colors shadow-sm',
+        'inline-flex min-w-0 max-w-[120px] items-center gap-1.5 rounded border border-border bg-muted/80 font-medium text-foreground shadow-sm transition-colors group/tag relative',
         size === 'sm' ? 'px-1 py-0 text-[10px] h-4' : 'px-2 py-0.5 text-xs',
         onClick && 'cursor-pointer hover:bg-muted',
         className

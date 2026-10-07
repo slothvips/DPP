@@ -152,6 +152,7 @@ export function LinksView() {
             items={filteredAndSortedLinks ?? []}
             estimateSize={108}
             overscan={5}
+            dynamicSize
             containerClassName="h-full min-h-0 pr-1 pb-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
             renderItem={(link) => (
               <LinkListItem

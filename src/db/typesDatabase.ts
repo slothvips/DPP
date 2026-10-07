@@ -25,6 +25,8 @@ import type {
   LinkItem,
   LinkStatItem,
   LinkTagItem,
+  NotifyConfigRecord,
+  NotifyTargetRecord,
   TagItem,
 } from './typesDomain';
 import type { RecentAction } from './typesRecentActions';
@@ -106,4 +108,6 @@ export type DPPDatabase = Dexie & {
   jenkinsSyncState: EntityTable<JenkinsSyncStateRecord, 'envId'>;
   jenkinsBuildOperations: EntityTable<JenkinsBuildOperationRecord, 'id'>;
   analyticsEvents: EntityTable<AnalyticsEventRecord, 'id'>;
+  notifyConfig: EntityTable<NotifyConfigRecord, 'id'>;
+  notifyTargets: EntityTable<NotifyTargetRecord, 'id'>;
 };

@@ -223,7 +223,8 @@ test('Jenkins capabilities are independently configurable and enforced in the ba
   assert.match(omnibox, /isJenkinsFeatureEnabled\('workbench'\)/);
   assert.match(omnibox, /await browser\.windows\.create/);
   assert.match(assistant, /isJenkinsFeatureEnabled\('buildLifecycle'\)/);
-  assert.match(assistant, /job\.env !== action\.envId/);
+  assert.match(assistant, /envId: action\.envId/);
+  assert.doesNotMatch(assistant, /job\.env !== action\.envId/);
   assert.match(build, /确认触发构建/);
   assert.match(env, /确认添加 Jenkins 环境/);
   assert.match(env, /确认修改 Jenkins 环境/);
@@ -259,6 +260,12 @@ test('Jenkins AI lifecycle writes stay behind an unbypassable confirmation gate'
     assert.match(confirmation, new RegExp(`case '${tool}'`));
   }
   assert.match(gate, /jenkins_trigger_build/);
+  assert.match(source('src/features/aiAssistant/components/RecentActions.tsx'), /jenkinsEnvName/);
+  assert.match(jenkins, /getJobByUrl/);
+  assert.match(
+    source('src/features/aiAssistant/components/AIAssistantView.tsx'),
+    /envId=\{pendingBuild\.envId\}/
+  );
   assert.match(jenkins, /name: 'jenkins_get_status'/);
   assert.match(jenkins, /name: 'jenkins_get_queue_item'/);
   assert.match(jenkins, /JenkinsService\.cancelQueueItem/);
