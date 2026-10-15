@@ -66,12 +66,15 @@ export interface BuildNotifyPorts {
   loadFloor?(): Promise<number | null>;
   /** 已拼好的发送端文字。缺省时消息里显示无。 */
   loadClient?(): Promise<string>;
+  /** 订了这个 Job 的接收对象。缺省则发给全部对象。空数组不发送，游标照样前进。 */
+  subscribers?(jobUrl: string): Promise<string[]>;
   deliverOnce(input: {
     scope: string;
     dedupKey: string;
     text: string;
     occurredAt: number;
     file?: { filename: string; body: string };
+    targetIds?: string[];
   }): Promise<{ complete: boolean; halt?: boolean }>;
 }
 
@@ -443,6 +446,18 @@ async function processJob(
   if (initialCursor === null) return 'next';
   let cursor: number = initialCursor;
 
+  const recipientIds = ports.subscribers ? await ports.subscribers(job.canonical) : undefined;
+  if (recipientIds && recipientIds.length === 0) {
+    if (job.lastBuildNumber <= cursor) return 'next';
+    const tip = await ports.fetchBuild(env, job.url, job.lastBuildNumber);
+    if (tip.kind === 'env_down') return 'env_down';
+    if (tip.kind === 'stop' || tip.kind !== 'build') return 'next';
+    const landed = isTerminal(tip.build) ? job.lastBuildNumber : job.lastBuildNumber - 1;
+    if (landed <= cursor) return 'next';
+    const advanced = await advanceCursor(ports, key, landed, false);
+    return typeof advanced === 'string' ? advanced : 'next';
+  }
+
   if (floor !== null && job.lastBuildNumber > cursor + 1) {
     const jumped = await cursorPastOld(ports, env, job.url, cursor, job.lastBuildNumber, floor);
     if (typeof jumped === 'string') return jumped;
@@ -485,6 +500,7 @@ async function processJob(
       file: ports.loadLog
         ? { filename: notifyLogFilename(jobName, buildNumber), body: logBody || '无' }
         : undefined,
+      ...(recipientIds ? { targetIds: recipientIds } : {}),
       text: formatBuildNotifyText({
         envName: env.name,
         envHost: env.host,

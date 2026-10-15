@@ -25,6 +25,16 @@ export interface JenkinsCredentials {
   token: string;
 }
 
+/** Jenkins 容器类名（folder、多分支父工程、组织文件夹）。叶子任务才参与构建通知。 */
+export function isJenkinsFolderClass(classType?: string): boolean {
+  if (!classType) return false;
+  return (
+    classType.includes('Folder') ||
+    classType.includes('WorkflowMultiBranchProject') ||
+    classType.includes('OrganizationFolder')
+  );
+}
+
 export function createJenkinsClient(credentials: JenkinsCredentials) {
   const { baseUrl, user, token } = credentials;
   const rootUrl = normalizeJenkinsRootUrl(baseUrl);
@@ -85,12 +95,7 @@ export function createJenkinsClient(credentials: JenkinsCredentials) {
   }
 
   function isFolder(classType?: string): boolean {
-    if (!classType) return false;
-    return (
-      classType.includes('Folder') ||
-      classType.includes('WorkflowMultiBranchProject') ||
-      classType.includes('OrganizationFolder')
-    );
+    return isJenkinsFolderClass(classType);
   }
 
   return {

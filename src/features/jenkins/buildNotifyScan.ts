@@ -11,6 +11,10 @@ import {
 } from '@/features/jenkins/buildNotifyCore';
 import { JENKINS_BUILD_SCOPE, canonicalHttpUrl } from '@/features/notify/canonical';
 import { deliverOnce } from '@/features/notify/deliverOnce';
+import {
+  receivesNoJenkinsNotifications,
+  subscribesToJenkinsJob,
+} from '@/features/notify/subscriptions';
 import { notifyWorkerRequest } from '@/features/notify/workerApi';
 import { getNotifyBotToken, getNotifyConfig, listActiveNotifyTargets } from '@/lib/db/notify';
 import { getSetting } from '@/lib/db/settings';
@@ -276,6 +280,8 @@ async function loadNotifyFloor(): Promise<number | null> {
   if (targets.length === 0) return null;
   let floor = Number.POSITIVE_INFINITY;
   for (const target of targets) {
+    // 不订 Jenkins 的对象不影响游标跳跃，跳过以免拖慢追赶速度。
+    if (receivesNoJenkinsNotifications(target.subscriptions)) continue;
     const response = await notifyWorkerRequest('/api/notify/since', {
       json: { scope: JENKINS_BUILD_SCOPE, targetId: target.id, create: false },
     });
@@ -293,7 +299,8 @@ async function loadNotifyFloor(): Promise<number | null> {
     if (typeof sinceMs !== 'number' || !Number.isFinite(sinceMs)) return null;
     floor = Math.min(floor, sinceMs);
   }
-  return floor;
+  // 所有对象都不订 Jenkins 时相当于没有 floor。
+  return Number.isFinite(floor) ? floor : null;
 }
 
 export async function ensureJenkinsBuildNotifyAlarm(): Promise<void> {
@@ -317,10 +324,12 @@ export async function runJenkinsBuildNotifyScan(): Promise<void> {
     } catch (error) {
       logger.warn('[Notify] 读取任务标签失败', error);
     }
+    // 单次扫描内目标列表保持不变，避免每个 Job 重复查表。
+    const notifyTargets = await listActiveNotifyTargets();
     await scanJenkinsBuildNotifications({
       loadToken: getNotifyBotToken,
       async hasTargets() {
-        return (await listActiveNotifyTargets()).length > 0;
+        return notifyTargets.length > 0;
       },
       async loadEnvironments() {
         return (await getSetting('jenkins_environments')) ?? [];
@@ -359,6 +368,11 @@ export async function runJenkinsBuildNotifyScan(): Promise<void> {
           logger.warn('[Notify] 读取客户端标识失败', error);
           return '';
         }
+      },
+      async subscribers(jobUrl) {
+        return notifyTargets
+          .filter((target) => subscribesToJenkinsJob(target.subscriptions, jobUrl))
+          .map((target) => target.id);
       },
       deliverOnce,
     });

@@ -2,11 +2,16 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
-import { handleNotifyRequest } from '../packages/cf-worker-googlesheet/src/lib/notify.ts';
+import { handleNotifyRequest } from '../packages/sync-worker/src/lib/notify.ts';
 import { canonicalChatId, notifyClaimKey } from '../src/features/notify/canonical.ts';
 import { clearNotifySinceCache, deliverOnce } from '../src/features/notify/deliverCore.ts';
 import { saveNotifyConfigWith } from '../src/features/notify/saveCore.ts';
 import { sendNotifyTest } from '../src/features/notify/sendTest.ts';
+import {
+  normalizeNotifySubscriptions,
+  receivesNoJenkinsNotifications,
+  subscribesToJenkinsJob,
+} from '../src/features/notify/subscriptions.ts';
 import { sendTelegramNotification } from '../src/features/notify/telegram.ts';
 import { renderNotifyTemplate } from '../src/features/notify/template.ts';
 
@@ -19,7 +24,7 @@ function createDb() {
   raw.exec(
     readFileSync(
       new URL(
-        '../packages/cf-worker-googlesheet/migrations/0004_notify_claims.sql',
+        '../packages/sync-worker/migrations/0004_notify_claims.sql',
         import.meta.url
       ),
       'utf8'
@@ -337,6 +342,94 @@ test('deliverOnce retries only the target that failed and treats telegram status
   assert.equal(limited.telegram.length, 0);
 });
 
+test('jenkins subscriptions default to every job and can name specific ones', () => {
+  const job = 'https://jenkins.example.com/job/demo/job/foo/';
+  assert.equal(subscribesToJenkinsJob(undefined, job), true);
+  assert.equal(subscribesToJenkinsJob({ jenkins: { enabled: false } }, job), false);
+  assert.equal(subscribesToJenkinsJob({ jenkins: { enabled: true } }, job), true);
+  assert.equal(subscribesToJenkinsJob({ jenkins: { enabled: true, jobs: [] } }, job), false);
+  assert.equal(
+    subscribesToJenkinsJob(
+      { jenkins: { enabled: true, jobs: ['https://jenkins.example.com/job/demo/job/foo'] } },
+      job
+    ),
+    true
+  );
+  assert.deepEqual(
+    normalizeNotifySubscriptions({
+      jenkins: { enabled: true, jobs: ['https://Jenkins.example.com/job/demo/job/foo/', job] },
+    }),
+    { jenkins: { enabled: true, jobs: ['https://jenkins.example.com/job/demo/job/foo'] } }
+  );
+});
+
+test('targets that disabled Jenkins or picked no job do not hold back the floor', () => {
+  assert.equal(receivesNoJenkinsNotifications(undefined), false);
+  assert.equal(receivesNoJenkinsNotifications({ jenkins: { enabled: true } }), false);
+  assert.equal(
+    receivesNoJenkinsNotifications({ jenkins: { enabled: true, jobs: ['https://a/job/x'] } }),
+    false
+  );
+  assert.equal(receivesNoJenkinsNotifications({ jenkins: { enabled: false } }), true);
+  assert.equal(
+    receivesNoJenkinsNotifications({ jenkins: { enabled: false, jobs: ['https://a/job/x'] } }),
+    true
+  );
+  assert.equal(receivesNoJenkinsNotifications({ jenkins: { enabled: true, jobs: [] } }), true);
+});
+
+test('the notify job picker reuses the shared folder-class rule', () => {
+  const section = source('src/entrypoints/options/NotifySettingsSection.tsx');
+  assert.match(section, /isJenkinsFolderClass\(job\.type\)/);
+  assert.doesNotMatch(section, /\/folder\/i/);
+  const client = source('src/features/jenkins/api/client.ts');
+  assert.match(client, /export function isJenkinsFolderClass/);
+  assert.match(client, /WorkflowMultiBranchProject/);
+  assert.match(client, /OrganizationFolder/);
+});
+
+test('deliverOnce sends only the requested targets', async () => {
+  const db = createDb();
+  clearNotifySinceCache();
+  await seedSince(db, 'a');
+  await seedSince(db, 'b');
+  db.raw.prepare('UPDATE notify_target_since SET since_ms = 1').run();
+  const ports = deliverPorts(db, [
+    { id: 'a', chatId: '11' },
+    { id: 'b', chatId: '22' },
+  ]);
+  const sent = await deliverOnce(
+    {
+      scope: 'jenkins-build',
+      dedupKey: 'https://jenkins.example.com/job/foo/3',
+      text: 'hello',
+      occurredAt: 1,
+      targetIds: ['b'],
+    },
+    ports
+  );
+  assert.equal(sent.complete, true);
+  assert.deepEqual(
+    ports.telegram.map((message) => message.chatId),
+    ['22']
+  );
+
+  clearNotifySinceCache();
+  const nobody = deliverPorts(db, [{ id: 'a', chatId: '11' }]);
+  const skipped = await deliverOnce(
+    {
+      scope: 'jenkins-build',
+      dedupKey: 'https://jenkins.example.com/job/foo/4',
+      text: 'hello',
+      occurredAt: 1,
+      targetIds: [],
+    },
+    nobody
+  );
+  assert.equal(skipped.complete, true);
+  assert.equal(nobody.telegram.length, 0);
+});
+
 test('missing since stays missing and is not created by a scan read', async () => {
   const db = createDb();
   clearNotifySinceCache();
@@ -356,6 +449,45 @@ test('missing since stays missing and is not created by a scan read', async () =
     ports.workerBodies.every((body) => body.create === false),
     true
   );
+});
+
+test('saving two targets keeps each subscription separate', async () => {
+  let written;
+  await saveNotifyConfigWith(
+    {
+      botToken: 'token',
+      targets: [
+        {
+          id: 'a',
+          kind: 'user',
+          label: '甲',
+          chatId: '1',
+          subscriptions: { jenkins: { enabled: true } },
+        },
+        {
+          id: 'b',
+          kind: 'user',
+          label: '乙',
+          chatId: '2',
+          subscriptions: {
+            jenkins: { enabled: true, jobs: ['https://jenkins.example.com/job/foo/'] },
+          },
+        },
+      ],
+    },
+    {
+      hasTeamSync: async () => true,
+      loadTargets: async () => [{ id: 'a' }, { id: 'b' }],
+      createSince: async () => {},
+      async write(next) {
+        written = next;
+      },
+    }
+  );
+  assert.deepEqual(written.targets[0].subscriptions, { jenkins: { enabled: true } });
+  assert.deepEqual(written.targets[1].subscriptions, {
+    jenkins: { enabled: true, jobs: ['https://jenkins.example.com/job/foo'] },
+  });
 });
 
 test('save calls since only for new targets and skips dexie when since fails', async () => {
@@ -436,6 +568,10 @@ test('settings expose the stable notify test ids and the alarm name', () => {
     'notify-save',
     'notify-test',
     'notify-message-template',
+    'notify-target-subscribe',
+    'notify-target-jenkins',
+    'notify-target-jobs-mode',
+    'notify-target-job',
   ]) {
     assert.match(section, new RegExp(testId));
   }
@@ -534,7 +670,9 @@ test('a build link becomes a button and localhost can be opened', async () => {
   const original = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     calls.push({ url: String(url), body: init.body });
-    return new Response(JSON.stringify({ ok: calls.length > 1 }), { status: calls.length > 1 ? 200 : 400 });
+    return new Response(JSON.stringify({ ok: calls.length > 1 }), {
+      status: calls.length > 1 ? 200 : 400,
+    });
   };
   try {
     const text = '<a href="http://localhost:8080/job/demo/3/">🔗 打开这次构建</a>';
@@ -580,9 +718,7 @@ test('a job title link still gets an open button', async () => {
     assert.equal(
       calls[0].body.get('reply_markup'),
       JSON.stringify({
-        inline_keyboard: [
-          [{ text: '打开这次构建', url: 'https://jenkins.example/job/foo/7/' }],
-        ],
+        inline_keyboard: [[{ text: '打开这次构建', url: 'https://jenkins.example/job/foo/7/' }]],
       })
     );
   } finally {

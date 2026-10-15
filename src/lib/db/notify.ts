@@ -24,7 +24,7 @@ export async function listActiveNotifyTargets(): Promise<NotifyTargetRecord[]> {
 export async function writeNotifyState(next: {
   botToken: string;
   messageTemplate?: string;
-  targets: Array<Pick<NotifyTargetRecord, 'id' | 'kind' | 'label' | 'chatId'>>;
+  targets: Array<Pick<NotifyTargetRecord, 'id' | 'kind' | 'label' | 'chatId' | 'subscriptions'>>;
 }): Promise<void> {
   const now = Date.now();
   await db.transaction('rw', db.notifyConfig, db.notifyTargets, async () => {

@@ -6,6 +6,8 @@ export interface DeliverOnceInput {
   text: string;
   occurredAt: number;
   file?: { filename: string; body: string };
+  /** 只发给这些对象。空数组表示这次没有接收者，发送完成。不传则发给全部。 */
+  targetIds?: string[];
 }
 
 export interface DeliverOnceResult {
@@ -94,9 +96,11 @@ export async function deliverOnce(
   ports: DeliverPorts
 ): Promise<DeliverOnceResult> {
   const token = (await ports.loadToken()).trim();
+  const allowed = input.targetIds ? new Set(input.targetIds) : null;
   const targets = (await ports.loadTargets())
-    .filter((target) => target.deletedAt == null)
+    .filter((target) => target.deletedAt == null && (allowed === null || allowed.has(target.id)))
     .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  if (allowed && targets.length === 0) return { complete: true };
   if (!token || targets.length === 0) return { complete: false };
 
   let clientId: string;

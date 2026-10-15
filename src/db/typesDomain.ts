@@ -218,6 +218,14 @@ export interface HotNewsCache {
 
 export type NotifyTargetKind = 'user' | 'group';
 
+/** 缺省表示全部订阅。jobs 缺省表示该服务下的全部 Job，空数组表示一个都不订。 */
+export interface NotifySubscriptions {
+  jenkins?: {
+    enabled: boolean;
+    jobs?: string[];
+  };
+}
+
 /** 固定一行，id 永远是 default。清空 Token 写空字符串，不删行。 */
 export interface NotifyConfigRecord {
   id: string;
@@ -235,6 +243,8 @@ export interface NotifyTargetRecord {
   kind: NotifyTargetKind;
   label: string;
   chatId: string;
+  /** 不进索引。缺省时这个对象接收全部服务、全部 Job。 */
+  subscriptions?: NotifySubscriptions;
   updatedAt: number;
   deletedAt?: number;
 }

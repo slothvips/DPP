@@ -8,6 +8,7 @@ import {
   notifyClientLabel,
   scanJenkinsBuildNotifications,
 } from '../src/features/jenkins/buildNotifyCore.ts';
+import { subscribesToJenkinsJob } from '../src/features/notify/subscriptions.ts';
 
 const finished = (number, extra = {}) => ({
   kind: 'build',
@@ -105,7 +106,10 @@ test('builds older than the notify floor are skipped without a send', async () =
   });
   await scanJenkinsBuildNotifications(ports);
   const url = (number) => `https://jenkins.example.com/job/foo/${number}/`;
-  assert.deepEqual(delivered, [29, 30].map((number) => jenkinsBuildDedupKey(url(number))));
+  assert.deepEqual(
+    delivered,
+    [29, 30].map((number) => jenkinsBuildDedupKey(url(number)))
+  );
   assert.deepEqual(logs, [url(29), url(30)]);
   assert.equal(ports.events.includes('fetch:1'), false);
 });
@@ -137,6 +141,102 @@ test('a job whose latest build is already old jumps the cursor in one write', as
     ports.events.filter((event) => event.startsWith('put:')),
     ['put:30']
   );
+});
+
+test('a job nobody subscribed to jumps to the latest build without a send', async () => {
+  const ports = basePorts({
+    listJobs: async () => ({
+      ok: true,
+      jobs: [
+        {
+          name: 'foo',
+          url: 'https://jenkins.example.com/job/foo/',
+          lastBuildNumber: 80,
+        },
+      ],
+    }),
+    subscribers: async () => [],
+    deliverOnce: async () => {
+      throw new Error('should not deliver');
+    },
+  });
+  await scanJenkinsBuildNotifications(ports);
+  assert.deepEqual(
+    ports.events.filter((event) => event.startsWith('fetch:')),
+    ['fetch:80']
+  );
+  assert.deepEqual(
+    ports.events.filter((event) => event.startsWith('put:')),
+    ['put:80']
+  );
+});
+
+test('a job nobody subscribed to leaves an unfinished latest build pending', async () => {
+  const fetched = [];
+  const ports = basePorts({
+    subscribers: async () => [],
+    fetchBuild: async (_env, _url, number) => {
+      fetched.push(number);
+      return number === 43
+        ? {
+            kind: 'build',
+            build: { url: 'https://jenkins.example.com/job/foo/43/', building: true },
+          }
+        : finished(number);
+    },
+    deliverOnce: async () => {
+      throw new Error('should not deliver');
+    },
+  });
+  await scanJenkinsBuildNotifications(ports);
+  assert.deepEqual(fetched, [43]);
+  assert.deepEqual(
+    ports.events.filter((event) => event.startsWith('put:')),
+    ['put:42']
+  );
+});
+
+test('two targets with different subscriptions only notify the matching one', async () => {
+  const targets = [
+    { id: 'all-jobs', subscriptions: { jenkins: { enabled: true } } },
+    {
+      id: 'other-job',
+      subscriptions: {
+        jenkins: { enabled: true, jobs: ['https://jenkins.example.com/job/other'] },
+      },
+    },
+  ];
+  const sent = [];
+  const ports = basePorts({
+    getKv: async () => ({ status: 200, value: '42', updated: false }),
+    subscribers: async (jobUrl) =>
+      targets
+        .filter((target) => subscribesToJenkinsJob(target.subscriptions, jobUrl))
+        .map((target) => target.id),
+    deliverOnce: async (input) => {
+      sent.push(input.targetIds);
+      return { complete: true };
+    },
+  });
+  await scanJenkinsBuildNotifications(ports);
+  assert.deepEqual(sent, [['all-jobs']]);
+});
+
+test('a subscribed job is sent only to those targets', async () => {
+  const sent = [];
+  const ports = basePorts({
+    getKv: async () => ({ status: 200, value: '42', updated: false }),
+    subscribers: async (jobUrl) => {
+      sent.push(jobUrl);
+      return ['target-a'];
+    },
+    deliverOnce: async (input) => {
+      sent.push(input.targetIds);
+      return { complete: true };
+    },
+  });
+  await scanJenkinsBuildNotifications(ports);
+  assert.deepEqual(sent, ['https://jenkins.example.com/job/foo', ['target-a']]);
 });
 
 test('scan reads the cursor first and advances one finished build at a time', async () => {
@@ -361,15 +461,13 @@ Finished: FAILURE
   const plain = extractBuildFailure('make: *** [all] Error 1\nFinished: FAILURE\n');
   assert.match(plain, /Error 1/);
 
-  const note = '////4EB67y7uvWuCfx1EJYnMoeQCaIuw5NUgYLa0MTF2/+gDAAAApR+LCAAAAAAAAP9tjTEOwjAUQ3+KAAAA==';
+  const note =
+    '////4EB67y7uvWuCfx1EJYnMoeQCaIuw5NUgYLa0MTF2/+gDAAAApR+LCAAAAAAAAP9tjTEOwjAUQ3+KAAAA==';
   const annotated = extractBuildFailure(
     `\u001b[8mha:${note}\u001b[0m[Pipeline] { (Boom)\n\u001b[8mha:${note}\u001b[0m[Pipeline] error\n\u001b[8mha:${note}\u001b[0mERROR: intentional failure\nFinished: FAILURE\n`
   );
   assert.equal(annotated, 'ERROR: intentional failure');
-  assert.equal(
-    extractBuildFailure(`ha:${note}[Pipeline] error\nFinished: FAILURE\n`),
-    ''
-  );
+  assert.equal(extractBuildFailure(`ha:${note}[Pipeline] error\nFinished: FAILURE\n`), '');
 
   const text = formatBuildNotifyText({
     envName: '生产',
@@ -432,7 +530,10 @@ test('the default message shows the build facts and leaves the log out', () => {
     description: 'nightly',
     envHost: 'https://jenkins.example/',
   });
-  assert.match(text, /<b>🔴 失败<\/b>\n<a href="https:\/\/jenkins\.example\/job\/foo\/7\/"><b>🔨 folder\/foo #7<\/b><\/a>/);
+  assert.match(
+    text,
+    /<b>🔴 失败<\/b>\n<a href="https:\/\/jenkins\.example\/job\/foo\/7\/"><b>🔨 folder\/foo #7<\/b><\/a>/
+  );
   assert.doesNotMatch(text, /打开这次构建/);
   assert.match(text, /🏗 环境　<b>生产<\/b>/);
   assert.match(text, /🌐 地址　<code>jenkins\.example<\/code>/);
@@ -482,7 +583,9 @@ test('every result keeps the same rows', () => {
       failure: result === 'SUCCESS' ? '' : 'boom',
     })
       .replace(/<[^>]+>/g, '')
-      .match(/环境　|地址　|触发　|耗时　|开始　|节点　|来源　|错误　|参数　|变更　|产物　|说明　|DPP标签　|通知发出者　/g)
+      .match(
+        /环境　|地址　|触发　|耗时　|开始　|节点　|来源　|错误　|参数　|变更　|产物　|说明　|DPP标签　|通知发出者　/g
+      )
       ?.map((label) => label.trim());
   const success = labels('SUCCESS');
   assert.deepEqual(success, [

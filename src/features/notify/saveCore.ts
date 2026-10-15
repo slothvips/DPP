@@ -1,10 +1,13 @@
+import type { NotifySubscriptions } from '@/db/typesDomain';
 import { canonicalChatId } from './canonical.ts';
+import { normalizeNotifySubscriptions } from './subscriptions.ts';
 
 export interface NotifyDraftTarget {
   id: string;
   kind: string;
   label: string;
   chatId: string;
+  subscriptions?: NotifySubscriptions;
 }
 
 export interface NotifyDraft {
@@ -18,6 +21,7 @@ export interface SavedNotifyTarget {
   kind: 'user' | 'group';
   label: string;
   chatId: string;
+  subscriptions?: NotifySubscriptions;
 }
 
 interface ExistingTarget {
@@ -46,7 +50,14 @@ export async function saveNotifyConfigWith(
     if (!chatId) throw new Error('chat_id 必须是数字');
     if (target.kind !== 'user' && target.kind !== 'group') throw new Error('接收对象类型无效');
     if (!target.id) throw new Error('接收对象缺少 id');
-    targets.push({ id: target.id, kind: target.kind, label: target.label.trim(), chatId });
+    const subscriptions = normalizeNotifySubscriptions(target.subscriptions);
+    targets.push({
+      id: target.id,
+      kind: target.kind,
+      label: target.label.trim(),
+      chatId,
+      ...(subscriptions ? { subscriptions } : {}),
+    });
   }
 
   if (!(await ports.hasTeamSync())) {
