@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { isOpenCodeFreeModel } from '@/lib/ai/openCodeProviderShared';
 import { useAIConfigDialog } from '../hooks/useAIConfigDialog';
 import { isAIConfigConfigured } from '../lib/aiConfigStorage';
 import { AIConfigFormFields } from './AIConfigFormFields';
@@ -86,6 +87,13 @@ export function AIConfigDialog({ children, onSaved }: AIConfigDialogProps) {
                       <p className="mt-1 truncate text-xs text-muted-foreground">
                         内置服务 · {config.openCodeConfig.model}
                       </p>
+                      {isOpenCodeFreeModel(config.openCodeConfig.model) &&
+                        !config.openCodeConfig.apiKey && (
+                          <p className="mt-0.5 text-[11px] text-destructive">
+                            免费额度已收紧到官方客户端，此内置模型已不可用；请用右侧编辑改填自己的
+                            API Key。
+                          </p>
+                        )}
                     </div>
                     {config.activeProvider !== 'opencode' && (
                       <Button
