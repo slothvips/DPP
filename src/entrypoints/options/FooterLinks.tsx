@@ -23,10 +23,7 @@ export function FooterLinks() {
         隐私政策
       </a>
       <a
-        href={
-          (browser.runtime?.getURL as (path: string) => string)?.('/changelog.html') ||
-          '/changelog.html'
-        }
+        href="https://github.com/slothvips/DPP/blob/main/CHANGELOG.md"
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
