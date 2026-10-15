@@ -77,8 +77,8 @@ export function registerSyncHooks({
       };
     });
 
-    // 必须用 function 形式挂 onsuccess：等 delete 事务真正提交后再写墓碑、记录操作，
-    // 否则事务 abort 会把仍存在的记录推成删除。
+    // return false 会同步取消硬删除；取消后没有 IDB 请求，也就不会有 onsuccess，
+    // 因此墓碑与操作记录在微任务里执行（取消是同步确定的，无需等待提交）。
     table.hook('deleting', function (primaryKey, object, transaction) {
       if (!isRegistered()) {
         return;
@@ -92,30 +92,27 @@ export function registerSyncHooks({
       const now = Date.now();
       const updatedObject = { ...object, deletedAt: now, updatedAt: now };
 
-      this.onsuccess = function () {
-        queueMicrotask(() => {
-          if (!isRegistered()) {
-            return;
-          }
+      queueMicrotask(() => {
+        if (!isRegistered()) {
+          return;
+        }
 
-          void (async () => {
-            try {
-              // 先落本地墓碑、再记录删除操作：墓碑写失败时绝不能推送删除，
-              // 避免远端删了数据、本地却还保留活记录的漂移。
-              await db.transaction('rw', [table], async (transaction) => {
-                (transaction as SyncTransaction).source = 'sync';
-                await table.put(updatedObject);
-              });
-              await recordOperation(tableName, 'delete', primaryKey, updatedObject);
-            } catch (error) {
-              logger.error(
-                '[SyncEngine] Failed to soft-delete and record delete operation:',
-                error
-              );
-            }
-          })();
-        });
-      };
+        void (async () => {
+          try {
+            // 先落本地墓碑、再记录删除操作：墓碑写失败时绝不能推送删除，
+            // 避免远端删了数据、本地却还保留活记录的漂移。
+            await db.transaction('rw', [table], async (transaction) => {
+              (transaction as SyncTransaction).source = 'sync';
+              await table.put(updatedObject);
+            });
+            await recordOperation(tableName, 'delete', primaryKey, updatedObject);
+          } catch (error) {
+            logger.error('[SyncEngine] Failed to soft-delete and record delete operation:', error);
+          }
+        })();
+      });
+
+      return false;
     });
   }
 }

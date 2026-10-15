@@ -17,6 +17,7 @@ import {
   isStoredEncryptedValue,
   parseImportedSettings,
 } from './optionsShared';
+import { reconcileImportedJenkinsEnv } from './reconcileImportedJenkinsEnv';
 
 interface PendingImport {
   exportDate: string;
@@ -173,6 +174,8 @@ export function useOptionsImportAndReset() {
           }),
         };
       });
+
+      reconcileImportedJenkinsEnv(settings);
 
       if (hasAIProfiles) {
         await db.aiProfiles.clear();

@@ -1,3 +1,5 @@
+import { isJenkinsFolderClass } from '@/features/jenkins/api/client';
+
 export function getJobColorClass(color?: string): string {
   if (!color) return 'text-muted-foreground';
   if (color.startsWith('blue')) return 'text-info';
@@ -65,9 +67,5 @@ export function translateStatus(status?: string): string {
 }
 
 export function isFolder(job: { type?: string }, childrenCount = 0): boolean {
-  return (
-    job.type?.includes('Folder') ||
-    job.type?.includes('WorkflowMultiBranchProject') ||
-    childrenCount > 0
-  );
+  return isJenkinsFolderClass(job.type) || childrenCount > 0;
 }

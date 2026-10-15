@@ -38,8 +38,13 @@ export function useJenkinsViewActions({
 
   const handleSync = async () => {
     if (!jenkinsFeatureToggles.workbench) return;
-    if (!jenkinsHost || !jenkinsUser || !jenkinsToken) {
+    if (!jenkinsHost) {
       toast('请先在设置中配置 Jenkins', 'error');
+      return;
+    }
+    if (!jenkinsUser || !jenkinsToken) {
+      // 备份导出会抹掉环境 Token，导入别人的配置后缺凭据是常态，提示要说明缺什么
+      toast('当前 Jenkins 环境缺少用户名或 Token，请到设置中补全后再采集', 'error');
       return;
     }
 
