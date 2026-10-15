@@ -1,10 +1,12 @@
 import { logger } from '@/utils/logger';
 import { listOpenCodeModels } from './openCodeProviderModels';
 import {
+  OPEN_CODE_FREE_TIER_MESSAGE,
   createOpenCodeRequestId,
   createOpenCodeRequestIdentity,
   deriveOpenCodeSessionId,
   getOpenCodeHeaders,
+  isOpenCodeFreeTierError,
   normalizeOpenCodeModel,
 } from './openCodeProviderShared';
 import { executeOpenCodeRateLimited } from './openCodeRateLimit';
@@ -51,18 +53,26 @@ export class OpenCodeProvider implements ModelProvider {
       stream: Boolean(options?.stream),
       apiKey: this.apiKey,
     });
-    return executeOpenCodeRateLimited(
-      () =>
-        executeOpenAIChat({
-          baseUrl: this.baseUrl,
-          apiKey: this.apiKey || 'public',
-          model: this._model,
-          messages,
-          options,
-          additionalHeaders: headers,
-        }),
-      options?.signal
-    );
+    try {
+      return await executeOpenCodeRateLimited(
+        () =>
+          executeOpenAIChat({
+            baseUrl: this.baseUrl,
+            apiKey: this.apiKey || 'public',
+            model: this._model,
+            messages,
+            options,
+            additionalHeaders: headers,
+          }),
+        options?.signal
+      );
+    } catch (error) {
+      if (isOpenCodeFreeTierError(error)) {
+        logger.warn('[OpenCode] 免费额度已限制为官方客户端:', error);
+        throw new Error(OPEN_CODE_FREE_TIER_MESSAGE);
+      }
+      throw error;
+    }
   }
 
   async listModels(): Promise<Model[]> {

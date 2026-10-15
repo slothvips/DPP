@@ -104,3 +104,20 @@ export async function deriveOpenCodeSessionId(
 export function isOpenCodeFreeModel(modelId: string): boolean {
   return modelId === 'opencodefree' || modelId === 'big-pickle' || modelId.endsWith('-free');
 }
+
+/**
+ * 上游把免费额度收紧到官方 OpenCode 客户端后，第三方调用一律 403 FreeTierError，
+ * 原始报错是英文且无法自助解决，这里给出可操作的提示。
+ */
+export const OPEN_CODE_FREE_TIER_MESSAGE =
+  'OpenCode 免费模型现在只允许官方 OpenCode 客户端调用，本扩展的请求会被拒绝（HTTP 403）。请在 AI 配置里填入你自己的 API Key（OpenCode Zen 付费 Key，或其它 OpenAI 兼容服务）。';
+
+export function isOpenCodeFreeTierError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+  const record = error as { status?: unknown; message?: unknown };
+  return (
+    record.status === 403 && typeof record.message === 'string' && /free tier/i.test(record.message)
+  );
+}

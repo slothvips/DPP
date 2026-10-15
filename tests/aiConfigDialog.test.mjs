@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { validateAIConfig } from '../src/features/aiAssistant/lib/aiConfigDialogValidation.ts';
+import {
+  isOpenCodeFreeTierError,
+  OPEN_CODE_FREE_TIER_MESSAGE,
+} from '../src/lib/ai/openCodeProviderShared.ts';
 
 const hookSource = readFileSync(
   new URL('../src/features/aiAssistant/hooks/useAIConfigDialog.ts', import.meta.url),
@@ -42,6 +46,21 @@ test('OpenCode config does not require a profile name or API key', () => {
     }),
     {}
   );
+});
+
+test('OpenCode 免费额度被上游拒绝时给出可操作提示', () => {
+  assert.equal(
+    isOpenCodeFreeTierError({
+      status: 403,
+      message:
+        "HTTP 403: Forbidden - OpenCode's free tier can only be used from within OpenCode.",
+    }),
+    true
+  );
+  assert.equal(isOpenCodeFreeTierError({ status: 403, message: 'Forbidden' }), false);
+  assert.equal(isOpenCodeFreeTierError({ status: 429, message: "free tier" }), false);
+  assert.equal(isOpenCodeFreeTierError(undefined), false);
+  assert.match(OPEN_CODE_FREE_TIER_MESSAGE, /API Key/);
 });
 
 test('AI config editing preserves unsaved input and the active provider', () => {
