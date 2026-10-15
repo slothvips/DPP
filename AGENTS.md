@@ -24,7 +24,7 @@ Run a single test: `node --experimental-strip-types --test tests/<name>.test.mjs
 - **Sync engine**: `src/lib/sync/` — SyncEngine split across `SyncEngine.*.ts`; per-table scope in `dataScope.ts`; encryption in `crypto-helpers.ts`/`chunks.ts`.
 - **DB**: schema + versions + migrations in `src/db/index.ts`; entity types in `src/db/types*.ts`.
 - **`src/vendor/rrweb/`**: vendored dependency, ESLint-ignored. Don't edit or "clean up".
-- **`packages/cf-worker-googlesheet/`**: sync Worker (pnpm name `dpp-worker`; directory name is historical). Has its own tsconfig — root `pnpm compile` does NOT cover it.
+- **`packages/sync-worker/`**: sync Worker (pnpm name `dpp-worker`). Has its own tsconfig — root `pnpm compile` does NOT cover it.
 - `docs/` holds Chinese design/plan docs; worker deploy guide is `packages/DEPLOY.md`.
 
 ## Sync & data invariants (easy to break, costly to fix)
@@ -40,7 +40,7 @@ Run a single test: `node --experimental-strip-types --test tests/<name>.test.mjs
 ## Worker (dpp-worker)
 
 - Flow: browser AES-GCM encrypts → `POST /api/sync/push` → Durable Object serializes pushes → D1 append-only op log. Pull/pending via cursor APIs. Worker only ever sees ciphertext (+`__sync_chunk__` shards).
-- D1 migrations live in `packages/cf-worker-googlesheet/migrations/`. Verify with `pnpm --filter dpp-worker exec tsc --noEmit` and `wrangler deploy --dry-run` (see `packages/DEPLOY.md`).
+- D1 migrations live in `packages/sync-worker/migrations/`. Verify with `pnpm --filter dpp-worker exec tsc --noEmit` and `wrangler deploy --dry-run` (see `packages/DEPLOY.md`).
 
 ## Code conventions
 

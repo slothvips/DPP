@@ -176,7 +176,7 @@ export default defineConfig({
           --gradient-start: #0891b2;
           --gradient-middle: #db2777;
           --gradient-end: #d97706;
-          /* 便签调色板 */
+          /* 黑板调色板 */
           --sticky-yellow: 54 90% 92%;
           --sticky-blue: 213 90% 95%;
           --sticky-green: 142 60% 92%;
@@ -220,7 +220,7 @@ export default defineConfig({
           --gradient-start: #22d3ee;
           --gradient-middle: #f472b6;
           --gradient-end: #fbbf24;
-          /* 便签调色板 - 深色版本 */
+          /* 黑板调色板 - 深色版本 */
           --sticky-yellow: 48 89% 30%;
           --sticky-blue: 217 91% 30%;
           --sticky-green: 142 70% 30%;

@@ -39,7 +39,7 @@ function BlackboardNotePage() {
       await updateBlackboard({ id, content });
     } catch (error) {
       logger.error('Failed to update blackboard note', error);
-      toast('保存便签失败', 'error');
+      toast('保存失败', 'error');
     }
   }
 
@@ -70,7 +70,7 @@ function BlackboardNotePage() {
       setDeleteOpen(false);
     } catch (error) {
       logger.error('Failed to delete blackboard note', error);
-      toast('删除便签失败', 'error');
+      toast('删除失败', 'error');
     }
   }
 
@@ -95,7 +95,7 @@ function BlackboardNotePage() {
           />
         ) : (
           <div className="flex min-h-[240px] items-center justify-center text-muted-foreground">
-            便签不存在或已被删除
+            黑板内容不存在或已被删除
           </div>
         )}
       </div>

@@ -179,7 +179,7 @@ const DPP_CONFIG_DEFINITIONS = {
   },
   feature_hotnews_enabled: {
     category: 'features',
-    description: '显示热榜功能',
+    description: '显示资讯功能',
     type: 'boolean',
     writable: true,
   },
@@ -191,7 +191,7 @@ const DPP_CONFIG_DEFINITIONS = {
   },
   feature_blackboard_enabled: {
     category: 'features',
-    description: '显示便签功能',
+    description: '显示黑板功能',
     type: 'boolean',
     writable: true,
   },
@@ -215,13 +215,13 @@ const DPP_CONFIG_DEFINITIONS = {
   },
   feature_playground_enabled: {
     category: 'features',
-    description: '显示 Playground 功能',
+    description: '显示工具箱功能',
     type: 'boolean',
     writable: true,
   },
   feature_totp_enabled: {
     category: 'features',
-    description: '显示 TOTP 验证器功能',
+    description: '显示验证器功能',
     type: 'boolean',
     writable: true,
   },

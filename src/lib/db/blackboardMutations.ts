@@ -87,7 +87,7 @@ export async function toggleBlackboardPin(
 
   return {
     success: true,
-    message: newPinnedStatus ? '便签已置顶' : '便签已取消置顶',
+    message: newPinnedStatus ? '已置顶' : '已取消置顶',
   };
 }
 
@@ -106,6 +106,6 @@ export async function toggleBlackboardLock(
 
   return {
     success: true,
-    message: newLockedStatus ? '便签已锁定' : '便签已解锁',
+    message: newLockedStatus ? '已锁定' : '已解锁',
   };
 }

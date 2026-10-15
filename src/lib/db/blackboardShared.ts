@@ -68,7 +68,7 @@ export function mapBlackboardListItem(item: {
 export async function getBlackboardItemOrThrow(id: string) {
   const item = await getBlackboardTable().get(id);
   if (!item) {
-    throw new Error('便签不存在或已被删除');
+    throw new Error('黑板内容不存在或已被删除');
   }
 
   return item;

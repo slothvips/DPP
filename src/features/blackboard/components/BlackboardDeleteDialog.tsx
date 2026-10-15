@@ -23,8 +23,8 @@ export function BlackboardDeleteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>删除便签</DialogTitle>
-          <DialogDescription>确定要撕掉这张便签吗？此操作无法撤销。</DialogDescription>
+          <DialogTitle>删除黑板内容</DialogTitle>
+          <DialogDescription>确定要删除这条内容吗？此操作无法撤销。</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

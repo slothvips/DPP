@@ -41,9 +41,9 @@ export function getToolConfirmationContent(
       };
     case 'blackboard_delete':
       return {
-        title: '确认删除便签',
-        description: '此操作将删除指定的便签，且无法恢复。',
-        impact: `将删除便签 ID: ${args.id || '未知'}`,
+        title: '确认删除黑板内容',
+        description: '此操作将删除指定的黑板内容，且无法恢复。',
+        impact: `将删除黑板内容 ID: ${args.id || '未知'}`,
         confirmText: '确认删除',
         isDestructive: true,
       };

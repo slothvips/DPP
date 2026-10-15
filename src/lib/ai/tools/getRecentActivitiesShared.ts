@@ -50,7 +50,7 @@ export interface ActivitiesResult {
 export const TABLE_LABELS: Record<string, string> = {
   links: '链接',
   tags: '标签',
-  blackboard: '便签',
+  blackboard: '黑板',
   jobTags: 'Job 标签',
   linkTags: '链接标签',
 };
@@ -63,17 +63,17 @@ export function generateActivityDescription(type: string, table: string, payload
     case 'create':
       if (table === 'links' && name) return `添加了链接 "${name}"`;
       if (table === 'tags' && name) return `创建了标签 "${name}"`;
-      if (table === 'blackboard') return '添加了便签';
+      if (table === 'blackboard') return '新增了黑板内容';
       return `创建了 ${TABLE_LABELS[table] || table}`;
     case 'update':
       if (table === 'links' && name) return `更新了链接 "${name}"`;
       if (table === 'tags' && name) return `更新了标签 "${name}"`;
-      if (table === 'blackboard') return '更新了便签';
+      if (table === 'blackboard') return '更新了黑板内容';
       return `更新了 ${TABLE_LABELS[table] || table}`;
     case 'delete':
       if (table === 'links') return '删除了链接';
       if (table === 'tags') return '删除了标签';
-      if (table === 'blackboard') return '删除了便签';
+      if (table === 'blackboard') return '删除了黑板内容';
       return `删除了 ${TABLE_LABELS[table] || table}`;
     default:
       return `${type} 了 ${TABLE_LABELS[table] || table}`;

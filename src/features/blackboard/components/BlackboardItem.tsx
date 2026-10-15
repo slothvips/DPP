@@ -84,7 +84,7 @@ export function BlackboardItemView({
       });
     } catch (error) {
       logger.error('Failed to open blackboard note in browser', error);
-      toast('无法在浏览器中打开便签', 'error');
+      toast('无法在浏览器中打开这条内容', 'error');
     }
   }
 
@@ -93,7 +93,7 @@ export function BlackboardItemView({
       await handleBlur();
     } catch (error) {
       logger.error('Failed to save blackboard draft:', error);
-      toast('保存便签失败', 'error');
+      toast('保存黑板内容失败', 'error');
     }
   }
 
@@ -102,7 +102,7 @@ export function BlackboardItemView({
       await handleKeepDraft();
     } catch (error) {
       logger.error('Failed to keep blackboard draft:', error);
-      toast('保存便签失败', 'error');
+      toast('保存黑板内容失败', 'error');
     }
   }
 
@@ -136,7 +136,7 @@ export function BlackboardItemView({
               void handleCopy();
             }}
             title="复制"
-            aria-label="复制便签内容"
+            aria-label="复制内容"
           >
             <Copy className="h-3.5 w-3.5" />
           </Button>
@@ -149,8 +149,8 @@ export function BlackboardItemView({
                 event.stopPropagation();
                 void handleOpenInBrowser();
               }}
-              title="在浏览器中打开这张便签"
-              aria-label="在浏览器中打开这张便签"
+              title="在浏览器中打开这条黑板内容"
+              aria-label="在浏览器中打开这条黑板内容"
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </Button>
@@ -198,7 +198,7 @@ export function BlackboardItemView({
                   void onDelete(item.id);
                 }}
                 title="删除"
-                aria-label="删除便签"
+                aria-label="删除这条黑板内容"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>

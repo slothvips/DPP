@@ -41,11 +41,11 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
       sections: [
         {
           title: '记录',
-          items: ['新增便签，点击正文编辑。', '支持 Markdown，失焦自动保存。'],
+          items: ['新增内容，点击正文编辑。', '支持 Markdown，失焦自动保存。'],
         },
         {
           title: '整理',
-          items: ['置顶重要内容，锁定避免误改。', '悬停便签可删除或切换状态。'],
+          items: ['置顶重要内容，锁定避免误改。', '悬停内容可删除或切换状态。'],
         },
       ],
     },
@@ -153,7 +153,7 @@ export const TAB_CONFIG: Record<TabId, TabConfig> = {
   },
   playground: {
     description: '大概是一些小工具吧~',
-    label: '游乐园',
+    label: '工具箱',
     testid: 'tab-playground',
     icon: <Box className="h-4 w-4" />,
     usageGuide: {

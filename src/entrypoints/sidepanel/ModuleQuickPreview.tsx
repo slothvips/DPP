@@ -63,10 +63,10 @@ function BlackboardQuickPreview() {
     try {
       await addBlackboard({ content: value, pinned: false });
       setContent('');
-      toast('便签已保存', 'success');
+      toast('已保存', 'success');
     } catch (error) {
       logger.error('Failed to save quick blackboard note:', error);
-      toast('便签保存失败', 'error');
+      toast('保存失败', 'error');
     } finally {
       setSaving(false);
     }
@@ -81,7 +81,7 @@ function BlackboardQuickPreview() {
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void handleSave();
         }}
-        placeholder="输入便签内容..."
+        placeholder="输入黑板内容..."
         className="min-h-16 resize-none rounded-md bg-background text-xs"
         autoFocus
       />
@@ -96,7 +96,7 @@ function BlackboardQuickPreview() {
         ) : (
           <Save className="mr-1.5 h-3.5 w-3.5" />
         )}
-        保存便签
+        保存
       </Button>
     </div>
   );

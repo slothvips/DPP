@@ -9,7 +9,7 @@ const FEATURE_OPTIONS = [
   { key: 'totp', label: '验证器' },
   { key: 'recorder', label: '录制' },
   { key: 'hotNews', label: '资讯' },
-  { key: 'playground', label: '游乐园' },
+  { key: 'playground', label: '工具箱' },
 ] as const satisfies Array<{
   key: keyof FeatureTogglesState;
   label: string;

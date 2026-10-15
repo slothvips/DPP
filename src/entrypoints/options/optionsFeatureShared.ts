@@ -20,7 +20,7 @@ export const FEATURE_LABEL_MAP: Record<keyof FeatureTogglesState, string> = {
   jenkins: 'Jenkins',
   recorder: '录制',
   aiAssistant: 'AI 助手',
-  playground: '游乐园',
+  playground: '工具箱',
   totp: '验证器',
 };
 

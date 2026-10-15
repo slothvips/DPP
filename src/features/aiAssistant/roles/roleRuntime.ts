@@ -37,7 +37,7 @@ const TOOL_GROUPS: Array<{ prefixes: string[]; label: string }> = [
   { prefixes: ['tags_'], label: '标签' },
   { prefixes: ['blackboard_'], label: '黑板' },
   { prefixes: ['jenkins_'], label: 'Jenkins' },
-  { prefixes: ['hotnews_'], label: '热点资讯' },
+  { prefixes: ['hotnews_'], label: '资讯' },
   { prefixes: ['recorder_'], label: '录制' },
   { prefixes: ['prompt_'], label: '提示词' },
   { prefixes: ['test_'], label: '测试' },
