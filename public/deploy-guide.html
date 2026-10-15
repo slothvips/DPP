@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 后端部署教程 · Cloudflare Worker + D1</title>
+<script src="/theme-init.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #0a0a0a; --muted: #525252; --border: #e5e5e5;
+    --primary: #ea580c; --primary-soft: rgba(234, 88, 12, 0.08); --card: #fafafa;
+    --code-bg: #f5f5f5; --pre-bg: #1c1917; --pre-fg: #e7e5e4;
+  }
+  html.dark {
+    --bg: #0a0a0a; --fg: #fafafa; --muted: #a3a3a3; --border: #262626;
+    --primary: #f97316; --primary-soft: rgba(249, 115, 22, 0.12); --card: #141414;
+    --code-bg: #1a1a1a; --pre-bg: #292524; --pre-fg: #e7e5e4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.7; padding: 32px 16px 80px;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 8px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  h2 {
+    font-size: 18px; margin: 44px 0 14px; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  h2::before { content: ""; width: 4px; height: 17px; border-radius: 2px; background: var(--primary); }
+  h3 { font-size: 15px; margin: 24px 0 8px; }
+  p { font-size: 13.5px; }
+  .lead { color: var(--muted); font-size: 13.5px; margin-bottom: 12px; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px;
+    background: var(--code-bg); padding: 1.5px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--pre-bg); color: var(--pre-fg); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 12px; line-height: 1.6;
+    margin: 10px 0; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  pre .cm { color: #a8a29e; } pre .hl { color: #fdba74; }
+  ul, ol { padding-left: 20px; }
+  li { font-size: 13px; color: var(--muted); margin-top: 5px; }
+  li b { color: var(--fg); }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 12px 0;
+    border: 1px solid var(--border); display: block; overflow-x: auto;
+  }
+  th, td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--card); font-size: 12.5px; white-space: nowrap; }
+  td { color: var(--muted); }
+  .toc { border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px; background: var(--card); font-size: 13px; }
+  .toc b { font-size: 13.5px; }
+  .toc ol { padding-left: 18px; margin-top: 6px; }
+  .toc li { margin-top: 3px; }
+  .toc a { color: var(--primary); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .callout {
+    border-left: 3px solid var(--primary); background: var(--primary-soft);
+    border-radius: 0 8px 8px 0; padding: 10px 14px; font-size: 12.5px; color: var(--muted); margin: 12px 0;
+  }
+  .callout b { color: var(--fg); }
+  .arch {
+    background: var(--pre-bg); color: var(--pre-fg); border-radius: 10px;
+    padding: 16px 18px; font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; line-height: 1.75; overflow-x: auto; margin: 12px 0; white-space: pre;
+  }
+  .arch .hl { color: #fdba74; }
+  .step-num {
+    display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center;
+    border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700;
+    margin-right: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DPP 后端部署教程</h1>
+  <p class="subtitle">DPP 同步后端 = <b>Cloudflare Worker + D1</b>。浏览器端先把数据端到端加密，Worker 只保存密文或密文分片，<b>不持有解密密钥</b>。代码位于 <code>packages/sync-worker</code>。</p>
+
+  <nav class="toc">
+    <b>目录</b>
+    <ol>
+      <li><a href="#arch">架构</a></li>
+      <li><a href="#env">环境命名</a></li>
+      <li><a href="#prep">前置条件</a></li>
+      <li><a href="#d1">创建 D1</a></li>
+      <li><a href="#domain">配置域名</a></li>
+      <li><a href="#migrate">应用 D1 migration</a></li>
+      <li><a href="#secrets">配置访问令牌</a></li>
+      <li><a href="#check">类型检查与 dry-run</a></li>
+      <li><a href="#deploy">部署</a></li>
+      <li><a href="#local">本地开发</a></li>
+      <li><a href="#verify">远程验收</a></li>
+      <li><a href="#ops">发布前检查与运维</a></li>
+      <li><a href="#rollback">回滚</a></li>
+      <li><a href="#troubleshoot">故障排查</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="arch">架构</h2>
+  <div class="arch">浏览器扩展
+  <span class="hl">-&gt; POST /api/sync/push</span>      （密文批量上推）
+  <span class="hl">-&gt; GET  /api/sync/pull</span>       （按游标增量拉取）
+  <span class="hl">-&gt; GET  /api/sync/pending</span>    （待确认计数）
+  -&gt; Cloudflare Worker
+  -&gt; <span class="hl">Durable Object 串行化 push</span>（只避免并发写竞争，不存业务数据）
+  -&gt; D1 operations 追加日志（cursor / 唯一约束 / fingerprint 冲突检测）</div>
+  <ul>
+    <li><b>D1</b> 负责游标、唯一约束、fingerprint 冲突检测、分页拉取和 pending 统计。</li>
+    <li><b>Durable Object</b> 不保存业务数据，只把并发 push 在「查询后写入」之间串行化，防止竞争。</li>
+    <li>Worker 全程只见密文，无法读取任何业务内容。</li>
+  </ul>
+
+  <h2 id="env">环境命名</h2>
+  <table>
+    <tr><th>环境</th><th>Worker</th><th>D1</th><th>域名（部署时填写）</th></tr>
+    <tr><td>生产</td><td><code>dpp-sync-worker</code></td><td><code>dpp-sync</code></td><td><code>https://sync.example.com</code></td></tr>
+    <tr><td>测试</td><td><code>dpp-sync-test</code></td><td><code>dpp-sync-test</code></td><td><code>https://sync-test.example.com</code></td></tr>
+  </table>
+  <p>生产和测试必须使用<b>不同</b>的 D1、<code>SYNC_ACCESS_TOKEN</code> 和浏览器端配置。</p>
+
+  <h2 id="prep"><span class="step-num">0</span>前置条件</h2>
+  <ul>
+    <li>Node.js 20+、pnpm 10+</li>
+    <li>Cloudflare 账号</li>
+    <li>由 Cloudflare 托管的域名（仅自定义域名需要）</li>
+    <li>Wrangler OAuth 登录权限：Workers、D1、Durable Objects、Routes、Secrets</li>
+  </ul>
+  <pre><span class="cm"># 所有命令从仓库根目录执行</span>
+pnpm install
+pnpm --filter dpp-worker exec wrangler login
+pnpm --filter dpp-worker exec wrangler whoami</pre>
+  <div class="callout"><b>安全红线：</b>不要把访问令牌、Service Account JSON 或其他 Secret 写入 Git、配置文件或命令历史。</div>
+
+  <h2 id="d1"><span class="step-num">1</span>创建 D1</h2>
+  <p><code>wrangler.toml</code> 中的 <code>database_id</code> 是占位符，部署前必须创建自己的 D1 并回填 UUID：</p>
+  <pre>pnpm --filter dpp-worker exec wrangler d1 create dpp-sync
+pnpm --filter dpp-worker exec wrangler d1 create dpp-sync-test</pre>
+  <p>将返回的 <code>database_id</code> 分别写入 <code>packages/sync-worker/wrangler.toml</code> 的<b>顶层与 <code>env.test</code> 两处</b>——D1 binding 不会从顶层继承到命名环境，两个位置都必须配置。</p>
+
+  <h2 id="domain"><span class="step-num">2</span>配置域名</h2>
+  <p>默认使用 Wrangler 输出的 <code>workers.dev</code> 地址；如需自定义域名，取消注释并按你的 zone 修改：</p>
+  <pre>[[routes]]
+pattern = "sync.example.com"
+zone_name = "example.com"
+custom_domain = true
+
+[[env.test.routes]]
+pattern = "sync-test.example.com"
+zone_name = "example.com"
+custom_domain = true</pre>
+
+  <h2 id="migrate"><span class="step-num">3</span>应用 D1 migration</h2>
+  <p>先测试，后生产：</p>
+  <pre>pnpm --filter dpp-worker exec wrangler d1 migrations apply dpp-sync-test --remote --env test
+pnpm --filter dpp-worker exec wrangler d1 migrations apply dpp-sync --remote</pre>
+  <p>检查结果：</p>
+  <pre>pnpm --filter dpp-worker exec wrangler d1 info dpp-sync-test
+pnpm --filter dpp-worker exec wrangler d1 info dpp-sync</pre>
+
+  <h2 id="secrets"><span class="step-num">4</span>配置访问令牌</h2>
+  <p>生产和测试使用<b>不同的高熵令牌</b>（交互式输入，不进命令历史）：</p>
+  <pre>pnpm --filter dpp-worker exec wrangler secret put SYNC_ACCESS_TOKEN --env test
+pnpm --filter dpp-worker exec wrangler secret put SYNC_ACCESS_TOKEN</pre>
+  <p>统计看板使用<b>独立的</b>管理令牌 <code>STATS_ADMIN_TOKEN</code>，与同步令牌互不相同——团队成员持有同步令牌也无法查看统计，仅管理员知晓：</p>
+  <pre>pnpm --filter dpp-worker exec wrangler secret put STATS_ADMIN_TOKEN --env test
+pnpm --filter dpp-worker exec wrangler secret put STATS_ADMIN_TOKEN</pre>
+  <p>管理员查看统计：浏览器打开内部路径 <code>https://&lt;worker 域名&gt;/internal/usage-insights-7c4a9f</code>，页面内输入 <code>STATS_ADMIN_TOKEN</code>。</p>
+
+  <h2 id="check"><span class="step-num">5</span>类型检查与 dry-run</h2>
+  <pre>pnpm --filter dpp-worker types
+pnpm --filter dpp-worker exec tsc --noEmit
+pnpm --filter dpp-worker exec wrangler deploy --dry-run --env test
+pnpm --filter dpp-worker exec wrangler deploy --dry-run --env ""</pre>
+
+  <h2 id="deploy"><span class="step-num">6</span>部署</h2>
+  <p>始终先发布测试环境：</p>
+  <pre>pnpm release:worker:test
+pnpm release:worker</pre>
+  <p><code>wrangler deploy</code> 是原子替换：命令成功前旧 Worker 继续服务，失败则整体不生效。</p>
+  <p>打包扩展并发布生产 Worker 一步到位：</p>
+  <pre>pnpm release</pre>
+
+  <h2 id="local"><span class="step-num">7</span>本地开发</h2>
+  <pre><span class="cm"># 初始化本地 D1（数据保存在包目录 .wrangler/ 下，已被 Git 忽略）</span>
+pnpm --filter dpp-worker exec wrangler d1 migrations apply DB --local
+
+<span class="cm"># 启动 Worker</span>
+pnpm --filter dpp-worker exec wrangler dev --local --var SYNC_ACCESS_TOKEN:local-token</pre>
+  <p>健康检查（不暴露内部状态，不要求同步 Token）：</p>
+  <pre>curl -i http://localhost:8787/health
+curl -H 'X-Access-Token: local-token' http://localhost:8787/health
+<span class="cm"># 两个请求均返回 { "status": "ok" }</span></pre>
+  <p>本地接口验证：</p>
+  <pre>curl -X POST http://localhost:8787/api/sync/push \
+  -H 'X-Access-Token: local-token' -H 'X-Client-ID: local-client' \
+  -H 'Content-Type: application/json' \
+  -d '{"ops":[{"id":"local-op-1","clientId":"local-client","table":"encrypted","type":"create","key":"local-op-1","payload":{"iv":"iv","ciphertext":"ciphertext"},"timestamp":1,"keyHash":"key-hash"}]}'
+
+curl -H 'X-Access-Token: local-token' \
+  'http://localhost:8787/api/sync/pull?cursor=0&amp;limit=100'
+
+curl -H 'X-Access-Token: local-token' \
+  'http://localhost:8787/api/sync/pending?cursor=0&amp;clientId=local-client'</pre>
+
+  <h2 id="verify"><span class="step-num">8</span>远程验收</h2>
+  <p>先把目标环境令牌放入当前 shell，避免写进命令历史：</p>
+  <pre>read -s SYNC_ACCESS_TOKEN
+export SYNC_ACCESS_TOKEN
+export SYNC_WORKER_URL='https://sync-test.example.com'</pre>
+  <pre><span class="cm"># 健康检查</span>
+curl -i "$SYNC_WORKER_URL/health"
+
+<span class="cm"># 推送 → 拉取 → pending 闭环</span>
+curl -X POST "$SYNC_WORKER_URL/api/sync/push" \
+  -H "X-Access-Token: $SYNC_ACCESS_TOKEN" \
+  -H 'X-Client-ID: smoke-client' \
+  -H 'Content-Type: application/json' \
+  -d '{"ops":[{"id":"smoke-1","clientId":"smoke-client","table":"encrypted","type":"create","key":"smoke-1","payload":{"iv":"iv","ciphertext":"ciphertext"},"timestamp":1,"keyHash":"key-hash"}]}'
+
+curl -H "X-Access-Token: $SYNC_ACCESS_TOKEN" "$SYNC_WORKER_URL/api/sync/pull?cursor=0&amp;limit=100"
+curl -H "X-Access-Token: $SYNC_ACCESS_TOKEN" "$SYNC_WORKER_URL/api/sync/pending?cursor=0&amp;clientId=smoke-client"</pre>
+
+  <h2 id="ops"><span class="step-num">9</span>发布前检查与运维</h2>
+  <p>发布前的完整自检：</p>
+  <pre>pnpm test
+pnpm --filter dpp-worker exec tsc --noEmit
+pnpm compile
+pnpm lint
+pnpm build
+pnpm --filter dpp-worker exec wrangler deploy --dry-run --env test
+pnpm --filter dpp-worker exec wrangler deploy --dry-run --env ""</pre>
+  <p>运行期查看日志与 D1 状态：</p>
+  <pre>pnpm --filter dpp-worker exec wrangler tail --env test
+pnpm --filter dpp-worker exec wrangler d1 info dpp-sync-test
+
+<span class="cm"># 检查日志行数与 cursor 范围</span>
+pnpm --filter dpp-worker exec wrangler d1 execute dpp-sync-test --remote --env test \
+  --command 'SELECT COUNT(*) AS count, MIN(server_seq) AS min_cursor, MAX(server_seq) AS max_cursor FROM operations'</pre>
+  <p>导出 D1 备份：</p>
+  <pre>pnpm --filter dpp-worker exec wrangler d1 export dpp-sync-test --remote --output dpp-sync-test.sql</pre>
+  <div class="callout"><b>备份文件可能包含密文、身份标识和同步元数据</b>，不要提交到 Git。</div>
+
+  <h2 id="rollback"><span class="step-num">10</span>回滚</h2>
+  <pre>pnpm --filter dpp-worker exec wrangler versions list --env test
+pnpm --filter dpp-worker exec wrangler rollback --env test</pre>
+  <p>Worker 回滚<b>不会</b>回滚 D1 schema 或数据。涉及 schema 的发布必须先备份，并提供向前兼容的 migration；不要修改或删除已应用的 migration 文件。</p>
+
+  <h2 id="troubleshoot"><span class="step-num">11</span>故障排查</h2>
+  <table>
+    <tr><th>现象</th><th>检查</th></tr>
+    <tr><td><code>401 Unauthorized</code></td><td>目标环境是否设置正确的 <code>SYNC_ACCESS_TOKEN</code>，扩展是否使用同一令牌</td></tr>
+    <tr><td><code>DB is undefined</code></td><td><code>d1_databases</code> 是否同时配置在顶层和 <code>env.test</code></td></tr>
+    <tr><td><code>no such table: operations</code></td><td>是否对对应环境应用了 D1 migration</td></tr>
+    <tr><td>push 返回 <code>409</code></td><td>相同客户端操作 ID 已存在不同 fingerprint，检查客户端身份和重试数据</td></tr>
+    <tr><td>自定义域名不可达</td><td>域名是否由当前 Cloudflare zone 托管，<code>routes</code> 是否匹配</td></tr>
+    <tr><td>部署到了错误环境</td><td>显式使用 <code>--env test</code> 或 <code>--env ""</code></td></tr>
+  </table>
+  <div class="callout"><b>不要</b>通过清空 D1、重置客户端 cursor 或删除本地 IndexedDB 来规避同步问题——这些操作可能造成重复应用或数据丢失。</div>
+</div>
+</body>
+</html>

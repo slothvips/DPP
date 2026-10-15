@@ -12,6 +12,7 @@ import { DataManagementSection } from './DataManagementSection';
 import { ExportSettingsDialog } from './ExportSettingsDialog';
 import { FeatureTogglesSection } from './FeatureTogglesSection';
 import { FooterLinks } from './FooterLinks';
+import { HowItWorksSection } from './HowItWorksSection';
 import { ImportSettingsDialog } from './ImportSettingsDialog';
 import { NotifySettingsSection } from './NotifySettingsSection';
 import { SyncSettingsSection } from './SyncSettingsSection';
@@ -72,6 +73,8 @@ function OptionsApp() {
         </div>
 
         <div className="space-y-8">
+          <HowItWorksSection />
+
           <FeatureTogglesSection
             disabled={settingsLoading || featureToggleSaving}
             featureToggles={featureToggles}

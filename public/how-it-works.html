@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPP 工作原理</title>
+<script src="/theme-init.js"></script>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #0a0a0a; --muted: #525252; --border: #e5e5e5;
+    --primary: #ea580c; --primary-soft: rgba(234, 88, 12, 0.08); --card: #fafafa;
+    --code-bg: #f5f5f5; --ok: #16a34a; --warn: #d97706;
+  }
+  html.dark {
+    --bg: #0a0a0a; --fg: #fafafa; --muted: #a3a3a3; --border: #262626;
+    --primary: #f97316; --primary-soft: rgba(249, 115, 22, 0.12); --card: #141414;
+    --code-bg: #1a1a1a; --ok: #4ade80; --warn: #fbbf24;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.7; padding: 32px 16px 80px;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; }
+  h1 { font-size: 26px; margin-bottom: 8px; }
+  .subtitle { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  h2 {
+    font-size: 18px; margin: 48px 0 16px; display: flex; align-items: center; gap: 8px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+  }
+  h2::before {
+    content: ""; width: 4px; height: 17px; border-radius: 2px; background: var(--primary);
+  }
+  h3 { font-size: 15px; margin: 28px 0 10px; }
+  p { font-size: 13.5px; }
+  .lead { color: var(--muted); font-size: 13.5px; margin-bottom: 14px; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px;
+    background: var(--code-bg); padding: 1.5px 5px; border-radius: 4px;
+  }
+  ul, ol.detail { padding-left: 20px; }
+  ul li, ol.detail li { font-size: 13px; color: var(--muted); margin-top: 5px; }
+  ul li b, ol.detail li b { color: var(--fg); }
+  .toc {
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px;
+    background: var(--card); font-size: 13px; margin-bottom: 8px;
+  }
+  .toc b { font-size: 13.5px; }
+  .toc ol { padding-left: 18px; margin-top: 6px; }
+  .toc li { margin-top: 3px; }
+  .toc a { color: var(--primary); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* ===== 流程图通用 ===== */
+  .diagram {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+    padding: 18px; margin: 14px 0; overflow-x: auto;
+  }
+  .diagram svg { display: block; min-width: 640px; width: 100%; height: auto; }
+  .box {
+    fill: var(--bg); stroke: var(--border); stroke-width: 1.2; rx: 8;
+  }
+  .box.accent { stroke: var(--primary); }
+  .box .t, .t { font-size: 12px; fill: var(--fg); font-weight: 600; }
+  .s { font-size: 10px; fill: var(--muted); }
+  .flowline {
+    stroke: var(--primary); stroke-width: 1.5; fill: none;
+    stroke-dasharray: 5 4; animation: dashmove 1.2s linear infinite; opacity: .75;
+  }
+  .flowline.slow { animation-duration: 2s; opacity: .55; }
+  @keyframes dashmove { to { stroke-dashoffset: -9; } }
+  .arrowhead { fill: var(--primary); }
+  .fla { marker-end: url(#arrArch); }
+  .flr { marker-end: url(#arrRec); }
+  .flb { marker-start: url(#arrArch); marker-end: url(#arrArch); }
+  .zone { fill: var(--primary-soft); rx: 10; }
+  .zone-label { font-size: 11px; font-weight: 700; fill: var(--primary); }
+
+  /* ===== 竖向步骤流 ===== */
+  .flow { list-style: none; }
+  .flow li { position: relative; display: flex; gap: 14px; padding-bottom: 22px; }
+  .flow li:last-child { padding-bottom: 0; }
+  .flow .rail { position: absolute; left: 17px; top: 40px; bottom: 0; width: 2px; background: var(--border); }
+  .flow li:last-child .rail { display: none; }
+  .flow .rail::after {
+    content: ""; position: absolute; left: -2px; top: 0; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--primary); box-shadow: 0 0 8px var(--primary);
+    animation: travel 2.6s linear infinite;
+  }
+  @keyframes travel {
+    0% { top: 0; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { top: calc(100% - 6px); opacity: 0; }
+  }
+  .flow .node {
+    flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; z-index: 1;
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+    background: var(--primary-soft); display: flex; align-items: center; justify-content: center;
+    animation: nodepulse 2.6s ease-in-out infinite;
+  }
+  .flow li:nth-child(2) .node { animation-delay: .3s; } .flow li:nth-child(3) .node { animation-delay: .6s; }
+  .flow li:nth-child(4) .node { animation-delay: .9s; } .flow li:nth-child(5) .node { animation-delay: 1.2s; }
+  .flow li:nth-child(6) .node { animation-delay: 1.5s; } .flow li:nth-child(7) .node { animation-delay: 1.8s; }
+  .flow li:nth-child(8) .node { animation-delay: 2.1s; }
+  @keyframes nodepulse { 0%,100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 5px var(--primary-soft); } }
+  .flow .node svg { width: 17px; height: 17px; stroke: var(--primary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .flow .step { padding-top: 5px; }
+  .flow .step .no { color: var(--muted); font-size: 11px; margin-right: 6px; font-weight: 400; }
+  .flow .step b { font-size: 14px; }
+  .flow .step p { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .tag {
+    display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px;
+    background: var(--primary-soft); color: var(--primary); margin-left: 6px;
+    vertical-align: 2px; font-weight: 600;
+  }
+
+  /* ===== 卡片 ===== */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin: 12px 0; }
+  .card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 14px;
+    background: var(--card); transition: border-color .2s, transform .2s;
+  }
+  .card:hover { border-color: color-mix(in srgb, var(--primary) 50%, transparent); transform: translateY(-2px); }
+  .card .head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .card .head svg { width: 15px; height: 15px; stroke: var(--primary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .card p { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .sec li { list-style: none; display: flex; gap: 8px; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .sec li::before { content: ""; flex-shrink: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--primary); margin-top: 8px; }
+
+  /* ===== 模块详解块 ===== */
+  .mod {
+    border: 1px solid var(--border); border-radius: 12px; background: var(--card);
+    padding: 18px 20px; margin: 16px 0;
+  }
+  .mod .mod-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .mod .mod-head svg { width: 18px; height: 18px; stroke: var(--primary); fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .mod .mod-head b { font-size: 15px; }
+  .mod .mod-head .pill {
+    font-size: 10px; font-weight: 600; color: var(--primary);
+    background: var(--primary-soft); border-radius: 4px; padding: 2px 7px;
+  }
+  .mod h4 { font-size: 12.5px; margin: 14px 0 6px; color: var(--fg); }
+  .mod h4::before { content: "▸ "; color: var(--primary); }
+  .kv { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .kv b { color: var(--fg); }
+  .callout {
+    border-left: 3px solid var(--primary); background: var(--primary-soft);
+    border-radius: 0 8px 8px 0; padding: 10px 14px; font-size: 12.5px; color: var(--muted);
+    margin: 12px 0;
+  }
+  .callout b { color: var(--fg); }
+  .footnote { font-size: 12px; color: var(--muted); margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>DPP 是如何工作的</h1>
+  <p class="subtitle">这是一份完整的工作机制说明：全局架构、数据如何同步、每个功能模块如何运转、以及它们之间如何协作。读完你就能明白 DPP 里发生的每一件事。</p>
+
+  <nav class="toc">
+    <b>目录</b>
+    <ol>
+      <li><a href="#overview">一分钟看懂 DPP</a></li>
+      <li><a href="#architecture">全局架构：五个运行环境如何协作</a></li>
+      <li><a href="#datalink">一条数据的完整旅程</a></li>
+      <li><a href="#sync">同步机制详解</a>（操作日志 / 加密 / 冲突解决 / 故障恢复）</li>
+      <li><a href="#modules">功能模块详解</a>（AI 助手 / 黑板 / Jenkins / 录制与禅道 / 链接 / 验证器 / 资讯 / 工具箱 / 消息 / 其他）</li>
+      <li><a href="#infra">附属机制详解</a>（Background 消息中枢 / 地址栏搜索 / 数据管理 / 统计分析）</li>
+      <li><a href="#security">安全模型总结</a></li>
+    </ol>
+  </nav>
+
+  <!-- ================= 1. 总览 ================= -->
+  <h2 id="overview">一分钟看懂 DPP</h2>
+  <p class="lead">DPP 是一个跑在浏览器里的<b>侧边工作台</b>。它把测试与开发日常用到的工具——黑板、链接收藏、验证码、Jenkins 构建、页面录制、AI 助手——装进同一个侧边栏，并且让它们<b>共享同一份本地数据库</b>和<b>同一套端到端加密同步机制</b>。</p>
+  <ul>
+    <li><b>本地优先：</b>所有数据先写入浏览器内的 IndexedDB 数据库（通过 Dexie 管理），没有网络也能完整使用。</li>
+    <li><b>端到端加密同步：</b>需要跨设备时，数据在你的浏览器内用 AES-GCM 加密成密文，再同步到你自己部署的同步服务器。服务器只存密文，看不到任何内容。</li>
+    <li><b>模块互联：</b>黑板沉淀信息、录制采集现场、Jenkins 验证构建、禅道承载协作、链接负责导航、AI 负责理解与执行——模块之间通过统一的数据层和后台消息中枢互相引用、互相触发。</li>
+    <li><b>隐私边界清晰：</b>团队共享数据和个人私密数据用两把独立的密钥加密；本地-only 的数据（如行为统计）永远不会离开你的浏览器。</li>
+  </ul>
+
+  <!-- ================= 2. 全局架构 ================= -->
+  <h2 id="architecture">全局架构：五个运行环境如何协作</h2>
+  <p class="lead">DPP 不是一个单独的页面，而是一群运行在不同环境里的代码，通过明确的消息协议协作：</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 720 440">
+      <defs>
+        <marker id="arrArch" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" style="fill:var(--primary)"/>
+        </marker>
+      </defs>
+
+      <!-- 环境分区 -->
+      <rect class="zone" x="10" y="30" width="330" height="240" />
+      <text class="zone-label" x="22" y="52">扩展内 · 你的浏览器</text>
+      <rect x="10" y="300" width="330" height="120" style="fill:transparent;stroke:var(--border);stroke-dasharray:4 3;" />
+      <text class="zone-label" x="22" y="322" style="fill:var(--muted);">你访问的网页里</text>
+      <rect class="zone" x="380" y="30" width="330" height="240" />
+      <text class="zone-label" x="392" y="52">云端 · 由你或团队部署</text>
+
+      <!-- 侧边栏 -->
+      <rect class="box accent" x="30" y="70" width="140" height="70" rx="8" />
+      <text class="t" x="100" y="96" text-anchor="middle">侧边栏 Sidepanel</text>
+      <text class="s" x="100" y="113" text-anchor="middle">React 应用 · 全部功能模块 UI</text>
+      <text class="s" x="100" y="127" text-anchor="middle">设置页 / 播放器等扩展页面</text>
+
+      <!-- Background -->
+      <rect class="box accent" x="200" y="70" width="120" height="70" rx="8" />
+      <text class="t" x="260" y="96" text-anchor="middle">Background</text>
+      <text class="s" x="260" y="113" text-anchor="middle">Service Worker</text>
+      <text class="s" x="260" y="127" text-anchor="middle">消息中枢 / 定时任务</text>
+
+      <!-- Dexie -->
+      <rect class="box" x="30" y="180" width="140" height="60" rx="8" />
+      <text class="t" x="100" y="203" text-anchor="middle">Dexie 本地数据库</text>
+      <text class="s" x="100" y="220" text-anchor="middle">IndexedDB · 30+ 张表</text>
+
+      <!-- SyncEngine -->
+      <rect class="box accent" x="200" y="180" width="120" height="60" rx="8" />
+      <text class="t" x="260" y="203" text-anchor="middle">SyncEngine</text>
+      <text class="s" x="260" y="220" text-anchor="middle">钩子 · 加密 · 推拉</text>
+
+      <!-- Worker / D1 -->
+      <rect class="box" x="400" y="70" width="130" height="70" rx="8" />
+      <text class="t" x="465" y="96" text-anchor="middle">同步 Worker</text>
+      <text class="s" x="465" y="113" text-anchor="middle">Cloudflare Worker</text>
+      <text class="s" x="465" y="127" text-anchor="middle">校验令牌 · 盲存储</text>
+
+      <rect class="box" x="560" y="70" width="130" height="70" rx="8" />
+      <text class="t" x="625" y="96" text-anchor="middle">D1 数据库</text>
+      <text class="s" x="625" y="113" text-anchor="middle">append-only</text>
+      <text class="s" x="625" y="127" text-anchor="middle">操作日志</text>
+
+      <!-- 内容脚本 -->
+      <rect class="box" x="30" y="330" width="150" height="70" rx="8" />
+      <text class="t" x="105" y="356" text-anchor="middle">录制 / 控制台 / 网络</text>
+      <text class="s" x="105" y="373" text-anchor="middle">录制器 + 注入的拦截器</text>
+
+      <rect class="box" x="200" y="330" width="140" height="70" rx="8" />
+      <text class="t" x="270" y="356" text-anchor="middle">禅道 / Jenkins 页</text>
+      <text class="s" x="270" y="373" text-anchor="middle">页面增强脚本</text>
+
+      <!-- 数据/消息流：每条走独立通道，避免并行贴线 -->
+      <path class="flowline fla" d="M70 140 V176" />
+      <path class="flowline flb" d="M170 95 H196" />
+      <path class="flowline flb" d="M170 226 H196" />
+      <path class="flowline fla" d="M300 140 V176" />
+      <path class="flowline fla" d="M320 215 H380 V115 H396" />
+      <path class="flowline slow fla" d="M530 103 H556" />
+      <path class="flowline fla" d="M105 330 V280 H190 V120 H196" />
+      <path class="flowline fla" d="M270 330 V280 H348 V118 H324" />
+
+      <!-- 图例 -->
+      <text class="s" x="30" y="432">⟶ 数据 / 消息流向（动画虚线）　↔ 双向通信　··· 环境边界　方框 = 运行单元</text>
+    </svg>
+  </div>
+
+  <div class="callout">
+    <b>怎么读这张图：</b>你在侧边栏里的每次点击，最终都会变成 Dexie 里的一次数据库操作（侧边栏 ⟶ Dexie 那条线）；如果这张表开启了同步，SyncEngine 会在后台把变更加密推送到 Worker（橙色路径）；当你在页面上使用录制、禅道增强等功能时，是网页里的内容脚本在采集数据，经 Background 转发回本地库（下方的长路径）。
+  </div>
+
+  <h3>各运行环境分别负责什么</h3>
+  <div class="grid">
+    <div class="card"><div class="head">侧边栏 Sidepanel</div>
+      <p>扩展的主界面（点击工具栏图标打开）。所有功能模块的 UI 都住在这里；设置页、录像播放器、黑板页、审计页、更新日志页等是另外几个扩展页面。</p></div>
+    <div class="card"><div class="head">Background Service Worker</div>
+      <p>浏览器常驻后台。统一的消息路由器：Jenkins 请求代理、录制消息、同步指令、AI 页面任务、地址栏搜索、定时闹钟（重试/统计）都在这里处理。</p></div>
+    <div class="card"><div class="head">内容脚本</div>
+      <p>注入到你访问的网页里：录制内容脚本负责采集现场，并向页面注入控制台、网络拦截器；禅道、Jenkins 页面增强脚本在页面上注入按钮（上传录像 / 保存令牌）。</p></div>
+    <div class="card"><div class="head">同步服务器</div>
+      <p>由你自己部署的 Cloudflare Worker + D1 数据库。Worker 只校验访问令牌并把密文追加进操作日志，无法读取内容。</p></div>
+    <div class="card"><div class="head">Dexie 本地数据库</div>
+      <p>所有模块共享的 IndexedDB 数据库。表结构、版本迁移都在这里定义；业务代码必须经由统一的 db 助手读写，同步钩子才能感知到每次变更。</p></div>
+    <div class="card"><div class="head">SyncEngine 同步引擎</div>
+      <p>订阅数据库生命周期钩子，把每次变更记录成「操作」，加密、排队、批量推送、拉取合并、垃圾回收，全部在这里完成。</p></div>
+  </div>
+
+  <!-- ================= 3. 数据旅程 ================= -->
+  <h2 id="datalink">一条数据的完整旅程</h2>
+  <p class="lead">以「在黑板里新增一条内容，并在另一台电脑的 DPP 里看到它」为例：</p>
+  <ol class="flow">
+    <li>
+      <span class="rail"></span>
+      <span class="node"><svg viewBox="0 0 24 24"><path d="M4 4l7 17 2-7 7-2z"/></svg></span>
+      <div class="step"><b><span class="no">1</span>你在边栏操作</b>
+        <p>在黑板模块输入内容，失焦自动保存。每个模块（黑板/链接/Jenkins/验证器…）都有同样的入口。</p></div>
+    </li>
+    <li>
+      <span class="rail"></span>
+      <span class="node"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span>
+      <div class="step"><b><span class="no">2</span>统一入口写入本地数据库<span class="tag">Dexie / IndexedDB</span></b>
+        <p>所有业务读写必须经过 <code>src/lib/db/</code> 下的助手函数。这一步先落本地，界面立刻可见，断网也能用。</p></div>
+    </li>
+    <li>
+      <span class="rail"></span>
+      <span class="node"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M7 12a5 5 0 0 1 10 0"/><path d="M4 12a8 8 0 0 1 16 0"/></svg></span>
+      <div class="step"><b><span class="no">3</span>SyncEngine 的钩子捕获到变更</b>
+        <p>数据库生命周期钩子（creating/updating/deleting）自动把这次变更登记成一条「同步操作」：哪张表、哪种类型、主键是什么、内容是什么，写入待同步队列。</p></div>
+    </li>
+    <li>
+      <span class="rail"></span>
+      <span class="node"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span>
+      <div class="step"><b><span class="no">4</span>在浏览器内完成 AES-GCM 端到端加密<span class="tag">密钥不离机</span></b>
+        <p>推送前，敏感字段（表名、操作类型、主键、内容）在本地被加密成密文，并附上一个 <code>keyHash</code>（密钥指纹）。团队数据用团队同步密钥，个人数据用个人私钥——互不可解。</p></div>
+    </li>
+    <li>
+      <span class="rail"></span>
+      <span class="node"><svg viewBox="0 0 24 24"><path d="M12 2l10 6-10 6L2 8z"/><path d="M2 14l10 6 10-6"/></svg></span>
+      <div class="step"><b><span class="no">5</span>超长内容自动分片</b>
+        <p>单个密文超过约 2000 字符时，会被切成多个 <code>__sync_chunk__</code> 分片操作，控制单次请求体积；某一片失败只需重传那一片。</p></div>
+    </li>
+    <li>
+      <span class="rail"></span>
+      <span class="node"><svg viewBox="0 0 24 24"><path d="M16 16l4-4-4-4"/><path d="M20 12H9"/><path d="M9 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4"/></svg></span>
+      <div class="step"><b><span class="no">6</span>批量推送到你的同步服务器<span class="tag">Cloudflare Worker</span></b>
+        <p>同步引擎持有互斥锁，每批最多 50 条、请求体不超过 64KB；失败按指数退避自动重试（最多 5 次）。Worker 校验访问令牌后，把密文追加进 D1 的 append-only 操作日志。</p></div>
+    </li>
+    <li>
+      <span class="rail"></span>
+      <span class="node"><svg viewBox="0 0 24 24"><path d="M8 8l-4 4 4 4"/><path d="M4 12h11"/><path d="M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg></span>
+      <div class="step"><b><span class="no">7</span>另一台设备按游标增量拉取</b>
+        <p>每台设备记住自己的拉取位置（cursor），只下载这之后的操作；冲突一律按「本地时间戳，后到者赢（LWW）」合并，绝不使用服务器时间。</p></div>
+    </li>
+    <li>
+      <span class="node"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1L21 2"/><path d="M17 6l3 3"/></svg></span>
+      <div class="step"><b><span class="no">8</span>解密、校验、写回本地</b>
+        <p>用对应密钥解密；<code>keyHash</code> 不匹配的操作直接跳过——所以拿着团队密钥的设备永远看不到别人的个人数据。同步写入会带上 <code>tx.source === 'sync'</code> 标记，防止再次触发推送形成循环。</p></div>
+    </li>
+  </ol>
+
+  <!-- ================= 4. 同步机制 ================= -->
+  <h2 id="sync">同步机制详解</h2>
+  <p class="lead">同步是 DPP 里最核心也最容易被误解的部分。它不复制「数据快照」，而是复制「操作日志」——理解了这一点，剩下的规则都是推论。</p>
+
+  <h3>4.1 操作日志模型：同步的是「变化」，不是「结果」</h3>
+  <p>每一次数据库变更都会被登记成一条结构化的同步操作，大致包含：</p>
+  <div class="diagram">
+    <svg viewBox="0 0 700 130">
+      <rect class="box accent" x="20" y="30" width="130" height="70" rx="8" />
+      <text class="t" x="85" y="55" text-anchor="middle">table</text>
+      <text class="s" x="85" y="72" text-anchor="middle">哪张表（如 links）</text>
+      <text class="s" x="85" y="86" text-anchor="middle">同步后改写为 encrypted</text>
+      <rect class="box" x="165" y="30" width="120" height="70" rx="8" />
+      <text class="t" x="225" y="55" text-anchor="middle">type</text>
+      <text class="s" x="225" y="72" text-anchor="middle">create / update / delete</text>
+      <text class="s" x="225" y="86" text-anchor="middle">服务器上统一按 create 追加</text>
+      <rect class="box" x="300" y="30" width="120" height="70" rx="8" />
+      <text class="t" x="360" y="55" text-anchor="middle">key</text>
+      <text class="s" x="360" y="72" text-anchor="middle">记录主键</text>
+      <text class="s" x="360" y="86" text-anchor="middle">定位同一条数据</text>
+      <rect class="box" x="435" y="30" width="120" height="70" rx="8" />
+      <text class="t" x="495" y="55" text-anchor="middle">payload</text>
+      <text class="s" x="495" y="72" text-anchor="middle">变更内容（密文）</text>
+      <text class="s" x="495" y="86" text-anchor="middle">iv + ciphertext</text>
+      <rect class="box accent" x="570" y="30" width="110" height="70" rx="8" />
+      <text class="t" x="625" y="55" text-anchor="middle">keyHash</text>
+      <text class="s" x="625" y="72" text-anchor="middle">密钥指纹</text>
+      <text class="s" x="625" y="86" text-anchor="middle">解不开就跳过</text>
+    </svg>
+  </div>
+  <ul>
+    <li><b>推送（Push）：</b>引擎加锁后从待同步队列取批（每批 ≤50 条，请求体 ≤64KB），逐条加密后 POST 到 <code>/api/sync/push</code>。单批失败按 1s 起步的指数退避重试，最多 5 次；仍有失败的会由后台闹钟（Alarm）稍后补推。</li>
+    <li><b>拉取（Pull）：</b>GET <code>/api/sync/pull?cursor=…</code>，游标之前的历史不再重复下载，单次上限 1000 条、最多循环 100 页。拉到的操作按 LWW 规则应用回本地表。</li>
+    <li><b>永不硬删：</b>删除也是一条 delete 操作；本地执行的是「软删除」（记录打上 <code>deletedAt</code> 时间戳）。这样其他设备能收到「这条没了」的消息，数据也保留了恢复的可能。</li>
+    <li><b>垃圾回收：</b>本地已推送成功的操作记录保留 30 天后自动清理（回拉靠稳定的 clientId 过滤、远端操作靠幂等日志保证安全），防止 operations 表无限增长。</li>
+  </ul>
+
+  <h3>4.2 加密与密钥体系：两把钥匙，三个数据域</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 700 210">
+      <rect class="box accent" x="20" y="20" width="200" height="70" rx="8" />
+      <text class="t" x="120" y="45" text-anchor="middle">团队数据域 team</text>
+      <text class="s" x="120" y="62" text-anchor="middle">链接 / 标签 / 黑板 / 通知配置 / 素材…</text>
+      <text class="s" x="120" y="76" text-anchor="middle">团队同步密钥加密 · 共享</text>
+
+      <rect class="box accent" x="250" y="20" width="200" height="70" rx="8" />
+      <text class="t" x="350" y="45" text-anchor="middle">个人数据域 personal</text>
+      <text class="s" x="350" y="62" text-anchor="middle">验证器账户等</text>
+      <text class="s" x="350" y="76" text-anchor="middle">个人私钥加密 · 仅本人多设备</text>
+
+      <rect class="box" x="480" y="20" width="200" height="70" rx="8" />
+      <text class="t" x="580" y="45" text-anchor="middle">本地数据域 local</text>
+      <text class="s" x="580" y="62" text-anchor="middle">行为统计等</text>
+      <text class="s" x="580" y="76" text-anchor="middle">不进同步引擎 · 不出本机</text>
+
+      <text class="s" x="350" y="148" text-anchor="middle" style="font-size:11px;">同一条操作日志里，团队密文与个人密文共存，靠 keyHash 区分归属</text>
+
+      <rect class="box" x="120" y="160" width="460" height="38" rx="8" />
+      <text class="t" x="350" y="184" text-anchor="middle">Cloudflare Worker + D1：只见密文，不知表义，不持密钥</text>
+    </svg>
+  </div>
+  <ul>
+    <li><b>AES-GCM：</b>对称加密，密钥由你在设置页配置，只保存在本机浏览器里，<b>永远不会上传</b>。</li>
+    <li><b>keyHash 校验：</b>每条密文都带加密密钥的指纹。拉取端如果发现自己的密钥对不上，说明这条数据属于别人的个人域——直接跳过，不解密、不落库。</li>
+    <li><b>安全兜底：</b>归属为 personal 的数据<b>禁止</b>用团队密钥加密；没配个人私钥时，个人数据只留在本机，不上传。</li>
+    <li><b>分片：</b>大内容切成 <code>__sync_chunk__</code> 分片操作，接收端收齐后重组再解密。</li>
+    <li><b>时钟偏移检测：</b>引擎会留意本地时间与服务器时间的偏差，偏差过大时提醒你——因为 LWW 冲突解决依赖准确的时间戳。</li>
+  </ul>
+
+  <h3>4.3 冲突解决与一致性：为什么不需要服务器时间</h3>
+  <ul>
+    <li><b>LWW（Last Write Wins）：</b>同一台设备上后发生的修改覆盖先发生的；跨设备时按操作自带的<b>本地客户端时间戳</b>判定先后。每台设备的时钟只影响自己，不会被别人的慢时钟「回滚」。</li>
+    <li><b>应用规则：</b>拉来的操作若时间戳新于本地同主键记录，则覆盖；否则忽略。对测试运行（testRuns）等特殊表还有专门的合并逻辑，保留更完整的执行信息。</li>
+    <li><b>幂等与防循环：</b>同步写入统一打上 <code>tx.source === 'sync'</code> 标记，钩子据此跳过登记，杜绝「拉下来的数据又被推回去」的反馈循环。</li>
+    <li><b>断网与崩溃：</b>变更先落本地队列，同步可随时中断恢复；打开侧边栏时也会自动触发一次拉取（AutoPull）。后台的 PUSH_RETRY 闹钟负责把失败批次留到网络恢复后补推。</li>
+    <li><b>紧急出口：</b>设置页提供「重建本地数据」（清空本地团队同步数据后从服务器重新拉取；个人数据按是否配置个人私钥决定是否一并重建）与「清除同步数据」两个兜底操作，用于修复本地状态错乱。</li>
+  </ul>
+
+  <!-- ================= 5. 模块详解 ================= -->
+  <h2 id="modules">功能模块详解</h2>
+  <p class="lead">每个模块都遵循同一套范式：<b>UI（侧边栏）→ db 助手 → Dexie → （可选）同步钩子</b>。差异在于各自的数据来源与外部系统交互。</p>
+
+  <!-- AI 助手 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg><b>AI 助手</b><span class="pill">对话 + 工具执行 + 页面任务</span></div>
+    <p>不只是聊天。AI 助手通过「工具注册表」拿到操作整个 DPP 的能力：查询黑板、搜索链接、触发 Jenkins 构建、读取录制列表……并且能在高影响操作前弹出确认。</p>
+    <h4>对话如何运转</h4>
+    <ol class="detail">
+      <li><b>多模型供应商：</b>内置 Google / OpenAI / Anthropic / opencode 等多家供应商的接入层，可切换也可自填接口地址；统一走流式输出。</li>
+      <li><b>系统提示词：</b>启动时拼装当前可用工具清单、页面上下文与角色设定，告诉模型「你能做什么」。</li>
+      <li><b>工具调用循环：</b>模型返回 tool_call → 前端执行真实工具（查库/发请求）→ 把结果喂回模型 → 继续生成，直到给出最终答复。</li>
+      <li><b>会话持久化：</b>对话历史存在本地数据库，可回溯；新会话互相隔离。</li>
+    </ol>
+    <h4>内置工具族（20+ 组）</h4>
+    <p class="kv">配置与状态（aiConfig / dppConfig / session）· 数据查询与修改（blackboard / links / tags / recentActivities / hotnews）· 工程操作（jenkins / recorder / browserTask）· 测试资产（testCases / testProjects / testRuns）· 实用计算（calculator / dateTime / unitConversion / developerUtilities）· 规划与提示词（plan / prompts）。</p>
+    <h4>安全闸：工具确认</h4>
+    <p class="kv">写操作类工具（改数据、触发构建等）默认会先弹出确认卡片，展示将要发生的动作，确认后才执行；出现多个待确认工具时可以一键全部确认。若开启 YOLO 模式（AI 头部按钮），确认会被跳过、工具直接执行。</p>
+    <h4>页面任务（Browser Task）</h4>
+    <p class="kv">选择目标标签页后，AI 可驱动真实页面：侧边栏与 Background 建立长连接端口，Background 通过 PageAgent 向页面内容脚本下发指令（点击、填写、读取），页面执行结果沿原路返回给模型，形成「观察 → 决策 → 操作」的循环。任务中断后在后台可恢复。</p>
+  </div>
+
+  <!-- 黑板 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H4z"/><path d="M8 20h8"/></svg><b>黑板</b><span class="pill">团队域 · 可同步</span></div>
+    <p>碎片信息与中英文排查笔记的沉淀地。写入即同步：内容的增删改全部经 db 助手，钩子自动登记同步操作；其他设备在下一次拉取时（打开侧边栏或自动同步）就能看到更新。</p>
+    <ul>
+      <li><b>编辑：</b>Markdown 语法，失焦自动保存；支持置顶、锁定（防误改）与删除。</li>
+      <li><b>与其他模块：</b>黑板内容可被 AI 助手检索与总结（blackboard 工具族）；未来规划支持把内容标记为「个人」以用个人私钥保护。</li>
+    </ul>
+  </div>
+
+  <!-- Jenkins -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg><b>Jenkins</b><span class="pill">后台代理请求 · 团队域配置</span></div>
+    <p>在侧边栏里完成看 Job、查构建、触发构建、跟踪 Pipeline 全流程，不用在 Jenkins 网页和工具之间来回切换。</p>
+    <h4>为什么请求要走 Background</h4>
+    <p class="kv">浏览器的跨域限制会让侧边栏直接请求 Jenkins 时被 CORS 拦下。因此所有 Jenkins API 调用都被打包成消息（<code>JENKINS_*</code> 系列），由 Background 的处理器代发——必要时经代理处理器转发——再把结果带回侧边栏。令牌等敏感信息也不暴露给页面上下文。</p>
+    <h4>一次构建的完整流程</h4>
+    <ol class="detail">
+      <li><b>配置环境：</b>添加 Jenkins 地址 + API Token，支持多套环境（开发/测试/生产）切换。在 Jenkins 配置页生成新 Token 时，内容脚本会注入「保存到 DPP」按钮，一键把 Token 存入扩展（而不是替你填表）。</li>
+      <li><b>浏览：</b>拉取 Job 树/我的构建/构建队列；Job 可打标签归类。</li>
+      <li><b>触发：</b>选择 Job 与参数 → 后台请求 <code>buildWithParameters</code> → 轮询队列项拿到构建号。</li>
+      <li><b>跟踪：</b>构建状态轮询展示；支持查看 Pipeline 各阶段/节点日志、测试结果、制品下载，以及中止构建/取消排队。</li>
+      <li><b>通知联动：</b>构建结果可推送到你配置的通知渠道（见设置页「消息」）。</li>
+    </ol>
+  </div>
+
+  <!-- 录制 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><b>录制 + 禅道增强 + 播放器</b><span class="pill">跨上下文链路 · 三端协作</span></div>
+    <p>这是全应用最复杂的一条链路，横跨「目标网页 → 内容脚本 → Background → 本地库 → 禅道网页 → 播放器」六个环节：</p>
+    <div class="diagram">
+      <svg viewBox="0 0 740 260">
+      <defs>
+        <marker id="arrRec" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" style="fill:var(--primary)"/>
+        </marker>
+      </defs>
+
+        <!-- 目标网页容器 -->
+        <rect x="124" y="10" width="152" height="238" style="fill:none;stroke:var(--border);stroke-dasharray:4 3;" />
+        <text class="s" x="132" y="26">目标网页（注入内容脚本）</text>
+
+        <rect class="box accent" x="140" y="36" width="120" height="56" rx="8" />
+        <text class="t" x="200" y="58" text-anchor="middle">rrweb 录制器</text>
+        <text class="s" x="200" y="75" text-anchor="middle">DOM 快照 + 增量操作</text>
+        <text class="s" x="200" y="87" text-anchor="middle">记录页面变化</text>
+
+        <rect class="box" x="140" y="110" width="120" height="48" rx="8" />
+        <text class="t" x="200" y="130" text-anchor="middle">控制台拦截器</text>
+        <text class="s" x="200" y="146" text-anchor="middle">console.log/error/warn</text>
+
+        <rect class="box" x="140" y="174" width="120" height="58" rx="8" />
+        <text class="t" x="200" y="196" text-anchor="middle">网络拦截器</text>
+        <text class="s" x="200" y="213" text-anchor="middle">fetch / XHR / SSE</text>
+
+        <rect class="box accent" x="300" y="84" width="110" height="72" rx="8" />
+        <text class="t" x="355" y="110" text-anchor="middle">Background</text>
+        <text class="s" x="355" y="127" text-anchor="middle">汇总三路数据</text>
+        <text class="s" x="355" y="142" text-anchor="middle">写入本地库</text>
+
+        <rect class="box" x="440" y="84" width="105" height="72" rx="8" />
+        <text class="t" x="492" y="110" text-anchor="middle">Dexie</text>
+        <text class="s" x="492" y="127" text-anchor="middle">录制本地存储</text>
+        <text class="s" x="492" y="142" text-anchor="middle">不参与同步</text>
+
+        <rect class="box accent" x="570" y="20" width="130" height="60" rx="8" />
+        <text class="t" x="635" y="42" text-anchor="middle">禅道页面增强</text>
+        <text class="s" x="635" y="59" text-anchor="middle">注入「上传录像」按钮</text>
+        <text class="s" x="635" y="73" text-anchor="middle">挂 .rrweb.json 附件</text>
+
+        <rect class="box" x="570" y="160" width="130" height="60" rx="8" />
+        <text class="t" x="635" y="182" text-anchor="middle">播放器页面</text>
+        <text class="s" x="635" y="199" text-anchor="middle">rrweb-player 回放</text>
+        <text class="s" x="635" y="213" text-anchor="middle">控制台 / 网络同步展示</text>
+
+        <!-- 三路采集 → Background：各自独立入口，互不贴线 -->
+        <path class="flowline flr" d="M260 58 H280 V100 H296" />
+        <path class="flowline flr" d="M260 124 H296" />
+        <path class="flowline flr" d="M260 200 H280 V148 H296" />
+        <!-- Background → Dexie -->
+        <path class="flowline flr" d="M410 120 H436" />
+        <!-- Background → 禅道增强：提供录制列表 -->
+        <path class="flowline flr" d="M355 84 V60 H566" />
+        <!-- 禅道附件 → 播放器 -->
+        <path class="flowline slow flr" d="M635 80 V156" />
+      </svg>
+    </div>
+    <ul>
+      <li><b>三路采集：</b>rrweb 记录页面视觉与操作；控制台拦截器抓取日志（深层对象会安全克隆、超长串截断）；网络拦截器记录 fetch/XHR 的请求响应，甚至能拼接 SSE 流式正文。三者共用一个事件时间轴。</li>
+      <li><b>保存与上限：</b>录制数据经 Background 汇总写入本地库（录制不进入同步）。单次录制的网络/控制台事件设有硬上限（4000 条 / 4MB），超出部分截断并标记，防止超大录像拖垮页面；不再需要时可手动删除。</li>
+      <li><b>禅道上传：</b>打开禅道缺陷页时，增强脚本在附件区注入「上传录像」按钮——选择本地录制后直接以 <code>.rrweb.json</code> 附件形式挂到缺陷上，无需下载再上传。</li>
+      <li><b>播放：</b>播放器扩展页按 URL 加载 <code>.rrweb.json</code>（如禅道附件），画面回放、控制台日志、网络请求按时间轴联动展示。多人装了 DPP 就能直接在禅道里重现现场。</li>
+      <li><b>未保存直放：</b>后台还提供录制事件的临时缓存（5 分钟有效期），不落库的录制也能直接交给播放器页面回放。</li>
+    </ul>
+  </div>
+
+  <!-- 链接 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg><b>链接</b><span class="pill">团队域 · 可同步</span></div>
+    <p>团队共享的网址簿。</p>
+    <ul>
+      <li><b>数据模型：</b>链接与标签多对多关联，标签本身也是可同步实体，因此「哪些链接属于哪个项目/环境」在团队内保持一致。</li>
+      <li><b>检索：</b>搜索同时匹配名称、URL、标签与备注；支持置顶高频链接。</li>
+      <li><b>互联：</b>AI 助手可代为搜索与新增（links 工具族）；链接可被黑板内容、测试资产引用。</li>
+    </ul>
+  </div>
+
+  <!-- 验证器 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg><b>验证器（TOTP）</b><span class="pill">个人域 · 个人私钥加密同步</span></div>
+    <p>两步验证码生成器。它是<b>个人数据域</b>的代表：即便多人共用同一台同步服务器，同事也永远无法看到你的验证码。</p>
+    <ol class="detail">
+      <li><b>本地计算：</b>基于 TOTP 标准（RFC 6238）按密钥+时间窗口本地算出 6/8 位验证码，无需联网， secret 不发给任何服务器。</li>
+      <li><b>导入：</b>扫描当前网页的二维码（内容脚本取图、本地解码），或粘贴 <code>otpauth://</code> 链接 / Base32 密钥，支持批量。</li>
+      <li><b>安全壳：</b>可设 PIN。离开验证器、收起侧边栏或空闲超时后自动锁定，输 PIN 才能看。PIN 无法找回——遗忘时须验证个人私钥，或（未配私钥时）清空账户重来。</li>
+      <li><b>加密同步：</b>配置个人私钥后，账户数据用个人钥加密进入同步通道；只有你自己的其他设备能解开。</li>
+      <li><b>导出迁移：</b>勾选账户导出为 otpauth:// 文本复制或下载；迁移完成后建议删除明文备份并清理剪贴板。</li>
+    </ol>
+  </div>
+
+  <!-- 资讯 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg><b>资讯</b><span class="pill">每日热榜 · 本地缓存</span></div>
+    <p>聚合每日热榜与历史归档。</p>
+    <ul>
+      <li><b>数据来源：</b>按日期拉取远程的 <code>daily_hot_YYYY-MM-DD.md</code> 榜单文件，本地解析成结构化条目（标题、热度、链接、来源）。</li>
+      <li><b>缓存策略：</b>拉过的日期存入本地库，重复打开秒开；超过保留窗口的旧日期自动清理，本地不囤积。</li>
+      <li><b>交互：</b>按日期浏览与回溯历史，展开来源分组，点击条目打开原文。</li>
+    </ul>
+  </div>
+
+  <!-- 工具箱 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7l8.7 5 8.7-5"/><path d="M12 22V12"/></svg><b>工具箱</b><span class="pill">纯本地 · 即用即走</span></div>
+    <p>一组临时小工具：文本差异对比、JSON 编辑器、正则表达式测试器、时间戳转换器、树形数据对比、React Playground、Vue Playground。处理都在浏览器本地完成、不存数据，关掉即消失——与需要沉淀的数据模块形成互补。</p>
+  </div>
+
+  <!-- 消息 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><b>消息</b><span class="pill">Telegram Bot · 事件触达</span></div>
+    <p>设置页的「消息」只负责配置通道：把 DPP 里发生的事推送到通知渠道，目前支持 Telegram。</p>
+    <ol class="detail">
+      <li><b>配置目标：</b>在设置页填写机器人 Token 与接收对象；支持多个目标（如个人群、项目群）。URL 会被规范化校验，只接受 http(s)。</li>
+      <li><b>模板渲染：</b>消息正文由可编辑模板渲染，变量以 Jenkins 构建为中心：环境、任务、构建编号、结果、耗时、参数、变更、产物、日志等；默认模板用于通道试发。</li>
+      <li><b>投递：</b>经后台调用 Telegram API 发送；支持试发验证配置，失败会给出可读的错误提示。</li>
+      <li><b>触发点：</b>Jenkins 构建完成等关键事件；通道配置本身存在团队域里，团队共用一套规则，各功能模块自己保存通知模板。</li>
+    </ol>
+  </div>
+
+  <!-- 其他模块速览 -->
+  <div class="mod">
+    <div class="mod-head"><svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></svg><b>其他能力速览</b><span class="pill">藏在细节里</span></div>
+    <ul>
+      <li><b>禅道集成：</b>在禅道缺陷页注入「上传录像」按钮把本地录制挂为附件；打开 <code>.rrweb.json</code> 附件时可直接调起播放器回放现场。</li>
+      <li><b>测试资产管理：</b>测试用例以加密物料（materials）形式存储，另有测试项目与执行记录（testProjects / projectRuns / testRuns），均为团队域可同步实体；AI 助手可代为整理与生成。</li>
+      <li><b>审计历史：</b>审计模块从同步操作日志回放关键表（黑板/链接/标签/素材/测试执行等）的变更轨迹，支持分片重组，谁改了什么有据可查。</li>
+      <li><b>黑板页：</b>黑板还有一个全屏独立页面，适合长文编辑与投屏查看。</li>
+      <li><b>界面定制：</b>功能开关可以按需在设置页关掉不用的模块（极简模式），标签页支持固定与最近使用排序。</li>
+      <li><b>深色模式：</b>跟随系统或手动切换，主题偏好本地保存。</li>
+    </ul>
+  </div>
+
+  <!-- ================= 6. 附属机制 ================= -->
+  <h2 id="infra">附属机制详解</h2>
+
+  <h3>6.1 Background 消息中枢</h3>
+  <p class="lead">侧边栏、内容脚本、设置页之间不直接通信，全部经由 Background 的统一消息路由器。路由表按消息类型前缀分发：</p>
+  <div class="grid">
+    <div class="card"><div class="head">JENKINS_*</div><p>约 20 种消息：查 Job/构建/队列、触发/取消构建、Pipeline 阶段与日志、制品下载。统一由 Jenkins 处理器代发请求。</p></div>
+    <div class="card"><div class="head">RECORDER_*</div><p>录制开始/暂停/保存/事件上报；录制状态机与过期状态清理也在这里。</p></div>
+    <div class="card"><div class="head">GLOBAL_SYNC_* / AUTO_SYNC_*</div><p>手动同步（开始 / 推送 / 拉取）与自动触发推拉。侧边栏的同步按钮就是发这类消息。</p></div>
+    <div class="card"><div class="head">BROWSER_TASK_*</div><p>AI 页面任务的启动/停止/恢复/查询；另有一条长连接 Port 维持任务宿主。</p></div>
+    <div class="card"><div class="head">ZEN_FETCH_JSON</div><p>代理请求出口，用于取回禅道侧需要绕开页面限制的 JSON 数据。</p></div>
+    <div class="card"><div class="head">REMOTE_RECORDING_* / OPEN_PLAYER_TAB</div><p>录制事件的临时缓存与播放器页面打开。</p></div>
+    <div class="card"><div class="head">通用消息</div><p>OPEN_SIDE_PANEL / SAVE_JENKINS_TOKEN / CAPTURE_VISIBLE_TAB / JENKINS_VALIDATE_CONTENT_ORIGIN。</p></div>
+  </div>
+  <p class="kv">此外还有一道<b>消息鉴权</b>关卡（messageAuthorization）：不是谁发来的消息 Background 都接，敏感消息会核对发送者身份，防止恶意网页伪造扩展消息。</p>
+  <p class="kv"><b>定时闹钟（Alarms）：</b>PUSH_RETRY 负责补推失败的同步批次；ANALYTICS_FLUSH 负责定时冲刷统计事件。闹钟由浏览器托管，关掉侧边栏后依然生效。</p>
+
+  <h3>6.2 地址栏搜索（Omnibox）</h3>
+  <p class="kv">在地址栏输入 <code>dpp</code> 再加关键词（支持 <code>#标签</code> 过滤），即可搜索已收藏的链接与 Jenkins Job。回车时：命中 Job 会直接打开 Jenkins 工作台窗口，命中链接则打开对应网址——不用先点开侧边栏。</p>
+
+  <h3>6.3 数据管理</h3>
+  <ul>
+    <li><b>导出：</b>按分类（链接/黑板/配置等）打包成 JSON 下载，敏感项（个人私钥等）默认不导出。</li>
+    <li><b>导入：</b>选择分类合并进本地；Jenkins 环境等冲突配置有专门的 reconcile 逻辑，不会盲目覆盖。</li>
+    <li><b>重建：</b>清空本地团队同步数据后从服务器重新拉取，用于修复本地状态；未同步上服务器的本地团队数据会丢失，操作前有明确提示。</li>
+    <li><b>危险区：</b>一键清除全部本地数据，操作前有确认。</li>
+  </ul>
+
+  <h3>6.4 统计分析</h3>
+  <ul>
+    <li><b>事件采集：</b>功能使用事件（本地表，local 数据域）先写本地库，再由后台闹钟批量冲刷到配置的上报端点；未配置端点时只留在本地。</li>
+    <li><b>服务端看板：</b>同步 Worker 内置一个不可猜测路径的用量看板，管理员凭独立密钥查看聚合统计——只看到匿名计数，看不到任何业务内容。</li>
+  </ul>
+
+  <!-- ================= 7. 安全模型 ================= -->
+  <h2 id="security">安全模型总结</h2>
+  <div class="grid">
+    <div class="card sec"><div class="head"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>端到端加密</div>
+      <ul>
+        <li>AES-GCM 加密后才离机，密钥只在本机</li>
+        <li>服务端与管理员只见密文与计数</li>
+        <li>keyHash 校验，错钥数据自动跳过</li>
+        <li>大内容分片，逐片校验哈希</li>
+      </ul>
+    </div>
+    <div class="card sec"><div class="head"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>双密钥隔离</div>
+      <ul>
+        <li>团队密钥保护共享数据</li>
+        <li>个人私钥保护验证器等私密数据</li>
+        <li>个人数据禁止回落团队密钥</li>
+        <li>未配私钥时个人数据只留本机</li>
+      </ul>
+    </div>
+    <div class="card sec"><div class="head"><svg viewBox="0 0 24 24"><path d="M22 12H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>本地优先</div>
+      <ul>
+        <li>数据先写本地，离线完整可用</li>
+        <li>冲突按本地时间戳 LWW 解决</li>
+        <li>软删除可恢复、可追溯</li>
+        <li>local 域数据（统计）永不出机</li>
+      </ul>
+    </div>
+    <div class="card sec"><div class="head"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>操作可控</div>
+      <ul>
+        <li>AI 写操作默认需确认（YOLO 模式可自动放行）</li>
+        <li>后台消息有发送者鉴权</li>
+        <li>导出默认排除密钥类敏感项</li>
+        <li>危险操作（清库）二次确认</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="footnote">同步服务器由你自己部署（Cloudflare Worker + D1），只存密文与操作日志；开启自动同步后，数据会按设定间隔自动推拉。更多配置见设置页的「数据同步配置」。本文描述与代码实现保持一致，实现细节以源码为准。</p>
+</div>
+</body>
+</html>
