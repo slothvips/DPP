@@ -3,7 +3,7 @@ import { http, httpPost } from '@/lib/http';
 import {
   DEFAULT_CHUNK_UPLOAD_ENABLED,
   MAX_PUSH_REQUEST_BYTES,
-  MAX_SHEET_CELL_CHARS,
+  MAX_RECORD_PAYLOAD_CHARS,
   createChunkOperations,
 } from '@/lib/sync/chunks';
 import { encryptOperation } from '@/lib/sync/crypto-helpers';
@@ -135,7 +135,7 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
         }
         if (
           !chunkUploadEnabled &&
-          JSON.stringify(encrypted.payload).length > MAX_SHEET_CELL_CHARS
+          JSON.stringify(encrypted.payload).length > MAX_RECORD_PAYLOAD_CHARS
         ) {
           throw new Error(
             `Operation ${op.id} exceeds the sync payload limit while chunk upload is disabled`

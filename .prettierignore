@@ -1,3 +1,4 @@
 vendor
 src/lib/browserEngine/upstream
 pnpm-lock.yaml
+**/worker-configuration.d.ts

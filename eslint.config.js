@@ -14,7 +14,7 @@ export default tseslint.config(
       'node_modules',
       'src/vendor',
       'vendor',
-      'packages/cf-worker-googlesheet/worker-configuration.d.ts',
+      'packages/sync-worker/worker-configuration.d.ts',
     ],
   },
   {

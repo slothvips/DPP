@@ -2,7 +2,7 @@
 
 DPP 同步服务只支持 Cloudflare Worker + D1。浏览器端先加密数据，Worker 只保存密文或密文分片，不持有解密密钥。
 
-当前代码位置仍为 `packages/cf-worker-googlesheet`，这是历史目录名，不代表最终 Worker 依赖 Google Sheets。长期入口 `src/index.ts` 只绑定 D1 和 Durable Object。
+代码位于 `packages/sync-worker`，入口 `src/index.ts` 只绑定 D1 和 Durable Object。
 
 ## 架构
 
@@ -25,7 +25,7 @@ D1 负责 cursor、唯一约束、fingerprint 冲突检测、分页拉取和 pen
 | 生产 | `dpp-sync-worker` | `dpp-sync`      | `https://sync.example.com`      |
 | 测试 | `dpp-sync-test`   | `dpp-sync-test` | `https://sync-test.example.com` |
 
-生产和测试必须使用不同的 D1、`SYNC_ACCESS_TOKEN`、`MIGRATION_ADMIN_TOKEN` 和浏览器配置。
+生产和测试必须使用不同的 D1、`SYNC_ACCESS_TOKEN` 和浏览器配置。
 
 ## 前置条件
 
@@ -58,8 +58,7 @@ pnpm --filter dpp-worker exec wrangler d1 create dpp-sync-test
 
 将返回的 `database_id` 分别写入：
 
-- `packages/cf-worker-googlesheet/wrangler.toml`
-- 仅迁移旧 Google Sheet 时再同步修改 `wrangler.migration.toml`
+- `packages/sync-worker/wrangler.toml`
 
 顶层 `d1_databases` 对应生产，`env.test.d1_databases` 对应测试。D1 binding 不会从顶层继承到命名环境，两个位置都必须配置。
 
@@ -113,7 +112,7 @@ pnpm --filter dpp-worker exec wrangler secret put STATS_ADMIN_TOKEN --env test
 pnpm --filter dpp-worker exec wrangler secret put STATS_ADMIN_TOKEN
 ```
 
-管理员查看统计：浏览器打开内部路径 `https://<worker 域名>/internal/usage-insights-7c4a9f`（路径常量在 `packages/cf-worker-googlesheet/src/index.ts`），页面内输入 `STATS_ADMIN_TOKEN`。
+管理员查看统计：浏览器打开内部路径 `https://<worker 域名>/internal/usage-insights-7c4a9f`（路径常量在 `packages/sync-worker/src/index.ts`），页面内输入 `STATS_ADMIN_TOKEN`。
 
 ### 5. 生成 binding 类型并检查
 
@@ -286,73 +285,6 @@ pnpm --filter dpp-worker exec wrangler rollback
 
 Worker 回滚不会回滚 D1 schema 或数据。涉及 schema 的发布必须先备份，并提供向前兼容 migration；不要修改或删除已应用的 migration 文件。
 
-## 从旧 Google Sheet 迁移
-
-仅已有 Google Sheet 同步历史的部署需要本节。新部署直接使用 D1，不配置 Google、KV 或 `wrangler.migration.toml`。
-
-临时入口：
-
-- `src/migration.ts`
-- `src/lib/migrationCoordinator.ts`
-- `wrangler.migration.toml`
-
-迁移步骤：
-
-1. 导出并保留只读 Sheet 快照。
-2. 创建目标 D1 并应用 migration。
-3. 在目标环境配置 `GOOGLE_SERVICE_ACCOUNT`、`GOOGLE_SPREADSHEET_ID` 和 `SYNC_ACCESS_TOKEN`。
-   另外配置仅供迁移管理员使用的 `MIGRATION_ADMIN_TOKEN`，不要与同步访问令牌共用。
-4. 部署临时 Worker，正常同步此时仍走 Google Sheet。
-5. 调用 `/api/migration/lock` 启用 push 锁。
-6. 按最多 50 条调用 `/api/migration/import`，持续使用响应中的 `sourceCursor`。
-7. 从 cursor 0 再完整扫描一次，确认全部为 duplicate、没有 conflict。
-8. 核对源/目标行数、payload 字节和最大 cursor。
-9. 部署长期 D1-only Worker。
-10. 验证新写入 cursor 从历史最大值之后继续。
-
-临时 Worker 部署：
-
-```bash
-pnpm --filter dpp-worker exec wrangler deploy --config wrangler.migration.toml --env test
-pnpm --filter dpp-worker exec wrangler deploy --config wrangler.migration.toml --env ""
-```
-
-配置迁移管理员令牌（使用交互式输入）：
-
-```bash
-pnpm --filter dpp-worker exec wrangler secret put MIGRATION_ADMIN_TOKEN --config wrangler.migration.toml --env test
-pnpm --filter dpp-worker exec wrangler secret put MIGRATION_ADMIN_TOKEN --config wrangler.migration.toml --env ""
-```
-
-启用维护锁：
-
-```bash
-curl -X POST \
-  -H "X-Access-Token: $MIGRATION_ADMIN_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"locked":true}' \
-  "$SYNC_WORKER_URL/api/migration/lock"
-```
-
-导入一页：
-
-```bash
-curl -X POST \
-  -H "X-Access-Token: $MIGRATION_ADMIN_TOKEN" \
-  "$SYNC_WORKER_URL/api/migration/import?cursor=0&limit=50"
-```
-
-切换最终 Worker：
-
-```bash
-pnpm release:worker:test
-pnpm release:worker
-```
-
-D1-only Worker 接受新写入后不能直接回切 Google，因为 Sheet 不包含切换后的增量。
-
-稳定观察后可删除临时迁移入口、Google SDK、迁移配置和 Google Secrets。Google Sheet 建议先保留为只读基线，删除时间由数据所有者决定。
-
 ## 故障排查
 
 | 现象                        | 检查                                                               |
@@ -361,8 +293,6 @@ D1-only Worker 接受新写入后不能直接回切 Google，因为 Sheet 不包
 | `DB is undefined`           | `d1_databases` 是否同时配置在顶层和 `env.test`                     |
 | `no such table: operations` | 是否对对应环境应用了 D1 migration                                  |
 | push 返回 `409`             | 相同客户端操作 ID 已存在不同 fingerprint，检查客户端身份和重试数据 |
-| push 返回 `503`             | 临时迁移 Worker 的维护锁仍开启                                     |
-| 旧 cursor 拉不到数据        | 检查历史导入是否保留原 `server_seq`，以及目标最大 cursor           |
 | 自定义域名不可达            | 域名是否由当前 Cloudflare zone 托管，`routes` 是否匹配             |
 | 部署到了错误环境            | 显式使用 `--env test` 或 `--env ""`                                |
 

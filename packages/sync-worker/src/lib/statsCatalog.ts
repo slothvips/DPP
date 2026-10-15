@@ -131,7 +131,7 @@ export const STATS_CATALOG: Record<string, StatsModuleCatalogEntry> = {
       description: '打开 AI 服务配置对话框。',
     },
   }),
-  recorder: withPresence('录制回放', '开始/停止录制、打开回放、导出。', {
+  recorder: withPresence('录制', '开始/停止录制、打开回放、导出。', {
     recording_started: {
       label: '开始录制',
       description: '后台开始一次页面录制。',
@@ -149,25 +149,25 @@ export const STATS_CATALOG: Record<string, StatsModuleCatalogEntry> = {
       description: '导出录制文件。meta.via 为导出途径。',
     },
   }),
-  blackboard: withPresence('黑板', '便笺的打开与增删改。', {
+  blackboard: withPresence('黑板', '黑板内容的打开与增删改。', {
     board_opened: {
       label: '打开黑板',
       description: '进入黑板页（与 Tab 打开功能互补，偏页面级）。',
     },
     note_created: {
-      label: '新建便笺',
-      description: '创建一条黑板便笺。',
+      label: '新建内容',
+      description: '创建一条黑板内容。',
     },
     note_updated: {
-      label: '更新便笺',
+      label: '更新内容',
       description: '修改内容、置顶或锁定。meta.field 标明字段。',
     },
     note_deleted: {
-      label: '删除便笺',
-      description: '删除一条便笺。',
+      label: '删除内容',
+      description: '删除一条黑板内容。',
     },
   }),
-  hotnews: withPresence('资讯热榜', '刷新、打开条目、筛选。', {
+  hotnews: withPresence('资讯', '刷新、打开条目、筛选。', {
     feed_refreshed: {
       label: '刷新热榜',
       description: '实际请求并写入热榜。meta.trigger 为 manual / retry / empty / auto / preview。',
@@ -196,7 +196,7 @@ export const STATS_CATALOG: Record<string, StatsModuleCatalogEntry> = {
       description: '验证器页点开明文，或快捷预览首次展开明文。',
     },
   }),
-  playground: withPresence('游乐园', '工具箱各工具的打开。', {
+  playground: withPresence('工具箱', '工具箱各工具的打开。', {
     tool_opened: {
       label: '打开工具',
       description: '进入某个工具。meta.tool 为工具 id。',

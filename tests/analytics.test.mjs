@@ -7,7 +7,7 @@ import {
   StatsRateLimitError,
   assertUnderIpRateLimit,
   validateStatsBatch,
-} from '../packages/cf-worker-googlesheet/src/lib/stats.ts';
+} from '../packages/sync-worker/src/lib/stats.ts';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 let server;
@@ -183,7 +183,7 @@ test('resolveAnalyticsEndpoint follows the configured sync server', () => {
 
 test('stats catalog labels every registered analytics action', async () => {
   const { STATS_CATALOG } = await server.ssrLoadModule(
-    '/packages/cf-worker-googlesheet/src/lib/statsCatalog.ts'
+    '/packages/sync-worker/src/lib/statsCatalog.ts'
   );
   const maps = {
     links: events.LINKS_EVENTS,
@@ -229,7 +229,7 @@ test('stats catalog labels every registered analytics action', async () => {
 
 test('stats dashboard html uses Chinese labels for operators', async () => {
   const { renderStatsDashboard } = await server.ssrLoadModule(
-    '/packages/cf-worker-googlesheet/src/lib/statsDashboard.ts'
+    '/packages/sync-worker/src/lib/statsDashboard.ts'
   );
   const html = renderStatsDashboard();
   assert.match(html, /DPP 使用洞察/);

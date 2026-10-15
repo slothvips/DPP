@@ -2,9 +2,9 @@
 
 状态：待实施。
 
-本文档是一个独立的实施任务说明。执行本计划时不需要依赖其他方案文档、对话上下文或外部设计说明。目标是在现有同步协议中增加大内容分片能力：继续使用现有 push/pull 接口、现有操作表/Sheet 和一个长期同步 cursor，通过操作数据结构区分完整操作与分片操作。
+本文档是一个独立的实施任务说明。执行本计划时不需要依赖其他方案文档、对话上下文或外部设计说明。目标是在现有同步协议中增加大内容分片能力：继续使用现有 push/pull 接口、现有操作表和一个长期同步 cursor，通过操作数据结构区分完整操作与分片操作。
 
-实施 Agent 必须先阅读本文件，再阅读代码。除非本文件明确要求，不要新增专用分片接口、第二个长期 cursor、第二个 Google Sheet 或服务端解密逻辑。
+实施 Agent 必须先阅读本文件，再阅读代码。除非本文件明确要求，不要新增专用分片接口、第二个长期 cursor 或服务端解密逻辑。
 
 ## 0. 给实施 Agent 的执行约束
 
@@ -12,7 +12,7 @@
 
 - 现有普通操作的上传、拉取、加密、解密和冲突处理行为。
 - 现有接口：`POST /api/sync/push`、`GET /api/sync/pull`、`GET /api/sync/pending`。
-- 现有 SQLite `operations` 表和 Google Sheets `Operations` Sheet。
+- 现有 D1 `operations` 表。
 - 服务端只存储密文，不读取业务明文。
 - 旧客户端同步普通完整操作的能力。
 
@@ -20,7 +20,6 @@
 
 - `/api/sync/chunks/push`、`/api/sync/chunks/pull` 等分片专用接口。
 - 第二个长期同步 cursor。
-- 第二个 Google Sheets 工作表。
 - 服务端解密、重组或应用业务数据。
 - 为兼容性引入一套平行的同步引擎。
 
@@ -100,9 +99,9 @@ SyncEngine.pull()
 
 Cloudflare Worker：
 
-- `packages/cf-worker-googlesheet/src/index.ts`
-- `packages/cf-worker-googlesheet/src/lib/d1.ts`
-- `packages/cf-worker-googlesheet/src/lib/pushCoordinator.ts`
+- `packages/sync-worker/src/index.ts`
+- `packages/sync-worker/src/lib/d1.ts`
+- `packages/sync-worker/src/lib/pushCoordinator.ts`
 
 ### 1.3 服务端协议
 
@@ -137,10 +136,9 @@ Cloudflare Worker：
 
 目标：
 
-- 解决 Google Sheets 等服务商对单个大 payload 的限制。
+- 解决单个大 payload 的存储限制。
 - 不新增 push/pull 接口。
 - 不新增第二个长期同步 cursor。
-- 不新增第二个 Google Sheets 工作表。
 - 保持客户端加密，服务端只保存密文或密文片段。
 - 旧客户端继续同步普通完整操作。
 - 旧客户端升级后能够通过一次历史回放找回错过的分片。
@@ -166,7 +164,6 @@ Cloudflare Worker：
 - `/api/sync/chunks/pull`
 - `/api/sync/capabilities`
 - `operation_chunks` 表
-- `OperationChunks` Sheet
 - 长期 `lastChunkCursor`
 
 本方案仍然需要：
@@ -188,17 +185,17 @@ Cloudflare Worker：
 - `src/lib/sync/SyncEngine.apply.ts`
 - `src/lib/sync/types.ts`
 - `src/db/schema.ts`
-- `packages/cf-worker-googlesheet/src/index.ts`
-- `packages/cf-worker-googlesheet/src/lib/d1.ts`
+- `packages/sync-worker/src/index.ts`
+- `packages/sync-worker/src/lib/d1.ts`
 
 当前操作先整体 JSON 序列化并 AES-GCM 加密，再作为一个完整 payload 上传。本方案只在加密之后切分 ciphertext，不切分明文，也不分别加密每个分片。
 
 ## 5. 保守大小限制
 
-假设 Google 侧硬限制为 5000 字符/单元格，本方案使用保守值：
+本方案使用保守值：
 
 ```ts
-const MAX_SHEET_CELL_CHARS = 3000;
+const MAX_RECORD_PAYLOAD_CHARS = 3000;
 const MAX_CHUNK_CIPHERTEXT_CHARS = 2000;
 const MAX_PUSH_REQUEST_BYTES = 64 * 1024;
 ```
@@ -336,22 +333,22 @@ op-123:chunk:3  index=3  total=4
 
 不得把分片重组或解密放在服务端。
 
-### 10.2 历史 Google Sheets 兼容
+### 10.2 现有表结构与数据兼容
 
-继续使用现有 `Operations` Sheet，不新增 Sheet。
+继续使用现有 `operations` 表，不新增表。
 
-分片元数据放在现有 payload 单元格的 JSON 中，确保每个 payload 单元格不超过 3000 字符。现有 `id` 列用于保存确定性 chunk ID。
+分片元数据放在现有 payload 字段的 JSON 中，确保每个 payload 字段不超过 3000 字符。现有 `id` 列用于保存确定性 chunk ID。
 
 需要补充：
 
 - 解析并保留 `clientId`。
 - 解析 `__sync_chunk__` payload。
-- 使用 KV 或等效索引实现 chunk ID 幂等。
-- 相同 ID、相同内容时跳过重复追加。
+- 使用唯一约束实现 chunk ID 幂等。
+- 相同 ID、相同内容时跳过重复写入。
 - 相同 ID、不同内容时返回冲突。
-- 保持旧表头和已有数据兼容，不能通过重设表头破坏已有行。
+- 保持已有数据兼容，不能通过重建表破坏已有行。
 
-如果 Google Sheets Worker 不能提供可靠幂等，客户端仍需在拉取时按 chunk ID 去重，但服务端重复行会增加日志体积，应记录告警。
+如果服务端不能提供可靠幂等，客户端仍需在拉取时按 chunk ID 去重，但重复行会增加日志体积，应记录告警。
 
 ## 11. 客户端拉取流程
 
@@ -583,7 +580,6 @@ pnpm build
 
 - 新增分片专用 HTTP 接口。
 - 第二个长期同步 cursor。
-- 第二个 Google Sheets 工作表。
 - 流式 AES 加密。
 - 压缩。
 - 并发分片上传。

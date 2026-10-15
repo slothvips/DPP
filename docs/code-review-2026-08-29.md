@@ -372,9 +372,9 @@ content script 匹配所有 HTTP(S) 页面，只凭 URL hash 即尝试查询用�
 
 **位置**
 
-- [`packages/cf-worker-googlesheet/src/index.ts:60`](../packages/cf-worker-googlesheet/src/index.ts#L60)
-- [`packages/cf-worker-googlesheet/src/lib/d1.ts:147`](../packages/cf-worker-googlesheet/src/lib/d1.ts#L147)
-- [`packages/cf-worker-googlesheet/src/lib/d1.ts:213`](../packages/cf-worker-googlesheet/src/lib/d1.ts#L213)
+- [`packages/sync-worker/src/index.ts:60`](../packages/sync-worker/src/index.ts#L60)
+- [`packages/sync-worker/src/lib/d1.ts:147`](../packages/sync-worker/src/lib/d1.ts#L147)
+- [`packages/sync-worker/src/lib/d1.ts:213`](../packages/sync-worker/src/lib/d1.ts#L213)
 
 最多 50 条 operation 的限制不能阻止单条超大 JSON、深层嵌套对象或超长 id/key/keyHash。代码会执行多次 `JSON.stringify`、递归稳定排序和 fingerprint，认证用户可造成 Worker CPU/内存峰值。
 
@@ -384,24 +384,12 @@ content script 匹配所有 HTTP(S) 页面，只凭 URL hash 即尝试查询用�
 
 **位置**
 
-- [`packages/cf-worker-googlesheet/src/migration.ts:139`](../packages/cf-worker-googlesheet/src/migration.ts#L139)
-- [`packages/cf-worker-googlesheet/src/lib/d1.ts:296`](../packages/cf-worker-googlesheet/src/lib/d1.ts#L296)
+- [`packages/sync-worker/src/migration.ts:139`](../packages/sync-worker/src/migration.ts#L139)
+- [`packages/sync-worker/src/lib/d1.ts:296`](../packages/sync-worker/src/lib/d1.ts#L296)
 
 迁移进度完全由调用方提供的 cursor 决定，服务端不持久化上一次源游标，也不要求页内和跨页连续。误跳页后仍可能继续导入并最终报告完成。
 
 应由服务端维护迁移状态机和 source cursor，拒绝跳跃、倒退或不连续行；结束时校验源/目标 count、min/max cursor 和缺口。
-
-### M-16 Worker 迁移读取会修改源 Sheet，模板与当前 schema 不一致
-
-**位置**
-
-- [`packages/cf-worker-googlesheet/src/lib/sheets.ts:82`](../packages/cf-worker-googlesheet/src/lib/sheets.ts#L82)
-- [`packages/cf-worker-googlesheet/src/lib/sheets.ts:93`](../packages/cf-worker-googlesheet/src/lib/sheets.ts#L93)
-- [`packages/cf-worker-googlesheet/google-sheets-template.csv:1`](../packages/cf-worker-googlesheet/google-sheets-template.csv#L1)
-
-迁移读取通过 `getOrCreateSheet`，缺少 header 时会调用 `setHeaderRow` 修改源数据。仓库模板仍只有旧字段，缺少 `clientId` 和 `keyHash`。
-
-迁移源应只读；先执行独立 schema 校验，旧格式通过显式版本转换迁移，模板必须与当前协议同步。
 
 ## 4. 低风险问题和测试覆盖缺口
 
@@ -434,8 +422,8 @@ content script 匹配所有 HTTP(S) 页面，只凭 URL hash 即尝试查询用�
 
 **位置**
 
-- [`packages/cf-worker-googlesheet/src/index.ts:91`](../packages/cf-worker-googlesheet/src/index.ts#L91)
-- [`packages/cf-worker-googlesheet/src/migration.ts:170`](../packages/cf-worker-googlesheet/src/migration.ts#L170)
+- [`packages/sync-worker/src/index.ts:91`](../packages/sync-worker/src/index.ts#L91)
+- [`packages/sync-worker/src/migration.ts:170`](../packages/sync-worker/src/migration.ts#L170)
 
 `/health` 和 `/` 在路由前统一鉴权，标准部署探针无法区分服务异常、secret 缺失和普通未授权。可提供不暴露内部状态的匿名健康响应，或使用独立 probe token。
 
@@ -449,11 +437,10 @@ content script 匹配所有 HTTP(S) 页面，只凭 URL hash 即尝试查询用�
 当前测试主要使用 Fake D1、纯 helper 和源码正则，没有覆盖：
 
 - 真实 D1 `AUTOINCREMENT`、CHECK、UNIQUE 和 batch 原子性。
-- 正常/迁移 Worker HTTP 鉴权和路由。
-- Google Sheets 空行、坏行、grid limit、429 和追加后超时。
-- 迁移 cursor 跳跃、DO 重启、断点恢复和最终源/目标一致性。
+- Worker HTTP 鉴权和路由。
+- cursor 跳跃、DO 重启和断点恢复一致性。
 
-建议使用 Workers 测试池或 Miniflare 加真实 D1 schema，并为 SheetsClient 注入可控 adapter。
+建议使用 Workers 测试池或 Miniflare 加真实 D1 schema。
 
 ## 5. 构建与验证结果
 
@@ -542,5 +529,5 @@ Chrome 和 Firefox 构建均报告：
 
 1. 统一异步 UI 操作的错误反馈和原子写入。
 2. 修复 Omnibox、标签输入和链接排序问题。
-3. 增加真实 D1、HTTP Worker 和 Sheets 迁移测试。
+3. 增加真实 D1 和 HTTP Worker 测试。
 4. 将依赖审计纳入 CI 发布门槛。

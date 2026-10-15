@@ -1,22 +1,15 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   D1SyncStore,
   SyncConflictError,
   SyncValidationError,
-} from '../packages/cf-worker-googlesheet/src/lib/d1.ts';
+} from '../packages/sync-worker/src/lib/d1.ts';
 import {
   fingerprintOperation,
   getOperationIdempotencyKey,
   validateSyncChunkOperation,
-} from '../packages/cf-worker-googlesheet/src/lib/idempotency.ts';
-import {
-  getSheetReadOffset,
-  parseSheetPayload,
-  serializeSheetPayload,
-} from '../packages/cf-worker-googlesheet/src/lib/sheets.ts';
-
+} from '../packages/sync-worker/src/lib/idempotency.ts';
 class FakeStatement {
   bindings = [];
 
@@ -234,70 +227,6 @@ test('D1 pending excludes operations from the requesting client', async () => {
   assert.equal(await store.countPending(1, 'client-2'), 0);
 });
 
-test('historical import preserves Sheet row cursors and is rerunnable', async () => {
-  const database = new FakeD1Database();
-  const store = new D1SyncStore(database);
-  const records = [
-    { serverSeq: 2, operation: encryptedOperation('op-1') },
-    { serverSeq: 101, operation: encryptedOperation('op-2') },
-  ];
-
-  assert.deepEqual(await store.importHistorical(records), {
-    inserted: 2,
-    duplicates: 0,
-    conflicts: 0,
-    maxCursor: 101,
-  });
-  assert.deepEqual(
-    database.rows.map((row) => row.server_seq),
-    [2, 101]
-  );
-  assert.deepEqual(await store.importHistorical(records), {
-    inserted: 0,
-    duplicates: 2,
-    conflicts: 0,
-    maxCursor: 101,
-  });
-  assert.deepEqual(await store.importHistorical([]), {
-    inserted: 0,
-    duplicates: 0,
-    conflicts: 0,
-    maxCursor: 101,
-  });
-  assert.equal(database.rows.length, 2);
-
-  await assert.rejects(
-    store.importHistorical([
-      { serverSeq: 102, operation: encryptedOperation('op-1', 'client-1', 'changed') },
-    ]),
-    SyncConflictError
-  );
-  assert.equal(database.rows.length, 2);
-});
-
-test('historical import rejects an occupied cursor without overwriting it', async () => {
-  const database = new FakeD1Database();
-  const store = new D1SyncStore(database);
-  await store.importHistorical([{ serverSeq: 2, operation: encryptedOperation('op-1') }]);
-  await assert.rejects(
-    store.importHistorical([{ serverSeq: 2, operation: encryptedOperation('op-2') }]),
-    SyncConflictError
-  );
-  assert.equal(database.rows[0].client_op_id, 'op-1');
-});
-
-test('historical import preserves legacy encrypted payloads larger than the push limit', async () => {
-  const database = new FakeD1Database();
-  const store = new D1SyncStore(database);
-  const operation = encryptedOperation('legacy-large');
-  operation.payload.ciphertext = 'x'.repeat(6244);
-
-  const result = await store.importHistorical([{ serverSeq: 2, operation }]);
-  assert.equal(result.inserted, 1);
-  assert.equal(JSON.parse(database.rows[0].payload_json).ciphertext.length, 6244);
-  await assert.rejects(store.push([operation], 'client-1'), SyncValidationError);
-});
-
 test('D1 Worker validates encrypted and chunk operations', async () => {
   const store = new D1SyncStore(new FakeD1Database());
   await assert.rejects(store.push([null], 'client-1'), SyncValidationError);
@@ -330,41 +259,6 @@ test('D1 Worker validates encrypted and chunk operations', async () => {
   const pulled = await store.pull(0, 10);
   assert.equal(pulled.ops[0].clientId, 'client-1');
   assert.equal(pulled.ops[0].payload.clientId, 'client-1');
-});
-
-test('legacy Google migration helpers preserve payloads and physical row offsets', () => {
-  const encrypted = { iv: 'iv', ciphertext: 'ciphertext' };
-  const serialized = serializeSheetPayload(encrypted);
-  assert.equal(typeof serialized, 'string');
-  assert.deepEqual(parseSheetPayload(serialized), encrypted);
-  assert.equal(parseSheetPayload('legacy-payload'), 'legacy-payload');
-  assert.equal(getSheetReadOffset(0), 0);
-  assert.equal(getSheetReadOffset(1), 0);
-  assert.equal(getSheetReadOffset(101), 100);
-});
-
-test('legacy Google idempotency remains stable during the temporary migration', () => {
-  const operation = { id: 'op-1', clientId: 'client-1', payload: { value: 1 } };
-  assert.equal(getOperationIdempotencyKey(operation), 'sync:op:client-1:op-1');
-  assert.equal(
-    fingerprintOperation({ ...operation, serverTimestamp: 1 }),
-    fingerprintOperation({ ...operation, serverTimestamp: 2 })
-  );
-});
-
-test('temporary migration Worker keeps push locking in its Durable Object', () => {
-  const workerSource = readFileSync(
-    new URL('../packages/cf-worker-googlesheet/src/migration.ts', import.meta.url),
-    'utf8'
-  );
-  const coordinatorSource = readFileSync(
-    new URL('../packages/cf-worker-googlesheet/src/lib/migrationCoordinator.ts', import.meta.url),
-    'utf8'
-  );
-  assert.match(coordinatorSource, /blockConcurrencyWhile/);
-  assert.match(coordinatorSource, /migration:push-locked/);
-  assert.match(workerSource, /MIGRATION_ADMIN_TOKEN/);
-  assert.match(workerSource, /pathname\.startsWith\('\/api\/migration\/'\)/);
 });
 
 test('chunk validator still enforces deterministic IDs', () => {

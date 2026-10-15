@@ -96,14 +96,11 @@ test('deleting hook writes the local tombstone before recording the delete opera
   );
   const deleting = source.match(/table\.hook\('deleting'[\s\S]*?\n    \}\);/)?.[0];
   assert.ok(deleting, 'deleting hook not found');
-  const onsuccessIndex = deleting.indexOf('this.onsuccess = function');
+  // 必须取消硬删除：否则墓碑 put 失败会先硬删同步行、丢墓碑也丢操作（AGENTS.md 禁止硬删）
+  assert.match(deleting, /return false;/);
   const tombstoneIndex = deleting.indexOf('table.put(updatedObject)');
   const recordIndex = deleting.indexOf("recordOperation(tableName, 'delete'");
-  assert.ok(
-    onsuccessIndex !== -1 && tombstoneIndex !== -1 && recordIndex !== -1,
-    'expected onsuccess, tombstone, and record steps'
-  );
-  assert.ok(onsuccessIndex < tombstoneIndex, 'tombstone must be written inside onsuccess');
+  assert.ok(tombstoneIndex !== -1 && recordIndex !== -1, 'expected tombstone and record steps');
   assert.ok(tombstoneIndex < recordIndex, 'tombstone must be written before recording the op');
 });
 
@@ -154,7 +151,7 @@ test('push flow prunes synced operations after a successful push', () => {
 
 test('sync worker rate-limits authenticated sync endpoints', () => {
   const source = readFileSync(
-    new URL('../packages/cf-worker-googlesheet/src/index.ts', import.meta.url),
+    new URL('../packages/sync-worker/src/index.ts', import.meta.url),
     'utf8'
   );
   assert.match(source, /syncRateLimitExceeded/);

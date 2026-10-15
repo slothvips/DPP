@@ -2,7 +2,7 @@ import type { EncryptedData } from '@/lib/crypto/encryption';
 import type { SyncOperation } from './types';
 
 export const SYNC_CHUNK_TABLE = '__sync_chunk__';
-export const MAX_SHEET_CELL_CHARS = 3000;
+export const MAX_RECORD_PAYLOAD_CHARS = 3000;
 export const MAX_CHUNK_CIPHERTEXT_CHARS = 2000;
 export const MAX_CHUNK_TOTAL = 10_000;
 export const MAX_PUSH_REQUEST_BYTES = 64 * 1024;
@@ -27,7 +27,7 @@ export interface SyncChunkRecord extends SyncChunkPayload {
 }
 
 export interface ChunkLimits {
-  maxCellChars?: number;
+  maxRecordPayloadChars?: number;
   maxChunkCiphertextChars?: number;
 }
 
@@ -66,9 +66,9 @@ export function parseSyncChunkPayload(value: unknown): SyncChunkPayload | null {
   if (
     value.operationId.length > 256 ||
     value.clientId.length > 256 ||
-    value.iv.length > MAX_SHEET_CELL_CHARS ||
-    value.ciphertext.length > MAX_SHEET_CELL_CHARS ||
-    value.ciphertextHash.length > MAX_SHEET_CELL_CHARS
+    value.iv.length > MAX_RECORD_PAYLOAD_CHARS ||
+    value.ciphertext.length > MAX_RECORD_PAYLOAD_CHARS ||
+    value.ciphertextHash.length > MAX_RECORD_PAYLOAD_CHARS
   ) {
     return null;
   }
@@ -123,10 +123,10 @@ export async function createChunkOperations(
     throw new Error(`Operation ${operation.id} has no encrypted payload`);
   }
 
-  const maxCellChars = limits.maxCellChars ?? MAX_SHEET_CELL_CHARS;
+  const maxRecordPayloadChars = limits.maxRecordPayloadChars ?? MAX_RECORD_PAYLOAD_CHARS;
   const maxChunkCiphertextChars = limits.maxChunkCiphertextChars ?? MAX_CHUNK_CIPHERTEXT_CHARS;
 
-  if (JSON.stringify(encrypted).length <= maxCellChars) {
+  if (JSON.stringify(encrypted).length <= maxRecordPayloadChars) {
     return [operation];
   }
 
@@ -135,7 +135,7 @@ export async function createChunkOperations(
 
   while (chunkSize > 0) {
     const payloads = createPayloads(operation, encrypted, clientId, ciphertextHash, chunkSize);
-    if (payloads.every((payload) => chunkPayloadSize(payload) <= maxCellChars)) {
+    if (payloads.every((payload) => chunkPayloadSize(payload) <= maxRecordPayloadChars)) {
       return payloads.map((payload) => ({
         id: `${operation.id}:chunk:${payload.chunkIndex}`,
         clientId,

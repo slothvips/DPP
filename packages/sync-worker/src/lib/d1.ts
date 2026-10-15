@@ -12,22 +12,10 @@ export interface SyncOperation {
   keyHash?: string;
 }
 
-export interface HistoricalOperation {
-  serverSeq: number;
-  operation: SyncOperation;
-}
-
 export interface PushResult {
   success: true;
   cursor: number;
   pushedIds: string[];
-}
-
-export interface HistoricalImportResult {
-  inserted: number;
-  duplicates: number;
-  conflicts: number;
-  maxCursor: number;
 }
 
 export interface D1Stats {
@@ -345,72 +333,6 @@ export class D1SyncStore {
     return Number(row?.count ?? 0);
   }
 
-  async importHistorical(records: HistoricalOperation[]): Promise<HistoricalImportResult> {
-    if (records.length > 50) {
-      throw new SyncValidationError('Migration batch exceeds the maximum size of 50 operations');
-    }
-    if (records.length === 0) {
-      const { maxCursor } = await this.stats();
-      return { inserted: 0, duplicates: 0, conflicts: 0, maxCursor };
-    }
-
-    const unique = new Map<string, { serialized: SerializedOperation; serverSeq: number }>();
-    let duplicates = 0;
-    for (const record of records) {
-      if (!Number.isSafeInteger(record.serverSeq) || record.serverSeq < 2) {
-        throw new SyncValidationError(`Invalid historical cursor ${record.serverSeq}`);
-      }
-      const serialized = serializeOperation(record.operation, undefined, true);
-      const key = operationKey(serialized);
-      const previous = unique.get(key);
-      if (previous) {
-        if (previous.serialized.fingerprint !== serialized.fingerprint) {
-          throw new SyncConflictError(record.operation.id);
-        }
-        duplicates++;
-        continue;
-      }
-      unique.set(key, { serialized, serverSeq: record.serverSeq });
-    }
-
-    const candidates = [...unique.values()];
-    const existing = await this.findExisting(candidates.map(({ serialized }) => serialized));
-    const occupied = await this.findByServerSeq(candidates.map(({ serverSeq }) => serverSeq));
-    const pending = candidates.filter(({ serialized, serverSeq }) => {
-      const row = existing.get(operationKey(serialized));
-      if (row) {
-        if (row.fingerprint !== serialized.fingerprint) {
-          throw new SyncConflictError(serialized.operation.id);
-        }
-        duplicates++;
-        return false;
-      }
-      const cursorRow = occupied.get(serverSeq);
-      if (cursorRow) throw new SyncConflictError(cursorRow.client_op_id);
-      return true;
-    });
-
-    const insertedCursor = await this.insert(
-      pending.map(({ serialized }) => serialized),
-      (operation) => {
-        const record = pending.find((candidate) => candidate.serialized === operation);
-        if (!record) throw new Error('Missing historical operation cursor');
-        return {
-          serverSeq: record.serverSeq,
-          serverTimestamp: operation.operation.serverTimestamp ?? operation.operation.timestamp,
-        };
-      }
-    );
-    const maxExisting = Math.max(0, ...[...existing.values()].map((row) => row.server_seq));
-
-    return {
-      inserted: pending.length,
-      duplicates,
-      conflicts: 0,
-      maxCursor: Math.max(insertedCursor, maxExisting),
-    };
-  }
-
   async stats(): Promise<D1Stats> {
     const row = await this.db
       .prepare(
@@ -446,18 +368,6 @@ export class D1SyncStore {
     return new Map(
       (result.results ?? []).map((row) => [JSON.stringify([row.client_id, row.client_op_id]), row])
     );
-  }
-
-  private async findByServerSeq(cursors: number[]): Promise<Map<number, ExistingOperationRow>> {
-    if (cursors.length === 0) return new Map();
-    const result = await this.db
-      .prepare(
-        `SELECT server_seq, client_op_id, client_id, fingerprint
-         FROM operations WHERE server_seq IN (${cursors.map(() => '?').join(', ')})`
-      )
-      .bind(...cursors)
-      .all<ExistingOperationRow>();
-    return new Map((result.results ?? []).map((row) => [row.server_seq, row]));
   }
 
   private async insert(

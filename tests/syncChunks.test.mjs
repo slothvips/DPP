@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   MAX_CHUNK_CIPHERTEXT_CHARS,
-  MAX_SHEET_CELL_CHARS,
+  MAX_RECORD_PAYLOAD_CHARS,
   createChunkOperations,
   parseSyncChunkPayload,
   reassembleChunkGroup,
@@ -45,7 +45,7 @@ test('splits large ciphertext and reassembles out of order', async () => {
   );
 
   assert.ok(chunks.length > 1);
-  assert.ok(chunks.every((chunk) => JSON.stringify(chunk.payload).length <= MAX_SHEET_CELL_CHARS));
+  assert.ok(chunks.every((chunk) => JSON.stringify(chunk.payload).length <= MAX_RECORD_PAYLOAD_CHARS));
 
   const records = chunks.map((chunk) => ({
     ...chunk.payload,
@@ -72,7 +72,7 @@ test('keeps chunks below the server limit with production-sized identities', asy
 
   assert.ok(chunks.length > 1);
   assert.ok(chunks.every((chunk) => chunk.payload.ciphertext.length <= MAX_CHUNK_CIPHERTEXT_CHARS));
-  assert.ok(chunks.every((chunk) => JSON.stringify(chunk.payload).length <= MAX_SHEET_CELL_CHARS));
+  assert.ok(chunks.every((chunk) => JSON.stringify(chunk.payload).length <= MAX_RECORD_PAYLOAD_CHARS));
 });
 
 test('does not assemble missing or duplicate indexes', async () => {

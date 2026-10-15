@@ -62,10 +62,9 @@ src/
   db/                          Dexie schema 和同步入口
   lib/sync/                    SyncEngine、加密同步和分片恢复
 packages/
-  cf-worker-googlesheet/       Cloudflare Worker（历史目录名）
+  sync-worker/                 Cloudflare Worker（pnpm 包名 dpp-worker）
     migrations/                D1 schema migration
-    src/index.ts               D1-only 长期入口
-    src/migration.ts           旧 Google Sheet 临时迁移入口
+    src/index.ts               同步接口入口
 tests/                         Node test runner 测试
 ```
 

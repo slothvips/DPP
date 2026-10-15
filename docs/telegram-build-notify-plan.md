@@ -95,7 +95,7 @@ Dexie 从当前 v31 升到 v32。只新增表，不改已有表。两张表都�
 
 ## 7. Worker 表
 
-迁移文件：`packages/cf-worker-googlesheet/migrations/0004_notify_claims.sql`。路由加在 `packages/cf-worker-googlesheet/src/index.ts`，鉴权沿用现有 `X-Access-Token` 对 `SYNC_ACCESS_TOKEN`。不新建 Durable Object。每张表的写入都放在一个 D1 事务里完成，禁止先查询、再在另一次请求里写入。
+迁移文件：`packages/sync-worker/migrations/0004_notify_claims.sql`。路由加在 `packages/sync-worker/src/index.ts`，鉴权沿用现有 `X-Access-Token` 对 `SYNC_ACCESS_TOKEN`。不新建 Durable Object。每张表的写入都放在一个 D1 事务里完成，禁止先查询、再在另一次请求里写入。
 
 ### notify_claims
 

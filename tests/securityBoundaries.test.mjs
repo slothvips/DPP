@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { parsePushRequest } from '../packages/cf-worker-googlesheet/src/lib/requestValidation.ts';
-import { detectSheetSchema } from '../packages/cf-worker-googlesheet/src/lib/sheets.ts';
+import { parsePushRequest } from '../packages/sync-worker/src/lib/requestValidation.ts';
 import {
   assertJenkinsRedirectAllowed,
   assertJenkinsUrlAllowed,
@@ -134,26 +133,4 @@ test('Worker push parser enforces body and structure budgets', async () => {
     body: JSON.stringify({ ops: [{ id: 'x', payload: 'x'.repeat(300_000) }] }),
   });
   await assert.rejects(parsePushRequest(hugeRequest), /maximum size/);
-});
-
-test('migration sheet schema detection is explicit and read-only compatible', () => {
-  assert.equal(
-    detectSheetSchema([
-      'id',
-      'clientId',
-      'table',
-      'type',
-      'key',
-      'payload',
-      'timestamp',
-      'serverTimestamp',
-      'keyHash',
-    ]),
-    'v2'
-  );
-  assert.equal(
-    detectSheetSchema(['id', 'table', 'type', 'key', 'payload', 'timestamp', 'serverTimestamp']),
-    'v1'
-  );
-  assert.throws(() => detectSheetSchema(['id', 'table']), /unsupported/);
 });
