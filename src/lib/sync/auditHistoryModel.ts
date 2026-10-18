@@ -1,11 +1,15 @@
 import type { OperationType, SyncOperation } from './types';
 
+// 只用于已知模块的展示元数据，不能作为审计记录的过滤白名单。
 export const AUDIT_TABLES = [
   'blackboard',
   'jobTags',
   'links',
   'linkTags',
   'materials',
+  'notifyConfig',
+  'notifyTargets',
+  'roleUsageEvents',
   'tags',
   'testRuns',
   'testProjects',
@@ -18,11 +22,12 @@ export type AuditSource = 'local' | 'remote';
 export type AuditEntityType =
   | AuditTable
   | 'unavailable'
+  | 'unknown'
   | 'prompt'
   | 'role'
   | 'testCase'
   | 'conversation';
-export type AuditAction = OperationType | 'restore' | 'unavailable';
+export type AuditAction = OperationType | 'restore' | 'unavailable' | 'unknown';
 
 export interface OrderedSyncOperation {
   operation: SyncOperation;
@@ -33,7 +38,7 @@ export interface OrderedSyncOperation {
 export interface AuditEntry {
   id: string;
   clientId?: string;
-  table: AuditTable | 'unavailable';
+  table: string;
   type: OperationType;
   action: AuditAction;
   key: unknown;
@@ -53,6 +58,7 @@ export function isAuditTable(table: string): table is AuditTable {
 
 export function getAuditEntryType(entry: AuditEntry): AuditEntityType {
   if (entry.table === 'unavailable') return 'unavailable';
+  if (!isAuditTable(entry.table)) return 'unknown';
   if (entry.table !== 'materials') return entry.table;
 
   const payload =
@@ -84,7 +90,16 @@ function getAuditAction(type: OperationType, before: unknown, after: unknown): A
   if (type === 'delete') return 'delete';
   if (!isDeleted(before) && isDeleted(after)) return 'delete';
   if (isDeleted(before) && !isDeleted(after)) return 'restore';
-  return type;
+  return type === 'create' || type === 'update' ? type : 'unknown';
+}
+
+export function compareAuditEntries(
+  left: { timestamp: number; order: number },
+  right: { timestamp: number; order: number }
+): number {
+  const leftTime = Number.isFinite(left.timestamp) ? left.timestamp : 0;
+  const rightTime = Number.isFinite(right.timestamp) ? right.timestamp : 0;
+  return leftTime - rightTime || left.order - right.order;
 }
 
 function normalizeEncryptedContentPaths(payload: unknown): unknown {
@@ -116,40 +131,54 @@ function normalizeEncryptedContentPaths(payload: unknown): unknown {
 
 export function buildAuditEntries(
   orderedOperations: OrderedSyncOperation[],
-  localOperationIds: ReadonlySet<string>
+  localOperationIds: ReadonlySet<string>,
+  uncertainAfterOrders: ReadonlySet<number> = new Set()
 ): AuditEntry[] {
   const snapshots = new Map<string, unknown>();
+  let historyUncertain = false;
+  const sortedUncertaintyOrders = [...uncertainAfterOrders].sort((left, right) => left - right);
+  let uncertaintyIndex = 0;
 
   return [...orderedOperations]
-    .sort(
-      (left, right) =>
-        left.operation.timestamp - right.operation.timestamp || left.order - right.order
+    .sort((left, right) =>
+      compareAuditEntries(
+        { timestamp: left.operation.timestamp, order: left.order },
+        { timestamp: right.operation.timestamp, order: right.order }
+      )
     )
-    .flatMap(({ operation, order, isChunked }) => {
-      if (!isAuditTable(operation.table) || operation.payload === undefined) return [];
-
+    .map(({ operation, order, isChunked }): AuditEntry => {
+      while (
+        uncertaintyIndex < sortedUncertaintyOrders.length &&
+        sortedUncertaintyOrders[uncertaintyIndex] < order
+      ) {
+        historyUncertain = true;
+        uncertaintyIndex += 1;
+      }
       const snapshotKey = entityKey(operation);
-      const before = snapshots.get(snapshotKey);
-      const after = normalizeEncryptedContentPaths(operation.payload);
-      snapshots.set(snapshotKey, after);
+      const hasEntityKey = Boolean(operation.table) && operation.key !== undefined;
+      const before = historyUncertain || !hasEntityKey ? undefined : snapshots.get(snapshotKey);
+      const after =
+        operation.payload === undefined
+          ? '[未知：该操作缺少变更载荷]'
+          : normalizeEncryptedContentPaths(operation.payload);
+      if (hasEntityKey) snapshots.set(snapshotKey, after);
+      if (uncertainAfterOrders.has(order)) historyUncertain = true;
 
-      return [
-        {
-          id: operation.id,
-          clientId: operation.clientId,
-          table: operation.table,
-          type: operation.type,
-          action: getAuditAction(operation.type, before, after),
-          key: operation.key,
-          timestamp: operation.timestamp,
-          serverTimestamp: operation.serverTimestamp,
-          source: localOperationIds.has(operation.id) ? ('local' as const) : ('remote' as const),
-          before,
-          after,
-          order,
-          isChunked: isChunked === true,
-        },
-      ];
+      return {
+        id: operation.id,
+        clientId: operation.clientId,
+        table: operation.table ?? '',
+        type: operation.type,
+        action: getAuditAction(operation.type, before, after),
+        key: operation.key,
+        timestamp: operation.timestamp,
+        serverTimestamp: operation.serverTimestamp,
+        source: localOperationIds.has(operation.id) ? 'local' : 'remote',
+        before,
+        after,
+        order,
+        isChunked: isChunked === true,
+      };
     })
-    .sort((left, right) => left.timestamp - right.timestamp || left.order - right.order);
+    .sort(compareAuditEntries);
 }

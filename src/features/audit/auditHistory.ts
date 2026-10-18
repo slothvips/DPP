@@ -7,7 +7,7 @@ import {
   type AuditEntry,
   type OrderedSyncOperation,
   buildAuditEntries,
-  isAuditTable,
+  compareAuditEntries,
 } from '@/lib/sync/auditHistoryModel';
 import {
   type SyncChunkRecord,
@@ -17,6 +17,7 @@ import {
 } from '@/lib/sync/chunks';
 import { loadSyncKeyring } from '@/lib/sync/syncKeys';
 import type { SyncOperation } from '@/lib/sync/types';
+import { logger } from '@/utils/logger';
 
 const HISTORY_PAGE_SIZE = 1000;
 
@@ -99,43 +100,66 @@ async function decryptAuditEntryContent(entry: AuditEntry, teamKey: CryptoKey | 
     return { entry, unavailable: false };
   }
 
-  const encryptedContent = getEncryptedContent(entry.after);
-  if (!encryptedContent) return { entry, unavailable: false };
-
-  const record = entry.after as Record<string, unknown>;
-  const metadata = { ...record };
-  delete metadata.encryptedContent;
-  if (!teamKey) {
-    return {
-      entry: { ...entry, after: { ...metadata, content: '[未配置团队密钥，无法解密业务内容]' } },
-      unavailable: true,
-    };
+  async function decryptSnapshot(
+    value: unknown
+  ): Promise<{ value: unknown; unavailable: boolean }> {
+    const encryptedContent = getEncryptedContent(value);
+    if (!encryptedContent) return { value, unavailable: false };
+    const record = value as Record<string, unknown>;
+    const metadata = { ...record };
+    delete metadata.encryptedContent;
+    if (!teamKey) {
+      return {
+        value: { ...metadata, content: '[未配置团队密钥，无法解密业务内容]' },
+        unavailable: true,
+      };
+    }
+    try {
+      return {
+        value: { ...metadata, content: await decryptData(encryptedContent, teamKey) },
+        unavailable: false,
+      };
+    } catch {
+      return { value: { ...metadata, content: '[业务内容解密失败]' }, unavailable: true };
+    }
   }
 
-  try {
-    return {
-      entry: {
-        ...entry,
-        after: { ...metadata, content: await decryptData(encryptedContent, teamKey) },
-      },
-      unavailable: false,
-    };
-  } catch {
-    return {
-      entry: { ...entry, after: { ...metadata, content: '[业务内容解密失败]' } },
-      unavailable: true,
-    };
-  }
+  const before =
+    entry.before === undefined
+      ? { value: undefined, unavailable: false }
+      : await decryptSnapshot(entry.before);
+  const after = await decryptSnapshot(entry.after);
+  return {
+    entry: {
+      ...entry,
+      before: before.value,
+      after: after.value,
+      unavailable: entry.unavailable || before.unavailable || after.unavailable,
+    },
+    unavailable: entry.unavailable === true || before.unavailable || after.unavailable,
+  };
 }
 
 async function decryptServerOperations(rawOperations: SyncOperation[]) {
-  const keyring = await loadSyncKeyring();
+  const keyring = await loadSyncKeyring().catch((error) => {
+    logger.warn('[Audit] Failed to load sync keys; preserving unavailable entries:', error);
+    return { teamKey: null, teamHash: null, personalKey: null, personalHash: null };
+  });
 
   const decoded: OrderedSyncOperation[] = [];
   const unavailableEntries: AuditEntry[] = [];
-  const chunks = new Map<string, { order: number; records: SyncChunkRecord[] }>();
+  const chunks = new Map<
+    string,
+    { order: number; records: SyncChunkRecord[]; operation: SyncOperation }
+  >();
 
   for (const [order, operation] of rawOperations.entries()) {
+    const invalidReason = (operation as SyncOperation & { __auditInvalidReason?: string })
+      .__auditInvalidReason;
+    if (invalidReason) {
+      unavailableEntries.push(createUnavailableAuditEntry(operation, order, invalidReason));
+      continue;
+    }
     if (isSyncChunkOperation(operation)) {
       const record = toSyncChunkRecord(operation);
       if (!record) {
@@ -144,7 +168,7 @@ async function decryptServerOperations(rawOperations: SyncOperation[]) {
         );
         continue;
       }
-      const group = chunks.get(record.operationId) ?? { order, records: [] };
+      const group = chunks.get(record.operationId) ?? { order, records: [], operation };
       group.records.push(record);
       chunks.set(record.operationId, group);
       continue;
@@ -158,17 +182,17 @@ async function decryptServerOperations(rawOperations: SyncOperation[]) {
   }
 
   for (const group of chunks.values()) {
-    const assembled = await reassembleChunkGroup(group.records);
+    const assembled = await reassembleChunkGroup(group.records).catch(() => null);
     if (!assembled) {
       const first = group.records[0];
       if (first) {
         unavailableEntries.push(
           createUnavailableAuditEntry(
             {
+              ...group.operation,
               id: first.operationId,
               clientId: first.clientId,
               table: 'encrypted',
-              type: 'create',
               key: first.operationId,
               keyHash: first.keyHash,
               timestamp: first.timestamp,
@@ -178,6 +202,7 @@ async function decryptServerOperations(rawOperations: SyncOperation[]) {
                 chunkTotal: first.chunkTotal,
                 ciphertextHash: first.ciphertextHash,
                 iv: first.iv,
+                receivedChunks: group.records.length,
               },
               synced: 1,
             },
@@ -189,15 +214,19 @@ async function decryptServerOperations(rawOperations: SyncOperation[]) {
       }
       continue;
     }
+    const operation = {
+      ...assembled.operation,
+      serverTimestamp: group.operation.serverTimestamp,
+    };
     try {
       decoded.push({
-        operation: await decryptAndValidate(assembled.operation, keyring),
+        operation: await decryptAndValidate(operation, keyring),
         order: group.order,
         isChunked: true,
       });
     } catch {
       unavailableEntries.push(
-        createUnavailableAuditEntry(assembled.operation, group.order, '分片业务模块无法解密', true)
+        createUnavailableAuditEntry(operation, group.order, '分片业务模块无法解密', true)
       );
     }
   }
@@ -209,7 +238,7 @@ export async function loadAuditHistory({
   signal,
   onProgress,
 }: LoadAuditHistoryOptions = {}): Promise<AuditHistoryResult> {
-  const provider = createDefaultSyncProvider(db);
+  const provider = createDefaultSyncProvider(db, { preserveInvalidPullOperations: true });
   const localOperations = (await db.operations.toArray()) as SyncOperation[];
   const localOperationIds = new Set(localOperations.map((operation) => operation.id));
   const rawOperations: SyncOperation[] = [];
@@ -229,28 +258,39 @@ export async function loadAuditHistory({
   const { decoded, unavailableEntries, teamKey } = await decryptServerOperations(rawOperations);
   throwIfAborted(signal);
 
-  const serverIds = new Set(decoded.map(({ operation }) => operation.id));
+  const decodedIds = new Set(decoded.map(({ operation }) => operation.id));
+  const unavailableIds = new Set(unavailableEntries.map((entry) => entry.id));
+  // 本地已同步但远端缺失的操作也保留；载荷被清理时显示未知，不能静默丢弃。
   const pending = localOperations
-    .filter(
-      (operation) =>
-        operation.synced === 0 &&
-        operation.payload !== undefined &&
-        isAuditTable(operation.table) &&
-        !serverIds.has(operation.id)
-    )
-    .sort((left, right) => left.timestamp - right.timestamp)
+    .filter((operation) => !decodedIds.has(operation.id) || unavailableIds.has(operation.id))
     .map((operation, index) => ({ operation, order: rawOperations.length + index }));
 
   const contentResults: Awaited<ReturnType<typeof decryptAuditEntryContent>>[] = [];
-  for (const entry of buildAuditEntries([...decoded, ...pending], localOperationIds)) {
+  const uncertainAfterOrders = new Set(unavailableEntries.map((entry) => entry.order));
+  for (const entry of buildAuditEntries(
+    [...decoded, ...pending],
+    localOperationIds,
+    uncertainAfterOrders
+  )) {
     throwIfAborted(signal);
     contentResults.push(await decryptAuditEntryContent(entry, teamKey));
   }
 
   return {
-    entries: [...contentResults.map((result) => result.entry), ...unavailableEntries].sort(
-      (left, right) => left.timestamp - right.timestamp || left.order - right.order
-    ),
+    entries: [
+      ...contentResults.map((result) => result.entry),
+      ...unavailableEntries
+        .filter((entry) => {
+          const readable = contentResults.find((result) => result.entry.id === entry.id);
+          return !readable || readable.unavailable;
+        })
+        .map(
+          (entry): AuditEntry => ({
+            ...entry,
+            source: localOperationIds.has(entry.id) ? 'local' : 'remote',
+          })
+        ),
+    ].sort(compareAuditEntries),
     rawOperationCount: rawOperations.length,
   };
 }

@@ -33,6 +33,7 @@ import {
   type AuditSource,
   type AuditTable,
   getAuditEntryType,
+  isAuditTable,
 } from '@/lib/sync/auditHistoryModel';
 import { logger } from '@/utils/logger';
 import '@unocss/reset/tailwind.css';
@@ -43,6 +44,9 @@ const TABLE_LABELS: Record<AuditTable, string> = {
   links: '链接',
   linkTags: '链接标签',
   materials: '物料',
+  notifyConfig: '消息通道配置',
+  notifyTargets: '消息接收对象',
+  roleUsageEvents: '角色使用记录',
   tags: '标签',
   testRuns: '测试执行',
   testProjects: '测试项目',
@@ -52,7 +56,8 @@ const TABLE_LABELS: Record<AuditTable, string> = {
 
 const ENTITY_TYPE_LABELS: Record<AuditEntityType, string> = {
   ...TABLE_LABELS,
-  unavailable: '无法解密',
+  unavailable: '无法解析',
+  unknown: '未知模块',
   prompt: '提示词',
   role: '角色',
   testCase: '测试用例',
@@ -64,8 +69,19 @@ const ACTION_LABELS: Record<AuditAction, string> = {
   update: '更新',
   delete: '删除',
   restore: '恢复',
-  unavailable: '无法解密',
+  unavailable: '无法解析',
+  unknown: '未知操作',
 };
+
+function getTableLabel(table: string) {
+  if (table === 'unavailable') return ENTITY_TYPE_LABELS.unavailable;
+  return isAuditTable(table) ? TABLE_LABELS[table] : `未知模块（${table || '未知表名'}）`;
+}
+
+function getEntryTypeLabel(entry: AuditEntry) {
+  const type = getAuditEntryType(entry);
+  return type === 'unknown' ? getTableLabel(entry.table) : ENTITY_TYPE_LABELS[type];
+}
 
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
   year: 'numeric',
@@ -77,6 +93,9 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('zh-CN', {
 });
 
 function formatTime(timestamp: number) {
+  if (typeof timestamp !== 'number' || !Number.isFinite(new Date(timestamp).getTime())) {
+    return '未知时间';
+  }
   return DATE_TIME_FORMATTER.format(timestamp);
 }
 
@@ -109,19 +128,19 @@ function getRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 function getEntrySummary(entry: AuditEntry) {
-  if (entry.unavailable) return `无法解密 · ${String(entry.key)}`;
   const payload = getRecord(entry.after);
+  if (entry.unavailable) return String(payload?.reason ?? '未知：无法解析变更内容');
   const value =
     payload?.name ?? payload?.title ?? payload?.label ?? payload?.content ?? payload?.status;
   if (typeof value === 'string' && value.trim()) return value.trim().replace(/\s+/g, ' ');
-  return `${ENTITY_TYPE_LABELS[getAuditEntryType(entry)]} · ${String(entry.key)}`;
+  return `${getEntryTypeLabel(entry)} · ${String(entry.key ?? '未知对象')}`;
 }
 
 function ActionIcon({ type }: { type: AuditAction }) {
   if (type === 'create') return <Plus className="h-3.5 w-3.5" />;
   if (type === 'update') return <Pencil className="h-3.5 w-3.5" />;
   if (type === 'restore') return <RotateCcw className="h-3.5 w-3.5" />;
-  if (type === 'unavailable') return <DatabaseZap className="h-3.5 w-3.5" />;
+  if (type === 'unavailable' || type === 'unknown') return <DatabaseZap className="h-3.5 w-3.5" />;
   return <Trash2 className="h-3.5 w-3.5" />;
 }
 
@@ -175,7 +194,7 @@ function AuditBlock({
       <article
         className="relative z-10 flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm"
         style={{ height: `${BLOCK_HEIGHT}px` }}
-        aria-label={`区块 ${sequence}，${ENTITY_TYPE_LABELS[getAuditEntryType(entry)]}${ACTION_LABELS[entry.action]}`}
+        aria-label={`区块 ${sequence}，${getEntryTypeLabel(entry)}${ACTION_LABELS[entry.action]}`}
       >
         <header className="flex min-w-0 items-center justify-between gap-2 border-b border-border px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-2">
@@ -202,30 +221,37 @@ function AuditBlock({
 
         <div className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-border px-3 py-2 text-xs">
           <span className="text-muted-foreground">类型</span>
-          <span className="truncate font-medium">
-            {ENTITY_TYPE_LABELS[getAuditEntryType(entry)]}
-          </span>
+          <span className="truncate font-medium">{getEntryTypeLabel(entry)}</span>
           <span className="text-muted-foreground">摘要</span>
           <span className="truncate">{getEntrySummary(entry)}</span>
           <span className="text-muted-foreground">时间</span>
           <time className="truncate">{formatTime(entry.serverTimestamp ?? entry.timestamp)}</time>
           <span className="text-muted-foreground">操作 ID</span>
           <span className="truncate font-mono text-[11px]" title={entry.id}>
-            {entry.id}
+            {entry.id || '未知'}
           </span>
           <span className="text-muted-foreground">设备 ID</span>
           <span className="truncate font-mono text-[11px]" title={entry.clientId}>
-            {entry.clientId ?? 'unknown'}
+            {entry.clientId || '未知'}
           </span>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex items-center justify-between px-3 py-1.5 text-[11px] font-medium text-muted-foreground">
-            <span>解密数据</span>
-            <span>{entry.isChunked ? '已重组完整载荷' : '完整载荷'}</span>
+            <span>变更前 / 变更后</span>
+            <span>
+              {entry.unavailable ? '内容未知' : entry.isChunked ? '分片已重组' : '变更数据'}
+            </span>
           </div>
           <pre className="min-h-0 flex-1 overflow-auto border-t border-border/70 bg-background/55 p-3 font-mono text-[11px] leading-4 text-foreground">
-            {JSON.stringify(entry.after, null, 2)}
+            {JSON.stringify(
+              {
+                变更前: entry.before === undefined ? '[未知：没有更早的记录]' : entry.before,
+                变更后: entry.after,
+              },
+              null,
+              2
+            )}
           </pre>
         </div>
       </article>
@@ -258,7 +284,7 @@ function AuditBlockRow({
     >
       {visualItems.map((item, visualIndex) => (
         <div
-          key={item.entry.id}
+          key={item.entry.order}
           className="min-w-0"
           style={
             direction === 'left' && visualIndex === 0
@@ -310,7 +336,7 @@ function AuditApp() {
   const [loadedRows, setLoadedRows] = useState(0);
   const [error, setError] = useState<string>();
   const [search, setSearch] = useState('');
-  const [tableFilter, setTableFilter] = useState<AuditTable | 'all'>('all');
+  const [tableFilter, setTableFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState<AuditAction | 'all'>('all');
   const [sourceFilter, setSourceFilter] = useState<AuditSource | 'all'>('all');
   const [startDate, setStartDate] = useState('');
@@ -318,6 +344,10 @@ function AuditApp() {
   const [dateRangePreset, setDateRangePreset] = useState<DateRangePreset>('all');
   const deferredSearch = useDeferredValue(search.trim().toLowerCase());
   const columnCount = useAuditColumnCount();
+  const tableOptions = useMemo(
+    () => [...new Set([...AUDIT_TABLES, ...entries.map((entry) => entry.table)])],
+    [entries]
+  );
   toastRef.current = toast;
 
   const loadHistory = useCallback(async () => {
@@ -366,32 +396,33 @@ function AuditApp() {
       .filter((entry) => typeFilter === 'all' || entry.action === typeFilter)
       .filter((entry) => sourceFilter === 'all' || entry.source === sourceFilter)
       .filter((entry) => {
+        if (!startDate && !endDate) return true;
         const timestamp = entry.serverTimestamp ?? entry.timestamp;
         return timestamp >= start && timestamp <= end;
       })
       .filter(
         (entry) =>
           !deferredSearch ||
-          entry.id.toLowerCase().includes(deferredSearch) ||
+          (entry.id ?? '').toLowerCase().includes(deferredSearch) ||
           getEntrySummary(entry).toLowerCase().includes(deferredSearch) ||
           JSON.stringify(entry.after).toLowerCase().includes(deferredSearch)
       )
       .reverse();
   }, [deferredSearch, endDate, entries, sourceFilter, startDate, tableFilter, typeFilter]);
 
-  const sequenceById = useMemo(
-    () => new Map(entries.map((entry, index) => [entry.id, index + 1])),
+  const sequenceByOrder = useMemo(
+    () => new Map(entries.map((entry, index) => [entry.order, index + 1])),
     [entries]
   );
   const blockRows = useMemo(() => {
     const items = filteredEntries.map((entry) => ({
       entry,
-      sequence: sequenceById.get(entry.id) ?? 0,
+      sequence: sequenceByOrder.get(entry.order) ?? 0,
     }));
     return Array.from({ length: Math.ceil(items.length / columnCount) }, (_, index) =>
       items.slice(index * columnCount, (index + 1) * columnCount)
     );
-  }, [columnCount, filteredEntries, sequenceById]);
+  }, [columnCount, filteredEntries, sequenceByOrder]);
   const counts = useMemo(
     () => ({
       create: filteredEntries.filter((entry) => entry.action === 'create').length,
@@ -496,14 +527,14 @@ function AuditApp() {
           </div>
           <select
             value={tableFilter}
-            onChange={(event) => setTableFilter(event.target.value as AuditTable | 'all')}
+            onChange={(event) => setTableFilter(event.target.value)}
             aria-label="业务模块"
             className="h-9 rounded-md border border-input bg-background px-2 text-xs"
           >
             <option value="all">全部模块</option>
-            {AUDIT_TABLES.map((table) => (
+            {tableOptions.map((table) => (
               <option key={table} value={table}>
-                {TABLE_LABELS[table]}
+                {getTableLabel(table)}
               </option>
             ))}
           </select>
@@ -518,6 +549,8 @@ function AuditApp() {
             <option value="update">更新</option>
             <option value="delete">删除</option>
             <option value="restore">恢复</option>
+            <option value="unknown">未知操作</option>
+            <option value="unavailable">无法解析</option>
           </select>
           <select
             value={sourceFilter}

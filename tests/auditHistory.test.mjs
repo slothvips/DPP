@@ -60,7 +60,7 @@ test('reconstructs complete snapshots in operation order', () => {
   );
 });
 
-test('keeps entity histories separate and ignores internal sync tables', () => {
+test('keeps every logged table and its entity history separate', () => {
   const entries = buildAuditEntries(
     [
       operation('1', 'create', { name: 'One' }, 1, 'links', 'one'),
@@ -75,10 +75,84 @@ test('keeps entity histories separate and ignores internal sync tables', () => {
     entries.map(({ id, before }) => ({ id, before })),
     [
       { id: '1', before: undefined },
+      { id: 'internal', before: undefined },
       { id: '2', before: undefined },
       { id: '3', before: { name: 'One' } },
     ]
   );
+});
+
+test('消息通道、接收对象与未来新增模块的每次变更都保留', () => {
+  const rows = [
+    operation(
+      'config-create',
+      'create',
+      { messageTemplate: '旧模板' },
+      1,
+      'notifyConfig',
+      'default'
+    ),
+    operation(
+      'config-update',
+      'update',
+      { messageTemplate: '新模板' },
+      2,
+      'notifyConfig',
+      'default'
+    ),
+    operation('target-create', 'create', { label: '运维群' }, 3, 'notifyTargets', 'target'),
+    operation(
+      'target-delete',
+      'update',
+      { label: '运维群', deletedAt: 4 },
+      4,
+      'notifyTargets',
+      'target'
+    ),
+    operation('future-create', 'create', { name: '新模块' }, 5, 'futureModule', 'item'),
+    operation('future-update', 'update', { name: '新内容' }, 6, 'futureModule', 'item'),
+  ];
+  const entries = buildAuditEntries(rows, new Set(['config-create']));
+  assert.equal(entries.length, rows.length);
+  assert.deepEqual(entries.map(getAuditEntryType), [
+    'notifyConfig',
+    'notifyConfig',
+    'notifyTargets',
+    'notifyTargets',
+    'unknown',
+    'unknown',
+  ]);
+  assert.deepEqual(entries[1].before, entries[0].after);
+  assert.equal(entries[3].action, 'delete');
+  assert.equal(entries[4].table, 'futureModule');
+  assert.deepEqual(entries[5].before, { name: '新模块' });
+});
+
+test('缺少载荷、未知操作类型和缺少元数据的记录不会消失', () => {
+  const rows = [
+    operation('missing-payload', 'update', undefined, 1, 'notifyConfig', 'default'),
+    operation('future-action', 'future-action', { value: 1 }, 2, 'futureModule', 'item'),
+    operation('no-metadata', undefined, null, undefined, undefined, undefined),
+  ];
+  delete rows[2].operation.table;
+  delete rows[2].operation.key;
+  const entries = buildAuditEntries(rows, new Set());
+  assert.equal(entries.length, 3);
+  assert.ok(entries.find(({ id }) => id === 'missing-payload').after.includes('未知'));
+  assert.equal(entries.find(({ id }) => id === 'future-action').action, 'unknown');
+  assert.equal(getAuditEntryType(entries.find(({ id }) => id === 'no-metadata')), 'unknown');
+});
+
+test('缺少对象标识的变更不会被误认为是同一个对象', () => {
+  const rows = ['one', 'two'].map((id, index) => {
+    const row = operation(id, 'update', { value: id }, index + 1);
+    delete row.operation.table;
+    delete row.operation.key;
+    return row;
+  });
+  const entries = buildAuditEntries(rows, new Set());
+  assert.equal(entries.length, 2);
+  assert.ok(entries.every((entry) => entry.before === undefined));
 });
 
 test('preserves the merged chunk marker on the single audit entry', () => {

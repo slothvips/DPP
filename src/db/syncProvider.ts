@@ -53,14 +53,48 @@ function isSyncOperation(value: unknown): value is SyncOperation {
   );
 }
 
-function parsePullResponse(value: unknown): { ops: SyncOperation[]; cursor: number | string } {
+function parsePullResponse(
+  value: unknown,
+  preserveInvalidOperations = false
+): { ops: SyncOperation[]; cursor: number | string } {
   if (typeof value !== 'object' || value === null) {
     throw new Error('Pull response is not an object');
   }
   const data = value as { ops?: unknown; cursor?: unknown };
-  if (!Array.isArray(data.ops) || !data.ops.every(isSyncOperation)) {
+  if (!Array.isArray(data.ops)) {
     throw new Error('Pull response contains invalid operations');
   }
+  const ops = preserveInvalidOperations
+    ? data.ops.map((operation, index) => {
+        if (isSyncOperation(operation)) return operation;
+        const raw =
+          typeof operation === 'object' && operation !== null
+            ? (operation as Record<string, unknown>)
+            : {};
+        return {
+          id: typeof raw.id === 'string' && raw.id ? raw.id : `audit-unknown-${index}`,
+          clientId: typeof raw.clientId === 'string' ? raw.clientId : undefined,
+          table: typeof raw.table === 'string' ? raw.table : '',
+          type:
+            raw.type === 'create' || raw.type === 'update' || raw.type === 'delete'
+              ? raw.type
+              : 'update',
+          key: raw.key,
+          payload: raw.payload,
+          timestamp: typeof raw.timestamp === 'number' ? raw.timestamp : Number.NaN,
+          serverTimestamp:
+            typeof raw.serverTimestamp === 'number' ? raw.serverTimestamp : undefined,
+          synced: 1,
+          __auditInvalidReason:
+            raw.type !== 'create' && raw.type !== 'update' && raw.type !== 'delete'
+              ? '未知操作类型'
+              : undefined,
+        } satisfies SyncOperation;
+      })
+    : data.ops.every(isSyncOperation)
+      ? data.ops
+      : null;
+  if (!ops) throw new Error('Pull response contains invalid operations');
   if (
     !(
       (typeof data.cursor === 'number' && Number.isSafeInteger(data.cursor) && data.cursor >= 0) ||
@@ -69,10 +103,13 @@ function parsePullResponse(value: unknown): { ops: SyncOperation[]; cursor: numb
   ) {
     throw new Error('Pull response contains an invalid cursor');
   }
-  return { ops: data.ops, cursor: data.cursor };
+  return { ops, cursor: data.cursor };
 }
 
-export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
+export function createDefaultSyncProvider(
+  db: DPPDatabase,
+  options: { preserveInvalidPullOperations?: boolean } = {}
+): SyncProvider {
   return {
     push: async (ops, clientId): Promise<SyncPushResult> => {
       const keyring = await loadSyncKeyring();
@@ -223,7 +260,7 @@ export function createDefaultSyncProvider(db: DPPDatabase): SyncProvider {
       if (!res.ok) {
         throw new Error(`Pull failed: ${res.status} ${res.statusText}`);
       }
-      const data = parsePullResponse(await res.json());
+      const data = parsePullResponse(await res.json(), options.preserveInvalidPullOperations);
       return { ops: data.ops, nextCursor: data.cursor };
     },
     getPendingCount: async (cursor, clientId) => {

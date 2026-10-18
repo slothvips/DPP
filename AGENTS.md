@@ -36,6 +36,7 @@ Run a single test: `node --experimental-strip-types --test tests/<name>.test.mjs
 - Table sync scope (team key / personal key / local-only) is defined in `src/lib/sync/dataScope.ts` — check it before adding tables/fields. `totpAccounts` is personal-key-only and must never fall back to the team key.
 - Dexie schema changes require a version bump + migration in `src/db/index.ts`, and coupled updates in `src/db/types*.ts`, `src/lib/db/*`, and (if synced) `src/lib/sync/*`.
 - Data-mutating AI tools must require user confirmation if the existing flow doesn't already handle it.
+- 变更审计必须展示读取到的每条逻辑同步变更，不能按表白名单或载荷是否存在过滤；缺少展示元数据时显示“未知”，解析失败时保留原因与操作标识，分片按原始操作合并。
 
 ## Worker (dpp-worker)
 
