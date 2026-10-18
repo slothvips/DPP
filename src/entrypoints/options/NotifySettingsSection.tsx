@@ -417,7 +417,7 @@ function NotifyTargetCard({
             <Input
               aria-label="chat_id"
               data-testid="notify-target-chat-id"
-              placeholder="-1001234567890"
+              placeholder="-1001234567890，或贴 t.me/c/… 链接"
               value={target.chatId}
               disabled={busy}
               onChange={(event) => onChange({ chatId: event.target.value })}

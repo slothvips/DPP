@@ -1,6 +1,13 @@
 export const JENKINS_BUILD_SCOPE = 'jenkins-build';
 
-const CHAT_ID = /^-?\d+$/;
+const DASH = /[\u2010-\u2015\u2212]/g;
+/** 空格、换行、零宽字符、BOM、软连字符等：出现在 chat_id 里一律当没看见。 */
+const INVISIBLE = /[\s\p{Cf}]/gu;
+const MAX_CHAT_ID_INPUT_LENGTH = 256;
+const PRIVATE_LINK =
+  /^(?:https?:\/\/)?(?:www\.)?t(?:elegram)?\.me\/c\/(\d+)(?:\/\d+)?\/?(?:[?#].*)?$/i;
+const ANY_LINK = /t(?:elegram)?\.me\/|tg:\/\//i;
+const CHAT_ID_PREFIX = /^(?:id|chat[_-]?id)[:=]([+-]?\d+)$/i;
 
 /** 协议和主机小写、去掉默认端口、查询串、片段，以及路径末尾的一个斜杠。 */
 export function canonicalHttpUrl(raw: string): string | null {
@@ -21,15 +28,39 @@ export function canonicalHttpUrl(raw: string): string | null {
   return url.href;
 }
 
-/** 纯数字 chat_id 去掉前导零。`@username` 不能保存。 */
-export function canonicalChatId(raw: string): string | null {
-  const trimmed = raw.trim();
-  if (!CHAT_ID.test(trimmed) || trimmed.length > 64) return null;
+/** 数字归一化：去掉前导零、统一负号，超过 64 位视为无效。 */
+function toChatId(value: string): string | null {
+  if (value.length > 64 || !/^[+-]?\d+$/.test(value)) return null;
   try {
-    return BigInt(trimmed).toString();
+    return BigInt(value).toString();
   } catch {
     return null;
   }
+}
+
+/**
+ * 从用户输入里宽泛地取 chat_id：
+ * - 全角数字、空格、引号、零宽字符、`Id: 123` 之类前缀都无所谓；
+ * - `t.me/c/<内部id>[/<消息id>]` 私群/频道链接换算成 `-100<内部id>`；
+ * - `@username`、`t.me/<群名>`、邀请链接没有数字可取，拒绝（用户名会变，投递去重按 id 走），
+ *   同时避免把消息序号当成 chat_id；
+ * - 出现多个不同数字时拒绝，不猜。
+ */
+export function canonicalChatId(raw: string): string | null {
+  if (raw.length > MAX_CHAT_ID_INPUT_LENGTH) return null;
+
+  const text = raw.normalize('NFKC').replace(DASH, '-').replace(INVISIBLE, '');
+  if (!text) return null;
+
+  const privateLink = text.match(PRIVATE_LINK);
+  if (privateLink) {
+    const internalId = privateLink[1].replace(/^0+(?=\d)/, '');
+    return toChatId(`-100${internalId}`);
+  }
+  if (ANY_LINK.test(text)) return null;
+
+  const unquoted = text.replace(/^["'`]+|["'`]+$/g, '');
+  return toChatId(unquoted.match(CHAT_ID_PREFIX)?.[1] ?? unquoted);
 }
 
 export async function sha256Hex(text: string): Promise<string> {

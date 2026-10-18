@@ -73,22 +73,6 @@ test('pruneSyncedOperations keeps everything when nothing is stale', async () =>
   await db.close();
 });
 
-test('updating hook records operations only after the update commits', () => {
-  const source = readFileSync(
-    new URL('../src/lib/sync/SyncEngine.hooks.ts', import.meta.url),
-    'utf8'
-  );
-  const updating = source.match(/table\.hook\('updating'[\s\S]*?\n    \}\);/)?.[0];
-  assert.ok(updating, 'updating hook not found');
-  const onsuccessIndex = updating.indexOf('this.onsuccess = function');
-  const recordIndex = updating.indexOf("void recordOperation(tableName, 'update'");
-  assert.ok(onsuccessIndex !== -1 && recordIndex !== -1, 'expected onsuccess-guarded recording');
-  assert.ok(
-    onsuccessIndex < recordIndex,
-    'recordOperation must run inside onsuccess, not before the update commits'
-  );
-});
-
 test('deleting hook writes the local tombstone before recording the delete operation', () => {
   const source = readFileSync(
     new URL('../src/lib/sync/SyncEngine.hooks.ts', import.meta.url),

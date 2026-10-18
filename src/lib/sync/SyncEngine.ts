@@ -55,6 +55,7 @@ export class SyncEngine {
   private _lastError: string | null = null;
   private _lastSyncTime: number | null = null;
   private startupReady: Promise<void> = Promise.resolve();
+  private started = false;
   private readonly PUSH_BATCH_SIZE = 50;
   private readonly MAX_PULL_LOOPS = 100;
   private _registered = false;
@@ -143,7 +144,8 @@ export class SyncEngine {
     });
   }
 
-  public register() {
+  public register(options: { start?: boolean } = {}) {
+    const start = options.start ?? true;
     this.startupReady = registerSyncEngine({
       db: this.db,
       tables: this.tables,
@@ -151,10 +153,22 @@ export class SyncEngine {
       setRegistered: (value) => {
         this._registered = value;
       },
-      processDeferredOperations: () => this.processDeferredOperations(),
+      ...(start ? { processDeferredOperations: () => this.processDeferredOperations() } : {}),
       recordOperation: (table, type, key, payload) =>
         this.recordOperation(table, type, key, payload),
     });
+    this.started = start;
+  }
+
+  public start() {
+    if (this.started) return this.startupReady;
+
+    this.started = true;
+    this.startupReady = this.processDeferredOperations();
+    this.startupReady.catch((error) => {
+      logger.error('[Sync] Failed to process deferred operations on startup:', error);
+    });
+    return this.startupReady;
   }
 
   public async recordOperation(table: string, type: OperationType, key: unknown, payload: unknown) {

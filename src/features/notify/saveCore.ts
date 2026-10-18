@@ -45,9 +45,14 @@ export async function saveNotifyConfigWith(
   ports: SaveNotifyPorts
 ): Promise<void> {
   const targets: SavedNotifyTarget[] = [];
-  for (const target of draft.targets) {
+  for (const [index, target] of draft.targets.entries()) {
     const chatId = canonicalChatId(target.chatId);
-    if (!chatId) throw new Error('chat_id 必须是数字');
+    if (!chatId) {
+      const title = target.label.trim();
+      throw new Error(
+        `第 ${index + 1} 个接收对象${title ? `「${title}」` : ''}的 chat_id 取不到数字（填的是 "${target.chatId.trim()}"）`
+      );
+    }
     if (target.kind !== 'user' && target.kind !== 'group') throw new Error('接收对象类型无效');
     if (!target.id) throw new Error('接收对象缺少 id');
     const subscriptions = normalizeNotifySubscriptions(target.subscriptions);

@@ -38,23 +38,27 @@ export function registerSyncHooks({
       const objectWithTimestamp = { ...object, updatedAt: now };
 
       this.onsuccess = function (resultKey: unknown) {
-        queueMicrotask(() => {
-          if (!isRegistered()) {
-            return;
-          }
+        // 嵌套事务共用底层 IDB 事务，必须等最外层提交后才记录同步操作。
+        transaction.idbtrans.addEventListener(
+          'complete',
+          () => {
+            if (!isRegistered()) {
+              return;
+            }
 
-          let payload = objectWithTimestamp;
-          if (_primKey === undefined && resultKey !== undefined) {
-            payload = { ...objectWithTimestamp, id: resultKey };
-          }
+            let payload = objectWithTimestamp;
+            if (_primKey === undefined && resultKey !== undefined) {
+              payload = { ...objectWithTimestamp, id: resultKey };
+            }
 
-          void recordOperation(tableName, 'create', resultKey, payload);
-        });
+            void recordOperation(tableName, 'create', resultKey, payload);
+          },
+          { once: true }
+        );
       };
     });
 
-    // 必须用 function 形式挂 onsuccess：等 update 事务真正提交后再记录操作，
-    // 否则事务 abort（约束冲突等）会产生本地未生效、却被推送出去的幽灵 op。
+    // 单条请求成功后事务仍可能回滚，必须同时等待底层事务提交。
     table.hook('updating', function (modifications, primaryKey, object, transaction) {
       if (!isRegistered()) {
         return;
@@ -67,13 +71,17 @@ export function registerSyncHooks({
 
       const updatedObject = { ...object, ...modifications, updatedAt: Date.now() };
       this.onsuccess = function () {
-        queueMicrotask(() => {
-          if (!isRegistered()) {
-            return;
-          }
+        transaction.idbtrans.addEventListener(
+          'complete',
+          () => {
+            if (!isRegistered()) {
+              return;
+            }
 
-          void recordOperation(tableName, 'update', primaryKey, updatedObject);
-        });
+            void recordOperation(tableName, 'update', primaryKey, updatedObject);
+          },
+          { once: true }
+        );
       };
     });
 

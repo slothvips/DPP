@@ -12,7 +12,6 @@ import { DataManagementSection } from './DataManagementSection';
 import { ExportSettingsDialog } from './ExportSettingsDialog';
 import { FeatureTogglesSection } from './FeatureTogglesSection';
 import { FooterLinks } from './FooterLinks';
-import { HowItWorksSection } from './HowItWorksSection';
 import { ImportSettingsDialog } from './ImportSettingsDialog';
 import { NotifySettingsSection } from './NotifySettingsSection';
 import { SyncSettingsSection } from './SyncSettingsSection';
@@ -73,8 +72,7 @@ function OptionsApp() {
         </div>
 
         <div className="space-y-8">
-          <HowItWorksSection />
-
+          {/* 暂时隐藏「DPP 是如何工作的」区块，组件保留在 HowItWorksSection.tsx */}
           <FeatureTogglesSection
             disabled={settingsLoading || featureToggleSaving}
             featureToggles={featureToggles}

@@ -107,6 +107,33 @@ test('canonical chat id strips leading zeros and rejects usernames', () => {
   assert.equal(canonicalChatId(' 0123 '), '123');
   assert.equal(canonicalChatId('-0123'), '-123');
   assert.equal(canonicalChatId('@name'), null);
+  assert.equal(canonicalChatId('@ops123456789'), null);
+  assert.equal(canonicalChatId('prefix123456789'), null);
+});
+
+test('canonical chat id is lenient about sloppy numeric input', () => {
+  assert.equal(canonicalChatId('１２３４５６'), '123456');
+  assert.equal(canonicalChatId('１２３ 456'), '123456');
+  assert.equal(canonicalChatId('123\u200B456'), '123456');
+  assert.equal(canonicalChatId('Id: 123456789'), '123456789');
+  assert.equal(canonicalChatId('chat_id=-1001234567890'), '-1001234567890');
+  assert.equal(canonicalChatId('−123'), '-123');
+  assert.equal(canonicalChatId('"123456"'), '123456');
+  assert.equal(canonicalChatId('https://t.me/c/01234567890/15'), '-1001234567890');
+  assert.equal(canonicalChatId('t.me/c/1234567890'), '-1001234567890');
+  assert.equal(canonicalChatId('https://t.me/groupname'), null);
+  assert.equal(canonicalChatId('https://t.me/+AbCdEf'), null);
+  assert.equal(canonicalChatId('https://evil.example/?next=t.me/c/1234567890'), null);
+  assert.equal(canonicalChatId(`t.me/c/${'1'.repeat(65)}`), null);
+  assert.equal(canonicalChatId('123 and 456'), null);
+  assert.equal(canonicalChatId('abc'), null);
+});
+
+test('canonical chat id rejects non-decimal and quote-only input', () => {
+  for (const input of ['0x123', '0b101', '0o77', '""', "''", '`', '"0x123"']) {
+    assert.equal(canonicalChatId(input), null, input);
+  }
+  assert.equal(canonicalChatId('+00123'), '123');
 });
 
 test('kv increase inserts, refuses smaller or equal values, and any may overwrite', async () => {

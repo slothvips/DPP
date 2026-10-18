@@ -12,7 +12,7 @@ interface RegisterSyncEngineOptions {
   tables: string[];
   isRegistered: () => boolean;
   setRegistered: (value: boolean) => void;
-  processDeferredOperations: () => Promise<void>;
+  processDeferredOperations?: () => Promise<void>;
   recordOperation: (
     table: string,
     type: OperationType,
@@ -35,16 +35,18 @@ export function registerSyncEngine({
   }
 
   setRegistered(true);
-  const startup = processDeferredOperations();
-  startup.catch((error) => {
-    logger.error('[Sync] Failed to process deferred operations on startup:', error);
-  });
-
   registerSyncHooks({
     db,
     tables,
     isRegistered,
     recordOperation,
+  });
+
+  if (!processDeferredOperations) return Promise.resolve();
+
+  const startup = processDeferredOperations();
+  startup.catch((error) => {
+    logger.error('[Sync] Failed to process deferred operations on startup:', error);
   });
   return startup;
 }

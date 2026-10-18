@@ -6,10 +6,15 @@ import { createDefaultSyncProvider } from './syncProvider';
 import type { DPPDatabase } from './types';
 
 let syncEngineInstance: SyncEngine | null = null;
+let syncEngineStarted = false;
 let personalBootstrapStarted = false;
 let roleUsageBackfillStarted = false;
 
-export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null> {
+export async function getSyncEngine(
+  db: DPPDatabase,
+  options: { start?: boolean } = {}
+): Promise<SyncEngine | null> {
+  const start = options.start ?? true;
   if (!syncEngineInstance) {
     syncEngineInstance = new SyncEngine(
       db,
@@ -30,7 +35,16 @@ export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null>
       ],
       createDefaultSyncProvider(db)
     );
-    syncEngineInstance.register();
+    syncEngineInstance.register({ start });
+    syncEngineStarted = start;
+  }
+
+  if (start && !syncEngineStarted && syncEngineInstance) {
+    syncEngineInstance.start();
+    syncEngineStarted = true;
+  }
+
+  if (start && syncEngineInstance) {
     if (!roleUsageBackfillStarted) {
       roleUsageBackfillStarted = true;
       void backfillRoleUsageEvents().catch(() => {
@@ -39,7 +53,7 @@ export async function getSyncEngine(db: DPPDatabase): Promise<SyncEngine | null>
     }
   }
 
-  if (!personalBootstrapStarted && syncEngineInstance) {
+  if (start && !personalBootstrapStarted && syncEngineInstance) {
     personalBootstrapStarted = true;
     void ensurePersonalSyncBootstrapped(syncEngineInstance).catch(() => {
       personalBootstrapStarted = false;
